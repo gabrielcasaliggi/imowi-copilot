@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 
 from app import tickets_store
 from app.auth import cargar_tokens_desde_disco
-from app.config import APP_TITLE, CORS_ORIGINS, es_produccion, supabase_configurado, validar_config_produccion
+from app.config import APP_TITLE, CORS_ORIGINS, AUTH_SECRET, es_produccion, supabase_configurado, validar_config_produccion
 from app.knowledge import cargar_base_conocimiento, estadisticas
 from app.routers import auth_router, chat_router, tickets_router
 
@@ -84,6 +84,7 @@ async def health():
         "knowledge_bloques": kb.get("bloques", 0),
         "supabase": supabase_configurado(),
         "auth": "jwt",
+        "auth_secret_configured": bool(AUTH_SECRET),
     }
 
 

@@ -20,7 +20,10 @@ def _secret_efectivo() -> str:
     if AUTH_SECRET:
         return AUTH_SECRET
     if es_produccion():
-        raise RuntimeError("AUTH_SECRET es obligatorio cuando APP_ENV=production")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AUTH_SECRET no configurado en el servidor (Render → Environment).",
+        )
     return "dev-secret-no-usar-en-produccion"
 
 
