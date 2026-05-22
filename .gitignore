@@ -1,0 +1,14 @@
+.venv/
+.env
+.env.local
+__pycache__/
+*.pyc
+*.pyo
+.Python
+data/
+.cursor/
+*.log
+.DS_Store
+
+# config.js generado en build Netlify (local usa el del repo con URL vacía)
+# config.js

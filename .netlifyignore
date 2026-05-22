@@ -1,0 +1,25 @@
+# Backend Python — no publicar en Netlify (solo frontend estático)
+.venv/
+app/
+data/
+__pycache__/
+*.py
+*.pyc
+requirements.txt
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env
+.env.*
+!.env.example
+supabase/
+scripts/
+render.yaml
+README.md
+.cursor/
+.git/
+
+# KB y docs van en la API (Render), no en el sitio estático
+Base_de_Conocimiento_Tickets.md
+DEPLOY.md
+DEPLOY-NETLIFY-SUPABASE.md
