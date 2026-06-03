@@ -502,6 +502,10 @@
                         </div>
                     </div>
                     <p id="panel-hint" class="text-[9px] text-slate-600 mt-2.5 text-center"></p>
+                    <button type="button" id="btn-escalar-noc"
+                        class="hidden w-full mt-3 py-2.5 rounded-xl text-xs font-bold border border-amber-500/50 text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-colors">
+                        Registrar caso en NOC
+                    </button>
                 </div>
                 <!-- Mis Tickets -->
                 <div class="flex-1 flex flex-col min-h-0">
@@ -1016,6 +1020,34 @@
             $('panel-hint').className = listo
                 ? 'text-[9px] text-cyan-400/80 mt-2.5 text-center font-medium'
                 : 'text-[9px] text-slate-600 mt-2.5 text-center';
+            actualizarBotonEscalar();
+        }
+
+        function datosTicketCompletos() {
+            const t = ticketEnFormacion;
+            return !!(
+                (t.cooperativa || '').trim() &&
+                (t.linea || '').trim() &&
+                (t.dispositivo || '').trim() &&
+                ((t.descripcion || t.falla_tecnica || '').trim())
+            );
+        }
+
+        function conversacionIndicaEscalamiento() {
+            const t = historialChat
+                .slice(-10)
+                .map((m) => m.contenido.toLowerCase())
+                .join(' ');
+            return /escalar|registrar el caso|equipo noc|se registrar[aá]|voy a escalar|al noc|generar ticket|crear ticket|registrar ticket|persiste|sigue sin|no funciona|no se resolv|sin solucion/.test(
+                t
+            );
+        }
+
+        function actualizarBotonEscalar() {
+            const btn = $('btn-escalar-noc');
+            if (!btn) return;
+            const show = datosTicketCompletos() && !ticketSesionActiva && !conversacionCerrada;
+            btn.classList.toggle('hidden', !show);
         }
 
         function tarjetaTicketCoop(t) {
@@ -1276,11 +1308,7 @@
         }
 
         function operadorPidioEscalamiento() {
-            const ultimos = historialChat.filter((m) => m.rol === 'usuario').slice(-3);
-            const t = ultimos.map((m) => m.contenido.toLowerCase()).join(' ');
-            return /escalar|al noc|enviar al noc|generar ticket|crear ticket|registrar ticket|hacer ticket|no funciona|sigue igual|sigue sin|persiste|no se resolv|sin solucion/.test(
-                t
-            );
+            return conversacionIndicaEscalamiento();
         }
 
         async function evaluarFlujoTicket(data) {
@@ -1291,7 +1319,7 @@
             }
 
             const kbActivo = data.kb_encontrado || ticketEnFormacion.kb_encontrado;
-            if (kbActivo && !operadorPidioEscalamiento() && !data.usuario_confirmo_ok) {
+            if (kbActivo && !conversacionIndicaEscalamiento() && !data.usuario_confirmo_ok) {
                 data = {
                     ...data,
                     modo_resolucion_kb: true,
@@ -1354,43 +1382,92 @@
             $('btn-enviar').disabled = true;
             const loading = mostrarIndicadorEscritura();
 
+            let structData = null;
             try {
-                const structData = await estructurarDesdeHistorial();
-                aplicarDatosEstructurados(structData);
-                if (structData.kb_encontrado && structData.listo_para_jsc && !operadorPidioEscalamiento()) {
+                try {
+                    structData = await estructurarDesdeHistorial();
+                    aplicarDatosEstructurados(structData);
+                } catch (errStruct) {
+                    if (!datosTicketCompletos()) {
+                        throw errStruct;
+                    }
+                    structData = {
+                        ...ticketEnFormacion,
+                        listo_para_jsc: true,
+                    };
+                }
+
+                if (structData?.kb_encontrado && structData.listo_para_jsc && !conversacionIndicaEscalamiento()) {
                     ticketEnFormacion.modo_resolucion_kb = true;
                     ticketEnFormacion.requiere_ticket_noc = false;
                 }
 
-                const chatRes = await api('/api/chat', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        historial: historialChat,
-                        modulo_contexto: '',
-                        contexto_ticket: construirContextoTicket(),
-                    }),
-                });
-                quitarIndicadorEscritura();
-                agregarBurbuja(chatRes.respuesta, false);
-                historialChat.push({ rol: 'asistente', contenido: chatRes.respuesta });
-                if (chatRes.modulo_nombre) {
-                    actualizarChipModulo(chatRes.modulo_nombre, chatRes.kb_encontrado || chatRes.modo_resolucion_kb);
-                    ticketEnFormacion.modulo = chatRes.modulo_nombre;
-                    ticketEnFormacion.modulo_id = chatRes.modulo_inferido;
-                    if (chatRes.kb_encontrado) ticketEnFormacion.kb_encontrado = true;
+                try {
+                    const chatRes = await api('/api/chat', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            historial: historialChat,
+                            modulo_contexto: '',
+                            contexto_ticket: construirContextoTicket(),
+                        }),
+                    });
+                    quitarIndicadorEscritura();
+                    agregarBurbuja(chatRes.respuesta, false);
+                    historialChat.push({ rol: 'asistente', contenido: chatRes.respuesta });
+                    if (chatRes.modulo_nombre) {
+                        actualizarChipModulo(chatRes.modulo_nombre, chatRes.kb_encontrado || chatRes.modo_resolucion_kb);
+                        ticketEnFormacion.modulo = chatRes.modulo_nombre;
+                        ticketEnFormacion.modulo_id = chatRes.modulo_inferido;
+                        if (chatRes.kb_encontrado) ticketEnFormacion.kb_encontrado = true;
+                    }
+                } catch (errChat) {
+                    quitarIndicadorEscritura();
+                    agregarBurbuja(`⚠️ ${errChat.message}`, false);
                 }
+
+                if (conversacionIndicaEscalamiento() && datosTicketCompletos()) {
+                    ticketEnFormacion.requiere_ticket_noc = true;
+                    ticketEnFormacion.modo_resolucion_kb = false;
+                    ticketEnFormacion.tipo_caso = 'escalamiento';
+                    if (structData) {
+                        structData = {
+                            ...structData,
+                            requiere_ticket_noc: true,
+                            modo_resolucion_kb: false,
+                            tipo_caso: 'escalamiento',
+                        };
+                    }
+                }
+
                 await sincronizarTicketEnServidor();
-                await evaluarFlujoTicket(structData);
+                const payloadEval =
+                    structData ||
+                    (datosTicketCompletos()
+                        ? { ...ticketEnFormacion, listo_para_jsc: true }
+                        : null);
+                if (payloadEval?.listo_para_jsc) {
+                    await evaluarFlujoTicket(payloadEval);
+                }
             } catch (err) {
                 quitarIndicadorEscritura();
                 agregarBurbuja(`⚠️ ${err.message}`, false);
             } finally {
+                actualizarBotonEscalar();
                 if (!conversacionCerrada) {
                     $('user-input').disabled = false;
                     $('btn-enviar').disabled = false;
                     $('user-input').focus();
                 }
             }
+        });
+
+        $('btn-escalar-noc').addEventListener('click', async () => {
+            if (!datosTicketCompletos() || enviandoTicket) return;
+            ticketEnFormacion.requiere_ticket_noc = true;
+            ticketEnFormacion.modo_resolucion_kb = false;
+            ticketEnFormacion.tipo_caso = 'escalamiento';
+            await crearTicket('escalamiento', false);
+            renderizarPanelFormacion();
         });
 
         $('btn-nuevo-caso').addEventListener('click', abrirNuevoCaso);

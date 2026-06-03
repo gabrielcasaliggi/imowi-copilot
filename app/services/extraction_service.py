@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
+
+from fastapi import HTTPException
 
 from app.informe_noc import construir_informe_noc
 from app.knowledge import buscar_contexto
@@ -81,6 +84,13 @@ ESCALAMIENTO_FRASES = (
     "generar ticket", "crear ticket", "registrar ticket", "hacer ticket",
     "no funciona", "sigue igual", "sigue sin", "no se resolv", "persiste",
     "mismo problema", "aún no", "aun no", "no sirvio", "no sirvió", "sin solucion",
+    "voy a escalar", "se escalará", "escalar el caso", "registrar el caso",
+    "registrado para el noc", "se registrará", "equipo noc", "caso al noc",
+)
+
+_MARCAS_EQUIPO = (
+    "samsung", "iphone", "motorola", "xiaomi", "huawei", "nokia", "redmi",
+    "pixel", "oppo", "vivo", "tcl", "alcatel", "galaxy",
 )
 
 
@@ -119,9 +129,102 @@ def _usuario_confirmo_ok(historial: list[MensajeHistorial], llm_dijo: bool) -> b
     return False
 
 
-def _texto_usuario_reciente(historial: list[MensajeHistorial], n: int = 3) -> str:
-    mensajes = [m.contenido.lower() for m in historial if m.rol == "usuario"]
-    return " ".join(mensajes[-n:])
+def _texto_dialogo_reciente(historial: list[MensajeHistorial], n: int = 8) -> str:
+    return " ".join(m.contenido.lower() for m in historial[-n:])
+
+
+def _detectar_escalamiento(historial: list[MensajeHistorial]) -> bool:
+    """Operador o asistente indicaron que el caso va al NOC."""
+    return any(frase in _texto_dialogo_reciente(historial) for frase in ESCALAMIENTO_FRASES)
+
+
+def _extraer_linea(historial: list[MensajeHistorial]) -> str:
+    for m in reversed(historial):
+        if m.rol != "usuario":
+            continue
+        limpio = re.sub(r"[^\d]", "", m.contenido)
+        candidatos = re.findall(r"\d{10,11}", limpio)
+        if candidatos:
+            return candidatos[-1]
+    return ""
+
+
+def _extraer_cooperativa(historial: list[MensajeHistorial]) -> str:
+    for m in historial:
+        if m.rol != "usuario":
+            continue
+        t = m.contenido.strip()
+        b = re.search(
+            r"(?:coop(?:erativa)?|de la coop)\s+([a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]{2,40})",
+            t,
+            re.I,
+        )
+        if b:
+            nombre = b.group(1).strip().split(".")[0].split(",")[0].strip()
+            if nombre:
+                return f"Coop {nombre.title()}" if not nombre.lower().startswith("coop") else nombre.title()
+        if re.search(r"coop\s*batan", t, re.I):
+            return "Coop Batán"
+    return ""
+
+
+def _extraer_dispositivo(historial: list[MensajeHistorial]) -> str:
+    texto = " ".join(m.contenido for m in historial if m.rol == "usuario").lower()
+    match = re.search(
+        r"(samsung\s*(?:galaxy\s*)?a\d+\w*|iphone\s*\d+\w*|motorola\s*[\w\s]+|redmi\s*[\w\s]+|xiaomi\s*[\w\s]+)",
+        texto,
+        re.I,
+    )
+    if match:
+        return " ".join(match.group(1).split()).title()
+    for marca in _MARCAS_EQUIPO:
+        if marca in texto:
+            return marca.title()
+    return ""
+
+
+def _estructurar_heuristica(
+    data: EstructurarInput,
+    resultado_rag,
+    modulo_nombre: str,
+    modulo_id: str,
+) -> EstructurarResponse:
+    """Fallback sin LLM (cuota agotada o error) — usa el historial del operador."""
+    cooperativa = _extraer_cooperativa(data.historial)
+    linea = _extraer_linea(data.historial)
+    dispositivo = _extraer_dispositivo(data.historial)
+    sintomas = [m.contenido for m in data.historial if m.rol == "usuario"]
+    problema = sintomas[-1] if sintomas else ""
+    falla = construir_informe_noc(
+        problema=problema[:800],
+        datos_verificados=", ".join(
+            x for x in (f"Cooperativa {cooperativa}" if cooperativa else "", f"Línea {linea}" if linea else "", dispositivo) if x
+        ),
+    )
+    kb_ok = resultado_rag.encontrado
+    tipo = _tipo_caso("manual" if kb_ok else "escalamiento", kb_ok)
+    listo = bool(cooperativa and linea and dispositivo and falla)
+    requiere_ticket = _requiere_ticket_noc(data.historial, False, kb_ok, tipo, listo)
+    modo_resolucion = listo and kb_ok and tipo == "manual" and not requiere_ticket
+    if kb_ok and tipo == "manual":
+        modulo_nombre = "Resolución asistida — caso similar en KB"
+
+    return EstructurarResponse(
+        cooperativa=cooperativa,
+        modulo=modulo_nombre,
+        modulo_id=modulo_id,
+        linea=linea,
+        dispositivo=dispositivo,
+        descripcion=falla,
+        falla_tecnica=falla,
+        tipo_caso=tipo,
+        usuario_confirmo_ok=False,
+        listo_para_jsc=listo,
+        envio_automatico=listo and requiere_ticket,
+        kb_encontrado=kb_ok,
+        modo_resolucion_kb=modo_resolucion,
+        requiere_ticket_noc=requiere_ticket,
+    )
 
 
 def _requiere_ticket_noc(
@@ -135,10 +238,7 @@ def _requiere_ticket_noc(
         return False
     if tipo == "escalamiento" or not rag_encontrado:
         return True
-    # Con KB/manual: NO confiar en el LLM si pide ticket al completar datos.
-    # Solo escalar si el operador lo pidió en los últimos mensajes.
-    reciente = _texto_usuario_reciente(historial)
-    if any(frase in reciente for frase in ESCALAMIENTO_FRASES):
+    if _detectar_escalamiento(historial):
         return True
     return False
 
@@ -185,14 +285,19 @@ async def estructurar_ticket(data: EstructurarInput) -> EstructurarResponse:
         contexto_rag=contexto_rag,
     )
 
-    vacio = EstructurarResponse(modulo=modulo_nombre, modulo_id=modulo_id)
-
+    parsed: dict | None = None
     try:
         raw = chat_completion([{"role": "user", "content": prompt}], temperature=0.1, json_mode=True)
         parsed = json.loads(raw)
+    except HTTPException as e:
+        if e.status_code in (503, 500, 413):
+            return _estructurar_heuristica(data, resultado_rag, modulo_nombre, modulo_id)
+        raise
     except (json.JSONDecodeError, Exception):
-        tipo = "escalamiento" if not resultado_rag.encontrado else "manual"
-        return EstructurarResponse(modulo=modulo_nombre, modulo_id=modulo_id, tipo_caso=tipo)
+        return _estructurar_heuristica(data, resultado_rag, modulo_nombre, modulo_id)
+
+    if not isinstance(parsed, dict):
+        return _estructurar_heuristica(data, resultado_rag, modulo_nombre, modulo_id)
 
     cooperativa = _normalizar_campo(parsed.get("cooperativa"))
     linea = _normalizar_campo(parsed.get("linea"))
