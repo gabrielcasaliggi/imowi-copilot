@@ -9,6 +9,7 @@ from app.api.v1.deps import get_tenant_context
 from app.api.v1.schemas import TenantContext
 from app.estate import repository as repo
 from app.estate.database import get_db
+from app.estate.executive_analytics import executive_analytics
 
 router = APIRouter(tags=["Analytics"])
 
@@ -37,6 +38,18 @@ def ticket_analytics(
         "hasta": hasta_dt.isoformat() if hasta_dt else None,
         **stats,
     }
+
+
+@router.get("/analytics/executive")
+def executive_dashboard(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    if not ctx.es_admin_imowi:
+        raise HTTPException(403, "Analytics ejecutivo exclusivo del administrador NOC")
+    admin_global = ctx.organizacion_slug == "imowi"
+    data = executive_analytics(db, admin_global=admin_global, org_id=ctx.organizacion_id)
+    return {"tenant": ctx.organizacion_slug, **data}
 
 
 def _parse_desde(value: str | None) -> datetime | None:

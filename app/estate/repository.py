@@ -421,6 +421,7 @@ def update_ticket(
     if not t:
         return None
     event_org_id = t.organizacion_id
+    era_abierto = t.estado != "Cerrado"
     cambios = []
     if estado:
         t.estado = estado
@@ -456,6 +457,16 @@ def update_ticket(
     t.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(t)
+    if era_abierto and t.estado == "Cerrado":
+        from app.estate.learning_loop import procesar_cierre_ticket
+
+        org = get_org_by_id(db, event_org_id)
+        procesar_cierre_ticket(
+            db,
+            event_org_id,
+            t,
+            org_name=org.nombre if org else "",
+        )
     if cambios:
         detalle = "; ".join(cambios)
         add_ticket_event(
@@ -682,21 +693,25 @@ def ticket_stats(
         coop_stats = []
 
     top_lineas = _conteo([t for t in tickets if t.linea], lambda t: t.linea)[:8]
-    backlog = sorted(
-        [
-            {
-                "id": t.id,
-                "linea": t.linea,
-                "nivel": t.nivel,
-                "estado": t.estado,
-                "categoria": t.categoria,
-                "horas_abierto": round(_horas_entre(_as_aware(t.created_at), now), 1) if t.created_at else 0,
-            }
-            for t in tickets
-            if t.estado != "Cerrado"
-        ],
-        key=lambda x: -x["horas_abierto"],
-    )[:8]
+    from app.estate.ticket_intelligence import calcular_prioridad
+
+    backlog_items = []
+    for t in tickets:
+        if t.estado == "Cerrado":
+            continue
+        intel = calcular_prioridad(t, pool=tickets)
+        backlog_items.append({
+            "id": t.id,
+            "linea": t.linea,
+            "nivel": t.nivel,
+            "estado": t.estado,
+            "categoria": t.categoria,
+            "horas_abierto": intel["horas_abierto"],
+            "priority_score": intel["priority_score"],
+            "risk_level": intel["risk_level"],
+            "next_best_action": intel["next_best_action"],
+        })
+    backlog = sorted(backlog_items, key=lambda x: (-x["priority_score"], -x["horas_abierto"]))[:8]
 
     return {
         "resumen": {

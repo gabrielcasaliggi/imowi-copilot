@@ -81,6 +81,11 @@ function ReclamosSimilares({
               <StatusBadge value={t.estado} />
             </div>
             <p className="text-[10px] text-slate-500 truncate">{t.categoria}</p>
+            {t.resolucion_tecnica && (
+              <p className="text-[10px] text-emerald-400/80 mt-1 line-clamp-2">
+                Resuelto: {t.resolucion_tecnica}
+              </p>
+            )}
           </button>
         ))}
       </div>
@@ -132,14 +137,17 @@ function FichaJscCard() {
 function TicketAdminForm({
   ticket,
   onUpdate,
+  onExplain,
 }: {
   ticket: NonNullable<ReturnType<typeof useApp>["ticketFormacion"]>;
   onUpdate: (body: Record<string, string>) => Promise<void>;
+  onExplain: () => Promise<string | null>;
 }) {
   const [nivel, setNivel] = useState(ticket.nivel || "N1");
   const [estado, setEstado] = useState(ticket.estado || "Abierto");
   const [proveedor, setProveedor] = useState(ticket.proveedor || "");
   const [resolucion, setResolucion] = useState("");
+  const [explicacion, setExplicacion] = useState("");
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -150,6 +158,11 @@ function TicketAdminForm({
       resolucion_tecnica: resolucion,
       destino: nivel === "N2" ? "imowi_noc" : "cooperativa",
     });
+  };
+
+  const onExplainClick = async () => {
+    const txt = await onExplain();
+    if (txt) setExplicacion(txt);
   };
 
   return (
@@ -195,12 +208,24 @@ function TicketAdminForm({
       >
         Actualizar seguimiento
       </button>
+      <button
+        type="button"
+        onClick={onExplainClick}
+        className="w-full py-1.5 rounded border border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-[11px]"
+      >
+        Explicar escalamiento
+      </button>
+      {explicacion && (
+        <pre className="text-[10px] text-slate-400 whitespace-pre-wrap bg-slate-950/80 p-2 rounded max-h-32 overflow-y-auto">
+          {explicacion}
+        </pre>
+      )}
     </form>
   );
 }
 
 function TicketFormacionCard() {
-  const { ticketFormacion, isAdmin, updateTicket } = useApp();
+  const { ticketFormacion, isAdmin, updateTicket, explainEscalation } = useApp();
 
   if (!ticketFormacion) {
     return (
@@ -211,6 +236,7 @@ function TicketFormacionCard() {
   }
 
   const t = ticketFormacion;
+  const intel = t.intelligence;
 
   return (
     <GlassCard title="Ticket en formación">
@@ -219,6 +245,21 @@ function TicketFormacionCard() {
           <span className="text-slate-500">ID</span>
           <span className="text-cyan-300">{t.id}</span>
         </div>
+        {intel && intel.priority_score > 0 && (
+          <div className="p-2 rounded-lg border border-violet-500/20 bg-violet-500/5 space-y-1">
+            <div className="flex justify-between">
+              <span className="text-violet-300">Score IA</span>
+              <span>
+                {intel.priority_score}/100 · {intel.risk_level}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400">Causa: {intel.probable_cause}</p>
+            <p className="text-[10px] text-cyan-400/90">→ {intel.next_best_action}</p>
+            {intel.risk_reasons?.length ? (
+              <p className="text-[9px] text-slate-600">{intel.risk_reasons.join(" · ")}</p>
+            ) : null}
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-slate-500">Línea</span>
           <span>{t.linea}</span>
@@ -244,6 +285,7 @@ function TicketFormacionCard() {
             key={t.id}
             ticket={t}
             onUpdate={updateTicket}
+            onExplain={explainEscalation}
           />
         ) : (
           <p className="text-[10px] text-slate-500 pt-2 mt-2 border-t border-slate-800">
@@ -266,6 +308,8 @@ export function SupportSidebar() {
     ticketsSimilares,
     ticketExistente,
     flujoOperativo,
+    ticketKbSuggestions,
+    ticketLearning,
   } = useApp();
 
   return (
@@ -275,6 +319,26 @@ export function SupportSidebar() {
       <FlujoOperativoPanel flujo={flujoOperativo} />
       <FichaJscCard />
       <TicketFormacionCard />
+
+      {ticketKbSuggestions.length > 0 && (
+        <GlassCard title="KB sugerida">
+          <div className="space-y-2">
+            {ticketKbSuggestions.map((k) => (
+              <div key={k.id} className="text-xs border-b border-slate-800/60 pb-2 last:border-0">
+                <p className="text-slate-200">{k.titulo}</p>
+                <p className="text-[10px] text-slate-500">{k.categoria}</p>
+                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{k.fragmento}</p>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+
+      {ticketLearning?.postmortem && (
+        <GlassCard title="Aprendizaje operativo" accent="emerald">
+          <pre className="text-[10px] text-slate-400 whitespace-pre-wrap">{ticketLearning.postmortem}</pre>
+        </GlassCard>
+      )}
 
       <ReclamosSimilares similares={ticketsSimilares} onSelect={selectTicket} />
 
@@ -345,7 +409,12 @@ export function SupportSidebar() {
               >
                 <div className="flex justify-between items-center gap-1">
                   <span className="font-mono text-cyan-300 text-[10px]">{t.id}</span>
-                  <span className="flex gap-1">
+                  <span className="flex gap-1 items-center">
+                    {t.intelligence && t.intelligence.priority_score > 0 && (
+                      <span className="text-[9px] font-mono text-amber-400">
+                        {t.intelligence.priority_score}
+                      </span>
+                    )}
                     {t.nivel && <StatusBadge value={t.nivel} />}
                     <StatusBadge value={t.estado} />
                   </span>

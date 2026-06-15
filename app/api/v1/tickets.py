@@ -5,13 +5,21 @@ from app.api.v1.deps import get_tenant_context, require_kb_admin
 from app.api.v1.schemas import TenantContext, TicketUpdateV1
 from app.estate import repository as repo
 from app.estate.database import get_db
+from app.estate.learning_loop import similares_con_resolucion, sugerir_kb
+from app.estate.ticket_intelligence import calcular_prioridad, explicar_escalamiento, ordenar_por_riesgo
 from app.services import ticket_bridge
 
 router = APIRouter(tags=["Tickets OSS/BSS"])
 
 
-def _ticket_out(t) -> dict:
+def _org_name(t) -> str:
     org = getattr(t, "organizacion", None)
+    return org.nombre if org else ""
+
+
+def _ticket_out(t, *, pool=None) -> dict:
+    org = getattr(t, "organizacion", None)
+    intel = calcular_prioridad(t, pool=pool, org_name=org.nombre if org else "")
     return {
         "id": t.id,
         "organizacion": org.nombre if org else "",
@@ -35,6 +43,7 @@ def _ticket_out(t) -> dict:
         "ticket_externo_id": getattr(t, "ticket_externo_id", ""),
         "created_at": t.created_at.isoformat() if t.created_at else "",
         "updated_at": t.updated_at.isoformat() if t.updated_at else "",
+        "intelligence": intel,
     }
 
 
@@ -66,12 +75,42 @@ def _notification_out(n) -> dict:
     }
 
 
+def _load_pool(db: Session, ctx: TenantContext) -> list:
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    return ticket_bridge.listar_tickets(db, ctx.organizacion_id, admin_global=admin_global)
+
+
 @router.get("/tickets")
 def list_tickets(ctx: TenantContext = Depends(get_tenant_context), db: Session = Depends(get_db)):
-    tickets = ticket_bridge.listar_tickets(
-        db, ctx.organizacion_id, admin_global=ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
-    )
-    return {"tenant": ctx.organizacion_slug, "tickets": [_ticket_out(t) for t in tickets]}
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    tickets = ticket_bridge.listar_tickets(db, ctx.organizacion_id, admin_global=admin_global)
+    pool = tickets
+    scored = ordenar_por_riesgo(tickets, pool=pool)
+    open_ids = {t.id for t, _ in scored}
+    rest = [t for t in tickets if t.id not in open_ids]
+    ordered = [t for t, _ in scored] + rest
+    return {
+        "tenant": ctx.organizacion_slug,
+        "tickets": [_ticket_out(t, pool=pool) for t in ordered],
+    }
+
+
+@router.get("/tickets/prioritized")
+def list_prioritized_tickets(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    if not ctx.es_admin_imowi:
+        raise HTTPException(403, "Cola priorizada exclusiva del administrador NOC")
+    pool = _load_pool(db, ctx)
+    scored = ordenar_por_riesgo(pool, pool=pool)
+    return {
+        "tenant": ctx.organizacion_slug,
+        "cola": [
+            {"ticket": _ticket_out(t, pool=pool), "intelligence": intel}
+            for t, intel in scored[:20]
+        ],
+    }
 
 
 @router.get("/tickets/notifications")
@@ -113,6 +152,7 @@ def get_ticket_detail(
     t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    pool = _load_pool(db, ctx)
     eventos = repo.list_ticket_events(
         db,
         ctx.organizacion_id,
@@ -120,10 +160,27 @@ def get_ticket_detail(
         solo_visibles=not ctx.es_admin_imowi,
         admin_global=admin_global,
     )
+    org_id = t.organizacion_id
+    similares = similares_con_resolucion(db, org_id, t)
+    kb = sugerir_kb(db, org_id, t)
+    learning = None
+    if t.estado == "Cerrado":
+        org = repo.get_org_by_id(db, org_id)
+        learning = {
+            "kb_sugerencias": kb,
+            "similares_resueltos": [s for s in similares if s.get("cerrado")],
+            "postmortem": next(
+                (e.detalle for e in eventos if e.tipo == "aprendizaje"),
+                None,
+            ),
+        }
     return {
         "tenant": ctx.organizacion_slug,
-        "ticket": _ticket_out(t),
+        "ticket": _ticket_out(t, pool=pool),
         "timeline": [_event_out(e) for e in eventos],
+        "tickets_similares": similares,
+        "kb_sugerencias": kb,
+        "learning": learning,
     }
 
 
@@ -143,6 +200,23 @@ def get_ticket_timeline(
     return {"tenant": ctx.organizacion_slug, "ticket_id": ticket_id, "timeline": [_event_out(e) for e in eventos]}
 
 
+@router.get("/tickets/{ticket_id}/explain-escalation")
+def explain_escalation(
+    ticket_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    if not ctx.es_admin_imowi:
+        raise HTTPException(403, "Solo el administrador NOC puede generar explicación de escalamiento")
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    org = repo.get_org_by_id(db, t.organizacion_id)
+    texto = explicar_escalamiento(t, org_name=org.nombre if org else "")
+    return {"ticket_id": ticket_id, "explicacion": texto}
+
+
 @router.put("/tickets/{ticket_id}")
 def update_ticket(
     ticket_id: str,
@@ -152,6 +226,7 @@ def update_ticket(
 ):
     if not ctx.es_admin_imowi:
         raise HTTPException(403, "Solo el administrador NOC puede actualizar seguimiento de tickets")
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
     t = repo.update_ticket(
         db,
         ctx.organizacion_id,
@@ -165,8 +240,9 @@ def update_ticket(
         motivo_escalamiento=body.motivo_escalamiento,
         estado_sla=body.estado_sla,
         ticket_externo_id=body.ticket_externo_id,
-        admin_global=ctx.es_admin_imowi and ctx.organizacion_slug == "imowi",
+        admin_global=admin_global,
     )
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
-    return {"status": "ok", "ticket": _ticket_out(t)}
+    pool = _load_pool(db, ctx)
+    return {"status": "ok", "ticket": _ticket_out(t, pool=pool)}

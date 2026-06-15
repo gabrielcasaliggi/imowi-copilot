@@ -158,10 +158,11 @@ export function StatsDashboard() {
         <div>
           <h2 className="font-semibold text-slate-100">Estadísticas</h2>
           <p className="text-[10px] font-mono text-slate-500">
-            Reclamos · niveles · tiempos · backlog
+            Reclamos · niveles · tiempos · backlog inteligente
           </p>
         </div>
-        <form onSubmit={onFilter} className="flex gap-2 items-center flex-wrap">
+        <div className="flex gap-2 items-center flex-wrap">
+          <form onSubmit={onFilter} className="flex gap-2 items-center flex-wrap">
           <input
             type="date"
             value={desde}
@@ -180,7 +181,8 @@ export function StatsDashboard() {
           >
             Filtrar
           </button>
-        </form>
+          </form>
+        </div>
       </div>
 
       {!stats ? (
@@ -280,16 +282,24 @@ export function StatsDashboard() {
                         {t.id}
                       </span>
                       <span className="text-[10px] text-slate-500">
-                        {t.horas_abierto} hs
+                        {t.priority_score != null ? `${t.priority_score} pts` : `${t.horas_abierto} hs`}
                       </span>
                     </div>
                     <div className="flex gap-1 mt-1">
                       <StatusBadge value={t.nivel} />
                       <StatusBadge value={t.estado} />
+                      {t.risk_level && t.risk_level !== "bajo" && (
+                        <span className="text-[9px] font-mono text-amber-400">{t.risk_level}</span>
+                      )}
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 truncate">
                       {t.linea || ""} · {t.categoria || ""}
                     </p>
+                    {t.next_best_action && (
+                      <p className="text-[9px] text-cyan-500/80 mt-1 line-clamp-1">
+                        → {t.next_best_action}
+                      </p>
+                    )}
                   </Link>
                 ))}
               </div>

@@ -77,6 +77,17 @@ export interface FichaJsc {
   fuente?: string;
 }
 
+export interface TicketIntelligence {
+  priority_score: number;
+  risk_level: string;
+  risk_reasons: string[];
+  probable_cause: string;
+  next_best_action: string;
+  horas_abierto: number;
+  recurrence_count: number;
+  organizacion?: string;
+}
+
 export interface Ticket {
   id: string;
   organizacion?: string;
@@ -100,6 +111,42 @@ export interface Ticket {
   ticket_externo_id?: string;
   created_at?: string;
   updated_at?: string;
+  intelligence?: TicketIntelligence;
+}
+
+export interface KBSuggestion {
+  id: string;
+  titulo: string;
+  categoria: string;
+  fragmento: string;
+}
+
+export interface TicketLearning {
+  kb_sugerencias: KBSuggestion[];
+  similares_resueltos: TicketSimilar[];
+  postmortem?: string | null;
+}
+
+export interface ExecutiveAnalytics {
+  tenant: string;
+  resumen_ejecutivo: string;
+  ranking_riesgo: {
+    label: string;
+    org_id: string;
+    backlog: number;
+    n2: number;
+    score_riesgo: number;
+    score_max: number;
+    tickets_criticos: number;
+  }[];
+  evolucion_semanal: StatsDistribution[];
+  ahorro_operativo: {
+    casos_n1_resueltos: number;
+    escalaciones_evitadas_estimadas: number;
+    horas_ahorradas_estimadas: number;
+    porcentaje_n2: number;
+  };
+  alertas: { tipo: string; mensaje: string; severidad: string }[];
 }
 
 export interface TicketEvent {
@@ -153,6 +200,8 @@ export interface TicketSimilar {
   nivel?: string;
   descripcion_falla?: string;
   created_at?: string;
+  resolucion_tecnica?: string;
+  cerrado?: boolean;
 }
 
 export interface AlertaRed {
@@ -264,6 +313,9 @@ export interface StatsResponse {
     estado: string;
     categoria: string;
     horas_abierto: number;
+    priority_score?: number;
+    risk_level?: string;
+    next_best_action?: string;
   }[];
 }
 

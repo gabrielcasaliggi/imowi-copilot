@@ -43,6 +43,8 @@ import type {
   TicketNotification,
   TicketSimilar,
   FlujoOperativo,
+  KBSuggestion,
+  TicketLearning,
 } from "@/lib/types";
 
 interface AppContextValue {
@@ -74,6 +76,8 @@ interface AppContextValue {
   ticketExistente: TicketSimilar | null;
   intencionPendiente: string | null;
   flujoOperativo: FlujoOperativo | null;
+  ticketKbSuggestions: KBSuggestion[];
+  ticketLearning: TicketLearning | null;
   login: (usuario: string, password: string) => Promise<void>;
   logout: () => void;
   setTenant: (slug: string) => Promise<void>;
@@ -92,6 +96,7 @@ interface AppContextValue {
   loadStats: (desde?: string, hasta?: string) => Promise<void>;
   simulateFailure: (elemento: string) => Promise<void>;
   createKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
+  explainEscalation: () => Promise<string | null>;
   appendTrace: (lines: string[]) => void;
   clearTraces: () => void;
 }
@@ -127,6 +132,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ticketExistente, setTicketExistente] = useState<TicketSimilar | null>(null);
   const [intencionPendiente, setIntencionPendiente] = useState<string | null>(null);
   const [flujoOperativo, setFlujoOperativo] = useState<FlujoOperativo | null>(null);
+  const [ticketKbSuggestions, setTicketKbSuggestions] = useState<KBSuggestion[]>([]);
+  const [ticketLearning, setTicketLearning] = useState<TicketLearning | null>(null);
 
   const isAdmin = user?.rol === "admin";
 
@@ -305,6 +312,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLineaCambiada(null);
     setIntencionPendiente(null);
     setFlujoOperativo(null);
+    setTicketKbSuggestions([]);
+    setTicketLearning(null);
     setTicketsSimilares([]);
     setTicketExistente(null);
     setFichaJsc(null);
@@ -320,9 +329,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const detail = await api.ticketDetail(id, hdr);
       setTicketFormacion(detail.ticket);
       setTicketTimeline(detail.timeline || []);
+      if (detail.tickets_similares?.length) {
+        setTicketsSimilares(detail.tickets_similares);
+      }
+      setTicketKbSuggestions(detail.kb_sugerencias || []);
+      setTicketLearning(detail.learning || null);
     },
     [tenantSlug, isAdmin],
   );
+
+  const explainEscalation = useCallback(async () => {
+    if (!ticketFormacion?.id || !isAdmin) return null;
+    const res = await api.explainEscalation(ticketFormacion.id, tenantSlug);
+    appendTrace([res.explicacion]);
+    return res.explicacion;
+  }, [ticketFormacion, isAdmin, tenantSlug, appendTrace]);
 
   const procesarRespuestaChat = useCallback(
     async (res: Awaited<ReturnType<typeof api.chat>>) => {
@@ -543,6 +564,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ticketExistente,
       intencionPendiente,
       flujoOperativo,
+      ticketKbSuggestions,
+      ticketLearning,
       login,
       logout,
       setTenant,
@@ -556,6 +579,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadStats,
       simulateFailure,
       createKbArticle,
+      explainEscalation,
       appendTrace,
       clearTraces,
     }),
@@ -588,6 +612,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ticketExistente,
       intencionPendiente,
       flujoOperativo,
+      ticketKbSuggestions,
+      ticketLearning,
       login,
       logout,
       setTenant,
@@ -601,6 +627,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadStats,
       simulateFailure,
       createKbArticle,
+      explainEscalation,
       appendTrace,
       clearTraces,
     ],

@@ -2,6 +2,9 @@ import { clearToken, getToken } from "./storage";
 import type {
   ChatV1Response,
   DemoEscenariosResponse,
+  ExecutiveAnalytics,
+  KBSuggestion,
+  TicketLearning,
   KBArticle,
   AdminUser,
   ImportCsvResult,
@@ -121,10 +124,14 @@ export const api = {
   },
 
   ticketDetail(id: string, tenantSlug?: string) {
-    return request<{ tenant: string; ticket: Ticket; timeline: TicketEvent[] }>(
-      `/api/v1/tickets/${id}`,
-      { tenantSlug },
-    );
+    return request<{
+      tenant: string;
+      ticket: Ticket;
+      timeline: TicketEvent[];
+      tickets_similares?: import("./types").TicketSimilar[];
+      kb_sugerencias?: KBSuggestion[];
+      learning?: TicketLearning | null;
+    }>(`/api/v1/tickets/${id}`, { tenantSlug });
   },
 
   updateTicket(
@@ -189,6 +196,24 @@ export const api = {
     return request<StatsResponse>(`/api/v1/analytics/tickets${suffix}`, {
       tenantSlug,
     });
+  },
+
+  executiveAnalytics(tenantSlug?: string) {
+    return request<ExecutiveAnalytics>("/api/v1/analytics/executive", { tenantSlug });
+  },
+
+  prioritizedTickets(tenantSlug?: string) {
+    return request<{
+      tenant: string;
+      cola: { ticket: Ticket; intelligence: Ticket["intelligence"] }[];
+    }>("/api/v1/tickets/prioritized", { tenantSlug });
+  },
+
+  explainEscalation(id: string, tenantSlug?: string) {
+    return request<{ ticket_id: string; explicacion: string }>(
+      `/api/v1/tickets/${id}/explain-escalation`,
+      { tenantSlug },
+    );
   },
 
   demoEscenarios(tenantSlug?: string) {
