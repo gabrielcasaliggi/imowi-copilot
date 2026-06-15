@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "imowi Operations Hub",
-  description: "Plataforma Agentic AI multitenant — NOC autónomo OSS/BSS",
+  description: "Consola operativa multitenant para soporte, NOC y gestión OSS/BSS",
 };
 
 export default function RootLayout({

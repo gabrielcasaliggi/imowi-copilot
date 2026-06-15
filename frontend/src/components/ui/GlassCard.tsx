@@ -42,13 +42,48 @@ export function GlassCard({
   );
 }
 
-export function KpiCard({ label, value }: { label: string; value: string | number }) {
+export function KpiCard({
+  label,
+  value,
+  tone = "default",
+  helper,
+}: {
+  label: string;
+  value: string | number;
+  tone?: "default" | "cyan" | "emerald" | "amber" | "red" | "violet";
+  helper?: string;
+}) {
+  const toneClass =
+    tone === "cyan"
+      ? "border-cyan-500/25 bg-cyan-500/10 shadow-cyan-500/5"
+      : tone === "emerald"
+        ? "border-emerald-500/25 bg-emerald-500/10 shadow-emerald-500/5"
+        : tone === "amber"
+          ? "border-amber-500/25 bg-amber-500/10 shadow-amber-500/5"
+          : tone === "red"
+            ? "border-red-500/25 bg-red-500/10 shadow-red-500/5"
+            : tone === "violet"
+              ? "border-violet-500/25 bg-violet-500/10 shadow-violet-500/5"
+              : "border-slate-800 bg-slate-900/60 shadow-slate-950/20";
+  const valueClass =
+    tone === "cyan"
+      ? "text-cyan-100"
+      : tone === "emerald"
+        ? "text-emerald-100"
+        : tone === "amber"
+          ? "text-amber-100"
+          : tone === "red"
+            ? "text-red-100"
+            : tone === "violet"
+              ? "text-violet-100"
+              : "text-slate-100";
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+    <div className={`rounded-xl border p-3 shadow-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${toneClass}`}>
       <p className="text-[10px] uppercase tracking-wider font-mono text-slate-500">
         {label}
       </p>
-      <p className="text-2xl font-semibold text-slate-100 mt-1 tabular-nums">{value}</p>
+      <p className={`text-2xl font-semibold mt-1 tabular-nums ${valueClass}`}>{value}</p>
+      {helper && <p className="text-[10px] text-slate-500 mt-1">{helper}</p>}
     </div>
   );
 }

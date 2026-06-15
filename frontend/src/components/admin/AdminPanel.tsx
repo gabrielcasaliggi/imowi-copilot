@@ -177,7 +177,7 @@ export function AdminPanel() {
               value={cooperativas.reduce((a, o) => a + (o.tickets_abiertos || 0), 0)}
             />
             <KpiCard
-              label="Líneas JSC demo"
+              label="Líneas activas"
               value={cooperativas.reduce((a, o) => a + (o.lineas || 0), 0)}
             />
           </div>
@@ -313,6 +313,7 @@ export function AdminPanel() {
                     </select>
                     <input
                       placeholder="Clave inicial"
+                      type="password"
                       value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                       className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono"

@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const showDemoCredentials = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
     if (ready && getToken()) router.replace("/soporte");
@@ -42,7 +43,7 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-100">imowi Operations Hub</h1>
-            <p className="text-xs font-mono text-slate-500">Consola operativa · Agentic AI</p>
+            <p className="text-xs font-mono text-slate-500">Consola operativa multitenant</p>
           </div>
         </div>
 
@@ -81,10 +82,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 pt-4 border-t border-slate-800 text-[10px] font-mono text-slate-600 space-y-1">
-          <p>admin / admin — NOC imowi</p>
-          <p>batan / batan · viamonte / viamonte — cooperativas</p>
-        </div>
+        {showDemoCredentials && (
+          <div className="mt-6 pt-4 border-t border-slate-800 text-[10px] font-mono text-slate-600 space-y-1">
+            <p>admin / admin — NOC imowi</p>
+            <p>batan / batan · viamonte / viamonte — cooperativas</p>
+          </div>
+        )}
       </div>
     </div>
   );
