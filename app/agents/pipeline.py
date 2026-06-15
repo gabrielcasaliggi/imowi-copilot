@@ -27,6 +27,41 @@ def _historial_tecnico(historial: list[dict]) -> bool:
     return len(historial) > 2
 
 
+def _cerrar_ticket_si_corresponde(
+    db: Session,
+    org_id: str,
+    motor: dict,
+    datos: dict,
+    ticket_dict: dict | None,
+    traces: list[str],
+) -> tuple[dict | None, bool]:
+    """Persiste cierre cuando el flujo conversacional resolvió un ticket existente."""
+    if not ticket_dict or ticket_dict.get("estado") == "Cerrado":
+        return ticket_dict, False
+
+    tid = motor.get("cerrar_ticket_id") or ""
+    if not tid and motor.get("estado_conversacion") == "caso_resuelto":
+        tid = ticket_dict.get("id", "")
+    if not tid:
+        return ticket_dict, False
+
+    hechos = datos.get("hechos") or motor.get("caso_conversacion", {}).get("datos_triaje", {}).get("hechos", {})
+    resolucion = construir_resumen(hechos, datos, ticket_dict)
+    ticket_obj = repo.update_ticket(
+        db,
+        org_id,
+        tid,
+        estado="Cerrado",
+        resolucion_tecnica=resolucion[:2000],
+        estado_sla="Cerrado",
+    )
+    if not ticket_obj:
+        return ticket_dict, False
+
+    traces.append(f"✅ [Motor]: Ticket {tid} cerrado por resolución del operador.")
+    return _ticket_dict(ticket_obj), True
+
+
 async def procesar_mensaje(
     db: Session,
     org_id: str,
@@ -153,21 +188,7 @@ async def procesar_mensaje(
 
     ticket_dict = _ticket_dict(ticket_obj) if ticket_obj else None
 
-    if motor.get("cerrar_ticket_id"):
-        tid = motor["cerrar_ticket_id"]
-        hechos = datos.get("hechos") or motor.get("caso_conversacion", {}).get("datos_triaje", {}).get("hechos", {})
-        resolucion = construir_resumen(hechos, datos, ticket_dict)
-        ticket_obj = repo.update_ticket(
-            db,
-            org_id,
-            tid,
-            estado="Cerrado",
-            resolucion_tecnica=resolucion[:2000],
-            estado_sla="Cerrado",
-        )
-        if ticket_obj:
-            ticket_dict = _ticket_dict(ticket_obj)
-            traces.append(f"✅ [Motor]: Ticket {tid} cerrado por solicitud del operador.")
+    ticket_dict, _ = _cerrar_ticket_si_corresponde(db, org_id, motor, datos, ticket_dict, traces)
 
     if ticket_dict and session_id:
         motor = procesar_turno_conversacional(
@@ -183,6 +204,7 @@ async def procesar_mensaje(
             accion_operador=accion_operador,
             ticket_existente=ticket_existente,
         )
+        ticket_dict, _ = _cerrar_ticket_si_corresponde(db, org_id, motor, datos, ticket_dict, traces)
 
     telemetria = repo.list_telemetry(db, org_id)
     ctx_red = "\n".join(
