@@ -70,14 +70,40 @@ _PATRONES_CORRECCION = (
     "no es correcto",
 )
 
+_PATRONES_PASO_EJECUTADO = (
+    "ya lo hicimos",
+    "ya lo hicimo",
+    "lo hicimos",
+    "lo hicimo",
+    "ya lo probamos",
+    "lo probamos",
+    "ya probamos",
+    "hicimos ambas",
+    "ambas cosas",
+    "ya se hizo",
+    "ya lo verificamos",
+    "lo verificamos",
+    "ya lo intentamos",
+    "lo intentamos",
+    "ya lo hice",
+    "lo hice",
+    "reinicio hecho",
+    "modo avion hecho",
+    "modo avión hecho",
+)
+
 _PATRONES_PERSISTENCIA = (
     "ya se hizo",
     "ya lo hicimos",
+    "ya lo hicimo",
     "hecho y sigue",
     "sigue igual",
     "sigue sin",
     "persiste",
     "sin cambios",
+    "sin solucion",
+    "sin solución",
+    "sin resultado",
     "hice lo que me dijiste",
     "hice lo que dijiste",
     "seguimos igual",
@@ -85,6 +111,10 @@ _PATRONES_PERSISTENCIA = (
     "no cambio",
     "sigue fallando",
     "sigue sin andar",
+    "ya lo probamos",
+    "probamos sin",
+    "no funcion",
+    "no anda",
 )
 
 _PATRONES_AGRADECIMIENTO = (
@@ -393,6 +423,16 @@ def extraer_hechos_normalizados(msg: str, *, ultimo_bot: str = "") -> dict[str, 
 
     if _contiene_patron(t, ("modo avion", "modo avión", "reinicio", "reinici", "reiniciado")):
         out["reinicio_o_modo_avion"] = True
+    if ("modo avión" in bot or "modo avion" in bot or "reinici" in bot) and _contiene_patron(
+        t, _PATRONES_PASO_EJECUTADO + _PATRONES_PERSISTENCIA
+    ):
+        out["reinicio_o_modo_avion"] = True
+        if _contiene_patron(
+            t,
+            _PATRONES_PERSISTENCIA
+            + ("sin solucion", "sin solución", "sigue", "no funcion", "no anda", "persiste"),
+        ):
+            out["resuelto"] = False
 
     if _contiene_patron(
         t,
@@ -427,6 +467,47 @@ def _fusionar_hechos(base: dict, nuevos: dict) -> dict:
     return out
 
 
+def _hecho_pendiente_por_bot(bot: str, hechos: dict) -> str | None:
+    """Clave de hecho que el último mensaje del bot esperaba y aún no quedó registrada."""
+    if ("modo avión" in bot or "modo avion" in bot or "reinici" in bot) and not hechos.get("reinicio_o_modo_avion"):
+        return "reinicio_o_modo_avion"
+    if "llamada" in bot and hechos.get("llamadas_ok") is None:
+        return "llamadas_ok"
+    if "apn" in bot and hechos.get("apn_configurado") is None:
+        return "apn_configurado"
+    if ("jsc" in bot or "roaming" in bot) and hechos.get("roaming_verificado") is None:
+        return "roaming_verificado"
+    if (
+        ("una sola zona" in bot or "varias ubicaciones" in bot or "varias zonas" in bot)
+        and hechos.get("zona_unica") is None
+        and hechos.get("multiples_zonas") is None
+    ):
+        return "zona"
+    return None
+
+
+def mensaje_confirma_paso_operativo(msg: str) -> bool:
+    """Operador confirma haber ejecutado el paso sugerido (sin afirmar resolución)."""
+    t = (msg or "").lower().strip().rstrip(".!?")
+    if not t:
+        return False
+    if _contiene_patron(t, _PATRONES_PASO_EJECUTADO + _PATRONES_CONFIRMACION):
+        return True
+    return len(t) <= 25 and t in ("si", "sí", "sip", "ok", "dale", "listo", "bien", "yes")
+
+
+def mensaje_reporta_persistencia(msg: str) -> bool:
+    """Operador indica que ejecutó el paso pero el problema persiste."""
+    t = (msg or "").lower().strip()
+    if _contiene_patron(t, _PATRONES_PERSISTENCIA):
+        return True
+    return _contiene_patron(t, _PATRONES_PASO_EJECUTADO) and _contiene_patron(
+        t,
+        _PATRONES_PERSISTENCIA
+        + ("sin solucion", "sin solución", "sin resultado", "no funcion", "no anda", "sigue"),
+    )
+
+
 def necesita_interpretacion_ia(
     msg: str,
     intencion: dict,
@@ -440,9 +521,12 @@ def necesita_interpretacion_ia(
     if len(t) < 4:
         return False
     conf = float(intencion.get("confianza") or 0)
-    if conf >= 0.85:
+    pendiente = _hecho_pendiente_por_bot(bot, hechos)
+    if intencion.get("tipo") in ("confirmacion_paso", "persistencia") and pendiente:
+        return True
+    if conf >= 0.85 and not pendiente:
         return False
-    if intencion.get("tipo") in ("confirmacion_paso", "estado_ticket", "correccion", "agradecimiento"):
+    if intencion.get("tipo") in ("estado_ticket", "correccion", "agradecimiento"):
         return False
     if _contiene_patron(t.lower(), _PATRONES_CONFIRMACION) and len(t) <= 30:
         return False

@@ -297,3 +297,41 @@ def test_extraer_datos_usa_primer_sintoma():
     datos = extraer_datos(hist)
     assert "Brasil" in datos["sintoma"]
     assert "saliendo de argentina" not in datos["sintoma"]
+
+
+@pytest.mark.parametrize(
+    "respuesta",
+    [
+        "si ya lo probamos sin solucion",
+        "hicimos ambas cosas",
+        "ya lo hicimo",
+        "ya lo probamos sin solución",
+    ],
+)
+def test_confirmacion_reinicio_senal_avanza(respuesta: str):
+    bot_reinicio = (
+        "Activar modo avión 10 segundos o reiniciar el equipo para forzar nuevo registro en la red."
+    )
+    hist = [
+        {"rol": "usuario", "contenido": "Cliente sin señal línea 2235474856"},
+        {"rol": "asistente", "contenido": "Confirmar si el problema ocurre en una sola zona o en varias ubicaciones."},
+        {"rol": "usuario", "contenido": "solo en esa zona"},
+        {"rol": "asistente", "contenido": "Verificar si el cliente puede hacer y recibir llamadas de prueba."},
+        {"rol": "usuario", "contenido": "llamadas no"},
+        {"rol": "asistente", "contenido": bot_reinicio},
+        {"rol": "usuario", "contenido": respuesta},
+    ]
+    hechos = extraer_hechos_conversacion(hist)
+    assert hechos.get("reinicio_o_modo_avion") is True
+    paso = siguiente_paso_sugerido(hechos, "Cliente sin señal")
+    assert paso is not None
+    assert "NOC" in paso
+
+
+def test_persistencia_reinicio_activa_ia_si_hecho_pendiente():
+    bot = "Activar modo avión 10 segundos o reiniciar el equipo."
+    hechos = {"zona_unica": True, "llamadas_ok": False}
+    intencion = {"tipo": "confirmacion_paso", "confianza": 0.9}
+    assert necesita_interpretacion_ia("hicimos ambas cosas", intencion, hechos, ultimo_bot=bot) is True
+    hechos_ok = {**hechos, "reinicio_o_modo_avion": True}
+    assert necesita_interpretacion_ia("hicimos ambas cosas", intencion, hechos_ok, ultimo_bot=bot) is False

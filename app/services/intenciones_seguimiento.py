@@ -9,6 +9,8 @@ from app.services.interprete_conversacional import (
     _fusionar_hechos,
     detectar_intencion_normalizada,
     extraer_hechos_normalizados,
+    mensaje_confirma_paso_operativo,
+    mensaje_reporta_persistencia,
 )
 
 
@@ -100,63 +102,14 @@ def es_pregunta(msg: str) -> bool:
 
 def _es_persistencia_post_paso(msg: str) -> bool:
     """Operador indica que hizo el paso pero el problema persiste."""
-    t = msg.lower().strip()
-    return any(
-        p in t
-        for p in (
-            "ya se hizo",
-            "ya lo hicimos",
-            "hecho y sigue",
-            "sigue igual",
-            "sigue sin",
-            "no funcion",
-            "no anda",
-            "persiste",
-            "sin cambios",
-        )
-    )
+    return mensaje_reporta_persistencia(msg)
 
 
 def _es_confirmacion_paso(msg: str) -> bool:
     """Detecta que el operador confirma haber hecho el paso sugerido por el bot."""
-    t = msg.lower().strip().rstrip(".!?")
-    if not t or es_pregunta(msg):
+    if not msg or es_pregunta(msg):
         return False
-    frases = (
-        "ya lo verificamos",
-        "lo verificamos",
-        "ya lo hicimos",
-        "lo hicimos",
-        "hecho",
-        "ya está",
-        "ya esta",
-        "listo eso",
-        "verificado",
-        "verificada",
-        "verificamos",
-        "revisado",
-        "revisada",
-        "revisamos",
-        "correcto",
-        "correcta",
-        "confirmado",
-        "confirmamos",
-        "eso está bien",
-        "eso esta bien",
-        "está bien",
-        "esta bien",
-        "todo bien",
-        "de acuerdo",
-        "exacto",
-        "claro",
-        "así es",
-        "asi es",
-    )
-    if any(p in t for p in frases):
-        return True
-    if len(t) <= 25:
-        return t in ("si", "sí", "sip", "ok", "dale", "listo", "bien", "yes")
-    return False
+    return mensaje_confirma_paso_operativo(msg)
 
 
 _FRASES_LLAMADA_OK = (
@@ -392,6 +345,14 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
 
     if any(p in texto for p in ("modo avion", "modo avión", "reinicio", "reinició", "reiniciar", "apagar y prender")):
         hechos["reinicio_o_modo_avion"] = True
+    ultimo_bot = _ultimo_asistente(historial)
+    if (
+        mensaje_confirma_paso_operativo(_ultimo_usuario(historial))
+        or mensaje_reporta_persistencia(_ultimo_usuario(historial))
+    ) and any(p in ultimo_bot for p in ("modo avión", "modo avion", "reinici")):
+        hechos["reinicio_o_modo_avion"] = True
+        if mensaje_reporta_persistencia(_ultimo_usuario(historial)):
+            hechos["resuelto"] = False
 
     if any(p in texto for p in ("datos moviles activos", "datos móviles activos", "datos activados", "datos habilitados")):
         hechos["datos_moviles_activos"] = True
