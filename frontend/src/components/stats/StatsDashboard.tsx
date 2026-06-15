@@ -107,6 +107,39 @@ function AvgList({
   );
 }
 
+function CoopKpiList({
+  data,
+}: {
+  data: {
+    label: string;
+    count: number;
+    abiertos: number;
+    n2: number;
+    tasa_cierre: number;
+    promedio_horas: number;
+  }[];
+}) {
+  if (!data.length) return <p className="text-slate-500 text-sm">Sin datos.</p>;
+  return (
+    <div className="space-y-3">
+      {data.map((x) => (
+        <div key={x.label} className="p-2 rounded-lg border border-slate-800 bg-slate-950/40">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-slate-300 truncate">{x.label}</span>
+            <span className="font-mono text-slate-500">{x.count} tickets</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
+            <span>{x.abiertos} abiertos</span>
+            <span>{x.n2} N2</span>
+            <span>{x.tasa_cierre}% cierre</span>
+            <span>{x.promedio_horas} hs prom.</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function StatsDashboard() {
   const { stats, loadStats, selectTicket } = useApp();
   const [desde, setDesde] = useState("");
@@ -161,6 +194,12 @@ export function StatsDashboard() {
             <KpiCard label="N1" value={r?.n1 || 0} />
             <KpiCard label="N2" value={r?.n2 || 0} />
             <KpiCard label="Prom. hs" value={r?.promedio_horas || 0} />
+            {typeof r?.tasa_cierre === "number" && (
+              <KpiCard label="% cierre" value={r.tasa_cierre} />
+            )}
+            {typeof r?.porcentaje_n2 === "number" && (
+              <KpiCard label="% N2" value={r.porcentaje_n2} />
+            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -191,6 +230,14 @@ export function StatsDashboard() {
               </h3>
               <BarList data={stats.distribuciones?.nivel || []} unit="tickets" />
             </div>
+            {(stats.distribuciones?.cooperativa?.length ?? 0) > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+                <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
+                  Por cooperativa
+                </h3>
+                <BarList data={stats.distribuciones?.cooperativa || []} unit="tickets" />
+              </div>
+            )}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
                 Por estado
@@ -203,6 +250,14 @@ export function StatsDashboard() {
               </h3>
               <AvgList data={stats.promedios?.por_categoria || []} />
             </div>
+            {(stats.promedios?.por_cooperativa?.length ?? 0) > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+                <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
+                  KPI por cooperativa
+                </h3>
+                <CoopKpiList data={stats.promedios?.por_cooperativa || []} />
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">

@@ -46,6 +46,8 @@ class User(Base):
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
     password: Mapped[str] = mapped_column(String(120), default="demo")
     rol: Mapped[str] = mapped_column(String(32), nullable=False)
+    telefono: Mapped[str] = mapped_column(String(32), default="")
+    linea_principal: Mapped[str] = mapped_column(String(16), default="")
 
     organizacion: Mapped["Organization"] = relationship(back_populates="usuarios")
 

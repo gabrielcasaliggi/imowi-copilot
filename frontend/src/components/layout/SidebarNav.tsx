@@ -6,6 +6,7 @@ import { useApp } from "@/contexts/AppContext";
 
 const NAV = [
   { href: "/soporte", label: "Consola de Soporte", id: "soporte", admin: false },
+  { href: "/admin", label: "Administración", id: "admin", admin: true },
   { href: "/red", label: "Monitor de Red", id: "red", admin: true },
   { href: "/estadisticas", label: "Estadísticas", id: "stats", admin: true },
   { href: "/conocimiento", label: "Centro de Conocimiento", id: "kb", admin: true },

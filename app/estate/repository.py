@@ -40,6 +40,146 @@ def list_users_for_org(db: Session, org_id: str) -> list[User]:
     return list(db.scalars(select(User).where(User.organizacion_id == org_id)).all())
 
 
+def slugify_org_name(nombre: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", (nombre or "").lower()).strip("-")
+    if not base:
+        base = "nueva"
+    slug = base if base.startswith("coop-") else f"coop-{base}"
+    return slug[:80]
+
+
+def _slug_disponible(db: Session, slug: str, *, excluir_id: str | None = None) -> str:
+    candidato = slug
+    n = 2
+    while True:
+        q = select(Organization).where(Organization.slug == candidato)
+        if excluir_id:
+            q = q.where(Organization.id != excluir_id)
+        if not db.scalar(q.limit(1)):
+            return candidato
+        candidato = f"{slug}-{n}"[:80]
+        n += 1
+
+
+def organization_stats(db: Session, org_id: str) -> dict:
+    usuarios = db.scalar(select(func.count()).select_from(User).where(User.organizacion_id == org_id)) or 0
+    tickets = db.scalar(select(func.count()).select_from(Ticket).where(Ticket.organizacion_id == org_id)) or 0
+    lineas = db.scalar(select(func.count()).select_from(LineaJSC).where(LineaJSC.organizacion_id == org_id)) or 0
+    abiertos = (
+        db.scalar(
+            select(func.count()).select_from(Ticket).where(
+                Ticket.organizacion_id == org_id,
+                Ticket.estado != "Cerrado",
+            )
+        )
+        or 0
+    )
+    return {
+        "usuarios": usuarios,
+        "tickets": tickets,
+        "lineas": lineas,
+        "tickets_abiertos": abiertos,
+    }
+
+
+def list_organizations_admin(db: Session) -> list[dict]:
+    orgs = list_organizations(db)
+    return [
+        {
+            "slug": o.slug,
+            "nombre": o.nombre,
+            "brand_color": o.brand_color,
+            "logo_label": o.logo_label,
+            "es_plataforma": o.slug == "imowi",
+            **organization_stats(db, o.id),
+        }
+        for o in orgs
+    ]
+
+
+def create_organization(
+    db: Session,
+    *,
+    nombre: str,
+    slug: str | None = None,
+    logo_label: str = "C",
+    brand_color: str = "#34d399",
+) -> Organization:
+    base_slug = slug or slugify_org_name(nombre)
+    final_slug = _slug_disponible(db, base_slug)
+    org = Organization(
+        nombre=nombre,
+        slug=final_slug,
+        logo_label=(logo_label or "C")[:8],
+        brand_color=brand_color or "#34d399",
+    )
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    return org
+
+
+def update_organization(
+    db: Session,
+    slug: str,
+    *,
+    nombre: str | None = None,
+    logo_label: str | None = None,
+    brand_color: str | None = None,
+) -> Organization | None:
+    org = get_org_by_slug(db, slug)
+    if not org:
+        return None
+    if nombre is not None:
+        org.nombre = nombre
+    if logo_label is not None:
+        org.logo_label = logo_label[:8]
+    if brand_color is not None:
+        org.brand_color = brand_color
+    db.commit()
+    db.refresh(org)
+    return org
+
+
+def create_user_for_org(
+    db: Session,
+    org_id: str,
+    *,
+    email: str,
+    nombre: str,
+    password: str = "cliente",
+    rol: str = "cliente",
+    telefono: str = "",
+    linea_principal: str = "",
+) -> User:
+    if db.scalar(select(User).where(User.email == email.lower())):
+        raise ValueError(f"El email {email} ya está registrado")
+    user = User(
+        organizacion_id=org_id,
+        email=email.lower(),
+        nombre=nombre,
+        password=password,
+        rol=rol,
+        telefono=telefono,
+        linea_principal=linea_principal,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def user_to_dict(user: User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "nombre": user.nombre,
+        "rol": user.rol,
+        "telefono": user.telefono or "",
+        "linea_principal": user.linea_principal or "",
+    }
+
+
 def get_user_by_email(db: Session, org_id: str, email: str) -> User | None:
     return db.scalar(
         select(User).where(User.organizacion_id == org_id, User.email == email)
@@ -516,6 +656,31 @@ def ticket_stats(
         })
     promedio_por_categoria.sort(key=lambda x: (-x["count"], x["label"]))
 
+    por_cooperativa: list[dict] = []
+    if admin_global:
+        org_map = {o.id: o.nombre for o in list_organizations(db)}
+        por_cooperativa = _conteo(tickets, lambda t: org_map.get(t.organizacion_id, "Sin org"))
+        coop_stats = []
+        for coop_label, grupo in _agrupar(tickets, lambda t: org_map.get(t.organizacion_id, "Sin org")).items():
+            cerrados_coop = sum(1 for t in grupo if t.estado == "Cerrado")
+            n2_coop = sum(1 for t in grupo if t.nivel == "N2")
+            horas = [
+                _horas_entre(_as_aware(t.created_at), _as_aware(t.updated_at) if t.estado == "Cerrado" else now)
+                for t in grupo
+                if t.created_at
+            ]
+            coop_stats.append({
+                "label": coop_label,
+                "count": len(grupo),
+                "abiertos": sum(1 for t in grupo if t.estado != "Cerrado"),
+                "n2": n2_coop,
+                "tasa_cierre": round((cerrados_coop / len(grupo)) * 100, 1) if grupo else 0,
+                "promedio_horas": round(sum(horas) / len(horas), 1) if horas else 0,
+            })
+        coop_stats.sort(key=lambda x: (-x["count"], x["label"]))
+    else:
+        coop_stats = []
+
     top_lineas = _conteo([t for t in tickets if t.linea], lambda t: t.linea)[:8]
     backlog = sorted(
         [
@@ -555,10 +720,12 @@ def ticket_stats(
             "origen": por_origen,
             "destino": por_destino,
             "proveedor": por_proveedor,
+            "cooperativa": por_cooperativa,
             "lineas_recurrentes": top_lineas,
         },
         "promedios": {
             "por_categoria": promedio_por_categoria,
+            "por_cooperativa": coop_stats,
         },
         "backlog": backlog,
     }

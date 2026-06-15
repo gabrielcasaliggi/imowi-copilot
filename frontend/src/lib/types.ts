@@ -20,6 +20,31 @@ export interface Organization {
   nombre: string;
   brand_color: string;
   logo_label: string;
+  es_plataforma?: boolean;
+  usuarios?: number;
+  tickets?: number;
+  lineas?: number;
+  tickets_abiertos?: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  nombre: string;
+  rol: string;
+  telefono: string;
+  linea_principal: string;
+}
+
+export interface ImportCsvResult {
+  status: string;
+  slug: string;
+  creados: number;
+  actualizados: number;
+  lineas_creadas: number;
+  omitidos: number;
+  errores: string[];
+  filas: { email: string; nombre: string; rol: string; linea_principal: string }[];
 }
 
 export interface TenantContext {
@@ -218,10 +243,19 @@ export interface StatsResponse {
     origen: StatsDistribution[];
     destino: StatsDistribution[];
     proveedor: StatsDistribution[];
+    cooperativa?: StatsDistribution[];
     lineas_recurrentes: StatsDistribution[];
   };
   promedios: {
     por_categoria: { label: string; count: number; avg_hours: number }[];
+    por_cooperativa?: {
+      label: string;
+      count: number;
+      abiertos: number;
+      n2: number;
+      tasa_cierre: number;
+      promedio_horas: number;
+    }[];
   };
   backlog: {
     id: string;

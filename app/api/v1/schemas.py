@@ -72,3 +72,25 @@ class TicketUpdateV1(BaseModel):
     motivo_escalamiento: str | None = None
     estado_sla: str | None = None
     ticket_externo_id: str | None = None
+
+
+class OrganizationCreate(BaseModel):
+    nombre: str
+    slug: str | None = None
+    logo_label: str = "C"
+    brand_color: str = "#34d399"
+
+
+class OrganizationUpdate(BaseModel):
+    nombre: str | None = None
+    logo_label: str | None = None
+    brand_color: str | None = None
+
+
+class UserCreate(BaseModel):
+    email: str
+    nombre: str
+    password: str = "cliente"
+    rol: str = "cliente"
+    telefono: str = ""
+    linea_principal: str = ""

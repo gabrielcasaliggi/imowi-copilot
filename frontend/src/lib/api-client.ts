@@ -3,6 +3,8 @@ import type {
   ChatV1Response,
   DemoEscenariosResponse,
   KBArticle,
+  AdminUser,
+  ImportCsvResult,
   LoginResponse,
   MeResponse,
   Organization,
@@ -230,5 +232,88 @@ export const api = {
       body: JSON.stringify(body),
       tenantSlug,
     });
+  },
+
+  adminOrganizations() {
+    return request<{ organizaciones: Organization[] }>("/api/v1/admin/organizations");
+  },
+
+  createOrganization(body: {
+    nombre: string;
+    slug?: string;
+    logo_label?: string;
+    brand_color?: string;
+  }) {
+    return request<{ status: string; organizacion: Organization }>(
+      "/api/v1/admin/organizations",
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+
+  updateOrganization(
+    slug: string,
+    body: { nombre?: string; logo_label?: string; brand_color?: string },
+  ) {
+    return request<{ status: string; organizacion: Organization }>(
+      `/api/v1/admin/organizations/${slug}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+  },
+
+  adminUsers(slug: string) {
+    return request<{ slug: string; usuarios: AdminUser[] }>(
+      `/api/v1/admin/organizations/${slug}/users`,
+    );
+  },
+
+  createAdminUser(
+    slug: string,
+    body: {
+      email: string;
+      nombre: string;
+      password?: string;
+      rol?: string;
+      telefono?: string;
+      linea_principal?: string;
+    },
+  ) {
+    return request<{ status: string; usuario: AdminUser }>(
+      `/api/v1/admin/organizations/${slug}/users`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+
+  async importUsersCsv(slug: string, file: File): Promise<ImportCsvResult> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await fetch(`${API_BASE}/api/v1/admin/organizations/${slug}/import-csv`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+
+    if (res.status === 401) {
+      clearToken();
+      onUnauthorized?.();
+      throw new ApiError("Sesión expirada", 401);
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail =
+        typeof err.detail === "string"
+          ? err.detail
+          : Array.isArray(err.detail)
+            ? err.detail.map((d: { msg?: string }) => d.msg).join(", ")
+            : res.statusText;
+      throw new ApiError(detail || res.statusText, res.status);
+    }
+
+    return res.json() as Promise<ImportCsvResult>;
   },
 };

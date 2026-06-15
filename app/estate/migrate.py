@@ -25,6 +25,11 @@ _CASO_COLUMNS: dict[str, str] = {
     "intencion_pendiente": "VARCHAR(32) DEFAULT ''",
 }
 
+_USER_COLUMNS: dict[str, str] = {
+    "telefono": "VARCHAR(32) DEFAULT ''",
+    "linea_principal": "VARCHAR(16) DEFAULT ''",
+}
+
 
 def _add_column(engine: Engine, tabla: str, col: str, ddl: str) -> None:
     dialect = engine.dialect.name
@@ -57,5 +62,13 @@ def migrate_schema(engine: Engine) -> list[str]:
                 _add_column(engine, "casos_conversacion", col, ddl)
                 cambios.append(f"casos_conversacion.{col}")
                 logger.info("Migración: columna agregada casos_conversacion.%s", col)
+
+    if insp.has_table("users"):
+        existentes_user = {c["name"] for c in insp.get_columns("users")}
+        for col, ddl in _USER_COLUMNS.items():
+            if col not in existentes_user:
+                _add_column(engine, "users", col, ddl)
+                cambios.append(f"users.{col}")
+                logger.info("Migración: columna agregada users.%s", col)
 
     return cambios
