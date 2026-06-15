@@ -23,6 +23,16 @@ def test_database_url_enmascarada():
     assert database_url_enmascarada(url) == "postgresql+psycopg://user:***@host:6543/postgres"
 
 
+def test_normalizar_quita_pgbouncer_prisma():
+    url = "postgresql://user:secret@host:6543/postgres?pgbouncer=true"
+    assert normalizar_database_url(url) == "postgresql+psycopg://user:secret@host:6543/postgres"
+
+
+def test_normalizar_quita_comillas_y_prefijo():
+    url = 'DATABASE_URL="postgresql://user:secret@host:6543/postgres?pgbouncer=true"'
+    assert normalizar_database_url(url) == "postgresql+psycopg://user:secret@host:6543/postgres"
+
+
 def test_mirror_supabase_desactivado_con_postgres(monkeypatch):
     from app import config
 

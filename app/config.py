@@ -11,6 +11,22 @@ def normalizar_database_url(url: str) -> str:
     u = (url or "").strip()
     if not u:
         return "sqlite:///./data/estate.db"
+
+    # Comillas o prefijo accidental al copiar desde Supabase/Prisma/Render
+    for _ in range(2):
+        if len(u) >= 2 and u[0] == u[-1] and u[0] in ("'", '"'):
+            u = u[1:-1].strip()
+    if u.upper().startswith("DATABASE_URL="):
+        u = u.split("=", 1)[1].strip()
+        if len(u) >= 2 and u[0] == u[-1] and u[0] in ("'", '"'):
+            u = u[1:-1].strip()
+
+    # Parámetros de Prisma no válidos para psycopg/SQLAlchemy
+    for suffix in ("?pgbouncer=true", "&pgbouncer=true", "?pgbouncer=false", "&pgbouncer=false"):
+        if suffix in u.lower():
+            u = u[: u.lower().index(suffix)] + u[u.lower().index(suffix) + len(suffix) :]
+    u = u.rstrip("?&")
+
     if u.startswith("postgres://"):
         return "postgresql+psycopg://" + u[len("postgres://") :]
     if u.startswith("postgresql://") and "+psycopg" not in u:
