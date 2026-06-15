@@ -57,11 +57,11 @@ export function AdminPanel() {
   }, []);
 
   useEffect(() => {
-    loadOrgs();
+    void Promise.resolve().then(loadOrgs);
   }, [loadOrgs]);
 
   useEffect(() => {
-    if (selectedSlug) loadUsers(selectedSlug);
+    if (selectedSlug) void Promise.resolve().then(() => loadUsers(selectedSlug));
   }, [selectedSlug, loadUsers]);
 
   const onCreateOrg = async (e: FormEvent) => {
@@ -69,15 +69,17 @@ export function AdminPanel() {
     setBusy(true);
     setMessage("");
     try {
-      await api.createOrganization({
+      const created = await api.createOrganization({
         nombre: newOrg.nombre,
         slug: newOrg.slug || undefined,
         logo_label: newOrg.logo_label,
         brand_color: newOrg.brand_color,
       });
       setNewOrg({ nombre: "", slug: "", logo_label: "C", brand_color: "#34d399" });
-      setMessage("Cooperativa creada.");
+      setSelectedSlug(created.organizacion.slug);
+      setMessage("Cooperativa creada. Ahora podés cargar su primera credencial abajo.");
       await loadOrgs();
+      await loadUsers(created.organizacion.slug);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al crear cooperativa");
     } finally {
@@ -257,8 +259,12 @@ export function AdminPanel() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
                 <h3 className="text-xs font-mono uppercase text-slate-500">
-                  Usuarios — {selectedOrg.nombre}
+                  Credenciales — {selectedOrg.nombre}
                 </h3>
+                <p className="text-xs text-slate-500">
+                  El email y la clave inicial que cargues acá son las credenciales de acceso
+                  para esa cooperativa.
+                </p>
                 <form onSubmit={onCreateUser} className="space-y-2">
                   <input
                     required
