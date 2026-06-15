@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.estate.models import LineaJSC, Organization, User
+from app.estate.security import hash_password, valid_email, valid_password
 
 _ROLES_VALIDOS = {"cliente", "ingeniero_noc", "admin_sistema", "admin_org"}
 _ALIASES = {
@@ -89,6 +90,10 @@ def import_usuarios_csv(
             result.omitidos += 1
             result.errores.append(f"Fila {idx}: nombre y email son obligatorios.")
             continue
+        if not valid_email(email):
+            result.omitidos += 1
+            result.errores.append(f"Fila {idx}: email '{email}' inválido.")
+            continue
 
         rol = (row.get("rol") or default_rol).lower()
         if rol in ("operador", "cooperativa"):
@@ -99,6 +104,10 @@ def import_usuarios_csv(
             continue
 
         password = row.get("password") or default_password
+        if not valid_password(password):
+            result.omitidos += 1
+            result.errores.append(f"Fila {idx}: clave demasiado corta (mínimo 6 caracteres).")
+            continue
         telefono = row.get("telefono", "")
         linea = _normalize_msisdn(row.get("linea_principal", ""))
 
@@ -113,7 +122,8 @@ def import_usuarios_csv(
             existing.telefono = telefono
             existing.linea_principal = linea
             if row.get("password"):
-                existing.password = password
+                existing.password = hash_password(password)
+                existing.must_change_password = "No"
             result.actualizados += 1
         else:
             db.add(
@@ -121,10 +131,11 @@ def import_usuarios_csv(
                     organizacion_id=org.id,
                     email=email,
                     nombre=nombre,
-                    password=password,
+                    password=hash_password(password),
                     rol=rol,
                     telefono=telefono,
                     linea_principal=linea,
+                    must_change_password="Sí" if password == default_password else "No",
                 )
             )
             result.creados += 1

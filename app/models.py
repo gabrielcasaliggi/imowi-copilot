@@ -18,6 +18,7 @@ class LoginResponse(BaseModel):
     cooperativa: str | None = None
     nombre: str
     org_slug: str = "imowi"
+    must_change_password: bool = False
 
 
 class ContextoTicket(BaseModel):

@@ -6,6 +6,7 @@ import re
 from datetime import UTC, datetime
 
 from app.estate.models import Ticket
+from app.estate.sla_engine import compute_sla
 
 _CAUSA_REGLAS: list[tuple[tuple[str, ...], str]] = [
     (("roaming", "internacional", "brasil", "uruguay"), "Roaming / registro en red visitada"),
@@ -83,6 +84,9 @@ def proxima_mejor_accion(t: Ticket) -> str:
         return "Asignar ingeniero NOC, revisar telemetría correlacionada y definir plan de acción."
     if t.estado_sla in ("Vencido", "Crítico", "Vencida"):
         return "Prioridad SLA: contactar operador, actualizar estado y escalar si no hay avance en 30 min."
+    sla_info = compute_sla(t, now=datetime.now(UTC))
+    if sla_info["estado_sla"] in ("Vencido", "Crítico"):
+        return "Prioridad SLA: contactar operador, actualizar estado y escalar si no hay avance en 30 min."
     if cat in _ACCION_N1:
         return _ACCION_N1[cat]
     if t.destino == "proveedor":
@@ -111,6 +115,7 @@ def calcular_prioridad(
             "horas_abierto": round(_horas_abierto(t, now), 1),
             "recurrence_count": _recurrence_count(t, pool),
             "organizacion": org_name,
+            "sla": compute_sla(t, now=now),
         }
 
     score += 15
@@ -120,10 +125,21 @@ def calcular_prioridad(
     if t.proveedor:
         score += 18
         reasons.append(f"Involucra proveedor ({t.proveedor})")
-    sla = (t.estado_sla or "").lower()
-    if sla in ("vencido", "crítico", "critico", "vencida"):
+    sla_info = compute_sla(t, now=now)
+    t.estado_sla = sla_info["estado_sla"]
+    estado_sla = sla_info["estado_sla"].lower()
+    if estado_sla == "vencido":
+        score += 28
+        reasons.append(sla_info["label"])
+    elif estado_sla == "crítico" or estado_sla == "critico":
         score += 22
-        reasons.append(f"SLA {t.estado_sla}")
+        reasons.append(sla_info["label"])
+    elif estado_sla == "en riesgo":
+        score += 14
+        reasons.append(sla_info["label"])
+    elif sla_info.get("horas_restantes", 99) <= 8:
+        score += 8
+        reasons.append(sla_info["label"])
     horas = _horas_abierto(t, now)
     if horas >= 4:
         ant_score = min(horas * 1.8, 35)
@@ -163,6 +179,7 @@ def calcular_prioridad(
         "horas_abierto": round(horas, 1),
         "recurrence_count": rec,
         "organizacion": org_name,
+        "sla": sla_info,
     }
 
 

@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 from app.api.v1.schemas import OrganizationCreate, OrganizationUpdate, UserCreate
 from app.auth import UsuarioSesion, requiere_admin
 from app.estate import repository as repo
+from app.estate.audit import log_audit
 from app.estate.database import get_db
 from app.estate.import_csv import import_usuarios_csv
+from app.estate.security import valid_email, valid_password
 
 router = APIRouter(tags=["Admin"])
 
@@ -32,7 +34,7 @@ def list_organizations_admin(
 @router.post("/admin/organizations")
 def create_organization(
     body: OrganizationCreate,
-    _: UsuarioSesion = Depends(requiere_admin),
+    admin: UsuarioSesion = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
     if not body.nombre.strip():
@@ -43,6 +45,14 @@ def create_organization(
         slug=body.slug.strip() if body.slug else None,
         logo_label=body.logo_label,
         brand_color=body.brand_color,
+    )
+    log_audit(
+        db,
+        org_id=org.id,
+        actor=admin.usuario,
+        accion="cooperativa_alta",
+        recurso=org.slug,
+        detalle=f"Cooperativa creada: {org.nombre}",
     )
     return {
         "status": "ok",
@@ -104,25 +114,38 @@ def list_organization_users(
 def create_organization_user(
     slug: str,
     body: UserCreate,
-    _: UsuarioSesion = Depends(requiere_admin),
+    admin: UsuarioSesion = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
     org = _org_or_404(db, slug)
     if not body.email.strip() or not body.nombre.strip():
         raise HTTPException(400, "Email y nombre son obligatorios")
+    if not valid_email(body.email.strip()):
+        raise HTTPException(400, "Email inválido")
+    pwd = body.password or "cliente"
+    if not valid_password(pwd):
+        raise HTTPException(400, "La clave debe tener al menos 6 caracteres")
     try:
         user = repo.create_user_for_org(
             db,
             org.id,
             email=body.email.strip(),
             nombre=body.nombre.strip(),
-            password=body.password or "cliente",
+            password=pwd,
             rol=body.rol or "cliente",
             telefono=body.telefono,
             linea_principal=body.linea_principal,
         )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
+    log_audit(
+        db,
+        org_id=org.id,
+        actor=admin.usuario,
+        accion="usuario_alta",
+        recurso=user.email,
+        detalle=f"Usuario {user.nombre} ({user.rol}) en {slug}",
+    )
     return {"status": "ok", "usuario": repo.user_to_dict(user)}
 
 
@@ -130,7 +153,7 @@ def create_organization_user(
 async def import_organization_csv(
     slug: str,
     file: UploadFile = File(...),
-    _: UsuarioSesion = Depends(requiere_admin),
+    admin: UsuarioSesion = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
     org = _org_or_404(db, slug)
@@ -143,6 +166,14 @@ async def import_organization_csv(
         raise HTTPException(400, "El CSV debe estar en UTF-8") from exc
 
     result = import_usuarios_csv(db, org, text)
+    log_audit(
+        db,
+        org_id=org.id,
+        actor=admin.usuario,
+        accion="usuarios_import_csv",
+        recurso=slug,
+        detalle=f"creados={result.creados} actualizados={result.actualizados} omitidos={result.omitidos}",
+    )
     return {
         "status": "ok",
         "slug": slug,
@@ -152,4 +183,31 @@ async def import_organization_csv(
         "omitidos": result.omitidos,
         "errores": result.errores,
         "filas": result.filas,
+    }
+
+
+@router.get("/admin/audit")
+def list_audit_events(
+    limit: int = 50,
+    admin: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    from app.estate.audit import list_audit
+
+    org = repo.get_org_by_slug(db, "imowi")
+    org_id = org.id if org else ""
+    events = list_audit(db, org_id, limit=min(limit, 200), admin_global=True)
+    return {
+        "eventos": [
+            {
+                "id": e.id,
+                "organizacion_id": e.organizacion_id,
+                "actor": e.actor,
+                "accion": e.accion,
+                "recurso": e.recurso,
+                "detalle": e.detalle,
+                "created_at": e.created_at.isoformat() if e.created_at else "",
+            }
+            for e in events
+        ]
     }

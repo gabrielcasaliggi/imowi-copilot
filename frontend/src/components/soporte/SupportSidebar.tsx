@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { GlassCard } from "@/components/ui/GlassCard";
+import { GlassCard, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useApp } from "@/contexts/AppContext";
 import { FlujoOperativoPanel } from "@/components/soporte/FlujoOperativoPanel";
@@ -255,6 +255,14 @@ function TicketFormacionCard() {
             </div>
             <p className="text-[10px] text-slate-400">Causa: {intel.probable_cause}</p>
             <p className="text-[10px] text-cyan-400/90">→ {intel.next_best_action}</p>
+            {(t.sla_label || intel.sla?.label) && (
+              <div className="pt-1">
+                <SlaBadge
+                  label={t.sla_label || intel.sla?.label}
+                  estado={t.estado_sla || intel.sla?.estado_sla}
+                />
+              </div>
+            )}
             {intel.risk_reasons?.length ? (
               <p className="text-[9px] text-slate-600">{intel.risk_reasons.join(" · ")}</p>
             ) : null}

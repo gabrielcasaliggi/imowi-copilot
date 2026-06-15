@@ -2,8 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
-import type { AdminUser, ImportCsvResult, Organization } from "@/lib/types";
-import { KpiCard } from "@/components/ui/GlassCard";
+import type { AdminUser, AuditEvent, ImportCsvResult, Organization } from "@/lib/types";
+import { KpiCard, PanelHeader } from "@/components/ui/GlassCard";
 
 const CSV_EJEMPLO = `nombre,email,telefono,rol,linea_principal
 Operador Batán 1,operador1@coopbatan.com,2235551001,cliente,2235551234
@@ -17,6 +17,7 @@ export function AdminPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [importResult, setImportResult] = useState<ImportCsvResult | null>(null);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
 
   const [newOrg, setNewOrg] = useState({
     nombre: "",
@@ -63,6 +64,10 @@ export function AdminPanel() {
   useEffect(() => {
     if (selectedSlug) void Promise.resolve().then(() => loadUsers(selectedSlug));
   }, [selectedSlug, loadUsers]);
+
+  useEffect(() => {
+    void api.adminAudit(15).then((d) => setAuditEvents(d.eventos)).catch(() => setAuditEvents([]));
+  }, [message, busy]);
 
   const onCreateOrg = async (e: FormEvent) => {
     e.preventDefault();
@@ -147,7 +152,7 @@ export function AdminPanel() {
       <div>
         <h2 className="font-semibold text-slate-100">Administración</h2>
         <p className="text-[10px] font-mono text-slate-500">
-          Cooperativas · usuarios · importación CSV piloto
+          Cooperativas · credenciales seguras · importación CSV · auditoría
         </p>
       </div>
 
@@ -262,8 +267,8 @@ export function AdminPanel() {
                   Credenciales — {selectedOrg.nombre}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  El email y la clave inicial que cargues acá son las credenciales de acceso
-                  para esa cooperativa.
+                  Las claves se almacenan con hash bcrypt. Mínimo 6 caracteres. No se
+                  muestran en listados ni APIs.
                 </p>
                 <form onSubmit={onCreateUser} className="space-y-2">
                   <input
@@ -334,6 +339,9 @@ export function AdminPanel() {
                         <div className="min-w-0">
                           <p className="text-slate-300 truncate">{u.nombre}</p>
                           <p className="font-mono text-slate-500 truncate">{u.email}</p>
+                          {u.must_change_password && (
+                            <p className="text-[9px] text-amber-400">Debe cambiar clave</p>
+                          )}
                         </div>
                         <span className="text-slate-500 shrink-0">{u.rol}</span>
                       </div>
@@ -376,6 +384,36 @@ export function AdminPanel() {
               </div>
             </div>
           )}
+
+          <div className="enterprise-panel">
+            <PanelHeader
+              title="Auditoría operativa"
+              subtitle="Altas, importaciones y cambios sensibles recientes"
+            />
+            {auditEvents.length === 0 ? (
+              <p className="text-xs text-slate-600">Sin eventos registrados aún.</p>
+            ) : (
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {auditEvents.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="text-xs py-2 border-b border-slate-800/60 last:border-b-0"
+                  >
+                    <div className="flex justify-between gap-2">
+                      <span className="font-mono text-cyan-400/90">{ev.accion}</span>
+                      <span className="text-[10px] text-slate-600 shrink-0">
+                        {ev.created_at?.slice(0, 16).replace("T", " ")}
+                      </span>
+                    </div>
+                    <p className="text-slate-400 truncate">{ev.recurso}</p>
+                    <p className="text-[10px] text-slate-600 truncate">
+                      {ev.actor} · {ev.detalle}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
-import { KpiCard } from "@/components/ui/GlassCard";
+import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 function ColumnChart({
@@ -158,7 +158,7 @@ export function StatsDashboard() {
         <div>
           <h2 className="font-semibold text-slate-100">Estadísticas</h2>
           <p className="text-[10px] font-mono text-slate-500">
-            Reclamos · niveles · tiempos · backlog inteligente
+            Resumen ejecutivo · backlog por riesgo · SLA operativo
           </p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
@@ -290,6 +290,9 @@ export function StatsDashboard() {
                       <StatusBadge value={t.estado} />
                       {t.risk_level && t.risk_level !== "bajo" && (
                         <span className="text-[9px] font-mono text-amber-400">{t.risk_level}</span>
+                      )}
+                      {t.estado_sla && (
+                        <SlaBadge label={t.estado_sla} estado={t.estado_sla} />
                       )}
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 truncate">

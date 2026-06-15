@@ -28,11 +28,21 @@ _CASO_COLUMNS: dict[str, str] = {
 _USER_COLUMNS: dict[str, str] = {
     "telefono": "VARCHAR(32) DEFAULT ''",
     "linea_principal": "VARCHAR(16) DEFAULT ''",
+    "must_change_password": "VARCHAR(8) DEFAULT 'No'",
+    "last_login_at": "DATETIME",
+}
+
+_SLA_COLUMNS: dict[str, str] = {
+    "sla_policy": "VARCHAR(32) DEFAULT ''",
+    "sla_due_at": "DATETIME",
+    "sla_breached_at": "DATETIME",
 }
 
 
 def _add_column(engine: Engine, tabla: str, col: str, ddl: str) -> None:
     dialect = engine.dialect.name
+    if "TIMESTAMP" in ddl.upper() and dialect != "postgresql":
+        ddl = "DATETIME"
     if dialect == "postgresql":
         sql = f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {col} {ddl}"
     else:
@@ -45,11 +55,19 @@ def migrate_schema(engine: Engine) -> list[str]:
     """Agrega columnas faltantes en tablas existentes. Retorna lista de cambios."""
     cambios: list[str] = []
     insp = inspect(engine)
+
+    if not insp.has_table("audit_events"):
+        from app.estate.models import AuditEvent
+
+        AuditEvent.__table__.create(bind=engine)
+        cambios.append("audit_events")
+        logger.info("Migración: tabla creada audit_events")
+
     if not insp.has_table("tickets_estate"):
         return cambios
 
     existentes = {c["name"] for c in insp.get_columns("tickets_estate")}
-    for col, ddl in _TICKET_COLUMNS.items():
+    for col, ddl in {**_TICKET_COLUMNS, **_SLA_COLUMNS}.items():
         if col not in existentes:
             _add_column(engine, "tickets_estate", col, ddl)
             cambios.append(f"tickets_estate.{col}")

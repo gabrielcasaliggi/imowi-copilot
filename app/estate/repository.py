@@ -22,6 +22,8 @@ from app.estate.models import (
     TicketNotification,
     User,
 )
+from app.estate.security import hash_password, valid_email, valid_password
+from app.estate.sla_engine import apply_sla_to_ticket, compute_sla
 
 
 def get_org_by_slug(db: Session, slug: str) -> Organization | None:
@@ -141,6 +143,9 @@ def update_organization(
     return org
 
 
+_ROLES_VALIDOS = {"cliente", "ingeniero_noc", "admin_sistema", "admin_org", "admin", "operador", "cooperativa"}
+
+
 def create_user_for_org(
     db: Session,
     org_id: str,
@@ -151,17 +156,32 @@ def create_user_for_org(
     rol: str = "cliente",
     telefono: str = "",
     linea_principal: str = "",
+    must_change_password: bool | None = None,
 ) -> User:
-    if db.scalar(select(User).where(User.email == email.lower())):
+    email_norm = email.strip().lower()
+    if not valid_email(email_norm):
+        raise ValueError("Email inválido")
+    if not valid_password(password):
+        raise ValueError("La clave debe tener al menos 6 caracteres")
+    rol_norm = (rol or "cliente").lower()
+    if rol_norm in ("operador", "cooperativa"):
+        rol_norm = "cliente"
+    if rol_norm not in _ROLES_VALIDOS:
+        raise ValueError(f"Rol '{rol}' no permitido")
+    if db.scalar(select(User).where(User.email == email_norm)):
         raise ValueError(f"El email {email} ya está registrado")
+    force_change = must_change_password
+    if force_change is None:
+        force_change = password in ("cliente", "demo", "password")
     user = User(
         organizacion_id=org_id,
-        email=email.lower(),
-        nombre=nombre,
-        password=password,
-        rol=rol,
+        email=email_norm,
+        nombre=nombre.strip(),
+        password=hash_password(password),
+        rol=rol_norm,
         telefono=telefono,
         linea_principal=linea_principal,
+        must_change_password="Sí" if force_change else "No",
     )
     db.add(user)
     db.commit()
@@ -177,6 +197,8 @@ def user_to_dict(user: User) -> dict:
         "rol": user.rol,
         "telefono": user.telefono or "",
         "linea_principal": user.linea_principal or "",
+        "must_change_password": (user.must_change_password or "No") == "Sí",
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
 
 
@@ -347,6 +369,9 @@ def create_ticket(
     db.add(t)
     db.commit()
     db.refresh(t)
+    apply_sla_to_ticket(t)
+    db.commit()
+    db.refresh(t)
     add_ticket_event(
         db,
         org_id,
@@ -373,19 +398,46 @@ def create_ticket(
 
 
 def list_tickets(db: Session, org_id: str) -> list[Ticket]:
-    return list(
+    items = list(
         db.scalars(
             select(Ticket)
             .where(Ticket.organizacion_id == org_id)
             .order_by(Ticket.created_at.desc())
         ).all()
     )
+    refresh_tickets_sla(db, items)
+    return items
 
 
 def list_tickets_all(db: Session) -> list[Ticket]:
-    return list(
+    items = list(
         db.scalars(select(Ticket).order_by(Ticket.created_at.desc())).all()
     )
+    refresh_tickets_sla(db, items)
+    return items
+
+
+def refresh_tickets_sla(db: Session, tickets: list[Ticket], *, persist: bool = True) -> None:
+    dirty = False
+    for t in tickets:
+        if t.estado == "Cerrado":
+            continue
+        prev = (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy)
+        apply_sla_to_ticket(t)
+        if prev != (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy):
+            dirty = True
+    if dirty and persist:
+        db.commit()
+
+
+def ensure_ticket_sla(db: Session, t: Ticket) -> dict:
+    if t.estado != "Cerrado":
+        prev = (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy)
+        apply_sla_to_ticket(t)
+        if prev != (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy):
+            db.commit()
+            db.refresh(t)
+    return compute_sla(t)
 
 
 def get_ticket(
@@ -455,6 +507,8 @@ def update_ticket(
         if ticket_externo_id:
             cambios.append(f"referencia externa={ticket_externo_id}")
     t.updated_at = datetime.now(UTC)
+    if t.estado != "Cerrado":
+        apply_sla_to_ticket(t)
     db.commit()
     db.refresh(t)
     if era_abierto and t.estado == "Cerrado":

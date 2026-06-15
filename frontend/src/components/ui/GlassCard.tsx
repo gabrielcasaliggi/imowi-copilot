@@ -44,11 +44,38 @@ export function GlassCard({
 
 export function KpiCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
       <p className="text-[10px] uppercase tracking-wider font-mono text-slate-500">
         {label}
       </p>
-      <p className="text-2xl font-semibold text-slate-100 mt-1">{value}</p>
+      <p className="text-2xl font-semibold text-slate-100 mt-1 tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+export function SlaBadge({
+  label,
+  estado,
+}: {
+  label?: string;
+  estado?: string;
+}) {
+  if (!label && !estado) return null;
+  const est = (estado || "").toLowerCase();
+  const cls =
+    est === "vencido" || est === "crítico" || est === "critico"
+      ? "chip chip-sla-danger"
+      : est === "en riesgo"
+        ? "chip chip-sla-warn"
+        : "chip chip-sla-ok";
+  return <span className={cls}>{label || estado}</span>;
+}
+
+export function PanelHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-3">
+      <h3 className="enterprise-panel-header !mb-0">{title}</h3>
+      {subtitle && <p className="text-[11px] text-slate-500 mt-1">{subtitle}</p>}
     </div>
   );
 }

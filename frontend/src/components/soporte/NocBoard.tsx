@@ -1,7 +1,7 @@
 "use client";
 
 import { useApp } from "@/contexts/AppContext";
-import { KpiCard } from "@/components/ui/GlassCard";
+import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Ticket } from "@/lib/types";
 
@@ -58,6 +58,7 @@ function PriorityTicketRow({
       <div className="flex gap-1 mt-1 flex-wrap">
         {t.nivel && <StatusBadge value={t.nivel} />}
         <StatusBadge value={t.estado} />
+        <SlaBadge label={t.sla_label} estado={t.estado_sla || intel?.sla?.estado_sla} />
       </div>
       <p className="text-[11px] text-slate-400 mt-1 truncate">
         {t.organizacion || ""} · {t.linea || ""} · {t.categoria || "General"}
@@ -104,9 +105,13 @@ export function NocBoard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         <KpiCard label="Abiertos" value={resumen?.abiertos ?? abiertos.length} />
         <KpiCard label="Críticos" value={criticos} />
+        <KpiCard
+          label="SLA vencido"
+          value={abiertos.filter((t) => t.estado_sla === "Vencido" || t.intelligence?.sla?.vencido).length}
+        />
         <KpiCard
           label="N2"
           value={resumen?.n2 ?? tickets.filter((t) => t.nivel === "N2").length}

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import AUTH_SECRET, AUTH_TOKEN_HOURS, MOCK_USERS, es_produccion
 from app.estate import repository as repo
+from app.estate.security import hash_password, is_hashed, verify_password
 from app.models import LoginInput, LoginResponse
 
 _bearer = HTTPBearer(auto_error=False)
@@ -98,11 +99,16 @@ def login_usuario_db(data: LoginInput, db: Session) -> LoginResponse:
             detail="Usuario o contraseña incorrectos",
         )
     user, org = found
-    if user.password != data.password:
+    if not verify_password(data.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
         )
+    if not is_hashed(user.password):
+        user.password = hash_password(data.password)
+        db.commit()
+    user.last_login_at = datetime.now(UTC)
+    db.commit()
 
     rol_token = _rol_token_desde_estate(user.rol, org.slug)
     cooperativa = None if org.slug == "imowi" else org.nombre
@@ -122,6 +128,7 @@ def login_usuario_db(data: LoginInput, db: Session) -> LoginResponse:
         cooperativa=cooperativa,
         nombre=user.nombre,
         org_slug=org.slug,
+        must_change_password=(user.must_change_password or "").lower() in ("sí", "si", "yes", "true"),
     )
 
 

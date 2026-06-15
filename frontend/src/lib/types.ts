@@ -34,6 +34,18 @@ export interface AdminUser {
   rol: string;
   telefono: string;
   linea_principal: string;
+  must_change_password?: boolean;
+  last_login_at?: string | null;
+}
+
+export interface AuditEvent {
+  id: string;
+  organizacion_id: string;
+  actor: string;
+  accion: string;
+  recurso: string;
+  detalle: string;
+  created_at: string;
 }
 
 export interface ImportCsvResult {
@@ -86,6 +98,15 @@ export interface TicketIntelligence {
   horas_abierto: number;
   recurrence_count: number;
   organizacion?: string;
+  sla?: {
+    sla_policy?: string;
+    sla_due_at?: string | null;
+    sla_breached_at?: string | null;
+    estado_sla?: string;
+    horas_restantes?: number;
+    vencido?: boolean;
+    label?: string;
+  };
 }
 
 export interface Ticket {
@@ -108,6 +129,10 @@ export interface Ticket {
   evidencia?: string;
   regla_clasificacion?: string;
   estado_sla?: string;
+  sla_policy?: string;
+  sla_due_at?: string | null;
+  sla_breached_at?: string | null;
+  sla_label?: string;
   ticket_externo_id?: string;
   created_at?: string;
   updated_at?: string;

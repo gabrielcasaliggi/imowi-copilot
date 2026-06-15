@@ -7,6 +7,7 @@ import type {
   TicketLearning,
   KBArticle,
   AdminUser,
+  AuditEvent,
   ImportCsvResult,
   LoginResponse,
   MeResponse,
@@ -340,5 +341,9 @@ export const api = {
     }
 
     return res.json() as Promise<ImportCsvResult>;
+  },
+
+  adminAudit(limit = 20) {
+    return request<{ eventos: AuditEvent[] }>(`/api/v1/admin/audit?limit=${limit}`);
   },
 };

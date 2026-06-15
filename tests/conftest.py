@@ -10,6 +10,18 @@ from app.estate.database import Base
 from app.estate.models import NetworkElement, Organization, Ticket
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_schema():
+    import app.estate.models  # noqa: F401
+
+    from app.estate.database import get_engine
+    from app.estate.migrate import migrate_schema
+
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    migrate_schema(engine)
+
+
 @pytest.fixture
 def db():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
@@ -41,6 +53,17 @@ def add_ticket(db, org_id: str, **kwargs) -> Ticket:
     db.commit()
     db.refresh(t)
     return t
+
+
+@pytest.fixture
+def db_session():
+    from app.estate.database import get_session_factory
+
+    session = get_session_factory()()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 def add_network_element(db, org_id: str, **kwargs) -> NetworkElement:

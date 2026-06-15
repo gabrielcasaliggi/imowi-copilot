@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.estate.models import KnowledgeArticle, LineaJSC, NetworkElement, Organization, User
+from app.estate.security import hash_password
 
 
 def _org(db: Session, slug: str) -> Organization | None:
@@ -27,11 +28,11 @@ def seed_estate(db: Session) -> dict:
     imowi, batan, viamonte = orgs
 
     users = [
-        User(organizacion_id=imowi.id, email="admin@imowi.com", nombre="Admin Sistema imowi", password="admin", rol="admin_sistema"),
-        User(organizacion_id=imowi.id, email="noc@imowi.com", nombre="Ingeniero NOC imowi", password="noc", rol="ingeniero_noc"),
-        User(organizacion_id=batan.id, email="noc@coopbatan.com", nombre="Ingeniero NOC CoopBatán", password="noc", rol="ingeniero_noc"),
-        User(organizacion_id=batan.id, email="cliente@coopbatan.com", nombre="Operador Coop Batán", password="cliente", rol="cliente"),
-        User(organizacion_id=viamonte.id, email="cliente@coopviamonte.com", nombre="Cliente Coop Viamonte", password="cliente", rol="cliente"),
+        User(organizacion_id=imowi.id, email="admin@imowi.com", nombre="Admin Sistema imowi", password=hash_password("admin"), rol="admin_sistema"),
+        User(organizacion_id=imowi.id, email="noc@imowi.com", nombre="Ingeniero NOC imowi", password=hash_password("noc"), rol="ingeniero_noc"),
+        User(organizacion_id=batan.id, email="noc@coopbatan.com", nombre="Ingeniero NOC CoopBatán", password=hash_password("noc"), rol="ingeniero_noc"),
+        User(organizacion_id=batan.id, email="cliente@coopbatan.com", nombre="Operador Coop Batán", password=hash_password("cliente"), rol="cliente", must_change_password="Sí"),
+        User(organizacion_id=viamonte.id, email="cliente@coopviamonte.com", nombre="Cliente Coop Viamonte", password=hash_password("cliente"), rol="cliente", must_change_password="Sí"),
     ]
     db.add_all(users)
 

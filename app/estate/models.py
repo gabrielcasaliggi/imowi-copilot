@@ -44,10 +44,12 @@ class User(Base):
     organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     email: Mapped[str] = mapped_column(String(120), nullable=False)
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
-    password: Mapped[str] = mapped_column(String(120), default="demo")
+    password: Mapped[str] = mapped_column(String(255), default="demo")
     rol: Mapped[str] = mapped_column(String(32), nullable=False)
     telefono: Mapped[str] = mapped_column(String(32), default="")
     linea_principal: Mapped[str] = mapped_column(String(16), default="")
+    must_change_password: Mapped[str] = mapped_column(String(8), default="No")
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     organizacion: Mapped["Organization"] = relationship(back_populates="usuarios")
 
@@ -123,6 +125,9 @@ class Ticket(Base):
     evidencia: Mapped[str] = mapped_column(Text, default="")
     acciones_n1_realizadas: Mapped[str] = mapped_column(Text, default="")
     estado_sla: Mapped[str] = mapped_column(String(32), default="Pendiente")
+    sla_policy: Mapped[str] = mapped_column(String(32), default="")
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sla_breached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ticket_externo_id: Mapped[str] = mapped_column(String(64), default="")
     regla_clasificacion: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -194,6 +199,22 @@ class TicketNotification(Base):
 
     organizacion: Mapped["Organization"] = relationship(back_populates="ticket_notifications")
     ticket: Mapped["Ticket"] = relationship(back_populates="notificaciones")
+
+
+class AuditEvent(Base):
+    """Auditoría operativa de acciones sensibles."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    actor: Mapped[str] = mapped_column(String(120), default="sistema")
+    accion: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    recurso: Mapped[str] = mapped_column(String(160), default="")
+    detalle: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    organizacion: Mapped["Organization"] = relationship()
 
 
 class PilotEvent(Base):

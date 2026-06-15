@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.deps import get_tenant_context, require_kb_admin
 from app.api.v1.schemas import TenantContext, TicketUpdateV1
 from app.estate import repository as repo
+from app.estate.audit import log_audit
 from app.estate.database import get_db
 from app.estate.learning_loop import similares_con_resolucion, sugerir_kb
 from app.estate.ticket_intelligence import calcular_prioridad, explicar_escalamiento, ordenar_por_riesgo
@@ -17,8 +18,12 @@ def _org_name(t) -> str:
     return org.nombre if org else ""
 
 
-def _ticket_out(t, *, pool=None) -> dict:
+def _ticket_out(t, *, pool=None, db=None) -> dict:
     org = getattr(t, "organizacion", None)
+    if db is not None and t.estado != "Cerrado":
+        sla = repo.ensure_ticket_sla(db, t)
+    else:
+        sla = (calcular_prioridad(t, pool=pool, org_name=org.nombre if org else "").get("sla") or {})
     intel = calcular_prioridad(t, pool=pool, org_name=org.nombre if org else "")
     return {
         "id": t.id,
@@ -39,7 +44,11 @@ def _ticket_out(t, *, pool=None) -> dict:
         "motivo_escalamiento": getattr(t, "motivo_escalamiento", ""),
         "evidencia": getattr(t, "evidencia", ""),
         "regla_clasificacion": getattr(t, "regla_clasificacion", ""),
-        "estado_sla": getattr(t, "estado_sla", "Pendiente"),
+        "estado_sla": sla.get("estado_sla") or getattr(t, "estado_sla", "Pendiente"),
+        "sla_policy": sla.get("sla_policy") or getattr(t, "sla_policy", ""),
+        "sla_due_at": sla.get("sla_due_at"),
+        "sla_breached_at": sla.get("sla_breached_at"),
+        "sla_label": sla.get("label", ""),
         "ticket_externo_id": getattr(t, "ticket_externo_id", ""),
         "created_at": t.created_at.isoformat() if t.created_at else "",
         "updated_at": t.updated_at.isoformat() if t.updated_at else "",
@@ -91,7 +100,7 @@ def list_tickets(ctx: TenantContext = Depends(get_tenant_context), db: Session =
     ordered = [t for t, _ in scored] + rest
     return {
         "tenant": ctx.organizacion_slug,
-        "tickets": [_ticket_out(t, pool=pool) for t in ordered],
+        "tickets": [_ticket_out(t, pool=pool, db=db) for t in ordered],
     }
 
 
@@ -107,7 +116,7 @@ def list_prioritized_tickets(
     return {
         "tenant": ctx.organizacion_slug,
         "cola": [
-            {"ticket": _ticket_out(t, pool=pool), "intelligence": intel}
+            {"ticket": _ticket_out(t, pool=pool, db=db), "intelligence": intel}
             for t, intel in scored[:20]
         ],
     }
@@ -176,7 +185,7 @@ def get_ticket_detail(
         }
     return {
         "tenant": ctx.organizacion_slug,
-        "ticket": _ticket_out(t, pool=pool),
+        "ticket": _ticket_out(t, pool=pool, db=db),
         "timeline": [_event_out(e) for e in eventos],
         "tickets_similares": similares,
         "kb_sugerencias": kb,
@@ -214,6 +223,14 @@ def explain_escalation(
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
     org = repo.get_org_by_id(db, t.organizacion_id)
     texto = explicar_escalamiento(t, org_name=org.nombre if org else "")
+    log_audit(
+        db,
+        org_id=t.organizacion_id,
+        actor=ctx.usuario_email,
+        accion="explain_escalation",
+        recurso=ticket_id,
+        detalle=texto[:500],
+    )
     return {"ticket_id": ticket_id, "explicacion": texto}
 
 
@@ -244,5 +261,14 @@ def update_ticket(
     )
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    accion = "ticket_cierre" if body.estado == "Cerrado" else "ticket_actualizacion"
+    log_audit(
+        db,
+        org_id=t.organizacion_id,
+        actor=ctx.usuario_email,
+        accion=accion,
+        recurso=ticket_id,
+        detalle=f"estado={body.estado or t.estado} nivel={body.nivel or t.nivel}",
+    )
     pool = _load_pool(db, ctx)
-    return {"status": "ok", "ticket": _ticket_out(t, pool=pool)}
+    return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db)}
