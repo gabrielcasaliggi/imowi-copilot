@@ -156,10 +156,11 @@ def _aplicar_intencion_seguimiento(
         hechos=hechos,
     )
     ultimo_msg = _ultimo_mensaje_operador(historial)
-    if necesita_interpretacion_ia(ultimo_msg, intencion, hechos):
+    ultimo_bot = _ultimo_asistente(historial)
+    if necesita_interpretacion_ia(ultimo_msg, intencion, hechos, ultimo_bot=ultimo_bot):
         interp = interpretar_mensaje_estructurado(
             historial,
-            ultimo_bot=_ultimo_asistente(historial),
+            ultimo_bot=ultimo_bot,
             hechos_prev=hechos,
         )
         if interp:

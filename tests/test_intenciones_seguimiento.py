@@ -8,6 +8,10 @@ from app.services.intenciones_seguimiento import (
     extraer_hechos_conversacion,
     siguiente_paso_sugerido,
 )
+from app.services.interprete_conversacional import (
+    aplicar_interpretacion,
+    necesita_interpretacion_ia,
+)
 
 
 def test_detecta_novedad_ticket():
@@ -144,6 +148,32 @@ def test_respuestas_cortas_de_varias_zonas_avanzan(respuesta: str):
     )
     assert hechos["multiples_zonas"] is True
     assert hechos["zona_unica"] is False
+
+
+def test_fallback_ia_se_activa_si_el_paso_cerrado_no_se_entendio_por_reglas():
+    necesita = necesita_interpretacion_ia(
+        "en el area del cliente",
+        {"tipo": "continuar", "confianza": 0.4},
+        {},
+        ultimo_bot="Confirmar si el problema de señal ocurre en una sola zona o en varias ubicaciones.",
+    )
+    assert necesita is True
+
+
+def test_interpretacion_ia_puede_marcar_alcance_geografico():
+    hechos, intencion = aplicar_interpretacion(
+        {},
+        {"tipo": "continuar", "confianza": 0.4},
+        {
+            "intencion": "informe_alcance",
+            "confianza": 0.82,
+            "fuente": "ia",
+            "hechos": {"zona_unica": True, "multiples_zonas": False},
+        },
+    )
+    assert intencion["tipo"] == "informe_alcance"
+    assert hechos["zona_unica"] is True
+    assert hechos["multiples_zonas"] is False
 
 
 def test_confirmacion_jsc_marca_roaming():

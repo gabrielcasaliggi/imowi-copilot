@@ -234,6 +234,8 @@ _HECHOS_BOOL = frozenset({
     "roaming_activado_jsc",
     "reinicio_o_modo_avion",
     "alcance_confirmado",
+    "zona_unica",
+    "multiples_zonas",
     "sim_cambiada",
 })
 
@@ -425,10 +427,17 @@ def _fusionar_hechos(base: dict, nuevos: dict) -> dict:
     return out
 
 
-def necesita_interpretacion_ia(msg: str, intencion: dict, hechos: dict) -> bool:
+def necesita_interpretacion_ia(
+    msg: str,
+    intencion: dict,
+    hechos: dict,
+    *,
+    ultimo_bot: str = "",
+) -> bool:
     """True si el mensaje es ambiguo y conviene pedir interpretación estructurada."""
     t = (msg or "").strip()
-    if len(t) < 8:
+    bot = (ultimo_bot or "").lower()
+    if len(t) < 4:
         return False
     conf = float(intencion.get("confianza") or 0)
     if conf >= 0.85:
@@ -440,6 +449,22 @@ def necesita_interpretacion_ia(msg: str, intencion: dict, hechos: dict) -> bool:
     # Triaje inicial con línea + síntoma: no hace falta intérprete
     if re.search(r"\d{10,11}", t) and len(t.split()) >= 5:
         return False
+    # Si el playbook hizo una pregunta cerrada y el operador respondió en lenguaje
+    # libre, usamos IA para mapear la respuesta al hecho pendiente antes de repreguntar.
+    if (
+        ("una sola zona" in bot or "varias ubicaciones" in bot or "varias zonas" in bot)
+        and hechos.get("zona_unica") is None
+        and hechos.get("multiples_zonas") is None
+    ):
+        return True
+    if "llamada" in bot and hechos.get("llamadas_ok") is None:
+        return True
+    if "apn" in bot and hechos.get("apn_configurado") is None:
+        return True
+    if ("modo avión" in bot or "modo avion" in bot or "reinici" in bot) and hechos.get("reinicio_o_modo_avion") is None:
+        return True
+    if ("jsc" in bot or "roaming" in bot) and hechos.get("roaming_verificado") is None:
+        return True
     # Mensaje sustantivo sin clasificación clara
     if conf < 0.7 and len(t.split()) >= 4:
         return True
@@ -477,10 +502,13 @@ def interpretar_mensaje_estructurado(
         "informe_prueba, informe_alcance, seguimiento_activo, continuar. "
         "hechos: objeto con claves opcionales booleanas "
         "datos_ok, llamadas_ok, resuelto, apn_configurado, roaming_verificado, "
-        "reinicio_o_modo_avion, datos_moviles_activos, alcance_confirmado. "
+        "reinicio_o_modo_avion, datos_moviles_activos, alcance_confirmado, "
+        "zona_unica, multiples_zonas. "
         "Usá true/false/null. confianza: 0.0-1.0. "
         "aclaracion: string corto si confianza < 0.6, sino vacío. "
-        "No inventes ticket_id ni pasos. Interpretá lenguaje técnico e informal."
+        "No inventes ticket_id ni pasos. Interpretá lenguaje técnico e informal. "
+        "Si el bot preguntó si ocurre en una sola zona o en varias, mapeá la respuesta "
+        "a zona_unica o multiples_zonas aunque el operador use sinónimos."
     )
     user = (
         f"HISTORIAL:\n{hist_txt}\n\n"
