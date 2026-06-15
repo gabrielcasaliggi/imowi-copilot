@@ -336,6 +336,7 @@ export interface StatsResponse {
     linea: string;
     nivel: string;
     estado: string;
+    estado_sla?: string;
     categoria: string;
     horas_abierto: number;
     priority_score?: number;
