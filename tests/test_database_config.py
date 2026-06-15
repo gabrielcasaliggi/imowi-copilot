@@ -47,6 +47,14 @@ def test_mirror_supabase_desactivado_con_postgres(monkeypatch):
     assert config.es_mirror_supabase_activo() is False
 
 
+def test_postgres_connect_args_desactiva_prepared_statements():
+    from app.estate.database import postgres_connect_args
+
+    args = postgres_connect_args()
+    assert args["prepare_threshold"] is None
+    assert "sslmode" in args
+
+
 def test_mirror_supabase_activo_sin_postgres(monkeypatch):
     from app import config
 

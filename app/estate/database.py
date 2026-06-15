@@ -25,6 +25,15 @@ def _sqlite_path() -> Path:
     return Path("data/estate.db").resolve()
 
 
+def postgres_connect_args() -> dict:
+    """Opciones psycopg3 para Postgres gestionado (Supabase/PgBouncer en :6543)."""
+    return {
+        "sslmode": DATABASE_SSLMODE,
+        # PgBouncer en modo transaction no soporta prepared statements de psycopg3.
+        "prepare_threshold": None,
+    }
+
+
 def get_engine():
     global _engine
     if _engine is None:
@@ -33,7 +42,7 @@ def get_engine():
                 DATABASE_URL,
                 pool_pre_ping=True,
                 pool_recycle=280,
-                connect_args={"sslmode": DATABASE_SSLMODE},
+                connect_args=postgres_connect_args(),
             )
         else:
             path = _sqlite_path()
