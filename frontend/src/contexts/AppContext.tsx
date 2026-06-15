@@ -419,7 +419,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saveHistorial(sid, nuevoHist);
         appendTrace(res.agent_traces || []);
         if (res.usar_ia === false) appendTrace(["💬 Motor: respuesta sin IA"]);
-        await procesarRespuestaChat(res);
+        try {
+          await procesarRespuestaChat(res);
+        } catch (e) {
+          appendTrace([
+            `⚠️ Respuesta recibida, pero falló actualizar paneles: ${
+              e instanceof Error ? e.message : "Error"
+            }`,
+          ]);
+        }
       } catch (e) {
         appendTrace([`❌ ${e instanceof Error ? e.message : "Error"}`]);
       } finally {
