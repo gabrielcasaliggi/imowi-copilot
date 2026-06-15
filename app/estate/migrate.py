@@ -39,11 +39,17 @@ _SLA_COLUMNS: dict[str, str] = {
 }
 
 
-def _add_column(engine: Engine, tabla: str, col: str, ddl: str) -> None:
+def _ddl_for_dialect(engine: Engine, ddl: str) -> str:
+    """Normaliza tipos datetime entre SQLite (DATETIME) y PostgreSQL (TIMESTAMPTZ)."""
     dialect = engine.dialect.name
-    if "TIMESTAMP" in ddl.upper() and dialect != "postgresql":
-        ddl = "DATETIME"
     if dialect == "postgresql":
+        return ddl.replace("DATETIME", "TIMESTAMP WITH TIME ZONE")
+    return ddl.replace("TIMESTAMP WITH TIME ZONE", "DATETIME")
+
+
+def _add_column(engine: Engine, tabla: str, col: str, ddl: str) -> None:
+    ddl = _ddl_for_dialect(engine, ddl)
+    if engine.dialect.name == "postgresql":
         sql = f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {col} {ddl}"
     else:
         sql = f"ALTER TABLE {tabla} ADD COLUMN {col} {ddl}"
