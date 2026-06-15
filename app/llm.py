@@ -33,6 +33,14 @@ def manejar_error_ia(e: Exception) -> HTTPException:
             status_code=503,
             detail="Cuota de la API agotada. Probá más tarde o revisá tu proveedor LLM.",
         )
+    if "413" in msg or "payload too large" in msg.lower() or "request too large" in msg.lower():
+        return HTTPException(
+            status_code=413,
+            detail=(
+                "Solicitud demasiado grande para el LLM (>6000 tokens). "
+                "La KB ya se filtra por keywords; acortá el historial del chat o reducí KNOWLEDGE_MAX_FRAGMENT_CHARS."
+            ),
+        )
     if "API key" in msg or "API_KEY" in msg or "connection" in msg.lower():
         return HTTPException(
             status_code=503,

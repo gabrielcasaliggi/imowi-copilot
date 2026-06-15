@@ -6,10 +6,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
+COPY static/ static/
 COPY main.py index.html config.js ./
 COPY Base_de_Conocimiento_Tickets.md ./
 
-# Volumen persistente: montar en /app/data
+# Volumen persistente solo si usás SQLite local en Docker (dev)
+# En producción con DATABASE_URL=PostgreSQL no hace falta disco en Render
 ENV DATA_DIR=/app/data
 ENV HOST=0.0.0.0
 ENV PORT=8000

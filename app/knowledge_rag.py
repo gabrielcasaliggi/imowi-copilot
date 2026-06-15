@@ -1,6 +1,6 @@
 """
 Motor RAG simplificado: parseo de Markdown + búsqueda por palabras clave.
-Pensado para Llama local sin base vectorial.
+Solo fragmentos relevantes al mensaje del operador van al LLM (evita error 413).
 """
 
 from __future__ import annotations
@@ -10,13 +10,17 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.config import KNOWLEDGE_MIN_SCORE, KNOWLEDGE_TOP_K
+from app.config import (
+    KNOWLEDGE_MAX_FRAGMENT_CHARS,
+    KNOWLEDGE_MIN_SCORE,
+    KNOWLEDGE_TOP_K,
+)
 
 # ─── Estado global (cargado en startup) ───
 _bloques: list["BloqueConocimiento"] = []
 _indice_invertido: dict[str, set[int]] = {}
 _cargado: bool = False
-_ruta_archivo: Path | None = None
+_fuentes: list[Path] = []
 
 
 @dataclass
@@ -25,6 +29,7 @@ class BloqueConocimiento:
     titulo: str
     contenido: str
     texto_busqueda: str
+    fuente: str = ""
     tokens: set[str] = field(default_factory=set)
 
 
@@ -34,6 +39,7 @@ class ResultadoBusqueda:
     bloque: BloqueConocimiento | None = None
     puntaje: float = 0.0
     modo: str = "escalamiento"  # "resolucion" | "escalamiento"
+    terminos_coincidentes: list[str] = field(default_factory=list)
 
 
 STOPWORDS = frozenset(
@@ -44,6 +50,20 @@ STOPWORDS = frozenset(
     """.split()
 )
 
+TERMINOS_TECNICOS = frozenset(
+    """
+    esim esims roaming apn lte 5g imsi sms a2p jsc noc imowi sim iphone android
+    datos llamadas cobertura volte imei eid movistar personal claro catel
+    """.split()
+)
+
+CARPETAS_CONOCIMIENTO = ("contratos", "knowledge", "base_conocimiento")
+ARCHIVOS_CONOCIMIENTO = (
+    "base_conocimiento.md",
+    "Base_de_Conocimiento_Tickets.md",
+    "base_conocimiento_tickets.md",
+)
+
 
 def _normalizar_texto(texto: str) -> str:
     t = unicodedata.normalize("NFD", texto.lower())
@@ -52,8 +72,18 @@ def _normalizar_texto(texto: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def _extraer_terminos_compuestos(texto: str) -> set[str]:
+    """Captura términos técnicos antes de tokenizar (eSIM, Roaming, APN, etc.)."""
+    encontrados: set[str] = set()
+    texto_norm = _normalizar_texto(texto)
+    for termino in TERMINOS_TECNICOS:
+        if re.search(rf"\b{re.escape(termino)}\b", texto_norm):
+            encontrados.add(termino)
+    return encontrados
+
+
 def tokenizar(texto: str) -> set[str]:
-    tokens = set()
+    tokens = _extraer_terminos_compuestos(texto)
     for palabra in _normalizar_texto(texto).split():
         if len(palabra) > 2 and palabra not in STOPWORDS:
             tokens.add(palabra)
@@ -76,7 +106,62 @@ def _construir_texto_busqueda(contenido: str) -> str:
     return " ".join(partes) if partes else contenido[:1500]
 
 
-def parsear_markdown(contenido: str) -> list[BloqueConocimiento]:
+def _extraer_fragmentos_relevantes(
+    texto: str,
+    query_tokens: set[str],
+    max_chars: int,
+) -> str:
+    """Dentro de un bloque KB, conserva solo párrafos que coinciden con la consulta."""
+    if not texto:
+        return ""
+    if not query_tokens:
+        return texto[:max_chars]
+
+    segmentos = [s.strip() for s in re.split(r"\s*\|\s*|\n\n+", texto) if s.strip()]
+    if len(segmentos) <= 1:
+        norm = _normalizar_texto(texto)
+        if any(len(t) >= 4 and t in norm for t in query_tokens):
+            return texto[:max_chars]
+        return texto[:max_chars]
+
+    puntajes: list[tuple[float, str]] = []
+    for segmento in segmentos:
+        if len(segmento) < 15:
+            continue
+        seg_tokens = tokenizar(segmento)
+        overlap = query_tokens & seg_tokens
+        norm_seg = _normalizar_texto(segmento)
+        if not overlap:
+            for termino in query_tokens:
+                if len(termino) >= 4 and termino in norm_seg:
+                    overlap = {termino}
+                    break
+        if not overlap:
+            continue
+        score = len(overlap) / max(len(query_tokens), 1)
+        if any(t in TERMINOS_TECNICOS for t in overlap):
+            score += 0.15
+        puntajes.append((score, segmento))
+
+    if not puntajes:
+        return texto[:max_chars]
+
+    puntajes.sort(reverse=True, key=lambda item: item[0])
+    seleccionados: list[str] = []
+    total = 0
+    for _, segmento in puntajes:
+        if total + len(segmento) > max_chars:
+            restante = max_chars - total
+            if restante > 80:
+                seleccionados.append(segmento[:restante].rstrip() + "...")
+            break
+        seleccionados.append(segmento)
+        total += len(segmento) + 3
+
+    return " | ".join(seleccionados)
+
+
+def parsear_markdown(contenido: str, fuente: str = "") -> list[BloqueConocimiento]:
     """Segmenta por encabezados ## (cada KB es un bloque)."""
     bloques: list[BloqueConocimiento] = []
     partes = re.split(r"(?=^##\s+)", contenido, flags=re.MULTILINE)
@@ -104,6 +189,7 @@ def parsear_markdown(contenido: str) -> list[BloqueConocimiento]:
                 titulo=titulo_raw,
                 contenido=cuerpo,
                 texto_busqueda=texto_busqueda,
+                fuente=fuente,
                 tokens=tokenizar(f"{titulo_raw} {texto_busqueda}"),
             )
         )
@@ -121,33 +207,46 @@ def _construir_indice_invertido(bloques: list[BloqueConocimiento]) -> dict[str, 
 
 def resolver_ruta_base_conocimiento(raiz: Path | None = None) -> Path:
     raiz = raiz or Path(__file__).resolve().parent.parent
-    candidatos = (
-        "base_conocimiento.md",
-        "Base_de_Conocimiento_Tickets.md",
-        "base_conocimiento_tickets.md",
-    )
-    for nombre in candidatos:
+    for nombre in ARCHIVOS_CONOCIMIENTO:
         ruta = raiz / nombre
         if ruta.is_file():
             return ruta
     raise FileNotFoundError(
         f"No se encontró base de conocimiento en {raiz}. "
-        f"Colocá base_conocimiento.md o Base_de_Conocimiento_Tickets.md"
+        f"Colocá base_conocimiento.md, una carpeta contratos/ con .md, "
+        f"o Base_de_Conocimiento_Tickets.md"
     )
 
 
-def cargar_base_conocimiento(raiz: Path | None = None) -> dict:
-    """Invocar en startup de la aplicación."""
-    global _bloques, _indice_invertido, _cargado, _ruta_archivo
+def resolver_fuentes_conocimiento(raiz: Path | None = None) -> list[Path]:
+    """Archivo único .md o todos los .md dentro de contratos/ / knowledge/."""
+    raiz = raiz or Path(__file__).resolve().parent.parent
+    for carpeta in CARPETAS_CONOCIMIENTO:
+        dir_path = raiz / carpeta
+        if dir_path.is_dir():
+            archivos = sorted(p for p in dir_path.rglob("*.md") if p.is_file())
+            if archivos:
+                return archivos
+    return [resolver_ruta_base_conocimiento(raiz)]
 
-    _ruta_archivo = resolver_ruta_base_conocimiento(raiz)
-    contenido = _ruta_archivo.read_text(encoding="utf-8", errors="replace")
-    _bloques = parsear_markdown(contenido)
+
+def cargar_base_conocimiento(raiz: Path | None = None) -> dict:
+    """Indexa la KB en memoria. No envía el archivo completo al LLM."""
+    global _bloques, _indice_invertido, _cargado, _fuentes
+
+    _fuentes = resolver_fuentes_conocimiento(raiz)
+    _bloques = []
+    for ruta in _fuentes:
+        contenido = ruta.read_text(encoding="utf-8", errors="replace")
+        _bloques.extend(parsear_markdown(contenido, fuente=str(ruta.name)))
+
     _indice_invertido = _construir_indice_invertido(_bloques)
     _cargado = True
 
     return {
-        "archivo": str(_ruta_archivo),
+        "modo": "keyword_rag",
+        "fuentes": [str(p) for p in _fuentes],
+        "archivo": str(_fuentes[0]) if len(_fuentes) == 1 else f"{len(_fuentes)} archivos",
         "bloques": len(_bloques),
         "tokens_indice": len(_indice_invertido),
     }
@@ -160,7 +259,9 @@ def esta_cargado() -> bool:
 def estadisticas() -> dict:
     return {
         "cargado": _cargado,
-        "archivo": str(_ruta_archivo) if _ruta_archivo else None,
+        "modo": "keyword_rag",
+        "fuentes": [str(p) for p in _fuentes],
+        "archivo": str(_fuentes[0]) if _fuentes else None,
         "total_bloques": len(_bloques),
     }
 
@@ -171,19 +272,35 @@ def _puntaje_bloque(query_tokens: set[str], bloque: BloqueConocimiento) -> float
 
     interseccion = query_tokens & bloque.tokens
     if not interseccion:
+        texto_norm = _normalizar_texto(bloque.texto_busqueda)
+        for termino in query_tokens:
+            if len(termino) >= 4 and termino in texto_norm:
+                interseccion = {termino}
+                break
+
+    if not interseccion:
         return 0.0
 
-    # Cobertura de la consulta + bonus por densidad en texto de problema
     cobertura = len(interseccion) / len(query_tokens)
     densidad = len(interseccion) / max(len(bloque.tokens), 1)
-    texto_norm = _normalizar_texto(bloque.texto_busqueda)
-
+    bonus_tecnico = 0.12 if interseccion & TERMINOS_TECNICOS else 0.0
     bonus_frase = 0.0
     query_texto = " ".join(sorted(query_tokens))
+    texto_norm = _normalizar_texto(bloque.texto_busqueda)
     if len(query_texto) > 8 and query_texto[:40] in texto_norm:
-        bonus_frase = 0.25
+        bonus_frase = 0.2
 
-    return min(1.0, cobertura * 0.65 + densidad * 0.2 + bonus_frase)
+    return min(1.0, cobertura * 0.65 + densidad * 0.2 + bonus_frase + bonus_tecnico)
+
+
+def _interseccion_minima(query_tokens: set[str], interseccion: set[str]) -> int:
+    if interseccion & TERMINOS_TECNICOS:
+        return 1
+    if len(query_tokens) == 1:
+        unico = next(iter(query_tokens))
+        if len(unico) >= 4 or unico in TERMINOS_TECNICOS:
+            return 1
+    return 2
 
 
 def buscar_contexto(
@@ -192,9 +309,7 @@ def buscar_contexto(
     min_score: float | None = None,
     top_k: int | None = None,
 ) -> ResultadoBusqueda:
-    """
-    Busca el bloque más relevante comparando títulos y contenido.
-    """
+    """Busca bloques relevantes por palabras clave (no carga la KB completa)."""
     if not _cargado or not _bloques:
         return ResultadoBusqueda(encontrado=False, modo="escalamiento")
 
@@ -205,49 +320,72 @@ def buscar_contexto(
     if not query_tokens:
         return ResultadoBusqueda(encontrado=False, modo="escalamiento")
 
-    # Candidatos vía índice invertido (acelera con miles de bloques)
     candidatos_idx: set[int] = set()
     for token in query_tokens:
         candidatos_idx.update(_indice_invertido.get(token, ()))
 
     if not candidatos_idx:
-        candidatos_idx = set(range(min(len(_bloques), 500)))
+        norm_consulta = _normalizar_texto(consulta)
+        for token in query_tokens:
+            if len(token) < 4:
+                continue
+            for idx_token, indices in _indice_invertido.items():
+                if token in idx_token or idx_token in token:
+                    candidatos_idx.update(indices)
+
+    if not candidatos_idx:
+        candidatos_idx = set(range(min(len(_bloques), 300)))
 
     puntajes: list[tuple[float, int]] = []
     for idx in candidatos_idx:
         if idx >= len(_bloques):
             continue
-        p = _puntaje_bloque(query_tokens, _bloques[idx])
-        if p > 0:
-            puntajes.append((p, idx))
+        puntaje = _puntaje_bloque(query_tokens, _bloques[idx])
+        if puntaje > 0:
+            puntajes.append((puntaje, idx))
 
     if not puntajes:
         return ResultadoBusqueda(encontrado=False, modo="escalamiento")
 
-    puntajes.sort(reverse=True, key=lambda x: x[0])
+    puntajes.sort(reverse=True, key=lambda item: item[0])
     mejor_puntaje, mejor_idx = puntajes[0]
-
     mejor_bloque = _bloques[mejor_idx]
     interseccion = query_tokens & mejor_bloque.tokens
+    if not interseccion:
+        texto_norm = _normalizar_texto(mejor_bloque.texto_busqueda)
+        interseccion = {t for t in query_tokens if len(t) >= 4 and t in texto_norm}
 
-    # Evitar falsos positivos: exigir score mínimo y al menos 2 términos coincidentes
-    if mejor_puntaje < min_score or len(interseccion) < 2:
-        return ResultadoBusqueda(encontrado=False, puntaje=mejor_puntaje, modo="escalamiento")
+    min_inter = _interseccion_minima(query_tokens, interseccion)
+    if mejor_puntaje < min_score or len(interseccion) < min_inter:
+        return ResultadoBusqueda(
+            encontrado=False,
+            puntaje=mejor_puntaje,
+            modo="escalamiento",
+            terminos_coincidentes=sorted(interseccion),
+        )
 
-    bloque = mejor_bloque
     return ResultadoBusqueda(
         encontrado=True,
-        bloque=bloque,
+        bloque=mejor_bloque,
         puntaje=mejor_puntaje,
         modo="resolucion",
+        terminos_coincidentes=sorted(interseccion),
     )
 
 
-def formatear_contexto_para_prompt(resultado: ResultadoBusqueda, max_chars: int = 6000) -> str:
+def formatear_contexto_para_prompt(
+    resultado: ResultadoBusqueda,
+    consulta: str = "",
+    max_chars: int | None = None,
+) -> str:
+    """Inyecta solo el fragmento KB seleccionado (no el archivo completo)."""
     if not resultado.encontrado or not resultado.bloque:
         return ""
 
+    max_chars = max_chars or KNOWLEDGE_MAX_FRAGMENT_CHARS
+    query_tokens = tokenizar(consulta) or set(resultado.terminos_coincidentes)
     b = resultado.bloque
+
     preguntas = _extraer_subseccion(b.contenido, "Preguntas / Verificaciones")
     resolucion = _extraer_subseccion(b.contenido, "Resolucion") or _extraer_subseccion(
         b.contenido, "Resolución"
@@ -255,24 +393,35 @@ def formatear_contexto_para_prompt(resultado: ResultadoBusqueda, max_chars: int 
     problema_kb = _extraer_subseccion(b.contenido, "Problema")
 
     encabezado = (
-        f"═══ CASO SIMILAR EN KB ({b.titulo}) — similitud {resultado.puntaje:.0%} — MODO RESOLUCIÓN ═══\n"
-        "Hay un procedimiento de un caso parecido. Tu prioridad es RESOLVER con el operador usando estos pasos,\n"
-        "ANTES de generar ticket al NOC. Solo escalá si los pasos no aplican, fallan o el operador lo pide.\n"
-        "PROHIBIDO copiar datos ajenos (modelo, línea, proveedor). Los datos del operador en el chat mandan.\n\n"
+        f"═══ FRAGMENTO KB ({b.titulo}) — match {resultado.puntaje:.0%} — "
+        f"términos: {', '.join(resultado.terminos_coincidentes[:6]) or 'n/d'} ═══\n"
+        "Usá SOLO este extracto como referencia de pasos. No copies datos ajenos del caso histórico.\n\n"
     )
+    presupuesto = max(400, max_chars - len(encabezado) - 120)
+    tercio = max(200, presupuesto // 3)
+
     partes_cuerpo = [f"### {b.titulo}\n"]
     if problema_kb:
-        partes_cuerpo.append(f"#### Problema de referencia (solo contexto)\n{problema_kb}\n")
+        frag = _extraer_fragmentos_relevantes(problema_kb, query_tokens, tercio)
+        if frag:
+            partes_cuerpo.append(f"#### Problema (extracto)\n{frag}\n")
     if preguntas:
-        partes_cuerpo.append(f"#### Pasos de verificación (aplicar al caso actual)\n{preguntas}\n")
+        frag = _extraer_fragmentos_relevantes(preguntas, query_tokens, tercio)
+        if frag:
+            partes_cuerpo.append(f"#### Verificación (extracto)\n{frag}\n")
     if resolucion:
-        partes_cuerpo.append(f"#### Pasos de resolución (guiar al operador)\n{resolucion}\n")
+        frag = _extraer_fragmentos_relevantes(resolucion, query_tokens, tercio)
+        if frag:
+            partes_cuerpo.append(f"#### Resolución (extracto)\n{frag}\n")
+
     if len(partes_cuerpo) == 1:
-        partes_cuerpo.append(b.contenido)
+        partes_cuerpo.append(
+            _extraer_fragmentos_relevantes(b.contenido, query_tokens, presupuesto)
+        )
 
     texto = encabezado + "\n".join(partes_cuerpo)
     if len(texto) > max_chars:
-        texto = texto[: max_chars - 80] + "\n\n[... contenido truncado por límite de contexto ...]"
+        texto = texto[: max_chars - 80] + "\n\n[... fragmento KB truncado por límite 413 ...]"
     return texto
 
 
@@ -291,7 +440,4 @@ NO intentes resolver con KB (no hay procedimiento cargado).
 
 
 def listar_muestra_modulos(limite: int = 20) -> list[dict[str, str]]:
-    return [
-        {"id": b.id, "nombre": b.titulo}
-        for b in _bloques[:limite]
-    ]
+    return [{"id": b.id, "nombre": b.titulo} for b in _bloques[:limite]]

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class MensajeHistorial(BaseModel):
@@ -17,6 +17,7 @@ class LoginResponse(BaseModel):
     usuario: str
     cooperativa: str | None = None
     nombre: str
+    org_slug: str = "imowi"
 
 
 class ContextoTicket(BaseModel):

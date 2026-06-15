@@ -12,6 +12,7 @@ from app.knowledge_rag import (
     formatear_modo_escalamiento,
     listar_muestra_modulos,
     parsear_markdown,
+    resolver_fuentes_conocimiento,
     resolver_ruta_base_conocimiento,
 )
 
@@ -25,5 +26,6 @@ __all__ = [
     "formatear_modo_escalamiento",
     "listar_muestra_modulos",
     "parsear_markdown",
+    "resolver_fuentes_conocimiento",
     "resolver_ruta_base_conocimiento",
 ]

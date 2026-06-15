@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.config import KNOWLEDGE_MAX_SYSTEM_TOKENS
 from app.knowledge import (
     buscar_contexto,
     formatear_contexto_para_prompt,
@@ -189,19 +190,40 @@ def _bloque_contexto_ticket(data: ChatInput) -> str:
     return "\n".join(lineas)
 
 
-def _construir_system_prompt(data: ChatInput, resultado_rag) -> str:
+def _estimar_tokens(texto: str) -> int:
+    return max(1, len(texto) // 4)
+
+
+def _recortar_system_prompt(system_content: str, max_tokens: int) -> str:
+    """Garantiza que el system prompt no supere el techo (~413 Groq)."""
+    if _estimar_tokens(system_content) <= max_tokens:
+        return system_content
+
+    marcador = "═══ FRAGMENTO KB"
+    if marcador in system_content:
+        base, _, fragmento = system_content.partition(marcador)
+        presupuesto_chars = max_tokens * 4 - len(base) - 120
+        if presupuesto_chars < 400:
+            return base + "\n\n[KB omitida: límite de tokens del system prompt]"
+        fragmento_recortado = (marcador + fragmento)[:presupuesto_chars]
+        return base + fragmento_recortado + "\n[... system prompt recortado por límite 413 ...]"
+
+    return system_content[: max_tokens * 4] + "\n[... system prompt recortado ...]"
+
+
+def _construir_system_prompt(data: ChatInput, resultado_rag, consulta: str) -> str:
     partes = [SYSTEM_PROMPT_BASE]
 
     if resultado_rag.encontrado:
         partes.append(PROMPT_RESOLUCION_KB)
-        partes.append(formatear_contexto_para_prompt(resultado_rag))
+        partes.append(formatear_contexto_para_prompt(resultado_rag, consulta=consulta))
     else:
         partes.append(PROMPT_ESCALAMIENTO)
         partes.append(formatear_modo_escalamiento())
 
     partes.append(_bloque_fase_conversacion(data))
     partes.append(_bloque_contexto_ticket(data))
-    return "\n".join(partes)
+    return _recortar_system_prompt("\n".join(partes), KNOWLEDGE_MAX_SYSTEM_TOKENS)
 
 
 def _construir_mensajes(data: ChatInput, system_content: str) -> list[dict]:
@@ -222,7 +244,7 @@ async def procesar_chat(data: ChatInput) -> ChatResponse:
     consulta = _texto_consulta(data)
     resultado_rag = buscar_contexto(consulta)
 
-    system_content = _construir_system_prompt(data, resultado_rag)
+    system_content = _construir_system_prompt(data, resultado_rag, consulta)
     mensajes = _construir_mensajes(data, system_content)
     respuesta = chat_completion(mensajes, temperature=0.12)
 
