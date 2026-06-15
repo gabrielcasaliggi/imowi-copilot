@@ -133,7 +133,7 @@ export function ChatPanel() {
           placeholder={
             bloqueado
               ? "Iniciá un nuevo reclamo para la otra línea…"
-              : "Cliente sin datos en Brasil, línea 2235551234, Samsung A54…"
+              : "Ej.: línea 223..., sin señal en zona centro, Samsung A54…"
           }
           className="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[var(--brand)] font-mono disabled:opacity-50"
           autoComplete="off"

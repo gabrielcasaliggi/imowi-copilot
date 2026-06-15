@@ -107,6 +107,45 @@ def test_confirmaciones_cortas_avanzan_paso(respuesta: str):
     assert hechos["datos_moviles_activos"] is True
 
 
+@pytest.mark.parametrize(
+    "respuesta",
+    ["solo en esa zona", "esa sola zona", "solamente ahí", "solo pasa en la zona centro"],
+)
+def test_respuestas_cortas_de_zona_unica_no_repiten_pregunta(respuesta: str):
+    hechos = extraer_hechos_conversacion(
+        [
+            {
+                "rol": "asistente",
+                "contenido": "Confirmar si el problema de señal ocurre en una sola zona o en varias ubicaciones.",
+            },
+            {"rol": "usuario", "contenido": respuesta},
+        ]
+    )
+    assert hechos["zona_unica"] is True
+    assert hechos["multiples_zonas"] is False
+    paso = siguiente_paso_sugerido(hechos, "sin señal")
+    assert "una sola zona" not in paso
+    assert "varias ubicaciones" not in paso
+
+
+@pytest.mark.parametrize(
+    "respuesta",
+    ["en varias zonas", "en todos lados", "varias ubicaciones", "distintos lugares"],
+)
+def test_respuestas_cortas_de_varias_zonas_avanzan(respuesta: str):
+    hechos = extraer_hechos_conversacion(
+        [
+            {
+                "rol": "asistente",
+                "contenido": "Confirmar si el problema de señal ocurre en una sola zona o en varias ubicaciones.",
+            },
+            {"rol": "usuario", "contenido": respuesta},
+        ]
+    )
+    assert hechos["multiples_zonas"] is True
+    assert hechos["zona_unica"] is False
+
+
 def test_confirmacion_jsc_marca_roaming():
     hechos = extraer_hechos_conversacion(
         [

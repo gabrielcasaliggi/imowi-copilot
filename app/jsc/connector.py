@@ -11,7 +11,8 @@ from app.jsc.contract import FichaLineaJSC
 
 
 def _normalizar_msisdn(msisdn: str) -> str:
-    return re.sub(r"\D", "", msisdn or "")
+    digits = re.sub(r"\D", "", msisdn or "")
+    return digits[-10:] if len(digits) > 10 else digits
 
 
 def _row_a_ficha(linea) -> FichaLineaJSC | None:

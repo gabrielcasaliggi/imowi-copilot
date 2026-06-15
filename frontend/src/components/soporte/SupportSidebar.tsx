@@ -94,11 +94,25 @@ function ReclamosSimilares({
 }
 
 function FichaJscCard() {
-  const { fichaJsc } = useApp();
+  const { fichaJsc, casoActivo, lineaDetectada } = useApp();
+  const linea = fichaJsc?.msisdn || casoActivo?.linea_msisdn || lineaDetectada;
   if (!fichaJsc) {
     return (
       <GlassCard title="Ficha JSC" accent="cyan">
-        <p className="text-slate-500 text-xs">Sin línea resuelta en JSC.</p>
+        {linea ? (
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between gap-2">
+              <span className="text-slate-500">Línea detectada</span>
+              <span className="font-mono text-cyan-300">{linea}</span>
+            </div>
+            <p className="text-[10px] text-amber-300/90">
+              No figura en el catálogo operativo del tenant. El triaje continúa, pero conviene
+              importar o sincronizar la línea para validar abonado, plan y estado de cuenta.
+            </p>
+          </div>
+        ) : (
+          <p className="text-slate-500 text-xs">Ingresá la línea para consultar el catálogo operativo.</p>
+        )}
       </GlassCard>
     );
   }

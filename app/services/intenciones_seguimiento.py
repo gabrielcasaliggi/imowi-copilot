@@ -27,6 +27,37 @@ def _texto_usuario(historial: list[dict]) -> str:
     )
 
 
+_FRASES_ZONA_UNICA = (
+    "una sola zona",
+    "solo en una zona",
+    "sólo en una zona",
+    "solo en esa zona",
+    "sólo en esa zona",
+    "esa sola zona",
+    "en esa zona",
+    "solo en ese lugar",
+    "sólo en ese lugar",
+    "solo ahi",
+    "solo ahí",
+    "solamente ahi",
+    "solamente ahí",
+    "solo pasa en",
+    "sólo pasa en",
+)
+
+_FRASES_VARIAS_ZONAS = (
+    "varias zonas",
+    "todas las zonas",
+    "todos lados",
+    "en todos lados",
+    "distintas zonas",
+    "varios lugares",
+    "distintos lugares",
+    "varias ubicaciones",
+    "diferentes lugares",
+)
+
+
 def _ultimo_asistente(historial: list[dict]) -> str:
     for m in reversed(historial):
         if m.get("rol") == "asistente":
@@ -221,10 +252,10 @@ def _aplicar_confirmacion_paso(hechos: dict, ultimo_bot: str, ultimo_usuario: st
         hechos["reinicio_o_modo_avion"] = True
         return
     if "una sola zona" in bot or "varias ubicaciones" in bot or "varias zonas" in bot:
-        if any(p in usr for p in ("varias", "todas", "todos lados", "distintas", "varios lugares")):
+        if any(p in usr for p in _FRASES_VARIAS_ZONAS):
             hechos["multiples_zonas"] = True
             hechos["zona_unica"] = False
-        elif any(p in usr for p in ("una sola", "solo en", "sólo en", "en una zona", "esa zona")):
+        elif any(p in usr for p in _FRASES_ZONA_UNICA):
             hechos["zona_unica"] = True
             hechos["multiples_zonas"] = False
         return
@@ -401,10 +432,10 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
     if any(p in ultimo for p in ("no podemos hacer la llamada", "no pudimos hacer la llamada")):
         hechos["llamadas_ok"] = False
 
-    if any(p in texto for p in ("una sola zona", "solo en una zona", "sólo en una zona", "solo pasa en", "sólo pasa en")):
+    if any(p in texto for p in _FRASES_ZONA_UNICA):
         hechos["zona_unica"] = True
         hechos["multiples_zonas"] = False
-    if any(p in texto for p in ("varias zonas", "todas las zonas", "todos lados", "distintas zonas", "varios lugares")):
+    if any(p in texto for p in _FRASES_VARIAS_ZONAS):
         hechos["multiples_zonas"] = True
         hechos["zona_unica"] = False
 
