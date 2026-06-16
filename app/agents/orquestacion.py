@@ -125,6 +125,7 @@ def ejecutar_orquestacion(
         nivel = clasif_dict.get("nivel") or NivelTicket.N2.value
         destino = clasif_dict.get("destino") or "imowi_noc"
         evidencia_txt = "\n".join(clasif_dict.get("evidencia") or [])
+        acciones_n1 = clasif_dict.get("acciones_n1_realizadas") or ""
 
         ticket = ticket_bridge.crear_ticket(
             db,
@@ -141,6 +142,7 @@ def ejecutar_orquestacion(
             proveedor=clasif_dict.get("proveedor") or "",
             motivo_escalamiento=clasif_dict.get("motivo_escalamiento") or "",
             evidencia=evidencia_txt,
+            acciones_n1_realizadas=acciones_n1,
             regla_clasificacion=clasif_dict.get("regla_aplicada") or "",
             estado_sla="Abierto",
         )
@@ -185,8 +187,19 @@ def _armar_descripcion(datos: dict, diag: dict, clasif: dict) -> str:
         f"MOTIVO ESCALAMIENTO: {clasif.get('motivo_escalamiento', '')}",
         f"DATOS: Línea {datos.get('linea')}, {datos.get('dispositivo')}, {datos.get('cooperativa')}",
     ]
-    if clasif.get("proveedor"):
+    if clasif_dict.get("proveedor"):
         partes.append(f"PROVEEDOR: {clasif['proveedor']}")
+    hechos = datos.get("hechos") or {}
+    sms_ctx = []
+    if hechos.get("sms_remitente_ejemplo"):
+        sms_ctx.append(f"Remitente: {hechos['sms_remitente_ejemplo'][:200]}")
+    if hechos.get("sms_horario_incidente"):
+        sms_ctx.append(f"Horario: {hechos['sms_horario_incidente'][:200]}")
+    if sms_ctx:
+        partes.append("SMS/A2P: " + " | ".join(sms_ctx))
+    pasos = hechos.get("pasos_realizados") or []
+    if pasos:
+        partes.append("ACCIONES N1: " + "; ".join(pasos[-6:]))
     if clasif.get("evidencia"):
         partes.append("EVIDENCIA: " + "; ".join(clasif["evidencia"]))
     return "\n".join(p for p in partes if p and not p.endswith(": "))

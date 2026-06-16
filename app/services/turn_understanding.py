@@ -206,6 +206,16 @@ def _interpretar_por_contexto(
         )
 
     if pregunta == PreguntaPendiente.APORTAR_DATOS_ESCALAMIENTO:
+        if _detecta_persistencia_semantica(msg):
+            return TurnUnderstanding(
+                intencion=IntencionTurno.CONFIRMAR_PERSISTENCIA,
+                confianza=0.9,
+                fuente="contexto",
+                pregunta_pendiente=pregunta,
+                hechos=HechosTurno(persistencia_confirmada=True, resuelto=False),
+                evidencia=["persistencia_en_paso_escalamiento"],
+                mensaje_operador=msg,
+            )
         datos = _extraer_dato_escalamiento_sms(msg)
         if datos.sms_remitente_ejemplo or datos.sms_horario_incidente:
             return TurnUnderstanding(

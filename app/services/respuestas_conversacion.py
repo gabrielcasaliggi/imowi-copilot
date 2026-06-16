@@ -122,6 +122,9 @@ def respuesta_por_estado(
             "y después te digo el siguiente paso concreto."
         )
 
+    if clasif.get("crear_ticket") and accion in ("crear_ticket_n1", "crear_ticket_n2"):
+        return None
+
     if accion == "seguimiento_activo" or tipo_seg == "seguimiento_activo":
         tid = (ticket_ctx or {}).get("id", "")
         if hechos.get("resuelto"):

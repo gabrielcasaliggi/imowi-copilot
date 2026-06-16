@@ -15,6 +15,11 @@ from app.services.motor_conversacional import ACCIONES_SEGUIMIENTO, procesar_tur
 from app.services.prefilter import analizar_relevancia
 from app.services.seguimiento_ticket import _detectar_pasos_completados, registrar_avances_en_ticket, serializar_timeline
 from app.services import piloto_metricas
+from app.services.ticket_contexto import (
+    enriquecer_clasificacion_con_hechos,
+    persistir_datos_sms_en_ticket,
+    respuesta_ticket_creado_proactivo,
+)
 
 
 def _historial_tecnico(historial: list[dict]) -> bool:
@@ -154,6 +159,7 @@ async def procesar_mensaje(
     crear_ticket_flag = bool(clasif_ajustada.get("crear_ticket"))
     if clasif_ajustada.get("accion") in ACCIONES_SEGUIMIENTO:
         crear_ticket_flag = False
+    clasif_ajustada = enriquecer_clasificacion_con_hechos(clasif_ajustada, datos)
     traces.append(
         f"💬 [Motor Conversacional]: estado={motor['estado_conversacion']} | "
         f"línea={motor.get('caso_conversacion', {}).get('linea_msisdn') or '-'} | "
@@ -212,9 +218,12 @@ async def procesar_mensaje(
         for e in telemetria[:8]
     )
 
-    if motor.get("respuesta_deterministica"):
+    if motor.get("respuesta_deterministica") and not ticket_nuevo:
         respuesta = motor["respuesta_deterministica"]
         traces.append("💬 [Motor Conversacional]: Respuesta determinística (sin LLM).")
+    elif ticket_nuevo and ticket_dict:
+        respuesta = respuesta_ticket_creado_proactivo(ticket_dict, datos, clasif_ajustada)
+        traces.append("💬 [Motor Conversacional]: Ticket creado — respuesta proactiva.")
     elif motor.get("usar_ia"):
         flujo = motor.get("flujo_operativo") or {}
         kb_ctx = "" if flujo.get("paso_id") and not flujo.get("completado") else diag.get("kb_contexto", "")
@@ -267,6 +276,19 @@ async def procesar_mensaje(
             caso_id = motor.get("caso_id")
             if caso_id:
                 repo.patch_caso_datos_triaje(db, org_id, caso_id, datos)
+            ticket_obj = repo.get_ticket(db, org_id, ticket_dict["id"], admin_global=admin_global)
+            if ticket_obj:
+                ticket_dict = _ticket_dict(ticket_obj)
+        sms_traces = persistir_datos_sms_en_ticket(
+            db,
+            org_id,
+            ticket_dict["id"],
+            hechos_prev=hechos_prev_snapshot,
+            hechos_new=hechos_new,
+            actor=usuario or creado_por or "consola",
+        )
+        if sms_traces:
+            traces.extend(sms_traces)
             ticket_obj = repo.get_ticket(db, org_id, ticket_dict["id"], admin_global=admin_global)
             if ticket_obj:
                 ticket_dict = _ticket_dict(ticket_obj)

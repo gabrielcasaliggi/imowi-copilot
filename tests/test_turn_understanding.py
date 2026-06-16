@@ -65,6 +65,23 @@ def test_aportar_datos_sms_en_paso_carrier():
     assert hechos.get("sms_remitente_ejemplo") or hechos.get("sms_horario_incidente")
 
 
+def test_persistencia_en_paso_carrier_interpreta_confirmacion():
+    hist = [
+        {
+            "rol": "asistente",
+            "contenido": "Escalar a carrier con remitente y horario del incidente.",
+        },
+        {"rol": "usuario", "contenido": "si persiste"},
+    ]
+    u = interpretar_turno_hibrido(
+        hist,
+        hechos_prev={"categoria_flujo": "sms", "linea_jsc_verificada": True},
+        flujo_paso_id="sms_ticket_carrier",
+    )
+    assert u.intencion == IntencionTurno.CONFIRMAR_PERSISTENCIA
+    assert u.hechos.persistencia_confirmada is True
+
+
 def test_invariante_sms_crea_ticket_por_persistencia():
     hist = [
         {"rol": "usuario", "contenido": "linea 2233567656 sms apple no llegan"},
