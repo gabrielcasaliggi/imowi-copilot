@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domain.flujos_operativos import detectar_categoria_flujo, siguiente_paso_mensaje
+from app.domain.flujos_operativos import (
+    detectar_categoria_flujo,
+    siguiente_paso_mensaje,
+    texto_descarta_senal,
+    texto_indica_sms,
+)
 from app.services.interprete_conversacional import (
     _fusionar_hechos,
     detectar_intencion_normalizada,
@@ -27,6 +32,42 @@ def _texto_usuario(historial: list[dict]) -> str:
         for m in historial
         if m.get("rol") == "usuario"
     )
+
+
+def _limpiar_hechos_senal(hechos: dict) -> None:
+    for k in ("zona_unica", "multiples_zonas", "llamadas_ok", "reinicio_o_modo_avion"):
+        hechos.pop(k, None)
+
+
+def _sintoma_reclamo(historial: list[dict]) -> str:
+    for m in historial:
+        if m.get("rol") != "usuario":
+            continue
+        contenido = (m.get("contenido") or "").strip()
+        if len(contenido) > 10 and contenido.lower() not in ("hola", "buen dia", "buen día"):
+            return contenido
+    return _ultimo_usuario(historial)
+
+
+def _actualizar_categoria_flujo(hechos: dict, historial: list[dict]) -> None:
+    texto = _texto_usuario(historial)
+    sintoma_reclamo = _sintoma_reclamo(historial)
+    cat_prev = hechos.get("categoria_flujo")
+    cat_texto = detectar_categoria_flujo(texto, hechos)
+    cat_sintoma = detectar_categoria_flujo(sintoma_reclamo, hechos)
+
+    if cat_sintoma == "sms" or cat_texto == "sms":
+        if cat_prev == "senal":
+            _limpiar_hechos_senal(hechos)
+        hechos["categoria_flujo"] = "sms"
+        return
+
+    if cat_prev in ("roaming", "datos", "senal", "sms", "sim"):
+        return
+    if cat_texto != "general":
+        hechos["categoria_flujo"] = cat_texto
+    elif not cat_prev:
+        hechos["categoria_flujo"] = "general"
 
 
 _FRASES_ZONA_UNICA = (
@@ -229,14 +270,20 @@ def _aplicar_confirmacion_paso(hechos: dict, ultimo_bot: str, ultimo_usuario: st
             "afecta senal",
             "solo llamadas",
             "confirmar zona",
+            "sms comunes",
+            "códigos de verificación",
+            "codigos de verificacion",
+            "mensajería apple",
+            "mensajeria apple",
         )
     ):
+        if texto_descarta_senal(usr) or texto_indica_sms(usr):
+            hechos["alcance_confirmado"] = True
+            return
         if len(usr) > 18 or any(
             p in usr
             for p in (
                 "datos",
-                "señal",
-                "senal",
                 "llamadas",
                 "uruguay",
                 "argentina",
@@ -247,7 +294,7 @@ def _aplicar_confirmacion_paso(hechos: dict, ultimo_bot: str, ultimo_usuario: st
                 "no tiene datos",
                 "internet",
             )
-        ):
+        ) or (any(p in usr for p in ("señal", "senal")) and not texto_descarta_senal(usr)):
             hechos["alcance_confirmado"] = True
         return
 
@@ -401,11 +448,16 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
         hechos["llamadas_ok"] = False
 
     if any(p in texto for p in _FRASES_ZONA_UNICA):
-        hechos["zona_unica"] = True
-        hechos["multiples_zonas"] = False
+        if hechos.get("categoria_flujo") != "sms":
+            hechos["zona_unica"] = True
+            hechos["multiples_zonas"] = False
     if any(p in texto for p in _FRASES_VARIAS_ZONAS):
-        hechos["multiples_zonas"] = True
-        hechos["zona_unica"] = False
+        if hechos.get("categoria_flujo") != "sms":
+            hechos["multiples_zonas"] = True
+            hechos["zona_unica"] = False
+
+    if texto_indica_sms(texto) and len(_ultimo_usuario(historial)) > 18:
+        hechos["alcance_confirmado"] = True
 
     _frases_datos_fallan = (
         "no puede navegar",
@@ -530,17 +582,11 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
     elif hechos.get("multiples_zonas") is True:
         pasos.append("Afectación en varias zonas")
     hechos["pasos_realizados"] = pasos
-    cat_prev = hechos.get("categoria_flujo")
-    cat_full = detectar_categoria_flujo(texto, hechos)
-    if cat_prev in ("roaming", "datos", "senal", "sms", "sim"):
-        pass
-    elif cat_full != "general":
-        hechos["categoria_flujo"] = cat_full
-    elif not cat_prev:
-        hechos["categoria_flujo"] = "general"
+    _actualizar_categoria_flujo(hechos, historial)
 
     hechos_norm = extraer_hechos_normalizados(_ultimo_usuario(historial), ultimo_bot=_ultimo_asistente(historial))
     hechos = _fusionar_hechos(hechos, hechos_norm)
+    _actualizar_categoria_flujo(hechos, historial)
     return hechos
 
 

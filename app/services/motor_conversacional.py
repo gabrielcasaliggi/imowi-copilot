@@ -267,14 +267,14 @@ def debe_usar_ia(
     if es_pregunta(ultimo):
         return True
 
+    if flujo_activo:
+        return False
+
     if estado in (
         EstadoConversacion.ESPERANDO_CONFIRMACION,
         EstadoConversacion.BUSCANDO_KB,
     ):
         return True
-
-    if flujo_activo:
-        return False
 
     if len(historial) <= 1 and not clasificacion.get("datos_faltantes"):
         return True

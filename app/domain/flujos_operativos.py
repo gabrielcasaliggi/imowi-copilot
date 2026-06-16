@@ -14,6 +14,61 @@ class PasoFlujo:
 
 CategoriaFlujo = str  # roaming | datos | senal | sms | sim | general
 
+_SMS_PATTERNS = (
+    "sms",
+    "mensaje de texto",
+    "mensajes de texto",
+    "mensaje de verificacion",
+    "mensajes de verificacion",
+    "mensaje de verificación",
+    "mensajes de verificación",
+    "texto de verificacion",
+    "texto de verificación",
+    "a2p",
+    "imessage",
+    "mensajeria apple",
+    "mensajería apple",
+    "código de verificación",
+    "codigo de verificacion",
+    "otp",
+    "subscripcion",
+    "suscripcion",
+    "membresia",
+    "membresía",
+)
+
+_NEGACION_SENAL = (
+    "no debe a señal",
+    "no debe a senal",
+    "no es señal",
+    "no es senal",
+    "no es un tema de señal",
+    "no es un tema de senal",
+    "no es problema de señal",
+    "no es problema de senal",
+    "no tiene problemas de señal",
+    "no tiene problemas de senal",
+    "sin problemas de señal",
+    "sin problemas de senal",
+    "esto no es señal",
+    "esto no es senal",
+)
+
+_SENAL_PATTERNS = (
+    "señal",
+    "senal",
+    "cobertura",
+    "servicio",
+    "registra en la red",
+    "registro en la red",
+    "no se registra",
+    "no registra",
+    "sin red",
+    "registra red",
+    "registro de red",
+    "no registra en",
+)
+
 CATEGORIA_LABELS: dict[str, str] = {
     "roaming": "Roaming internacional",
     "datos": "Datos móviles",
@@ -65,27 +120,36 @@ HECHOS_RESUMEN = (
 )
 
 
+def texto_indica_sms(sintoma: str) -> bool:
+    sint = (sintoma or "").lower()
+    return any(p in sint for p in _SMS_PATTERNS)
+
+
+def texto_descarta_senal(sintoma: str) -> bool:
+    sint = (sintoma or "").lower()
+    return any(p in sint for p in _NEGACION_SENAL)
+
+
+def _menciona_senal_activa(sintoma: str) -> bool:
+    """Señal como síntoma real; ignora menciones negadas (ej. 'no es señal')."""
+    t = (sintoma or "").lower()
+    for p in _NEGACION_SENAL:
+        t = t.replace(p, " ")
+    return any(p in t for p in _SENAL_PATTERNS)
+
+
 def detectar_categoria_flujo(sintoma: str, hechos: dict | None = None) -> CategoriaFlujo:
     h = hechos or {}
-    if h.get("categoria_flujo") in ("roaming", "datos", "senal", "sms", "sim"):
-        return h["categoria_flujo"]
     sint = (sintoma or "").lower()
-    if any(
-        p in sint
-        for p in (
-            "sms",
-            "mensaje de texto",
-            "mensajes de texto",
-            "a2p",
-            "imessage",
-            "mensajeria apple",
-            "mensajería apple",
-            "código de verificación",
-            "codigo de verificacion",
-            "otp",
-        )
-    ):
+    if texto_indica_sms(sint):
         return "sms"
+    cat_locked = h.get("categoria_flujo")
+    if cat_locked in ("roaming", "datos", "sms", "sim"):
+        return cat_locked
+    if cat_locked == "senal" and texto_indica_sms(sint):
+        return "sms"
+    if cat_locked == "senal":
+        return "senal"
     _paises_roaming = (
         "roaming",
         "brasil",
@@ -110,23 +174,7 @@ def detectar_categoria_flujo(sintoma: str, hechos: dict | None = None) -> Catego
         return "roaming"
     if any(p in sint for p in ("datos", "navegar", "internet", "apn")):
         return "datos"
-    if any(
-        p in sint
-        for p in (
-            "señal",
-            "senal",
-            "cobertura",
-            "servicio",
-            "registra en la red",
-            "registro en la red",
-            "no se registra",
-            "no registra",
-            "sin red",
-            "registra red",
-            "registro de red",
-            "no registra en",
-        )
-    ):
+    if _menciona_senal_activa(sint):
         return "senal"
     if any(p in sint for p in ("sim", "chip", "iccid", "esim", "e-sim")):
         return "sim"

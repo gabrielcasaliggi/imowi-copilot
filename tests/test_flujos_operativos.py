@@ -4,6 +4,7 @@ from app.domain.flujos_operativos import (
     detectar_categoria_flujo,
     evaluar_flujo,
     resolver_paso_flujo,
+    texto_descarta_senal,
     traza_flujo,
 )
 from app.services.intenciones_seguimiento import extraer_hechos_conversacion
@@ -34,6 +35,24 @@ def test_sms_preserva_categoria_aunque_operador_mencione_senal():
     ev = evaluar_flujo({}, sintoma)
     assert ev["categoria"] == "sms"
     assert ev["paso_id"] == "sms_alcance"
+
+
+def test_sms_desbloquea_categoria_senal_persistida():
+    hechos = {"categoria_flujo": "senal", "alcance_confirmado": True}
+    sintoma = (
+        "la linea 2234567890 tiene problemas con los mensajes de texto. "
+        "entiendo que esto no debe a señal"
+    )
+    ev = evaluar_flujo(hechos, sintoma)
+    assert ev["categoria"] == "sms"
+    assert ev["paso_id"] in ("sms_alcance", "sms_jsc")
+    assert "señal" not in (ev["paso_mensaje"] or "").lower()
+
+
+def test_descarta_senal_no_clasifica_como_senal():
+    sintoma = "entiendo que esto no debe a señal, son mensajes de verificacion de apps"
+    assert texto_descarta_senal(sintoma)
+    assert detectar_categoria_flujo(sintoma) == "sms"
 
 
 def test_flujo_general_no_marca_completado_sin_paso():

@@ -319,6 +319,40 @@ def test_extraer_datos_no_reclasifica_sms_por_correccion_senal():
     assert detectar_categoria_flujo(datos["sintoma"]) == "sms"
 
 
+def test_sms_recupera_flujo_con_senal_persistida_en_hechos():
+    from app.agents.triaje import extraer_datos
+    from app.domain.flujos_operativos import evaluar_flujo
+
+    hist = [
+        {
+            "rol": "usuario",
+            "contenido": (
+                "la linea 2234567890 del cliente pepe tiene problemas con los mensajes de texto. "
+                "no le llegan desde plataformas de membresias como apple por ejemplo"
+            ),
+        },
+        {"rol": "asistente", "contenido": "Confirmar zona, alcance del problema y si afecta señal, datos o solo llamadas."},
+        {"rol": "usuario", "contenido": "entiendo que esto no de debe a señal"},
+        {"rol": "asistente", "contenido": "Confirmar si el problema de señal ocurre en una sola zona o en varias ubicaciones."},
+        {
+            "rol": "usuario",
+            "contenido": (
+                "no tiene problemas de señal, es solo con los mensajes de texto de verificacion "
+                "que envian las apps para subscripcion"
+            ),
+        },
+    ]
+    prev = {"categoria_flujo": "senal", "alcance_confirmado": True}
+    hechos = extraer_hechos_conversacion(hist, prev)
+    datos = extraer_datos(hist)
+    flujo = evaluar_flujo(hechos, datos["sintoma"])
+
+    assert hechos.get("categoria_flujo") == "sms"
+    assert flujo["categoria"] == "sms"
+    assert flujo["paso_id"] in ("sms_jsc", "sms_ticket_carrier")
+    assert "señal" not in (flujo.get("paso_mensaje") or "").lower()
+
+
 @pytest.mark.parametrize(
     "respuesta",
     [
