@@ -30,35 +30,37 @@ export function EstadoOperativoPanel() {
   }
 
   return (
-    <GlassCard title="Estado operativo" accent="cyan">
-      <div className="space-y-2 text-xs">
+    <GlassCard title="Estado operativo" accent="cyan" variant="secondary">
+      <div className="space-y-2.5 text-xs">
         <div className="flex justify-between gap-2">
           <span className="text-slate-500">Estado caso</span>
-          <span>{ESTADO_CASO_LABELS[estadoConversacion || ""] || estadoConversacion || "—"}</span>
+          <span className="text-slate-200 font-medium">
+            {ESTADO_CASO_LABELS[estadoConversacion || ""] || estadoConversacion || "—"}
+          </span>
         </div>
         {flujoOperativo?.paso_label && (
           <div>
             <p className="text-slate-500 mb-0.5">Paso actual</p>
-            <p className="text-slate-200">{flujoOperativo.paso_label}</p>
+            <p className="text-slate-100 font-medium">{flujoOperativo.paso_label}</p>
           </div>
         )}
         <div className="flex justify-between gap-2">
           <span className="text-slate-500">Pasos confirmados</span>
-          <span className="font-mono text-emerald-300">{pasosTotal}</span>
+          <span className="font-mono text-emerald-300 text-sm">{pasosTotal}</span>
         </div>
         <div className="flex justify-between gap-2 items-center">
           <span className="text-slate-500">Ticket</span>
           {ticketFormacion?.id ? (
-            <span className="flex gap-1 items-center">
+            <span className="flex gap-1.5 items-center">
               <span className="font-mono text-amber-300">{ticketFormacion.id}</span>
               <StatusBadge value={ticketFormacion.estado} />
             </span>
           ) : (
-            <span className="text-slate-600">pendiente</span>
+            <span className="text-slate-500">pendiente</span>
           )}
         </div>
         {flujoOperativo?.completado && (
-          <p className="text-[10px] text-emerald-400 border border-emerald-500/30 rounded px-2 py-1">
+          <p className="text-[11px] text-emerald-300 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 bg-emerald-500/8">
             Flujo N1 completo — listo para NOC
           </p>
         )}

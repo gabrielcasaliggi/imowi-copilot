@@ -1,44 +1,81 @@
 import type { ReactNode } from "react";
 
+type Accent = "cyan" | "amber" | "emerald" | "default";
+type Variant = "default" | "primary" | "secondary" | "technical";
+
 export function GlassCard({
   title,
   children,
   accent,
+  variant = "default",
   className = "",
+  titleExtra,
 }: {
   title?: string;
   children: ReactNode;
-  accent?: "cyan" | "amber" | "emerald" | "default";
+  accent?: Accent;
+  variant?: Variant;
   className?: string;
+  titleExtra?: ReactNode;
 }) {
   const border =
-    accent === "cyan"
-      ? "border-cyan-500/20 bg-cyan-500/5"
-      : accent === "amber"
-        ? "border-amber-500/20 bg-amber-500/5"
-        : accent === "emerald"
-          ? "border-emerald-500/20 bg-emerald-500/5"
-          : "border-slate-800 bg-slate-900/40";
+    variant === "primary"
+      ? "border-emerald-500/25 bg-emerald-500/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      : variant === "secondary"
+        ? "border-slate-700/60 bg-slate-900/35"
+        : variant === "technical"
+          ? "border-slate-700/50 bg-slate-950/50"
+          : accent === "cyan"
+            ? "border-cyan-500/20 bg-cyan-500/5"
+            : accent === "amber"
+              ? "border-amber-500/20 bg-amber-500/5"
+              : accent === "emerald"
+                ? "border-emerald-500/20 bg-emerald-500/5"
+                : "border-slate-800 bg-slate-900/40";
+
+  const titleColor =
+    variant === "primary"
+      ? "text-emerald-300/95"
+      : accent === "cyan"
+        ? "text-cyan-400/90"
+        : accent === "amber"
+          ? "text-amber-300/90"
+          : accent === "emerald"
+            ? "text-emerald-300/90"
+            : "text-slate-400";
 
   return (
     <div className={`rounded-2xl border p-4 ${border} ${className}`}>
       {title && (
-        <h3
-          className={`text-xs font-mono uppercase tracking-wider mb-2 ${
-            accent === "cyan"
-              ? "text-cyan-400/90"
-              : accent === "amber"
-                ? "text-amber-300/90"
-                : accent === "emerald"
-                  ? "text-emerald-300/90"
-                  : "text-slate-500"
-          }`}
-        >
-          {title}
-        </h3>
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <h3 className={`text-xs font-mono uppercase tracking-wider ${titleColor}`}>
+            {title}
+          </h3>
+          {titleExtra}
+        </div>
       )}
       {children}
     </div>
+  );
+}
+
+export function SidebarSection({
+  title,
+  children,
+  className = "",
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`sidebar-section ${className}`}>
+      <div className="sidebar-section-header">
+        <h2 className="sidebar-section-title">{title}</h2>
+        <div className="sidebar-section-line" aria-hidden />
+      </div>
+      <div className="sidebar-section-body">{children}</div>
+    </section>
   );
 }
 
@@ -79,11 +116,11 @@ export function KpiCard({
               : "text-slate-100";
   return (
     <div className={`rounded-xl border p-3 shadow-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${toneClass}`}>
-      <p className="text-[10px] uppercase tracking-wider font-mono text-slate-500">
+      <p className="text-[11px] uppercase tracking-wider font-mono text-slate-500">
         {label}
       </p>
       <p className={`text-2xl font-semibold mt-1 tabular-nums ${valueClass}`}>{value}</p>
-      {helper && <p className="text-[10px] text-slate-500 mt-1">{helper}</p>}
+      {helper && <p className="text-[11px] text-slate-500 mt-1">{helper}</p>}
     </div>
   );
 }
@@ -111,6 +148,23 @@ export function PanelHeader({ title, subtitle }: { title: string; subtitle?: str
     <div className="mb-3">
       <h3 className="enterprise-panel-header !mb-0">{title}</h3>
       {subtitle && <p className="text-[11px] text-slate-500 mt-1">{subtitle}</p>}
+    </div>
+  );
+}
+
+export function DataRow({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex justify-between gap-3 items-start text-xs">
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className={`text-slate-200 text-right ${mono ? "font-mono" : ""}`}>{children}</span>
     </div>
   );
 }
