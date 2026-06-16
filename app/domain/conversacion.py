@@ -153,6 +153,11 @@ def operador_confirmo_persistencia_explicita(msg: str) -> bool:
             "persiste el caso",
             "persiste el problema",
             "el problema persiste",
+            "los problemas persisten",
+            "si los problemas persisten",
+            "sí los problemas persisten",
+            "sigue teniendo problemas",
+            "sigue con problemas",
         )
     )
 

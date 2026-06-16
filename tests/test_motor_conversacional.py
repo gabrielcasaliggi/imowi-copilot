@@ -277,3 +277,56 @@ def test_procesar_turno_con_ticket_existente(db):
 
     assert r["clasificacion_ajustada"]["crear_ticket"] is False
     assert r["estado_conversacion"] == EstadoConversacion.TICKET_CREADO.value
+
+
+def test_sms_crea_ticket_carrier_con_confirmacion_persistencia(db):
+    session, org_id = db
+    hist = [
+        {
+            "rol": "usuario",
+            "contenido": (
+                "El cliente con linea 2233567656 tiene problemas con los sms "
+                "que provienen de plataformas como membresias ejemplo netflix apple"
+            ),
+        },
+        {
+            "rol": "asistente",
+            "contenido": "Verificar en JSC que la línea esté activa, sin bloqueo de servicios y con mensajería habilitada.",
+        },
+        {"rol": "usuario", "contenido": "si ya lo hicimos y no hay bloqueos"},
+        {
+            "rol": "asistente",
+            "contenido": "Escalar a carrier/proveedor con línea, ejemplos de remitentes, horarios aproximados y tipo de SMS afectado.",
+        },
+        {"rol": "usuario", "contenido": "podes realizar el ticket ?"},
+        {
+            "rol": "asistente",
+            "contenido": (
+                "Para crear un ticket, necesito confirmar que el problema persiste después de las verificaciones realizadas."
+            ),
+        },
+        {"rol": "usuario", "contenido": "si los problemas persisten"},
+    ]
+
+    r = procesar_turno_conversacional(
+        session,
+        org_id,
+        "sess-sms-ticket",
+        "operador",
+        hist,
+        {
+            "linea": "2233567656",
+            "sintoma": hist[0]["contenido"],
+            "dispositivo": "",
+            "completo": True,
+        },
+        {"accion": "resolver_n1", "nivel": "N1", "crear_ticket": False},
+        {"diagnostico": "SMS / A2P", "categoria": "SMS / A2P"},
+        None,
+    )
+
+    assert r["flujo_operativo"]["categoria"] == "sms"
+    assert r["clasificacion_ajustada"]["accion"] == "crear_ticket_n2"
+    assert r["clasificacion_ajustada"]["crear_ticket"] is True
+    assert r["clasificacion_ajustada"]["destino"] == "carrier"
+    assert r["estado_conversacion"] == EstadoConversacion.TICKET_CREADO.value

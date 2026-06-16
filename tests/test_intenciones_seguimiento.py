@@ -369,7 +369,8 @@ def test_funciona_bien_excepto_sms_no_cierra_caso():
 
 
 def test_confirmo_persistencia_sms_marca_escalamiento():
-    from app.services.motor_conversacional import _debe_crear_ticket_por_persistencia
+    from app.services.decision_engine import evaluar_crear_ticket
+    from app.services.turn_understanding import interpretar_turno_hibrido, fusionar_hechos_turno
     from app.domain.flujos_operativos import evaluar_flujo
     from app.agents.triaje import extraer_datos
 
@@ -383,9 +384,18 @@ def test_confirmo_persistencia_sms_marca_escalamiento():
     hechos = extraer_hechos_conversacion(hist, {"categoria_flujo": "sms", "alcance_confirmado": True})
     datos = extraer_datos(hist)
     flujo = evaluar_flujo(hechos, datos["sintoma"])
+    understanding = interpretar_turno_hibrido(hist, hechos_prev=hechos, flujo_paso_id=flujo.get("paso_id", ""))
+    hechos = fusionar_hechos_turno(hechos, understanding)
 
     assert hechos.get("persistencia_confirmada") is True
-    assert _debe_crear_ticket_por_persistencia(hist, flujo, hechos) is True
+    decision = evaluar_crear_ticket(
+        historial=hist,
+        hechos=hechos,
+        flujo_operativo=flujo,
+        understanding=understanding,
+    )
+    assert decision is not None
+    assert decision.crear_ticket is True
     assert flujo["paso_id"] in ("sms_jsc", "sms_ticket_carrier")
 
 

@@ -556,7 +556,9 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
         if mensaje_indica_resolucion_real(ultimo):
             hechos["resuelto"] = True
 
-    if any(p in texto for p in ("confirmo persistencia", "confirmar persistencia", "te confirmo persistencia")):
+    from app.domain.conversacion import operador_confirmo_persistencia_explicita
+
+    if operador_confirmo_persistencia_explicita(texto):
         hechos["resuelto"] = False
         hechos["persistencia_confirmada"] = True
 

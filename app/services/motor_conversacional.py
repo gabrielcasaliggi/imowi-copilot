@@ -11,8 +11,6 @@ from app.domain.conversacion import (
     PolaridadMensaje,
     clasificar_polaridad,
     interpretar_accion_operador,
-    mensaje_indica_persistencia_parcial,
-    operador_confirmo_persistencia_explicita,
     usuario_confirmo_resolucion,
     usuario_confirmo_ticket,
 )
@@ -34,7 +32,10 @@ from app.services.interprete_conversacional import (
     perfil_operador,
 )
 from app.domain.flujos_operativos import evaluar_flujo, sintoma_cambio_categoria
+from app.domain.turn_understanding import IntencionTurno, TurnUnderstanding
+from app.services.decision_engine import decidir_desde_intencion, evaluar_crear_ticket
 from app.services.respuestas_conversacion import respuesta_por_estado
+from app.services.turn_understanding import fusionar_hechos_turno, interpretar_turno_hibrido
 
 ACCIONES_SEGUIMIENTO = frozenset({
     "estado_ticket",
@@ -133,6 +134,23 @@ def _intencion_pendiente_para_estado(estado: EstadoConversacion, clasificacion: 
     return IntencionPendiente.NINGUNA.value
 
 
+def _understanding_desde_intencion_legacy(intencion: dict) -> TurnUnderstanding:
+    tipo = intencion.get("tipo", "continuar")
+    alias = {
+        "confirmacion_paso": IntencionTurno.CONFIRMAR_PASO,
+        "confirmar_cierre": IntencionTurno.CASO_RESUELTO,
+    }
+    try:
+        intencion_enum = alias.get(tipo) or IntencionTurno(tipo)
+    except ValueError:
+        intencion_enum = IntencionTurno.CONTINUAR
+    return TurnUnderstanding(
+        intencion=intencion_enum,
+        confianza=float(intencion.get("confianza") or 0.4),
+        fuente=str(intencion.get("fuente") or "legacy"),
+    )
+
+
 def _aplicar_intencion_seguimiento(
     clasificacion: dict,
     historial: list[dict],
@@ -140,7 +158,7 @@ def _aplicar_intencion_seguimiento(
     caso_prev: dict | None,
     ticket: dict | None,
     datos_triaje: dict,
-) -> tuple[dict, dict, dict]:
+) -> tuple[dict, dict, dict, TurnUnderstanding]:
     hechos_prev = (caso_prev or {}).get("datos_triaje", {}).get("hechos", {})
     sintoma_prev = (caso_prev or {}).get("datos_triaje", {}).get("sintoma", "")
     sintoma_nuevo = datos_triaje.get("sintoma", "")
@@ -151,12 +169,35 @@ def _aplicar_intencion_seguimiento(
     datos_triaje = dict(datos_triaje)
     datos_triaje["hechos"] = hechos
 
-    intencion = detectar_intencion_seguimiento(
+    flujo_pre = evaluar_flujo(hechos, datos_triaje.get("sintoma", ""))
+    paso_flujo = flujo_pre.get("paso_id") or hechos.get("paso_flujo_id") or ""
+    if paso_flujo:
+        hechos["paso_flujo_id"] = paso_flujo
+        datos_triaje["hechos"] = hechos
+
+    ticket_id = (ticket or {}).get("id") or (caso_prev or {}).get("ticket_id") or ""
+    understanding = interpretar_turno_hibrido(
+        historial,
+        hechos_prev=hechos,
+        tiene_ticket=bool(ticket_id),
+        flujo_paso_id=paso_flujo,
+    )
+    hechos = fusionar_hechos_turno(hechos, understanding)
+    if understanding.intencion == IntencionTurno.SOLICITAR_TICKET:
+        hechos["solicita_ticket"] = True
+        hechos["resuelto"] = False
+    datos_triaje["hechos"] = hechos
+
+    intencion = understanding.to_intencion_dict()
+    intencion_legacy = detectar_intencion_seguimiento(
         historial,
         caso=caso_prev,
         ticket=ticket,
         hechos=hechos,
     )
+    if understanding.confianza < 0.7:
+        intencion = intencion_legacy
+
     ultimo_msg = _ultimo_mensaje_operador(historial)
     ultimo_bot = _ultimo_asistente(historial)
     if necesita_interpretacion_ia(ultimo_msg, intencion, hechos, ultimo_bot=ultimo_bot):
@@ -170,31 +211,15 @@ def _aplicar_intencion_seguimiento(
             datos_triaje["hechos"] = hechos
 
     out = dict(clasificacion)
-    tipo = intencion.get("tipo", "continuar")
-    ticket_id = (ticket or {}).get("id") or (caso_prev or {}).get("ticket_id") or ""
-
-    if tipo == "estado_ticket":
-        out.update({"accion": "estado_ticket", "crear_ticket": False})
-    elif tipo == "agradecimiento":
-        out.update({"accion": "agradecimiento", "crear_ticket": False})
-    elif tipo == "novedad_ticket":
-        out.update({"accion": "novedad_ticket", "crear_ticket": False})
-    elif tipo == "resumen_caso":
-        out.update({"accion": "resumen_caso", "crear_ticket": False})
-    elif tipo in ("cerrar_ticket", "confirmar_cierre", "caso_resuelto"):
-        out.update({"accion": "cerrar_ticket", "crear_ticket": False})
-        intencion["cerrar"] = True
-    elif tipo == "correccion":
-        out.update({"accion": "correccion", "crear_ticket": False})
-    elif tipo == "pregunta_recomendacion":
-        out.update({"accion": "recomendar_paso", "crear_ticket": False})
-    elif tipo in ("persistencia", "informe_prueba", "informe_alcance", "confirmacion_paso"):
-        accion_seg = "seguimiento_activo" if ticket_id else "resolver_n1"
-        out.update({"accion": accion_seg, "crear_ticket": False})
-        if tipo == "persistencia":
-            hechos["resuelto"] = False
-            datos_triaje["hechos"] = hechos
-    elif tipo == "seguimiento_activo" and ticket_id:
+    decision_int = decidir_desde_intencion(
+        understanding if understanding.confianza >= 0.7 else _understanding_desde_intencion_legacy(intencion),
+        ticket_id=ticket_id,
+    )
+    if decision_int:
+        out.update(decision_int.a_dict())
+        if decision_int.cerrar:
+            intencion["cerrar"] = True
+    elif intencion.get("tipo") == "seguimiento_activo" and ticket_id:
         out.update({"accion": "seguimiento_activo", "crear_ticket": False})
     elif (
         ticket_id
@@ -204,7 +229,13 @@ def _aplicar_intencion_seguimiento(
     ):
         out.update({"accion": "seguimiento_activo", "crear_ticket": False})
 
-    return out, datos_triaje, intencion
+    intencion["understanding"] = {
+        "intencion": understanding.intencion.value,
+        "pregunta_pendiente": understanding.pregunta_pendiente.value,
+        "evidencia": understanding.evidencia,
+        "fuente": understanding.fuente,
+    }
+    return out, datos_triaje, intencion, understanding
 
 
 def _map_estado(
@@ -363,91 +394,6 @@ def ajustar_clasificacion_por_estado(
     return out
 
 
-def _historial_tiene_persistencia(historial: list[dict]) -> bool:
-    polaridad = clasificar_polaridad(historial, "")
-    if polaridad == PolaridadMensaje.PERSISTENCIA:
-        return True
-    if detectar_escalamiento(historial):
-        return True
-    for m in reversed(historial):
-        if m.get("rol") != "usuario":
-            continue
-        contenido = (m.get("contenido") or "").strip()
-        if mensaje_indica_persistencia_parcial(contenido) or operador_confirmo_persistencia_explicita(contenido):
-            return True
-    return False
-
-
-def _clasificacion_ticket_persistencia(hechos: dict, flujo_operativo: dict | None) -> dict:
-    cat = hechos.get("categoria_flujo") or (flujo_operativo or {}).get("categoria", "")
-    if cat == "sms":
-        return {
-            "accion": "crear_ticket_n2",
-            "crear_ticket": True,
-            "nivel": "N2",
-            "destino": "carrier",
-            "proveedor": "Carrier principal (MNO)",
-            "categoria": "SMS / A2P",
-            "regla_aplicada": "persistencia_post_n1",
-            "motivo_escalamiento": (
-                "Los SMS/A2P persisten después de las verificaciones N1; "
-                "requiere gestión con el carrier."
-            ),
-        }
-    return {
-        "accion": "crear_ticket_n2",
-        "crear_ticket": True,
-        "nivel": "N2",
-        "destino": "imowi_noc",
-        "proveedor": "imowi NOC",
-        "categoria": (flujo_operativo or {}).get("categoria_label", "General"),
-        "regla_aplicada": "persistencia_post_n1",
-        "motivo_escalamiento": (
-            "El inconveniente persiste después de las verificaciones N1; "
-            "requiere revisión del NOC."
-        ),
-    }
-
-
-def _debe_crear_ticket_por_persistencia(
-    historial: list[dict],
-    flujo_operativo: dict | None,
-    hechos: dict,
-    *,
-    ticket: dict | None = None,
-    ticket_existente: dict | None = None,
-) -> bool:
-    """Escala cuando el playbook N1 agotó pasos y el operador confirma persistencia."""
-    if ticket or ticket_existente:
-        return False
-    if not _historial_tiene_persistencia(historial):
-        return False
-
-    flujo = flujo_operativo or {}
-    paso_id = flujo.get("paso_id", "")
-    cat = hechos.get("categoria_flujo") or flujo.get("categoria", "")
-
-    if hechos.get("persistencia_confirmada"):
-        return True
-    if flujo.get("completado"):
-        return True
-    if paso_id in {
-        "roaming_cerrar_seguimiento",
-        "datos_cerrar_seguimiento",
-        "senal_ticket_noc",
-        "senal_cerrar_seguimiento",
-        "sms_ticket_carrier",
-    }:
-        return True
-    if cat == "sms" and hechos.get("linea_jsc_verificada") and hechos.get("resuelto") is False:
-        return True
-    if cat == "sms" and operador_confirmo_persistencia_explicita(_ultimo_mensaje_operador(historial)):
-        return True
-
-    pasos_realizados = hechos.get("pasos_realizados") or []
-    return len(pasos_realizados) >= 4 and hechos.get("resuelto") is False
-
-
 def procesar_turno_conversacional(
     db: Session,
     org_id: str,
@@ -492,7 +438,7 @@ def procesar_turno_conversacional(
         if row:
             ticket = repo._ticket_resumen(row)
 
-    clasificacion, datos_triaje, intencion_seg = _aplicar_intencion_seguimiento(
+    clasificacion, datos_triaje, intencion_seg, understanding = _aplicar_intencion_seguimiento(
         clasificacion,
         historial,
         caso_prev=caso_prev,
@@ -559,22 +505,17 @@ def procesar_turno_conversacional(
     )
     if clasif_ajustada.get("accion") in ACCIONES_SEGUIMIENTO:
         clasif_ajustada["crear_ticket"] = False
-    if _debe_crear_ticket_por_persistencia(
-        historial,
-        flujo_operativo,
-        datos_triaje.get("hechos") or {},
+    ticket_dec = evaluar_crear_ticket(
+        historial=historial,
+        hechos=datos_triaje.get("hechos") or {},
+        flujo_operativo=flujo_operativo,
+        understanding=understanding,
         ticket=ticket,
         ticket_existente=ticket_existente,
-    ):
-        auto_confirm = operador_confirmo_persistencia_explicita(_ultimo_mensaje_operador(historial))
-        hechos_turno = datos_triaje.get("hechos") or {}
-        clasif_ajustada.update(
-            _clasificacion_ticket_persistencia(
-                hechos_turno,
-                flujo_operativo,
-            )
-        )
-        if auto_confirm or hechos_turno.get("persistencia_confirmada"):
+    )
+    if ticket_dec:
+        clasif_ajustada.update(ticket_dec.a_dict())
+        if ticket_dec.auto_confirmado:
             clasif_ajustada["crear_ticket"] = True
             estado = EstadoConversacion.TICKET_CREADO
         else:
