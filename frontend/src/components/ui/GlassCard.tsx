@@ -168,3 +168,84 @@ export function DataRow({
     </div>
   );
 }
+
+export type StatusPillTone = "available" | "demo" | "credentials" | "soon" | "neutral";
+
+export function StatusPill({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: StatusPillTone;
+}) {
+  const cls =
+    tone === "available"
+      ? "status-pill status-pill-available"
+      : tone === "demo"
+        ? "status-pill status-pill-demo"
+        : tone === "credentials"
+          ? "status-pill status-pill-credentials"
+          : tone === "soon"
+            ? "status-pill status-pill-soon"
+            : "status-pill status-pill-neutral";
+  return <span className={cls}>{label}</span>;
+}
+
+export function SectionHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 mb-4">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-50 tracking-tight">{title}</h2>
+        {subtitle && (
+          <p className="text-[11px] font-mono text-slate-500 mt-1 leading-relaxed">{subtitle}</p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+export function CapabilityCard({
+  title,
+  description,
+  status,
+  statusTone = "neutral",
+  items,
+  footer,
+}: {
+  title: string;
+  description: string;
+  status?: string;
+  statusTone?: StatusPillTone;
+  items?: string[];
+  footer?: ReactNode;
+}) {
+  return (
+    <div className="capability-card rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 flex flex-col h-full">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+        {status && <StatusPill label={status} tone={statusTone} />}
+      </div>
+      <p className="text-xs text-slate-400 leading-relaxed mb-3">{description}</p>
+      {items && items.length > 0 && (
+        <ul className="space-y-1.5 flex-1">
+          {items.map((item) => (
+            <li key={item} className="text-[11px] text-slate-300 flex gap-2">
+              <span className="text-cyan-500/70 shrink-0">·</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {footer && <div className="mt-3 pt-3 border-t border-slate-800/80">{footer}</div>}
+    </div>
+  );
+}

@@ -3,11 +3,21 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import type { AdminUser, AuditEvent, ImportCsvResult, Organization } from "@/lib/types";
-import { KpiCard, PanelHeader } from "@/components/ui/GlassCard";
+import {
+  GlassCard,
+  KpiCard,
+  PanelHeader,
+  SectionHeader,
+  SidebarSection,
+  StatusPill,
+} from "@/components/ui/GlassCard";
 
 const CSV_EJEMPLO = `nombre,email,telefono,rol,linea_principal
 Operador Batán 1,operador1@coopbatan.com,2235551001,cliente,2235551234
 Operador Batán 2,operador2@coopbatan.com,2235551002,cliente,2235555678`;
+
+const inputCls =
+  "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
 export function AdminPanel() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -146,275 +156,281 @@ export function AdminPanel() {
   };
 
   const selectedOrg = orgs.find((o) => o.slug === selectedSlug);
+  const totalUsuarios = cooperativas.reduce((a, o) => a + (o.usuarios || 0), 0);
+  const totalAbiertos = cooperativas.reduce((a, o) => a + (o.tickets_abiertos || 0), 0);
+  const totalLineas = cooperativas.reduce((a, o) => a + (o.lineas || 0), 0);
 
   return (
-    <div className="p-4 space-y-6 overflow-y-auto">
-      <div>
-        <h2 className="font-semibold text-slate-100">Administración</h2>
-        <p className="text-[10px] font-mono text-slate-500">
-          Cooperativas · credenciales seguras · importación CSV · auditoría
-        </p>
-      </div>
+    <div className="admin-hub-page p-4 space-y-6 overflow-y-auto min-h-0">
+      <SectionHeader
+        title="Admin Hub"
+        subtitle="Gobierno multi-tenant · cooperativas · credenciales seguras · importación CSV · auditoría"
+      />
 
       {message && (
-        <p className="text-sm text-cyan-300/90 border border-cyan-500/20 rounded-lg px-3 py-2 bg-cyan-500/5">
+        <p className="text-sm text-cyan-200 border border-cyan-500/25 rounded-xl px-4 py-2.5 bg-cyan-500/8">
           {message}
         </p>
       )}
 
       {loading ? (
-        <p className="text-slate-500">Cargando…</p>
+        <p className="text-slate-500">Cargando plataforma…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard label="Cooperativas" value={cooperativas.length} />
-            <KpiCard
-              label="Usuarios totales"
-              value={cooperativas.reduce((a, o) => a + (o.usuarios || 0), 0)}
-            />
-            <KpiCard
-              label="Tickets abiertos"
-              value={cooperativas.reduce((a, o) => a + (o.tickets_abiertos || 0), 0)}
-            />
-            <KpiCard
-              label="Líneas activas"
-              value={cooperativas.reduce((a, o) => a + (o.lineas || 0), 0)}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
-              <h3 className="text-xs font-mono uppercase text-slate-500">Alta cooperativa</h3>
-              <form onSubmit={onCreateOrg} className="space-y-2">
-                <input
-                  required
-                  placeholder="Nombre (ej. Cooperativa Lincoln)"
-                  value={newOrg.nombre}
-                  onChange={(e) => setNewOrg({ ...newOrg, nombre: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"
-                />
-                <input
-                  placeholder="Slug opcional (ej. coop-lincoln)"
-                  value={newOrg.slug}
-                  onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono"
-                />
-                <div className="flex gap-2">
-                  <input
-                    placeholder="Logo"
-                    maxLength={8}
-                    value={newOrg.logo_label}
-                    onChange={(e) => setNewOrg({ ...newOrg, logo_label: e.target.value })}
-                    className="w-20 bg-slate-950 border border-slate-700 rounded px-2 py-2 text-sm text-center"
-                  />
-                  <input
-                    type="color"
-                    value={newOrg.brand_color}
-                    onChange={(e) => setNewOrg({ ...newOrg, brand_color: e.target.value })}
-                    className="h-10 w-14 rounded border border-slate-700 bg-slate-950"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="text-xs px-4 py-2 rounded border border-emerald-500/30 text-emerald-300 disabled:opacity-50"
-                >
-                  Crear cooperativa
-                </button>
-              </form>
+          <SidebarSection title="Resumen de plataforma">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <KpiCard label="Cooperativas" value={cooperativas.length} tone="cyan" />
+              <KpiCard label="Usuarios totales" value={totalUsuarios} tone="emerald" />
+              <KpiCard label="Tickets abiertos" value={totalAbiertos} tone="amber" />
+              <KpiCard label="Líneas activas" value={totalLineas} tone="violet" />
             </div>
+          </SidebarSection>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
-              <h3 className="text-xs font-mono uppercase text-slate-500">Cooperativas activas</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {cooperativas.map((o) => (
-                  <button
-                    key={o.slug}
-                    type="button"
-                    onClick={() => setSelectedSlug(o.slug)}
-                    className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                      selectedSlug === o.slug
-                        ? "border-cyan-500/40 bg-cyan-500/5"
-                        : "border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-                        style={{ backgroundColor: `${o.brand_color}22`, color: o.brand_color }}
-                      >
-                        {o.logo_label}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-slate-200 truncate">{o.nombre}</p>
-                        <p className="text-[10px] font-mono text-slate-500">{o.slug}</p>
-                      </div>
-                      <div className="text-[10px] font-mono text-slate-500 text-right">
-                        <div>{o.usuarios ?? 0} usr</div>
-                        <div>{o.tickets_abiertos ?? 0} abiertos</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {selectedOrg && (
+          <SidebarSection title="Cooperativas">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
-                <h3 className="text-xs font-mono uppercase text-slate-500">
-                  Credenciales — {selectedOrg.nombre}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Las claves se almacenan con hash bcrypt. Mínimo 6 caracteres. No se
-                  muestran en listados ni APIs.
-                </p>
-                <form onSubmit={onCreateUser} className="space-y-2">
+              <GlassCard title="Alta cooperativa" accent="emerald" variant="secondary">
+                <form onSubmit={onCreateOrg} className="space-y-2.5">
                   <input
                     required
-                    placeholder="Nombre"
-                    value={newUser.nombre}
-                    onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"
+                    placeholder="Nombre (ej. Cooperativa Lincoln)"
+                    value={newOrg.nombre}
+                    onChange={(e) => setNewOrg({ ...newOrg, nombre: e.target.value })}
+                    className={inputCls}
                   />
                   <input
-                    required
-                    type="email"
-                    placeholder="Email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"
+                    placeholder="Slug opcional (ej. coop-lincoln)"
+                    value={newOrg.slug}
+                    onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value })}
+                    className={`${inputCls} font-mono`}
                   />
                   <div className="flex gap-2">
                     <input
-                      placeholder="Teléfono"
-                      value={newUser.telefono}
-                      onChange={(e) => setNewUser({ ...newUser, telefono: e.target.value })}
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"
+                      placeholder="Logo"
+                      maxLength={8}
+                      value={newOrg.logo_label}
+                      onChange={(e) => setNewOrg({ ...newOrg, logo_label: e.target.value })}
+                      className="w-20 bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-2 text-sm text-center"
                     />
                     <input
-                      placeholder="Línea principal"
-                      value={newUser.linea_principal}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, linea_principal: e.target.value })
-                      }
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <select
-                      value={newUser.rol}
-                      onChange={(e) => setNewUser({ ...newUser, rol: e.target.value })}
-                      className="bg-slate-950 border border-slate-700 rounded px-2 py-2 text-sm"
-                    >
-                      <option value="cliente">Operador (cliente)</option>
-                      <option value="ingeniero_noc">Ingeniero NOC</option>
-                    </select>
-                    <input
-                      placeholder="Clave inicial"
-                      type="password"
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono"
+                      type="color"
+                      value={newOrg.brand_color}
+                      onChange={(e) => setNewOrg({ ...newOrg, brand_color: e.target.value })}
+                      className="h-10 w-14 rounded-lg border border-slate-700 bg-slate-950"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="text-xs px-4 py-2 rounded border border-cyan-500/30 text-cyan-300 disabled:opacity-50"
+                    className="text-xs font-medium px-4 py-2 rounded-lg border border-emerald-500/35 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
                   >
-                    Agregar usuario
+                    Crear cooperativa
                   </button>
                 </form>
+              </GlassCard>
 
-                <div className="max-h-48 overflow-y-auto border-t border-slate-800 pt-3 space-y-1">
-                  {users.length === 0 ? (
-                    <p className="text-xs text-slate-600">Sin usuarios en esta cooperativa.</p>
+              <GlassCard title="Cooperativas activas" accent="cyan" variant="secondary">
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {cooperativas.length === 0 ? (
+                    <p className="text-xs text-slate-500">Sin cooperativas registradas.</p>
                   ) : (
-                    users.map((u) => (
-                      <div
-                        key={u.id}
-                        className="flex justify-between gap-2 text-xs py-1.5 border-b border-slate-800/60"
+                    cooperativas.map((o) => (
+                      <button
+                        key={o.slug}
+                        type="button"
+                        onClick={() => setSelectedSlug(o.slug)}
+                        className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                          selectedSlug === o.slug
+                            ? "border-cyan-500/40 bg-cyan-500/8"
+                            : "border-slate-800 hover:border-slate-700"
+                        }`}
                       >
-                        <div className="min-w-0">
-                          <p className="text-slate-300 truncate">{u.nombre}</p>
-                          <p className="font-mono text-slate-500 truncate">{u.email}</p>
-                          {u.must_change_password && (
-                            <p className="text-[9px] text-amber-400">Debe cambiar clave</p>
-                          )}
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                            style={{ backgroundColor: `${o.brand_color}22`, color: o.brand_color }}
+                          >
+                            {o.logo_label}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-slate-100 truncate font-medium">{o.nombre}</p>
+                            <p className="text-[11px] font-mono text-slate-500">{o.slug}</p>
+                          </div>
+                          <div className="text-[11px] font-mono text-slate-500 text-right shrink-0">
+                            <div>{o.usuarios ?? 0} usr</div>
+                            <div>{o.tickets_abiertos ?? 0} abiertos</div>
+                          </div>
                         </div>
-                        <span className="text-slate-500 shrink-0">{u.rol}</span>
-                      </div>
+                      </button>
                     ))
                   )}
                 </div>
+              </GlassCard>
+            </div>
+          </SidebarSection>
+
+          {selectedOrg && (
+            <SidebarSection title={`Configuración — ${selectedOrg.nombre}`}>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <StatusPill label={selectedOrg.slug} tone="neutral" />
+                <span className="text-[11px] text-slate-500">
+                  {users.length} usuario{users.length !== 1 ? "s" : ""} · {selectedOrg.lineas ?? 0} líneas
+                </span>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
-                <h3 className="text-xs font-mono uppercase text-slate-500">Importar CSV</h3>
-                <p className="text-xs text-slate-500">
-                  Columnas: nombre, email, telefono, rol, linea_principal (opcional abonado, plan).
-                  Clave por defecto: <span className="font-mono text-slate-400">cliente</span>
-                </p>
-                <pre className="text-[10px] font-mono text-slate-600 bg-slate-950/80 p-2 rounded overflow-x-auto">
-                  {CSV_EJEMPLO}
-                </pre>
-                <form onSubmit={onImportCsv} className="flex flex-wrap gap-2 items-center">
-                  <input
-                    name="csvfile"
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-slate-300"
-                  />
-                  <button
-                    type="submit"
-                    disabled={busy}
-                    className="text-xs px-4 py-2 rounded border border-violet-500/30 text-violet-300 disabled:opacity-50"
-                  >
-                    Importar
-                  </button>
-                </form>
-                {importResult && importResult.errores.length > 0 && (
-                  <div className="text-xs text-amber-400/90 space-y-1 max-h-32 overflow-y-auto">
-                    {importResult.errores.map((err) => (
-                      <p key={err}>{err}</p>
-                    ))}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <GlassCard title="Credenciales" accent="cyan" variant="secondary">
+                  <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+                    Las claves se almacenan con hash bcrypt. Mínimo 6 caracteres. No se muestran en
+                    listados ni APIs.
+                  </p>
+                  <form onSubmit={onCreateUser} className="space-y-2.5">
+                    <input
+                      required
+                      placeholder="Nombre"
+                      value={newUser.nombre}
+                      onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
+                      className={inputCls}
+                    />
+                    <input
+                      required
+                      type="email"
+                      placeholder="Email"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      className={inputCls}
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        placeholder="Teléfono"
+                        value={newUser.telefono}
+                        onChange={(e) => setNewUser({ ...newUser, telefono: e.target.value })}
+                        className={`flex-1 ${inputCls}`}
+                      />
+                      <input
+                        placeholder="Línea principal"
+                        value={newUser.linea_principal}
+                        onChange={(e) =>
+                          setNewUser({ ...newUser, linea_principal: e.target.value })
+                        }
+                        className={`flex-1 ${inputCls} font-mono`}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        value={newUser.rol}
+                        onChange={(e) => setNewUser({ ...newUser, rol: e.target.value })}
+                        className="bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-2 text-sm"
+                      >
+                        <option value="cliente">Operador (cliente)</option>
+                        <option value="ingeniero_noc">Ingeniero NOC</option>
+                      </select>
+                      <input
+                        placeholder="Clave inicial"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                        className={`flex-1 ${inputCls} font-mono`}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="text-xs font-medium px-4 py-2 rounded-lg border border-cyan-500/35 text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
+                    >
+                      Agregar usuario
+                    </button>
+                  </form>
+
+                  <div className="max-h-52 overflow-y-auto border-t border-slate-800 pt-3 mt-3 space-y-1">
+                    {users.length === 0 ? (
+                      <p className="text-xs text-slate-500">Sin usuarios en esta cooperativa.</p>
+                    ) : (
+                      users.map((u) => (
+                        <div
+                          key={u.id}
+                          className="flex justify-between gap-2 text-xs py-2 border-b border-slate-800/60 last:border-b-0"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-slate-200 truncate font-medium">{u.nombre}</p>
+                            <p className="font-mono text-slate-500 truncate text-[11px]">{u.email}</p>
+                            {u.must_change_password && (
+                              <p className="text-[11px] text-amber-400 mt-0.5">Debe cambiar clave</p>
+                            )}
+                          </div>
+                          <span className="text-slate-500 shrink-0 text-[11px]">{u.rol}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
-                )}
+                </GlassCard>
+
+                <GlassCard title="Importar CSV" variant="secondary">
+                  <p className="text-xs text-slate-400 mb-2 leading-relaxed">
+                    Columnas: nombre, email, telefono, rol, linea_principal (opcional abonado, plan).
+                    Clave por defecto: <span className="font-mono text-slate-300">cliente</span>
+                  </p>
+                  <pre className="text-[11px] font-mono text-slate-500 bg-slate-950/80 p-2.5 rounded-lg overflow-x-auto mb-3">
+                    {CSV_EJEMPLO}
+                  </pre>
+                  <form onSubmit={onImportCsv} className="flex flex-wrap gap-2 items-center">
+                    <input
+                      name="csvfile"
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-slate-300"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="text-xs font-medium px-4 py-2 rounded-lg border border-violet-500/35 text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
+                    >
+                      Importar
+                    </button>
+                  </form>
+                  {importResult && importResult.errores.length > 0 && (
+                    <div className="text-xs text-amber-300/90 space-y-1 max-h-32 overflow-y-auto mt-3">
+                      {importResult.errores.map((err) => (
+                        <p key={err}>{err}</p>
+                      ))}
+                    </div>
+                  )}
+                </GlassCard>
               </div>
-            </div>
+            </SidebarSection>
           )}
 
-          <div className="enterprise-panel">
-            <PanelHeader
-              title="Auditoría operativa"
-              subtitle="Altas, importaciones y cambios sensibles recientes"
-            />
-            {auditEvents.length === 0 ? (
-              <p className="text-xs text-slate-600">Sin eventos registrados aún.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {auditEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="text-xs py-2 border-b border-slate-800/60 last:border-b-0"
-                  >
-                    <div className="flex justify-between gap-2">
-                      <span className="font-mono text-cyan-400/90">{ev.accion}</span>
-                      <span className="text-[10px] text-slate-600 shrink-0">
-                        {ev.created_at?.slice(0, 16).replace("T", " ")}
-                      </span>
+          <SidebarSection title="Auditoría operativa">
+            <div className="enterprise-panel">
+              <PanelHeader
+                title="Eventos recientes"
+                subtitle="Altas, importaciones y cambios sensibles en la plataforma"
+              />
+              {auditEvents.length === 0 ? (
+                <p className="text-xs text-slate-500">Sin eventos registrados aún.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {auditEvents.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="text-xs py-2.5 px-2 rounded-lg border border-slate-800/60 bg-slate-950/30"
+                    >
+                      <div className="flex justify-between gap-2 items-start">
+                        <span className="font-mono text-cyan-300 text-[11px]">{ev.accion}</span>
+                        <span className="text-[11px] text-slate-500 shrink-0 font-mono">
+                          {ev.created_at?.slice(0, 16).replace("T", " ")}
+                        </span>
+                      </div>
+                      <p className="text-slate-300 mt-1 truncate">{ev.recurso}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        <span className="text-slate-400">{ev.actor}</span>
+                        {ev.detalle ? ` · ${ev.detalle}` : ""}
+                      </p>
                     </div>
-                    <p className="text-slate-400 truncate">{ev.recurso}</p>
-                    <p className="text-[10px] text-slate-600 truncate">
-                      {ev.actor} · {ev.detalle}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SidebarSection>
         </>
       )}
     </div>

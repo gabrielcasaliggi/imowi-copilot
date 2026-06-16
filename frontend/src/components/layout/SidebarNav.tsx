@@ -21,7 +21,10 @@ const NAV_GROUPS = [
   },
   {
     title: "Conocimiento",
-    items: [{ href: "/conocimiento", label: "Centro de Conocimiento", id: "kb", admin: true }],
+    items: [
+      { href: "/conocimiento", label: "Centro de Conocimiento", id: "kb", admin: true },
+      { href: "/automatizacion", label: "Automatización", id: "automation", admin: true },
+    ],
   },
 ];
 
