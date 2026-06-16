@@ -12,12 +12,13 @@ class PasoFlujo:
     mensaje: str
 
 
-CategoriaFlujo = str  # roaming | datos | senal | sim | general
+CategoriaFlujo = str  # roaming | datos | senal | sms | sim | general
 
 CATEGORIA_LABELS: dict[str, str] = {
     "roaming": "Roaming internacional",
     "datos": "Datos móviles",
     "senal": "Señal y cobertura",
+    "sms": "SMS / mensajería",
     "sim": "SIM / chip",
     "general": "General",
 }
@@ -41,6 +42,9 @@ PASO_LABELS: dict[str, str] = {
     "senal_reinicio": "3. Reinicio / modo avión",
     "senal_ticket_noc": "4. Escalar a NOC",
     "senal_cerrar_seguimiento": "5. Seguimiento NOC",
+    "sms_alcance": "1. Alcance SMS / A2P",
+    "sms_jsc": "2. Estado de línea en JSC",
+    "sms_ticket_carrier": "3. Escalar a carrier",
     "general_triaje": "1. Confirmar alcance",
     "sim_evaluar": "1. Evaluar SIM",
 }
@@ -56,15 +60,32 @@ HECHOS_RESUMEN = (
     "datos_ok",
     "zona_unica",
     "multiples_zonas",
+    "linea_jsc_verificada",
     "sim_cambiada",
 )
 
 
 def detectar_categoria_flujo(sintoma: str, hechos: dict | None = None) -> CategoriaFlujo:
     h = hechos or {}
-    if h.get("categoria_flujo") in ("roaming", "datos", "senal", "sim"):
+    if h.get("categoria_flujo") in ("roaming", "datos", "senal", "sms", "sim"):
         return h["categoria_flujo"]
     sint = (sintoma or "").lower()
+    if any(
+        p in sint
+        for p in (
+            "sms",
+            "mensaje de texto",
+            "mensajes de texto",
+            "a2p",
+            "imessage",
+            "mensajeria apple",
+            "mensajería apple",
+            "código de verificación",
+            "codigo de verificacion",
+            "otp",
+        )
+    ):
+        return "sms"
     _paises_roaming = (
         "roaming",
         "brasil",
@@ -216,6 +237,24 @@ def _pendiente_senal(hechos: dict) -> PasoFlujo | None:
     )
 
 
+def _pendiente_sms(hechos: dict) -> PasoFlujo | None:
+    if not hechos.get("alcance_confirmado"):
+        return PasoFlujo(
+            "sms_alcance",
+            "Confirmar si fallan SMS comunes, códigos de verificación/A2P o mensajería Apple, "
+            "y si ocurre con todos los remitentes o solo con una plataforma.",
+        )
+    if not hechos.get("linea_jsc_verificada"):
+        return PasoFlujo(
+            "sms_jsc",
+            "Verificar en JSC que la línea esté activa, sin bloqueo de servicios y con mensajería habilitada.",
+        )
+    return PasoFlujo(
+        "sms_ticket_carrier",
+        "Escalar a carrier/proveedor con línea, ejemplos de remitentes, horarios aproximados y tipo de SMS afectado.",
+    )
+
+
 def _pendiente_general(hechos: dict) -> PasoFlujo | None:
     if hechos.get("alcance_confirmado"):
         return None
@@ -238,6 +277,7 @@ _RESOLVERS: dict[CategoriaFlujo, Callable[[dict], PasoFlujo | None]] = {
     "roaming": _pendiente_roaming,
     "datos": _pendiente_datos,
     "senal": _pendiente_senal,
+    "sms": _pendiente_sms,
     "sim": _pendiente_sim,
     "general": _pendiente_general,
 }
@@ -281,6 +321,7 @@ def _formato_hecho(clave: str, valor: Any) -> str:
         "datos_ok": "navegación",
         "zona_unica": "zona_unica",
         "multiples_zonas": "varias_zonas",
+        "linea_jsc_verificada": "jsc_línea",
         "sim_cambiada": "sim",
     }
     nombre = etiquetas.get(clave, clave)

@@ -17,6 +17,25 @@ def test_detecta_registro_en_red_como_senal():
     assert detectar_categoria_flujo("no se registra en la red") == "senal"
 
 
+def test_sms_no_dispara_flujo_senal():
+    sintoma = "No llegan mensajes de texto desde plataformas de mensajería como Apple"
+    ev = evaluar_flujo({}, sintoma)
+    assert ev["categoria"] == "sms"
+    assert ev["categoria_label"] == "SMS / mensajería"
+    assert ev["paso_id"] == "sms_alcance"
+    assert "señal" not in (ev["paso_mensaje"] or "").lower()
+
+
+def test_sms_preserva_categoria_aunque_operador_mencione_senal():
+    sintoma = (
+        "La línea 2234567890 no recibe mensajes de texto desde Apple. "
+        "Entiendo que esto no debe a señal."
+    )
+    ev = evaluar_flujo({}, sintoma)
+    assert ev["categoria"] == "sms"
+    assert ev["paso_id"] == "sms_alcance"
+
+
 def test_flujo_general_no_marca_completado_sin_paso():
     ev = evaluar_flujo({}, "consulta administrativa")
     assert ev["categoria"] == "general"

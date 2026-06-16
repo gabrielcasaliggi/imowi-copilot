@@ -189,6 +189,9 @@ def _aplicar_confirmacion_paso(hechos: dict, ultimo_bot: str, ultimo_usuario: st
     if "jsc" in bot and ("roaming" in bot or "itinerancia" in bot):
         hechos["roaming_verificado"] = True
         return
+    if "jsc" in bot and any(p in bot for p in ("línea", "linea", "servicio", "mensajería", "mensajeria", "sms")):
+        hechos["linea_jsc_verificada"] = True
+        return
     if ("jsc" in bot or "roaming" in bot) and any(
         p in usr for p in ("habilitados", "habilitado", "activos", "activo", "estan habilitados", "están habilitados")
     ):
@@ -300,6 +303,10 @@ def _replay_confirmaciones_historial(historial: list[dict], hechos: dict) -> Non
             p in usr for p in ("habilitados", "habilitado", "activos", "activo", "estan habilitados", "están habilitados")
         ):
             hechos["roaming_verificado"] = True
+        elif "jsc" in ultimo_bot_ctx.lower() and any(
+            p in ultimo_bot_ctx.lower() for p in ("línea", "linea", "servicio", "mensajería", "mensajeria", "sms")
+        ):
+            hechos["linea_jsc_verificada"] = True
         elif _es_hallazgo_jsc_roaming_inactivo(contenido):
             hechos["roaming_verificado"] = True
             hechos["roaming_jsc_inactivo"] = True
@@ -525,7 +532,7 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
     hechos["pasos_realizados"] = pasos
     cat_prev = hechos.get("categoria_flujo")
     cat_full = detectar_categoria_flujo(texto, hechos)
-    if cat_prev in ("roaming", "datos", "senal", "sim"):
+    if cat_prev in ("roaming", "datos", "senal", "sms", "sim"):
         pass
     elif cat_full != "general":
         hechos["categoria_flujo"] = cat_full
@@ -542,7 +549,24 @@ def _es_nuevo_reclamo_en_sesion(historial: list[dict], caso: dict | None) -> boo
     prev = ((caso or {}).get("datos_triaje") or {}).get("sintoma", "").lower()
     if not prev:
         return False
-    if not any(p in ultimo for p in ("linea", "línea", "sintoma", "modelo", "registra", "datos", "señal", "senal")):
+    if not any(
+        p in ultimo
+        for p in (
+            "linea",
+            "línea",
+            "sintoma",
+            "modelo",
+            "registra",
+            "datos",
+            "señal",
+            "senal",
+            "sms",
+            "mensaje de texto",
+            "mensajes de texto",
+            "imessage",
+            "a2p",
+        )
+    ):
         return False
     if detectar_categoria_flujo(prev) != detectar_categoria_flujo(ultimo):
         return True

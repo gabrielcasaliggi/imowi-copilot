@@ -299,6 +299,26 @@ def test_extraer_datos_usa_primer_sintoma():
     assert "saliendo de argentina" not in datos["sintoma"]
 
 
+def test_extraer_datos_no_reclasifica_sms_por_correccion_senal():
+    from app.agents.triaje import extraer_datos
+    from app.domain.flujos_operativos import detectar_categoria_flujo
+
+    hist = [
+        {
+            "rol": "usuario",
+            "contenido": (
+                "la línea 2234567890 del cliente pepe tiene problemas con los mensajes de texto, "
+                "no le llegan desde plataformas de mensajería como apple"
+            ),
+        },
+        {"rol": "asistente", "contenido": "Confirmar zona, alcance del problema y si afecta señal, datos o solo llamadas."},
+        {"rol": "usuario", "contenido": "entiendo que esto no debe a señal"},
+    ]
+    datos = extraer_datos(hist)
+    assert "mensajes de texto" in datos["sintoma"]
+    assert detectar_categoria_flujo(datos["sintoma"]) == "sms"
+
+
 @pytest.mark.parametrize(
     "respuesta",
     [
