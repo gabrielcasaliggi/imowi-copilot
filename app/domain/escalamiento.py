@@ -34,6 +34,11 @@ ESCALAMIENTO_FRASES = (
     "pasar a n2",
     "derivar a proveedor",
     "mandar al carrier",
+    "confirmo persistencia",
+    "confirmar persistencia",
+    "te confirmo persistencia",
+    "excepto los sms",
+    "excepto el sms",
 )
 
 

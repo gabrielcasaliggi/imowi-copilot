@@ -353,6 +353,42 @@ def test_sms_recupera_flujo_con_senal_persistida_en_hechos():
     assert "señal" not in (flujo.get("paso_mensaje") or "").lower()
 
 
+def test_funciona_bien_excepto_sms_no_cierra_caso():
+    from app.domain.conversacion import PolaridadMensaje, clasificar_polaridad, usuario_confirmo_resolucion
+
+    hist = [
+        {"rol": "usuario", "contenido": "linea 2234567890 no recibe sms de apple"},
+        {"rol": "asistente", "contenido": "Confirmar alcance SMS."},
+        {"rol": "usuario", "contenido": "todo funciona bien excepto los sms"},
+    ]
+    hechos = extraer_hechos_conversacion(hist, {"categoria_flujo": "sms", "alcance_confirmado": True})
+
+    assert clasificar_polaridad(hist) == PolaridadMensaje.PERSISTENCIA
+    assert usuario_confirmo_resolucion(hist) is False
+    assert hechos.get("resuelto") is not True
+
+
+def test_confirmo_persistencia_sms_marca_escalamiento():
+    from app.services.motor_conversacional import _debe_crear_ticket_por_persistencia
+    from app.domain.flujos_operativos import evaluar_flujo
+    from app.agents.triaje import extraer_datos
+
+    hist = [
+        {"rol": "usuario", "contenido": "linea 2234567890 no recibe sms de apple"},
+        {"rol": "asistente", "contenido": "Confirmar alcance SMS."},
+        {"rol": "usuario", "contenido": "todo funciona bien excepto los sms"},
+        {"rol": "asistente", "contenido": "Todavía no hay ticket."},
+        {"rol": "usuario", "contenido": "te confirmo persistencia"},
+    ]
+    hechos = extraer_hechos_conversacion(hist, {"categoria_flujo": "sms", "alcance_confirmado": True})
+    datos = extraer_datos(hist)
+    flujo = evaluar_flujo(hechos, datos["sintoma"])
+
+    assert hechos.get("persistencia_confirmada") is True
+    assert _debe_crear_ticket_por_persistencia(hist, flujo, hechos) is True
+    assert flujo["paso_id"] in ("sms_jsc", "sms_ticket_carrier")
+
+
 @pytest.mark.parametrize(
     "respuesta",
     [

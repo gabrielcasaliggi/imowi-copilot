@@ -90,7 +90,80 @@ PERSISTENCIA_FRASES = (
     "aun",
     "mismo problema",
     "sigue igual",
+    "confirmo persistencia",
+    "confirmar persistencia",
+    "te confirmo persistencia",
 )
+
+_EXCLUSION_RESOLUCION = (
+    "excepto",
+    "pero ",
+    " salvo ",
+    "solo fall",
+    "sólo fall",
+    "solo los sms",
+    "sólo los sms",
+    "solo el sms",
+    "sólo el sms",
+    "solo sms",
+    "sólo sms",
+    "unicamente",
+    "únicamente",
+    "solamente",
+)
+
+_FALLO_PARCIAL = (
+    "sms",
+    "mensaje",
+    "mensajes",
+    "datos",
+    "internet",
+    "llamada",
+    "llamadas",
+    "señal",
+    "senal",
+    "whatsapp",
+    "a2p",
+)
+
+
+def mensaje_indica_persistencia_parcial(msg: str) -> bool:
+    """Ej.: 'todo funciona bien excepto los sms' — no es resolución total."""
+    t = (msg or "").lower().strip()
+    if not t:
+        return False
+    if operador_confirmo_persistencia_explicita(t):
+        return True
+    if any(ex in t for ex in _EXCLUSION_RESOLUCION):
+        if any(f in t for f in _FALLO_PARCIAL):
+            return True
+        if "no " in t or "sin " in t:
+            return True
+    return False
+
+
+def operador_confirmo_persistencia_explicita(msg: str) -> bool:
+    t = (msg or "").lower().strip()
+    return any(
+        p in t
+        for p in (
+            "confirmo persistencia",
+            "confirmar persistencia",
+            "te confirmo persistencia",
+            "persiste el caso",
+            "persiste el problema",
+            "el problema persiste",
+        )
+    )
+
+
+def mensaje_indica_resolucion_real(msg: str) -> bool:
+    t = (msg or "").lower().strip()
+    if not t or mensaje_indica_persistencia_parcial(t):
+        return False
+    if t in NEGACION_CORTA:
+        return False
+    return any(frase in t for frase in CONFIRMACION_RESOLUCION)
 
 NEGACION_CORTA = ("no", "nop", "nope", "no.", "nah", "negativo")
 
@@ -128,6 +201,12 @@ def clasificar_polaridad(historial: list[dict], intencion_pendiente: str = "") -
 
     if any(frase in msg for frase in PERSISTENCIA_FRASES):
         return PolaridadMensaje.PERSISTENCIA
+
+    if mensaje_indica_persistencia_parcial(msg):
+        return PolaridadMensaje.PERSISTENCIA
+
+    if mensaje_indica_resolucion_real(msg):
+        return PolaridadMensaje.RESUELTO
 
     if any(frase in msg for frase in CONFIRMACION_RESOLUCION):
         return PolaridadMensaje.RESUELTO
@@ -188,6 +267,8 @@ def usuario_confirmo_resolucion(historial: list[dict], intencion_pendiente: str 
             return False
         if msg in ("gracias", "muchas gracias", "de nada", "chau", "adiós", "adios"):
             return False
-        if any(frase in msg for frase in CONFIRMACION_RESOLUCION):
+        if mensaje_indica_persistencia_parcial(msg):
+            return False
+        if mensaje_indica_resolucion_real(msg):
             return True
     return False

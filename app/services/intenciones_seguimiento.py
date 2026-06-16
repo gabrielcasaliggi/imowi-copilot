@@ -232,6 +232,8 @@ def _aplicar_confirmacion_paso(hechos: dict, ultimo_bot: str, ultimo_usuario: st
         return
     if "jsc" in bot and any(p in bot for p in ("línea", "linea", "servicio", "mensajería", "mensajeria", "sms")):
         hechos["linea_jsc_verificada"] = True
+        if hechos.get("categoria_flujo") == "sms" or texto_indica_sms(usr):
+            hechos["resuelto"] = False
         return
     if ("jsc" in bot or "roaming" in bot) and any(
         p in usr for p in ("habilitados", "habilitado", "activos", "activo", "estan habilitados", "están habilitados")
@@ -549,7 +551,14 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
             "si lo probo y funcion",
         )
     ):
-        hechos["resuelto"] = True
+        from app.domain.conversacion import mensaje_indica_resolucion_real
+
+        if mensaje_indica_resolucion_real(ultimo):
+            hechos["resuelto"] = True
+
+    if any(p in texto for p in ("confirmo persistencia", "confirmar persistencia", "te confirmo persistencia")):
+        hechos["resuelto"] = False
+        hechos["persistencia_confirmada"] = True
 
     pasos: list[str] = []
     if hechos.get("sim_cambiada"):

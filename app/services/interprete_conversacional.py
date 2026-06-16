@@ -115,6 +115,13 @@ _PATRONES_PERSISTENCIA = (
     "probamos sin",
     "no funcion",
     "no anda",
+    "confirmo persistencia",
+    "confirmar persistencia",
+    "te confirmo persistencia",
+    "excepto los sms",
+    "excepto el sms",
+    "todo funciona bien excepto",
+    "todo ok excepto",
 )
 
 _PATRONES_AGRADECIMIENTO = (
@@ -345,6 +352,11 @@ def detectar_intencion_normalizada(
     if h.get("resuelto") and _contiene_patron(tl, _PATRONES_RESUELTO):
         return {"tipo": "caso_resuelto", "confianza": 0.85, "fuente": "reglas"}
 
+    from app.domain.conversacion import mensaje_indica_persistencia_parcial, operador_confirmo_persistencia_explicita
+
+    if mensaje_indica_persistencia_parcial(tl) or operador_confirmo_persistencia_explicita(tl):
+        return {"tipo": "persistencia", "confianza": 0.9, "fuente": "reglas"}
+
     if _contiene_patron(tl, _PATRONES_PERSISTENCIA):
         return {"tipo": "persistencia", "confianza": 0.85, "fuente": "reglas"}
 
@@ -392,8 +404,17 @@ def extraer_hechos_normalizados(msg: str, *, ultimo_bot: str = "") -> dict[str, 
     if _contiene_patron(t, _PATRONES_PERSISTENCIA + _PATRONES_CORRECCION):
         out["resuelto"] = False
 
+    from app.domain.conversacion import mensaje_indica_persistencia_parcial, operador_confirmo_persistencia_explicita
+
+    if mensaje_indica_persistencia_parcial(t) or operador_confirmo_persistencia_explicita(t):
+        out["resuelto"] = False
+        out["persistencia_confirmada"] = operador_confirmo_persistencia_explicita(t)
+
     if _contiene_patron(t, _PATRONES_RESUELTO) and not _contiene_patron(t, _PATRONES_DATOS_FALLAN):
-        out["resuelto"] = True
+        from app.domain.conversacion import mensaje_indica_persistencia_parcial
+
+        if not mensaje_indica_persistencia_parcial(t):
+            out["resuelto"] = True
 
     if _contiene_patron(t, _PATRONES_ALCANCE) and (
         len(t) > 18 or _contiene_patron(t, ("datos", "internet", "señal", "senal", "llamadas", "whatsapp"))

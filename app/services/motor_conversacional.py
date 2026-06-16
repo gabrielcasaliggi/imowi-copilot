@@ -11,6 +11,8 @@ from app.domain.conversacion import (
     PolaridadMensaje,
     clasificar_polaridad,
     interpretar_accion_operador,
+    mensaje_indica_persistencia_parcial,
+    operador_confirmo_persistencia_explicita,
     usuario_confirmo_resolucion,
     usuario_confirmo_ticket,
 )
@@ -361,6 +363,52 @@ def ajustar_clasificacion_por_estado(
     return out
 
 
+def _historial_tiene_persistencia(historial: list[dict]) -> bool:
+    polaridad = clasificar_polaridad(historial, "")
+    if polaridad == PolaridadMensaje.PERSISTENCIA:
+        return True
+    if detectar_escalamiento(historial):
+        return True
+    for m in reversed(historial):
+        if m.get("rol") != "usuario":
+            continue
+        contenido = (m.get("contenido") or "").strip()
+        if mensaje_indica_persistencia_parcial(contenido) or operador_confirmo_persistencia_explicita(contenido):
+            return True
+    return False
+
+
+def _clasificacion_ticket_persistencia(hechos: dict, flujo_operativo: dict | None) -> dict:
+    cat = hechos.get("categoria_flujo") or (flujo_operativo or {}).get("categoria", "")
+    if cat == "sms":
+        return {
+            "accion": "crear_ticket_n2",
+            "crear_ticket": True,
+            "nivel": "N2",
+            "destino": "carrier",
+            "proveedor": "Carrier principal (MNO)",
+            "categoria": "SMS / A2P",
+            "regla_aplicada": "persistencia_post_n1",
+            "motivo_escalamiento": (
+                "Los SMS/A2P persisten después de las verificaciones N1; "
+                "requiere gestión con el carrier."
+            ),
+        }
+    return {
+        "accion": "crear_ticket_n2",
+        "crear_ticket": True,
+        "nivel": "N2",
+        "destino": "imowi_noc",
+        "proveedor": "imowi NOC",
+        "categoria": (flujo_operativo or {}).get("categoria_label", "General"),
+        "regla_aplicada": "persistencia_post_n1",
+        "motivo_escalamiento": (
+            "El inconveniente persiste después de las verificaciones N1; "
+            "requiere revisión del NOC."
+        ),
+    }
+
+
 def _debe_crear_ticket_por_persistencia(
     historial: list[dict],
     flujo_operativo: dict | None,
@@ -369,15 +417,18 @@ def _debe_crear_ticket_por_persistencia(
     ticket: dict | None = None,
     ticket_existente: dict | None = None,
 ) -> bool:
-    """Escala a NOC cuando el playbook N1 ya llegó al punto de seguimiento y persiste."""
+    """Escala cuando el playbook N1 agotó pasos y el operador confirma persistencia."""
     if ticket or ticket_existente:
         return False
-    polaridad = clasificar_polaridad(historial, "")
-    if polaridad != PolaridadMensaje.PERSISTENCIA and not detectar_escalamiento(historial):
+    if not _historial_tiene_persistencia(historial):
         return False
 
     flujo = flujo_operativo or {}
     paso_id = flujo.get("paso_id", "")
+    cat = hechos.get("categoria_flujo") or flujo.get("categoria", "")
+
+    if hechos.get("persistencia_confirmada"):
+        return True
     if flujo.get("completado"):
         return True
     if paso_id in {
@@ -385,11 +436,14 @@ def _debe_crear_ticket_por_persistencia(
         "datos_cerrar_seguimiento",
         "senal_ticket_noc",
         "senal_cerrar_seguimiento",
+        "sms_ticket_carrier",
     }:
         return True
+    if cat == "sms" and hechos.get("linea_jsc_verificada") and hechos.get("resuelto") is False:
+        return True
+    if cat == "sms" and operador_confirmo_persistencia_explicita(_ultimo_mensaje_operador(historial)):
+        return True
 
-    # Fallback: si ya quedaron varias acciones N1 registradas y el usuario insiste,
-    # no seguir cerrando en N1; preparar ticket para revisión NOC.
     pasos_realizados = hechos.get("pasos_realizados") or []
     return len(pasos_realizados) >= 4 and hechos.get("resuelto") is False
 
@@ -512,21 +566,19 @@ def procesar_turno_conversacional(
         ticket=ticket,
         ticket_existente=ticket_existente,
     ):
+        auto_confirm = operador_confirmo_persistencia_explicita(_ultimo_mensaje_operador(historial))
+        hechos_turno = datos_triaje.get("hechos") or {}
         clasif_ajustada.update(
-            {
-                "accion": "crear_ticket_n2",
-                "crear_ticket": True,
-                "nivel": "N2",
-                "destino": "imowi_noc",
-                "proveedor": "imowi NOC",
-                "regla_aplicada": "persistencia_post_n1",
-                "motivo_escalamiento": (
-                    "El inconveniente persiste después de las verificaciones N1; "
-                    "requiere revisión del NOC."
-                ),
-            }
+            _clasificacion_ticket_persistencia(
+                hechos_turno,
+                flujo_operativo,
+            )
         )
-        estado = EstadoConversacion.ESPERANDO_CONFIRMACION
+        if auto_confirm or hechos_turno.get("persistencia_confirmada"):
+            clasif_ajustada["crear_ticket"] = True
+            estado = EstadoConversacion.TICKET_CREADO
+        else:
+            estado = EstadoConversacion.ESPERANDO_CONFIRMACION
     usar_ia = debe_usar_ia(estado, clasif_ajustada, historial, flujo_operativo)
 
     ticket_resp = ticket or ticket_existente
