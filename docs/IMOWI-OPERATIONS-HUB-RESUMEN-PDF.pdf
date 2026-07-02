@@ -1,0 +1,361 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 3466 >>
+stream
+BT /F2 23.00 Tf 54.00 778.00 Td (imowi Operations Hub) Tj ET
+BT /F2 16.00 Tf 54.00 729.00 Td (Copilot operativo para cooperativas y NOC imowi) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 705.00 m 541.00 705.00 l S Q
+BT /F1 10.50 Tf 54.00 687.00 Td (imowi Operations Hub es una plataforma agentic para centralizar la atencion de reclamos) Tj ET
+BT /F1 10.50 Tf 54.00 672.88 Td (  moviles de cooperativas revendedoras, guiando al operador N1, consultando contexto) Tj ET
+BT /F1 10.50 Tf 54.00 658.75 Td (  tecnico, clasificando incidentes y generando tickets auditables para el NOC o) Tj ET
+BT /F1 10.50 Tf 54.00 644.62 Td (  proveedores.) Tj ET
+BT /F1 10.50 Tf 54.00 624.50 Td (El objetivo no es reemplazar JSC ni los sistemas contables existentes, sino ordenar la) Tj ET
+BT /F1 10.50 Tf 54.00 610.38 Td (  operacion diaria entre cooperativas e imowi, reduciendo incertidumbre, evitando) Tj ET
+BT /F1 10.50 Tf 54.00 596.25 Td (  escalaciones incompletas y dejando trazabilidad de cada caso.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 574.12 m 541.00 574.12 l S Q
+BT /F2 16.00 Tf 54.00 548.12 Td (Propuesta de valor) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 524.12 m 541.00 524.12 l S Q
+BT /F1 10.50 Tf 66.00 506.12 Td (- Reduce la incertidumbre del operador N1 con pasos claros segun el tipo de reclamo.) Tj ET
+BT /F1 10.50 Tf 66.00 490.00 Td (- Estandariza criterios de resolucion en N1 y escalamiento a N2, carrier o proveedor.) Tj ET
+BT /F1 10.50 Tf 66.00 473.88 Td (- Genera tickets con historial tecnico de las pruebas realizadas antes de escalar.) Tj ET
+BT /F1 10.50 Tf 66.00 457.75 Td (- Permite operar multiples cooperativas con datos aislados por tenant.) Tj ET
+BT /F1 10.50 Tf 66.00 441.62 Td (- Entrega al NOC imowi una vista global de tickets, red, estadisticas y seguimiento.) Tj ET
+BT /F1 10.50 Tf 66.00 425.50 Td (- Combina reglas operativas, contexto JSC, base de conocimiento e IA cuando aporta) Tj ET
+BT /F1 10.50 Tf 66.00 411.38 Td (  valor.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 389.25 m 541.00 389.25 l S Q
+BT /F2 16.00 Tf 54.00 363.25 Td (Que hace hoy el sistema) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 339.25 m 541.00 339.25 l S Q
+BT /F2 12.50 Tf 54.00 315.25 Td (Consola de soporte) Tj ET
+BT /F1 10.50 Tf 54.00 293.25 Td (El operador ingresa el reclamo en lenguaje natural, por ejemplo:) Tj ET
+BT /F3 10.50 Tf 66.00 273.12 Td (Cliente sin datos en Brasil, linea 2235551234, Samsung A54.) Tj ET
+BT /F1 10.50 Tf 54.00 253.00 Td (A partir de ese mensaje, el sistema:) Tj ET
+BT /F1 10.50 Tf 66.00 232.88 Td (- Detecta linea, sintoma, dispositivo y contexto operativo.) Tj ET
+BT /F1 10.50 Tf 66.00 216.75 Td (- Consulta la ficha JSC disponible para esa linea.) Tj ET
+BT /F1 10.50 Tf 66.00 200.62 Td (- Clasifica el tipo de incidente.) Tj ET
+BT /F1 10.50 Tf 66.00 184.50 Td (- Muestra una guia operativa N1 paso a paso.) Tj ET
+BT /F1 10.50 Tf 66.00 168.38 Td (- Interpreta respuestas cortas del operador como "verificado", "ok", "sigue igual", "si) Tj ET
+BT /F1 10.50 Tf 66.00 154.25 Td (  persiste".) Tj ET
+BT /F1 10.50 Tf 66.00 138.12 Td (- Decide si corresponde continuar en N1, pedir mas datos o escalar.) Tj ET
+BT /F1 10.50 Tf 66.00 122.00 Td (- Crea tickets con ID y timeline cuando corresponde.) Tj ET
+BT /F2 12.50 Tf 54.00 95.88 Td (Guia operativa por categoria) Tj ET
+BT /F1 10.50 Tf 54.00 73.88 Td (El sistema cuenta con playbooks operativos para distintos tipos de incidentes:) Tj ET
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 1) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Length 2919 >>
+stream
+BT /F1 10.50 Tf 66.00 784.00 Td (- Roaming internacional.) Tj ET
+BT /F1 10.50 Tf 66.00 767.88 Td (- Datos moviles / APN.) Tj ET
+BT /F1 10.50 Tf 66.00 751.75 Td (- Senal y cobertura.) Tj ET
+BT /F1 10.50 Tf 66.00 735.62 Td (- SMS / A2P.) Tj ET
+BT /F1 10.50 Tf 66.00 719.50 Td (- SIM / chip.) Tj ET
+BT /F1 10.50 Tf 66.00 703.38 Td (- Casos generales.) Tj ET
+BT /F1 10.50 Tf 54.00 683.25 Td (Cada playbook guia al operador por pasos concretos, evita repetir acciones innecesarias y) Tj ET
+BT /F1 10.50 Tf 54.00 669.12 Td (  registra lo confirmado en el historial del caso.) Tj ET
+BT /F2 12.50 Tf 54.00 643.00 Td (Ficha JSC) Tj ET
+BT /F1 10.50 Tf 54.00 621.00 Td (Cuando la linea esta disponible en el catalogo operativo del tenant, la consola muestra:) Tj ET
+BT /F1 10.50 Tf 66.00 600.88 Td (- MSISDN.) Tj ET
+BT /F1 10.50 Tf 66.00 584.75 Td (- Abonado.) Tj ET
+BT /F1 10.50 Tf 66.00 568.62 Td (- Plan.) Tj ET
+BT /F1 10.50 Tf 66.00 552.50 Td (- Estado de linea.) Tj ET
+BT /F1 10.50 Tf 66.00 536.38 Td (- Estado de cuenta.) Tj ET
+BT /F1 10.50 Tf 66.00 520.25 Td (- Saldo/resumen.) Tj ET
+BT /F1 10.50 Tf 66.00 504.12 Td (- APN.) Tj ET
+BT /F1 10.50 Tf 66.00 488.00 Td (- Roaming habilitado.) Tj ET
+BT /F1 10.50 Tf 54.00 467.88 Td (Esto permite validar informacion tecnica antes de escalar a red o proveedor.) Tj ET
+BT /F2 12.50 Tf 54.00 441.75 Td (Motor conversacional) Tj ET
+BT /F1 10.50 Tf 54.00 419.75 Td (El motor mantiene el estado del caso y entiende la conversacion de forma contextual:) Tj ET
+BT /F1 10.50 Tf 66.00 399.62 Td (- Reclamo nuevo.) Tj ET
+BT /F1 10.50 Tf 66.00 383.50 Td (- Recoleccion de datos.) Tj ET
+BT /F1 10.50 Tf 66.00 367.38 Td (- Guia de resolucion N1.) Tj ET
+BT /F1 10.50 Tf 66.00 351.25 Td (- Espera de confirmacion.) Tj ET
+BT /F1 10.50 Tf 66.00 335.12 Td (- Ticket creado.) Tj ET
+BT /F1 10.50 Tf 66.00 319.00 Td (- Caso cerrado como resuelto.) Tj ET
+BT /F1 10.50 Tf 54.00 298.88 Td (Tambien interpreta intenciones del operador, como:) Tj ET
+BT /F1 10.50 Tf 66.00 278.75 Td (- Confirmacion de paso.) Tj ET
+BT /F1 10.50 Tf 66.00 262.62 Td (- Persistencia del problema.) Tj ET
+BT /F1 10.50 Tf 66.00 246.50 Td (- Solicitud de ticket.) Tj ET
+BT /F1 10.50 Tf 66.00 230.38 Td (- Consulta por estado de ticket.) Tj ET
+BT /F1 10.50 Tf 66.00 214.25 Td (- Correccion del operador.) Tj ET
+BT /F1 10.50 Tf 66.00 198.12 Td (- Cierre por resolucion.) Tj ET
+BT /F1 10.50 Tf 66.00 182.00 Td (- Aporte de datos complementarios.) Tj ET
+BT /F1 10.50 Tf 54.00 161.88 Td (La logica no depende solamente de frases exactas: combina reglas, contexto del ultimo) Tj ET
+BT /F1 10.50 Tf 54.00 147.75 Td (  mensaje del bot, hechos acumulados e IA cuando es necesario.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 125.62 m 541.00 125.62 l S Q
+BT /F2 16.00 Tf 54.00 99.62 Td (Clasificacion y escalamiento) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 75.62 m 541.00 75.62 l S Q
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 2) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Length 2967 >>
+stream
+BT /F1 10.50 Tf 54.00 788.00 Td (El sistema clasifica los incidentes y define el destino operativo:) Tj ET
+BT /F4 8.80 Tf 60.00 767.88 Td (Tipo de caso | Destino posible) Tj ET
+BT /F4 8.80 Tf 60.00 753.88 Td (Caso resoluble en N1 | Cooperativa) Tj ET
+BT /F4 8.80 Tf 60.00 739.88 Td (Roaming, datos o senal persistente | NOC imowi) Tj ET
+BT /F4 8.80 Tf 60.00 725.88 Td (SMS / A2P | Carrier) Tj ET
+BT /F4 8.80 Tf 60.00 711.88 Td (SIM / eSIM | Proveedor SIM) Tj ET
+BT /F4 8.80 Tf 60.00 697.88 Td (Provision / plataforma | Plataforma OSS/BSS) Tj ET
+BT /F1 10.50 Tf 54.00 679.88 Td (Los tickets se crean con:) Tj ET
+BT /F1 10.50 Tf 66.00 659.75 Td (- ID operativo, por ejemplo `JSC-1005`.) Tj ET
+BT /F1 10.50 Tf 66.00 643.62 Td (- Nivel: N1, N2 o proveedor.) Tj ET
+BT /F1 10.50 Tf 66.00 627.50 Td (- Destino: cooperativa, NOC imowi, carrier u otro proveedor.) Tj ET
+BT /F1 10.50 Tf 66.00 611.38 Td (- Categoria.) Tj ET
+BT /F1 10.50 Tf 66.00 595.25 Td (- Motivo de escalamiento.) Tj ET
+BT /F1 10.50 Tf 66.00 579.12 Td (- Evidencia.) Tj ET
+BT /F1 10.50 Tf 66.00 563.00 Td (- Acciones N1 realizadas.) Tj ET
+BT /F1 10.50 Tf 66.00 546.88 Td (- Timeline de eventos.) Tj ET
+BT /F1 10.50 Tf 66.00 530.75 Td (- Estado y SLA.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 508.62 m 541.00 508.62 l S Q
+BT /F2 16.00 Tf 54.00 482.62 Td (Tickets auditables) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 458.62 m 541.00 458.62 l S Q
+BT /F1 10.50 Tf 54.00 440.62 Td (Cada ticket queda registrado con informacion estructurada para seguimiento:) Tj ET
+BT /F1 10.50 Tf 66.00 420.50 Td (- Descripcion del reclamo.) Tj ET
+BT /F1 10.50 Tf 66.00 404.38 Td (- Linea afectada.) Tj ET
+BT /F1 10.50 Tf 66.00 388.25 Td (- Categoria tecnica.) Tj ET
+BT /F1 10.50 Tf 66.00 372.12 Td (- Nivel y destino.) Tj ET
+BT /F1 10.50 Tf 66.00 356.00 Td (- Proveedor sugerido.) Tj ET
+BT /F1 10.50 Tf 66.00 339.88 Td (- Regla de clasificacion aplicada.) Tj ET
+BT /F1 10.50 Tf 66.00 323.75 Td (- Evidencia operativa.) Tj ET
+BT /F1 10.50 Tf 66.00 307.62 Td (- Timeline de pasos realizados.) Tj ET
+BT /F1 10.50 Tf 66.00 291.50 Td (- Notificaciones.) Tj ET
+BT /F1 10.50 Tf 66.00 275.38 Td (- Estado y resolucion tecnica.) Tj ET
+BT /F1 10.50 Tf 54.00 255.25 Td (El NOC puede actualizar el ticket, agregar avances, cambiar estado y documentar la) Tj ET
+BT /F1 10.50 Tf 54.00 241.12 Td (  resolucion.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 219.00 m 541.00 219.00 l S Q
+BT /F2 16.00 Tf 54.00 193.00 Td (Vista NOC imowi) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 169.00 m 541.00 169.00 l S Q
+BT /F1 10.50 Tf 54.00 151.00 Td (El usuario admin de imowi accede a una vista global con:) Tj ET
+BT /F1 10.50 Tf 66.00 130.88 Td (- Tablero de tickets priorizados.) Tj ET
+BT /F1 10.50 Tf 66.00 114.75 Td (- Estado, nivel, categoria y riesgo.) Tj ET
+BT /F1 10.50 Tf 66.00 98.62 Td (- Explicacion del escalamiento.) Tj ET
+BT /F1 10.50 Tf 66.00 82.50 Td (- Timeline de cada ticket.) Tj ET
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 3) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Length 3249 >>
+stream
+BT /F1 10.50 Tf 66.00 788.00 Td (- Monitor de red.) Tj ET
+BT /F1 10.50 Tf 66.00 771.88 Td (- Estadisticas operativas.) Tj ET
+BT /F1 10.50 Tf 66.00 755.75 Td (- Gestion de cooperativas y usuarios.) Tj ET
+BT /F1 10.50 Tf 66.00 739.62 Td (- Administracion de base de conocimiento.) Tj ET
+BT /F1 10.50 Tf 66.00 723.50 Td (- Auditoria de acciones.) Tj ET
+BT /F1 10.50 Tf 54.00 703.38 Td (Esta vista permite seguir la operacion completa entre cooperativas y NOC desde una unica) Tj ET
+BT /F1 10.50 Tf 54.00 689.25 Td (  consola.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 667.12 m 541.00 667.12 l S Q
+BT /F2 16.00 Tf 54.00 641.12 Td (Monitor de red y proactividad) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 617.12 m 541.00 617.12 l S Q
+BT /F1 10.50 Tf 54.00 599.12 Td (La plataforma incluye un monitor de elementos de red con telemetria operativa. Ante una) Tj ET
+BT /F1 10.50 Tf 54.00 585.00 Td (  anomalia activa, el sistema puede correlacionar sintomas del reclamo con el elemento) Tj ET
+BT /F1 10.50 Tf 54.00 570.88 Td (  afectado.) Tj ET
+BT /F1 10.50 Tf 54.00 550.75 Td (Capacidades actuales:) Tj ET
+BT /F1 10.50 Tf 66.00 530.62 Td (- Visualizacion de elementos de red.) Tj ET
+BT /F1 10.50 Tf 66.00 514.50 Td (- Estado y metrica actual.) Tj ET
+BT /F1 10.50 Tf 66.00 498.38 Td (- Simulacion de fallas para demo o validacion.) Tj ET
+BT /F1 10.50 Tf 66.00 482.25 Td (- Deteccion de anomalias correlacionadas.) Tj ET
+BT /F1 10.50 Tf 66.00 466.12 Td (- Creacion de tickets predictivos cuando corresponde.) Tj ET
+BT /F1 10.50 Tf 66.00 450.00 Td (- Alerta visible en consola de soporte.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 427.88 m 541.00 427.88 l S Q
+BT /F2 16.00 Tf 54.00 401.88 Td (Base de conocimiento) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 377.88 m 541.00 377.88 l S Q
+BT /F1 10.50 Tf 54.00 359.88 Td (El sistema cuenta con un centro de conocimiento administrable:) Tj ET
+BT /F1 10.50 Tf 66.00 339.75 Td (- Articulos por tenant/cooperativa.) Tj ET
+BT /F1 10.50 Tf 66.00 323.62 Td (- Procedimientos N1.) Tj ET
+BT /F1 10.50 Tf 66.00 307.50 Td (- Criterios de escalamiento.) Tj ET
+BT /F1 10.50 Tf 66.00 291.38 Td (- Excepciones operativas.) Tj ET
+BT /F1 10.50 Tf 66.00 275.25 Td (- Contexto tecnico para mejorar respuestas.) Tj ET
+BT /F1 10.50 Tf 66.00 259.12 Td (- Busqueda combinada con base documental historica.) Tj ET
+BT /F1 10.50 Tf 54.00 239.00 Td (La base de conocimiento alimenta al diagnostico, la guia del operador y las) Tj ET
+BT /F1 10.50 Tf 54.00 224.88 Td (  recomendaciones.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 202.75 m 541.00 202.75 l S Q
+BT /F2 16.00 Tf 54.00 176.75 Td (Multitenancy y roles) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 152.75 m 541.00 152.75 l S Q
+BT /F1 10.50 Tf 54.00 134.75 Td (La plataforma esta preparada para operar multiples cooperativas en una misma instalacion.) Tj ET
+BT /F4 8.80 Tf 60.00 114.62 Td (Rol | Capacidades) Tj ET
+BT /F4 8.80 Tf 60.00 100.62 Td (Operador cooperativa | Atiende reclamos, usa chat, ve sus tickets y su contexto) Tj ET
+BT /F4 8.80 Tf 60.00 86.62 Td (Admin imowi / NOC | Vista global, tickets de todas las cooperativas, red, estadisticas y administracion) Tj ET
+BT /F1 10.50 Tf 54.00 68.62 Td (Cada cooperativa tiene:) Tj ET
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 4) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Length 2820 >>
+stream
+BT /F1 10.50 Tf 66.00 782.00 Td (- Usuarios propios.) Tj ET
+BT /F1 10.50 Tf 66.00 765.88 Td (- Tickets propios.) Tj ET
+BT /F1 10.50 Tf 66.00 749.75 Td (- Casos conversacionales propios.) Tj ET
+BT /F1 10.50 Tf 66.00 733.62 Td (- Base de conocimiento propia.) Tj ET
+BT /F1 10.50 Tf 66.00 717.50 Td (- Branding visual configurable.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 695.38 m 541.00 695.38 l S Q
+BT /F2 16.00 Tf 54.00 669.38 Td (Arquitectura productiva) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 645.38 m 541.00 645.38 l S Q
+BT /F1 10.50 Tf 54.00 627.38 Td (La solucion se encuentra montada con arquitectura web moderna:) Tj ET
+BT /F4 8.80 Tf 60.00 607.25 Td (Capa | Tecnologia | Funcion) Tj ET
+BT /F4 8.80 Tf 60.00 593.25 Td (Frontend | Next.js en Vercel | Consola web de operador y admin) Tj ET
+BT /F4 8.80 Tf 60.00 579.25 Td (Backend | FastAPI en Render | API, agentes, motor conversacional y tickets) Tj ET
+BT /F4 8.80 Tf 60.00 565.25 Td (Base de datos | PostgreSQL | Casos, tickets, usuarios, KB, telemetria y auditoria) Tj ET
+BT /F4 8.80 Tf 60.00 551.25 Td (IA | LLM compatible OpenAI | Respuestas asistidas cuando corresponde) Tj ET
+BT /F4 8.80 Tf 60.00 537.25 Td (Deploy | GitHub + auto-deploy | Publicacion automatica desde rama principal) Tj ET
+BT /F1 10.50 Tf 54.00 519.25 Td (Flujo general:) Tj ET
+BT /F4 9.00 Tf 66.00 499.12 Td (Operador / NOC) Tj ET
+BT /F4 9.00 Tf 66.00 484.88 Td (-> Consola web) Tj ET
+BT /F4 9.00 Tf 66.00 470.62 Td (-> API FastAPI) Tj ET
+BT /F4 9.00 Tf 66.00 456.38 Td (-> Motor conversacional + agentes) Tj ET
+BT /F4 9.00 Tf 66.00 442.12 Td (-> PostgreSQL / JSC / KB / telemetria) Tj ET
+BT /F4 9.00 Tf 66.00 427.88 Td (-> Respuesta y/o ticket auditable) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 403.62 m 541.00 403.62 l S Q
+BT /F2 16.00 Tf 54.00 377.62 Td (Modulos disponibles) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 353.62 m 541.00 353.62 l S Q
+BT /F2 12.50 Tf 54.00 329.62 Td (Para operadores) Tj ET
+BT /F1 10.50 Tf 66.00 307.62 Td (- Consola de soporte.) Tj ET
+BT /F1 10.50 Tf 66.00 291.50 Td (- Chat operativo.) Tj ET
+BT /F1 10.50 Tf 66.00 275.38 Td (- Guia N1 por categoria.) Tj ET
+BT /F1 10.50 Tf 66.00 259.25 Td (- Ficha JSC.) Tj ET
+BT /F1 10.50 Tf 66.00 243.12 Td (- Caso activo.) Tj ET
+BT /F1 10.50 Tf 66.00 227.00 Td (- Ticket en formacion.) Tj ET
+BT /F1 10.50 Tf 66.00 210.88 Td (- Timeline del ticket.) Tj ET
+BT /F1 10.50 Tf 66.00 194.75 Td (- Notificaciones.) Tj ET
+BT /F1 10.50 Tf 66.00 178.62 Td (- Nuevo reclamo.) Tj ET
+BT /F1 10.50 Tf 66.00 162.50 Td (- Registro de ticket NOC.) Tj ET
+BT /F2 12.50 Tf 54.00 136.38 Td (Para admin imowi) Tj ET
+BT /F1 10.50 Tf 66.00 114.38 Td (- Tablero NOC.) Tj ET
+BT /F1 10.50 Tf 66.00 98.25 Td (- Monitor de red.) Tj ET
+BT /F1 10.50 Tf 66.00 82.12 Td (- Estadisticas.) Tj ET
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 5) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Length 2963 >>
+stream
+BT /F1 10.50 Tf 66.00 788.00 Td (- Administracion de cooperativas.) Tj ET
+BT /F1 10.50 Tf 66.00 771.88 Td (- Administracion de usuarios.) Tj ET
+BT /F1 10.50 Tf 66.00 755.75 Td (- Importacion CSV.) Tj ET
+BT /F1 10.50 Tf 66.00 739.62 Td (- Centro de conocimiento.) Tj ET
+BT /F1 10.50 Tf 66.00 723.50 Td (- Auditoria.) Tj ET
+BT /F1 10.50 Tf 66.00 707.38 Td (- Vista multi-tenant.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 685.25 m 541.00 685.25 l S Q
+BT /F2 16.00 Tf 54.00 659.25 Td (Estado actual) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 635.25 m 541.00 635.25 l S Q
+BT /F1 10.50 Tf 54.00 617.25 Td (El sistema se encuentra listo para un piloto controlado con operadores reales.) Tj ET
+BT /F1 10.50 Tf 54.00 603.12 Td (  Actualmente permite validar casos de operacion diaria, especialmente:) Tj ET
+BT /F1 10.50 Tf 66.00 583.00 Td (- Reclamos de roaming.) Tj ET
+BT /F1 10.50 Tf 66.00 566.88 Td (- Reclamos de datos moviles.) Tj ET
+BT /F1 10.50 Tf 66.00 550.75 Td (- Reclamos de senal/cobertura.) Tj ET
+BT /F1 10.50 Tf 66.00 534.62 Td (- Reclamos SMS/A2P.) Tj ET
+BT /F1 10.50 Tf 66.00 518.50 Td (- Consulta y seguimiento de tickets.) Tj ET
+BT /F1 10.50 Tf 66.00 502.38 Td (- Escalamiento N2.) Tj ET
+BT /F1 10.50 Tf 66.00 486.25 Td (- Vista NOC y actualizacion de tickets.) Tj ET
+BT /F1 10.50 Tf 54.00 466.12 Td (La recomendacion es probarlo con escenarios reales, midiendo:) Tj ET
+BT /F1 10.50 Tf 66.00 446.00 Td (- Si la guia ayuda al operador.) Tj ET
+BT /F1 10.50 Tf 66.00 429.88 Td (- Si el ticket generado contiene informacion suficiente.) Tj ET
+BT /F1 10.50 Tf 66.00 413.75 Td (- Si el NOC recibe contexto util para actuar.) Tj ET
+BT /F1 10.50 Tf 66.00 397.62 Td (- Si se reducen repreguntas y pasos incompletos.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 375.50 m 541.00 375.50 l S Q
+BT /F2 16.00 Tf 54.00 349.50 Td (Acceso de prueba) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 325.50 m 541.00 325.50 l S Q
+BT /F1 10.50 Tf 54.00 307.50 Td (URL de la consola:) Tj ET
+BT /F1 10.50 Tf 54.00 291.38 Td (https://imowi-copilot.vercel.app) Tj ET
+BT /F4 8.80 Tf 60.00 271.25 Td (Usuario | Perfil) Tj ET
+BT /F4 8.80 Tf 60.00 257.25 Td (`batan` | Operador Cooperativa Batan) Tj ET
+BT /F4 8.80 Tf 60.00 243.25 Td (`viamonte` | Operador Cooperativa Viamonte) Tj ET
+BT /F4 8.80 Tf 60.00 229.25 Td (`admin` | NOC imowi / vista global) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 209.25 m 541.00 209.25 l S Q
+BT /F2 16.00 Tf 54.00 183.25 Td (Sugerencia de prueba) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 159.25 m 541.00 159.25 l S Q
+BT /F1 10.50 Tf 54.00 141.25 Td (1. Ingresar como operador de cooperativa.) Tj ET
+BT /F1 10.50 Tf 54.00 125.12 Td (2. Crear un nuevo reclamo.) Tj ET
+BT /F1 10.50 Tf 54.00 109.00 Td (3. Probar un caso de roaming, datos, senal o SMS.) Tj ET
+BT /F1 10.50 Tf 54.00 92.88 Td (4. Seguir la guia operativa.) Tj ET
+BT /F1 10.50 Tf 54.00 76.75 Td (5. Confirmar persistencia si el problema continua.) Tj ET
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 6) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Length 1148 >>
+stream
+BT /F1 10.50 Tf 54.00 788.00 Td (6. Verificar que se cree ticket con ID.) Tj ET
+BT /F1 10.50 Tf 54.00 771.88 Td (7. Ingresar como admin imowi.) Tj ET
+BT /F1 10.50 Tf 54.00 755.75 Td (8. Revisar el ticket, timeline, destino y estado.) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 733.62 m 541.00 733.62 l S Q
+BT /F2 16.00 Tf 54.00 707.62 Td (Cierre) Tj ET
+q 0.75 w 0.45 0.55 0.65 RG 54.00 683.62 m 541.00 683.62 l S Q
+BT /F1 10.50 Tf 54.00 665.62 Td (imowi Operations Hub propone una capa operativa entre cooperativas y NOC que transforma) Tj ET
+BT /F1 10.50 Tf 54.00 651.50 Td (  reclamos conversacionales en flujos guiados, tickets trazables y decisiones de) Tj ET
+BT /F1 10.50 Tf 54.00 637.38 Td (  escalamiento consistentes.) Tj ET
+BT /F1 10.50 Tf 54.00 617.25 Td (La plataforma ya permite demostrar valor operativo concreto: menos improvisacion en N1,) Tj ET
+BT /F1 10.50 Tf 54.00 603.12 Td (  mejor contexto para NOC y una base preparada para integrar automatizaciones futuras) Tj ET
+BT /F1 10.50 Tf 54.00 589.00 Td (  contra JSC, CRM, canales de notificacion y sistemas OSS/BSS.) Tj ET
+BT /F1 8.00 Tf 54.00 28.00 Td (imowi Operations Hub | 7) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 5 0 R >>
+endobj
+13 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 6 0 R >>
+endobj
+14 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 7 0 R >>
+endobj
+15 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 8 0 R >>
+endobj
+16 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 9 0 R >>
+endobj
+17 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 10 0 R >>
+endobj
+18 0 obj
+<< /Type /Page /Parent 19 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R /F4 4 0 R >> >> /Contents 11 0 R >>
+endobj
+19 0 obj
+<< /Type /Pages /Kids [12 0 R 13 0 R 14 0 R 15 0 R 16 0 R 17 0 R 18 0 R] /Count 7 >>
+endobj
+20 0 obj
+<< /Type /Catalog /Pages 19 0 R >>
+endobj
+xref
+0 21
+0000000000 65535 f 
+0000000015 00000 n 
+0000000112 00000 n 
+0000000214 00000 n 
+0000000319 00000 n 
+0000000414 00000 n 
+0000003932 00000 n 
+0000006903 00000 n 
+0000009922 00000 n 
+0000013223 00000 n 
+0000016095 00000 n 
+0000019111 00000 n 
+0000020312 00000 n 
+0000020470 00000 n 
+0000020628 00000 n 
+0000020786 00000 n 
+0000020944 00000 n 
+0000021102 00000 n 
+0000021261 00000 n 
+0000021420 00000 n 
+0000021521 00000 n 
+trailer
+<< /Size 21 /Root 20 0 R >>
+startxref
+21572
+%%EOF
