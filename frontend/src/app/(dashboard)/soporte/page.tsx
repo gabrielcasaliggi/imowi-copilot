@@ -1,5 +1,7 @@
 "use client";
 
+import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AgentConsole } from "@/components/soporte/AgentConsole";
 import { ChatPanel } from "@/components/soporte/ChatPanel";
 import { NocBoard } from "@/components/soporte/NocBoard";
@@ -7,7 +9,13 @@ import { SupportSidebar } from "@/components/soporte/SupportSidebar";
 import { useApp } from "@/contexts/AppContext";
 
 export default function SoportePage() {
-  const { isAdmin } = useApp();
+  const { isAdmin, selectTicket } = useApp();
+  const searchParams = useSearchParams();
+  const ticketParam = searchParams.get("ticket");
+
+  useEffect(() => {
+    if (ticketParam) selectTicket(ticketParam);
+  }, [ticketParam, selectTicket]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">

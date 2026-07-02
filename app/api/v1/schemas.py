@@ -74,6 +74,18 @@ class TicketUpdateV1(BaseModel):
     ticket_externo_id: str | None = None
 
 
+class TicketEventCreate(BaseModel):
+    titulo: str = "Nota interna"
+    detalle: str
+    interno: bool = True
+
+
+class TicketKbPublish(BaseModel):
+    titulo: str | None = None
+    categoria: str | None = None
+    contenido: str | None = None
+
+
 class OrganizationCreate(BaseModel):
     nombre: str
     slug: str | None = None

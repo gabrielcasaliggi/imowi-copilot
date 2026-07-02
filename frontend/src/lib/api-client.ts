@@ -118,9 +118,41 @@ export const api = {
     });
   },
 
-  tickets(tenantSlug?: string) {
-    return request<{ tenant: string; tickets: Ticket[] }>("/api/v1/tickets", {
-      tenantSlug,
+  tickets(
+    paramsOrTenant?: {
+      estado?: string;
+      nivel?: string;
+      sla?: string;
+      categoria?: string;
+      q?: string;
+      solo_abiertos?: boolean;
+    } | string,
+    tenantSlug?: string,
+  ) {
+    let params: {
+      estado?: string;
+      nivel?: string;
+      sla?: string;
+      categoria?: string;
+      q?: string;
+      solo_abiertos?: boolean;
+    } | undefined;
+    let slug = tenantSlug;
+    if (typeof paramsOrTenant === "string") {
+      slug = paramsOrTenant;
+    } else {
+      params = paramsOrTenant;
+    }
+    const qs = new URLSearchParams();
+    if (params?.estado) qs.set("estado", params.estado);
+    if (params?.nivel) qs.set("nivel", params.nivel);
+    if (params?.sla) qs.set("sla", params.sla);
+    if (params?.categoria) qs.set("categoria", params.categoria);
+    if (params?.q) qs.set("q", params.q);
+    if (params?.solo_abiertos) qs.set("solo_abiertos", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<{ tenant: string; tickets: Ticket[] }>(`/api/v1/tickets${suffix}`, {
+      tenantSlug: slug,
     });
   },
 
@@ -145,6 +177,51 @@ export const api = {
       body: JSON.stringify(body),
       tenantSlug,
     });
+  },
+
+  addTicketNote(
+    id: string,
+    body: { titulo?: string; detalle: string; interno?: boolean },
+    tenantSlug?: string,
+  ) {
+    return request<{ status: string; evento: TicketEvent }>(
+      `/api/v1/tickets/${id}/events`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        tenantSlug,
+      },
+    );
+  },
+
+  ticketKbDraft(id: string, tenantSlug?: string) {
+    return request<{
+      tenant: string;
+      ticket_id: string;
+      borrador: { titulo: string; categoria: string; contenido: string; ticket_id: string };
+    }>(`/api/v1/tickets/${id}/kb-draft`, { tenantSlug });
+  },
+
+  publishTicketKb(
+    id: string,
+    body?: { titulo?: string; categoria?: string; contenido?: string },
+    tenantSlug?: string,
+  ) {
+    return request<{
+      status: string;
+      articulo: { id: string; titulo: string; categoria: string };
+    }>(`/api/v1/tickets/${id}/publish-kb`, {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+      tenantSlug,
+    });
+  },
+
+  responseTemplates(categoria?: string, tenantSlug?: string) {
+    const qs = categoria ? `?categoria=${encodeURIComponent(categoria)}` : "";
+    return request<{
+      plantillas: { id: string; nombre: string; categoria: string; contenido: string }[];
+    }>(`/api/v1/response-templates${qs}`, { tenantSlug });
   },
 
   notifications(tenantSlug?: string) {

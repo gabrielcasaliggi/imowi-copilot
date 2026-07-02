@@ -98,11 +98,19 @@ export function NocBoard() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto space-y-4 p-4">
-      <div>
-        <h2 className="font-semibold text-slate-100">Centro de Control NOC</h2>
-        <p className="text-[10px] font-mono text-slate-500">
-          Priorización inteligente · causa probable · próxima acción
-        </p>
+      <div className="flex flex-wrap justify-between gap-2 items-start">
+        <div>
+          <h2 className="font-semibold text-slate-100">Centro de Control NOC</h2>
+          <p className="text-[10px] font-mono text-slate-500">
+            Priorización inteligente · causa probable · próxima acción
+          </p>
+        </div>
+        <a
+          href="/tickets"
+          className="text-[10px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+        >
+          Cola completa →
+        </a>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">

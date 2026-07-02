@@ -15,6 +15,7 @@ const NAV_GROUPS = [
   {
     title: "Gestión",
     items: [
+      { href: "/tickets", label: "Cola de Tickets", id: "tickets", admin: true },
       { href: "/estadisticas", label: "Estadísticas", id: "stats", admin: true },
       { href: "/admin", label: "Administración", id: "admin", admin: true },
     ],

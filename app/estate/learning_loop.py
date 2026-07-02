@@ -63,6 +63,42 @@ def similares_con_resolucion(
     return out
 
 
+def proponer_articulo_kb(ticket: Ticket, org_name: str = "") -> dict:
+    """Borrador estructurado para publicar en KB desde un ticket."""
+    causa = inferir_causa_probable(ticket)
+    cat = ticket.categoria or "General"
+    titulo = f"{cat}: {(ticket.descripcion_falla or ticket.id)[:72]}".strip()
+    if len(titulo) > 100:
+        titulo = titulo[:97] + "..."
+    contenido_parts = [
+        f"## Caso {ticket.id}",
+        f"**Cooperativa:** {org_name or 'N/A'}",
+        f"**Línea:** {ticket.linea or 'N/A'}",
+        f"**Categoría:** {cat}",
+        f"**Nivel / destino:** {ticket.nivel or 'N1'} → {ticket.destino or 'cooperativa'}",
+        "",
+        "### Síntoma",
+        (ticket.descripcion_falla or "Sin descripción").strip(),
+        "",
+        "### Verificaciones N1",
+        (ticket.acciones_n1_realizadas or "Documentar pasos realizados en consola.").strip(),
+        "",
+        "### Causa probable",
+        causa,
+        "",
+        "### Resolución / escalamiento",
+        (ticket.resolucion_tecnica or ticket.motivo_escalamiento or "Pendiente de cierre.").strip(),
+    ]
+    if ticket.evidencia:
+        contenido_parts.extend(["", "### Evidencia", ticket.evidencia.strip()])
+    return {
+        "titulo": titulo,
+        "categoria": cat,
+        "contenido": "\n".join(contenido_parts),
+        "ticket_id": ticket.id,
+    }
+
+
 def generar_postmortem(ticket: Ticket, org_name: str = "") -> str:
     causa = inferir_causa_probable(ticket)
     res = (ticket.resolucion_tecnica or "Sin resolución documentada.").strip()

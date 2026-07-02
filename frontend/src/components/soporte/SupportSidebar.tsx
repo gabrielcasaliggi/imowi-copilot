@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { DataRow, GlassCard, SidebarSection, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useApp } from "@/contexts/AppContext";
 import { FlujoOperativoPanel } from "@/components/soporte/FlujoOperativoPanel";
 import { EstadoOperativoPanel } from "@/components/soporte/EstadoOperativoPanel";
+import { api } from "@/lib/api-client";
 import { ESTADO_CASO_LABELS } from "@/lib/types";
 import type { CasoConversacion, TicketSimilar } from "@/lib/types";
 
@@ -137,6 +138,107 @@ function FichaJscCard() {
         </p>
       </div>
     </GlassCard>
+  );
+}
+
+function NotaInternaForm({
+  onSubmit,
+}: {
+  onSubmit: (detalle: string) => Promise<void>;
+}) {
+  const [nota, setNota] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const txt = nota.trim();
+    if (!txt || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(txt);
+      setNota("");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2">
+      <textarea
+        value={nota}
+        onChange={(e) => setNota(e.target.value)}
+        placeholder="Nota interna NOC (no visible al cliente)…"
+        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px] min-h-[56px]"
+      />
+      <button
+        type="submit"
+        disabled={!nota.trim() || saving}
+        className="w-full py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-800/60 text-[11px] disabled:opacity-40"
+      >
+        {saving ? "Guardando…" : "Agregar nota interna"}
+      </button>
+    </form>
+  );
+}
+
+function PlantillasRespuesta({
+  categoria,
+  onPick,
+}: {
+  categoria?: string;
+  onPick: (contenido: string, nombre: string) => void;
+}) {
+  const { tenantSlug, isAdmin } = useApp();
+  const [plantillas, setPlantillas] = useState<
+    { id: string; nombre: string; categoria: string; contenido: string }[]
+  >([]);
+
+  useEffect(() => {
+    api
+      .responseTemplates(categoria, isAdmin ? tenantSlug : undefined)
+      .then((r) => setPlantillas(r.plantillas || []))
+      .catch(() => setPlantillas([]));
+  }, [categoria, tenantSlug, isAdmin]);
+
+  if (!plantillas.length) return null;
+
+  return (
+    <GlassCard title="Plantillas NOC" variant="secondary">
+      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+        {plantillas.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onPick(p.contenido, p.nombre)}
+            className="w-full text-left p-2 rounded border border-slate-800 hover:border-cyan-500/30 text-[11px]"
+          >
+            <span className="text-slate-200">{p.nombre}</span>
+            <span className="text-slate-600 ml-1">· {p.categoria}</span>
+          </button>
+        ))}
+      </div>
+    </GlassCard>
+  );
+}
+
+function PublicarKbButton({ onPublish }: { onPublish: () => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={loading}
+      onClick={async () => {
+        setLoading(true);
+        try {
+          await onPublish();
+        } finally {
+          setLoading(false);
+        }
+      }}
+      className="w-full py-1.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 text-[11px] disabled:opacity-40"
+    >
+      {loading ? "Publicando…" : "Publicar artículo KB desde ticket"}
+    </button>
   );
 }
 
@@ -322,7 +424,16 @@ export function SupportSidebar() {
     flujoOperativo,
     ticketKbSuggestions,
     ticketLearning,
+    isAdmin,
+    addTicketNote,
+    publishTicketKb,
+    appendTrace,
   } = useApp();
+
+  const onPickPlantilla = (contenido: string, nombre: string) => {
+    navigator.clipboard?.writeText(contenido).catch(() => {});
+    appendTrace([`📋 Plantilla «${nombre}» copiada al portapapeles`]);
+  };
 
   return (
     <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
@@ -335,6 +446,20 @@ export function SupportSidebar() {
       <SidebarSection title="Contexto técnico">
         <FichaJscCard />
         <TicketFormacionCard />
+        <PlantillasRespuesta
+          categoria={ticketFormacion?.categoria}
+          onPick={onPickPlantilla}
+        />
+        {ticketFormacion && (
+          <GlassCard title="Notas internas" variant="secondary">
+            <NotaInternaForm onSubmit={(d) => addTicketNote(d, true)} />
+          </GlassCard>
+        )}
+        {isAdmin && ticketFormacion && (
+          <GlassCard title="Conocimiento" variant="secondary">
+            <PublicarKbButton onPublish={publishTicketKb} />
+          </GlassCard>
+        )}
 
         {ticketKbSuggestions.length > 0 && (
           <GlassCard title="KB sugerida" variant="secondary">
@@ -374,10 +499,24 @@ export function SupportSidebar() {
           ) : (
             <div className="space-y-3">
               {ticketTimeline.map((ev) => (
-                <div key={ev.id} className="pl-3 border-l border-cyan-500/30">
+                <div
+                  key={ev.id}
+                  className={`pl-3 border-l ${
+                    ev.visible_cliente === "No"
+                      ? "border-violet-500/40"
+                      : "border-cyan-500/30"
+                  }`}
+                >
                   <div className="flex justify-between gap-2">
                     <p className="text-xs text-slate-200 font-medium">{ev.titulo}</p>
-                    {ev.nivel && <StatusBadge value={ev.nivel} />}
+                    <span className="flex gap-1 items-center">
+                      {ev.visible_cliente === "No" && (
+                        <span className="text-[9px] font-mono text-violet-400 uppercase">
+                          interno
+                        </span>
+                      )}
+                      {ev.nivel && <StatusBadge value={ev.nivel} />}
+                    </span>
                   </div>
                   <p className="text-[11px] text-slate-500 font-mono mt-0.5">
                     {ev.estado}

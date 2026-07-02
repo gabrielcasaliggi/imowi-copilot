@@ -97,6 +97,8 @@ interface AppContextValue {
   simulateFailure: (elemento: string) => Promise<void>;
   createKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
   explainEscalation: () => Promise<string | null>;
+  addTicketNote: (detalle: string, interno?: boolean) => Promise<void>;
+  publishTicketKb: () => Promise<void>;
   appendTrace: (lines: string[]) => void;
   clearTraces: () => void;
 }
@@ -345,6 +347,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return res.explicacion;
   }, [ticketFormacion, isAdmin, tenantSlug, appendTrace]);
 
+  const addTicketNote = useCallback(
+    async (detalle: string, interno = true) => {
+      if (!ticketFormacion?.id) return;
+      const res = await api.addTicketNote(
+        ticketFormacion.id,
+        { detalle, interno, titulo: interno ? "Nota interna" : "Nota" },
+        isAdmin ? tenantSlug : undefined,
+      );
+      setTicketTimeline((prev) => [...prev, res.evento]);
+      appendTrace([`📝 Nota ${interno ? "interna" : ""} agregada al ticket`]);
+    },
+    [ticketFormacion, isAdmin, tenantSlug, appendTrace],
+  );
+
+  const publishTicketKb = useCallback(async () => {
+    if (!ticketFormacion?.id || !isAdmin) return;
+    const res = await api.publishTicketKb(ticketFormacion.id, undefined, tenantSlug);
+    const data = await api.kb(tenantSlug);
+    setKb(data.articulos || []);
+    await selectTicket(ticketFormacion.id);
+    appendTrace([`📚 KB publicada desde ticket: ${res.articulo.titulo}`]);
+  }, [ticketFormacion, isAdmin, tenantSlug, selectTicket, appendTrace]);
+
   const procesarRespuestaChat = useCallback(
     async (res: Awaited<ReturnType<typeof api.chat>>) => {
       setEstadoConversacion(res.estado_conversacion);
@@ -580,6 +605,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       simulateFailure,
       createKbArticle,
       explainEscalation,
+      addTicketNote,
+      publishTicketKb,
       appendTrace,
       clearTraces,
     }),
@@ -628,6 +655,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       simulateFailure,
       createKbArticle,
       explainEscalation,
+      addTicketNote,
+      publishTicketKb,
       appendTrace,
       clearTraces,
     ],

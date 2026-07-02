@@ -754,12 +754,14 @@ def ticket_stats(
         if t.estado == "Cerrado":
             continue
         intel = calcular_prioridad(t, pool=tickets)
+        sla = intel.get("sla") or {}
         backlog_items.append({
             "id": t.id,
             "linea": t.linea,
             "nivel": t.nivel,
             "estado": t.estado,
             "categoria": t.categoria,
+            "estado_sla": sla.get("estado_sla") or getattr(t, "estado_sla", "Pendiente"),
             "horas_abierto": intel["horas_abierto"],
             "priority_score": intel["priority_score"],
             "risk_level": intel["risk_level"],

@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context, require_kb_admin
-from app.api.v1.schemas import TenantContext, TicketUpdateV1
+from app.api.v1.schemas import TenantContext, TicketEventCreate, TicketKbPublish, TicketUpdateV1
 from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db
-from app.estate.learning_loop import similares_con_resolucion, sugerir_kb
+from app.estate.learning_loop import proponer_articulo_kb, similares_con_resolucion, sugerir_kb
 from app.estate.ticket_intelligence import calcular_prioridad, explicar_escalamiento, ordenar_por_riesgo
 from app.services import ticket_bridge
+from app.services.ticket_queue import filtrar_tickets
 
 router = APIRouter(tags=["Tickets OSS/BSS"])
 
@@ -90,16 +91,42 @@ def _load_pool(db: Session, ctx: TenantContext) -> list:
 
 
 @router.get("/tickets")
-def list_tickets(ctx: TenantContext = Depends(get_tenant_context), db: Session = Depends(get_db)):
+def list_tickets(
+    estado: str = "",
+    nivel: str = "",
+    sla: str = "",
+    categoria: str = "",
+    q: str = "",
+    solo_abiertos: bool = False,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
     admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
     tickets = ticket_bridge.listar_tickets(db, ctx.organizacion_id, admin_global=admin_global)
     pool = tickets
+    tickets = filtrar_tickets(
+        tickets,
+        estado=estado,
+        nivel=nivel,
+        sla=sla,
+        categoria=categoria,
+        q=q,
+        solo_abiertos=solo_abiertos,
+    )
     scored = ordenar_por_riesgo(tickets, pool=pool)
     open_ids = {t.id for t, _ in scored}
     rest = [t for t in tickets if t.id not in open_ids]
     ordered = [t for t, _ in scored] + rest
     return {
         "tenant": ctx.organizacion_slug,
+        "filtros": {
+            "estado": estado,
+            "nivel": nivel,
+            "sla": sla,
+            "categoria": categoria,
+            "q": q,
+            "solo_abiertos": solo_abiertos,
+        },
         "tickets": [_ticket_out(t, pool=pool, db=db) for t in ordered],
     }
 
@@ -232,6 +259,107 @@ def explain_escalation(
         detalle=texto[:500],
     )
     return {"ticket_id": ticket_id, "explicacion": texto}
+
+
+@router.post("/tickets/{ticket_id}/events")
+def add_ticket_event(
+    ticket_id: str,
+    body: TicketEventCreate,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    detalle = (body.detalle or "").strip()
+    if not detalle:
+        raise HTTPException(400, "El detalle de la nota es obligatorio")
+    ev = repo.add_ticket_event(
+        db,
+        t.organizacion_id,
+        ticket_id,
+        tipo="nota_interna" if body.interno else "nota",
+        titulo=body.titulo or ("Nota interna" if body.interno else "Nota"),
+        detalle=detalle,
+        nivel=t.nivel or "N1",
+        estado=t.estado or "Abierto",
+        actor=ctx.usuario_email,
+        visible_cliente="No" if body.interno else "Sí",
+    )
+    log_audit(
+        db,
+        org_id=t.organizacion_id,
+        actor=ctx.usuario_email,
+        accion="ticket_nota",
+        recurso=ticket_id,
+        detalle=detalle[:300],
+    )
+    return {"status": "ok", "evento": _event_out(ev)}
+
+
+@router.get("/tickets/{ticket_id}/kb-draft")
+def get_ticket_kb_draft(
+    ticket_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    org = repo.get_org_by_id(db, t.organizacion_id)
+    borrador = proponer_articulo_kb(t, org_name=org.nombre if org else "")
+    return {"tenant": ctx.organizacion_slug, "ticket_id": ticket_id, "borrador": borrador}
+
+
+@router.post("/tickets/{ticket_id}/publish-kb")
+def publish_ticket_kb(
+    ticket_id: str,
+    body: TicketKbPublish,
+    ctx: TenantContext = Depends(require_kb_admin),
+    db: Session = Depends(get_db),
+):
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    org = repo.get_org_by_id(db, t.organizacion_id)
+    borrador = proponer_articulo_kb(t, org_name=org.nombre if org else "")
+    titulo = (body.titulo or borrador["titulo"]).strip()
+    categoria = (body.categoria or borrador["categoria"]).strip()
+    contenido = (body.contenido or borrador["contenido"]).strip()
+    if not titulo or not contenido:
+        raise HTTPException(400, "Título y contenido son obligatorios")
+    art = repo.add_kb(db, t.organizacion_id, titulo, categoria, contenido)
+    repo.add_ticket_event(
+        db,
+        t.organizacion_id,
+        ticket_id,
+        tipo="kb_publicada",
+        titulo="Artículo KB publicado",
+        detalle=f"{titulo} ({art.id})",
+        nivel=t.nivel or "N1",
+        estado=t.estado or "Abierto",
+        actor=ctx.usuario_email,
+        visible_cliente="Sí",
+    )
+    log_audit(
+        db,
+        org_id=t.organizacion_id,
+        actor=ctx.usuario_email,
+        accion="kb_desde_ticket",
+        recurso=ticket_id,
+        detalle=f"{art.id}: {titulo}",
+    )
+    return {
+        "status": "ok",
+        "articulo": {
+            "id": art.id,
+            "titulo": art.titulo,
+            "categoria": art.categoria,
+        },
+    }
 
 
 @router.put("/tickets/{ticket_id}")
