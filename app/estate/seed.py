@@ -211,59 +211,341 @@ def seed_abonados(db: Session) -> dict:
 
 def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
     return [
+        # ==================== INTERNET FTTH ====================
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="Internet radio/FTTH inalámbrico — sin servicio",
+            titulo="Internet FTTH (fibra óptica) — sin servicio",
             categoria="Internet",
             contenido=(
-                "Cooperativa Batán — internet Ecolan por radio/antena (wireless FTTH). "
-                "N1: 1) Apagar CPE/radio y router 30s; encender primero la radio, luego el router. "
-                "2) Verificar LED de enlace/señal fijo (sin alarma). "
-                "3) Confirmar línea de vista a la torre y alimentación del CPE. "
-                "4) Probar cable vs WiFi. 5) Preguntar si afecta a vecinos. "
-                "Persistencia → ticket N2 con zona y síntomas."
+                "Cooperativa Batán — Internet por fibra óptica hasta el hogar (FTTH/GPON). "
+                "El abonado tiene una ONT (cajita blanca) conectada con un cable de fibra "
+                "amarillo que viene de la calle, y un router WiFi conectado a la ONT por cable UTP.\n\n"
+                "Diagnóstico N1:\n"
+                "1) Reiniciar: desenchufar ONT y router 30s. Encender primero la ONT, esperar "
+                "   luz PON verde fija (~1 min), luego encender router.\n"
+                "2) Verificar luces ONT: PON=verde fijo (enlace OK), LOS=apagada (sin alarma). "
+                "   Si LOS está en rojo → corte de fibra en algún punto del tramo.\n"
+                "3) Cable de fibra: verificar que no esté doblado, aplastado por muebles ni "
+                "   desenchufado del conector SC/APC (verde) en la ONT.\n"
+                "4) Probar cable vs WiFi: si por cable al router anda, el problema es WiFi.\n"
+                "5) Si nada de lo anterior resuelve → N2 (posible corte de fibra en la acometida "
+                "   o falla en el splitter/OLT de la central). Registrar dirección y síntoma."
             ),
         ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet FTTH — velocidad baja",
+            categoria="Internet",
+            contenido=(
+                "Si la fibra anda pero lento:\n"
+                "1) Verificar con speed test por cable (no WiFi). Si da >70% del plan, es normal.\n"
+                "2) Verificar cuántos dispositivos conectados: streaming 4K, descargas, etc.\n"
+                "3) Si por cable da bien y por WiFi no → problema de cobertura WiFi "
+                "   (ver artículo WiFi — cobertura y rendimiento).\n"
+                "4) Si por cable también da bajo → posible saturación del puerto PON o "
+                "   configuración incorrecta del perfil de velocidad. Escalar a N2."
+            ),
+        ),
+
+        # ==================== INTERNET RADIO/WIRELESS ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet radio/wireless — sin servicio",
+            categoria="Internet",
+            contenido=(
+                "Cooperativa Batán — Internet inalámbrico por radio (enlace punto-multipunto). "
+                "El abonado tiene un CPE/antena en el techo apuntando a una torre de la cooperativa, "
+                "alimentado por PoE (inyector de corriente conectado al tomacorriente).\n\n"
+                "Diagnóstico N1:\n"
+                "1) Reiniciar: desenchufar el inyector PoE del CPE y el router 30s. Enchufar "
+                "   primero el inyector, esperar 1 min a que el CPE enganche señal, luego el router.\n"
+                "2) LED del CPE: enlace/señal fijo = OK; parpadeo rápido o rojo = sin enlace.\n"
+                "3) Línea de vista: ¿crecieron árboles? ¿hay construcción nueva entre la antena "
+                "   y la torre? Obstáculos generan pérdida de señal.\n"
+                "4) Inyector PoE: ¿tiene luz encendida? Si no, verificar enchufe y fusible.\n"
+                "5) Probar cable vs WiFi.\n"
+                "6) Consultar si vecinos de la misma torre tienen problemas → probable falla zonal.\n"
+                "Escalar a N2 con: dirección, torre a la que apunta, síntoma, si es zonal o individual."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet radio — señal intermitente",
+            categoria="Internet",
+            contenido=(
+                "Cuando la conexión por radio se cae y vuelve periódicamente:\n"
+                "1) Puede ser interferencia en la banda (5GHz generalmente). Ocurre más en "
+                "   zonas con muchos equipos inalámbricos.\n"
+                "2) Verificar que el CPE no se mueva con el viento (soporte flojo).\n"
+                "3) Luego de lluvia/tormenta, puede haber humedad en conectores.\n"
+                "4) Si parece cíclico (siempre a la misma hora), puede ser saturación de la torre.\n"
+                "Escalar a N2 indicando horarios del problema y si es zonal."
+            ),
+        ),
+
+        # ==================== INTERNET ADSL ====================
         KnowledgeArticle(
             organizacion_id=org_id,
             titulo="Internet ADSL — sin servicio",
             categoria="Internet",
             contenido=(
-                "Cooperativa Batán — internet ADSL (línea telefónica). "
-                "N1: 1) Reiniciar módem ADSL 30s y esperar sincronización (~2 min). "
-                "2) Luz DSL/Internet fija. 3) Revisar filtro/splitter si hay teléfono fijo. "
-                "4) Probar por cable al módem. Persistencia → N2 (posible falla de par o central)."
+                "Cooperativa Batán — Internet ADSL por par de cobre (línea telefónica).\n\n"
+                "Diagnóstico N1:\n"
+                "1) Reiniciar módem ADSL 30s. Esperar ~2 min a sincronización (luz DSL/Sync fija).\n"
+                "2) Luces: DSL fija = sincronización OK. Si parpadea → no sincroniza con DSLAM.\n"
+                "3) Filtro/Splitter: todos los aparatos telefónicos (teléfonos, alarmas, fax) "
+                "   DEBEN tener filtro ADSL. El módem se conecta al puerto sin filtro del splitter.\n"
+                "4) Probar en la primera toma (la que viene de la calle), sin extensiones ni "
+                "   cables internos largos.\n"
+                "5) Cable vs WiFi: si por cable anda, es tema WiFi.\n"
+                "6) Si no sincroniza → posible falla en par de cobre o en el DSLAM de la central.\n"
+                "Escalar a N2 con: dirección, N° de línea telefónica, estado de luces."
             ),
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="IMOVI — sin señal o datos móviles",
-            categoria="Móvil",
-            contenido=(
-                "Cooperativa Batán — servicio móvil IMOVI. "
-                "N1: 1) Reiniciar el teléfono. 2) Modo avión 15s. "
-                "3) Verificar si falla en una sola zona o en varias. "
-                "4) APN: internet.coopbatan.ar si aplica. Persistencia → N2 con MSISDN y ubicación."
-            ),
-        ),
-        KnowledgeArticle(
-            organizacion_id=org_id,
-            titulo="Ecolan — sin internet en casa",
+            titulo="Internet ADSL — desconexiones frecuentes",
             categoria="Internet",
             contenido=(
-                "Primero identificar acceso: radio/antena (wireless) o ADSL. "
-                "Usar el playbook correspondiente. Si hay deuda/corte, priorizar regularización "
-                "antes de diagnóstico técnico."
+                "ADSL se desconecta y reconecta (la luz DSL parpadea):\n"
+                "1) Verificar filtros en TODOS los aparatos. Un teléfono sin filtro causa ruido.\n"
+                "2) Cable telefónico interno en mal estado o muy largo genera atenuación.\n"
+                "3) Humedad en la caja de distribución de la calle (poste o fachada).\n"
+                "4) Si hay tormenta eléctrica reciente, el par puede haberse dañado.\n"
+                "5) Verificar si el tono del teléfono fijo tiene ruido/estática → indica par malo.\n"
+                "Escalar a N2 con: frecuencia de las caídas, si hay ruido en línea."
+            ),
+        ),
+
+        # ==================== INTERNET GENÉRICO ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet — sin servicio (genérico)",
+            categoria="Internet",
+            contenido=(
+                "Cuando el abonado dice 'no tengo internet' sin especificar tipo:\n"
+                "1) Preguntar qué tipo de conexión tiene:\n"
+                "   - Fibra (cable amarillo a cajita blanca) → playbook FTTH\n"
+                "   - Radio/antena en el techo → playbook Radio\n"
+                "   - Línea telefónica/módem ADSL → playbook ADSL\n"
+                "2) Si no sabe: preguntar si tiene antena en el techo (radio), cable "
+                "   amarillo finito (fibra), o si es por la línea del teléfono (ADSL).\n"
+                "3) Siempre verificar primero si hay deuda/corte antes del diagnóstico técnico."
             ),
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="Corte por deuda — rehabilitación",
+            titulo="Internet lento — diagnóstico general",
+            categoria="Internet",
+            contenido=(
+                "Cuando reportan lentitud:\n"
+                "1) Pedir test por cable (no WiFi): fast.com o speedtest.net.\n"
+                "2) Si da >70% del plan contratado, es aceptable.\n"
+                "3) Si por cable da bien y WiFi no → problema WiFi, no de línea.\n"
+                "4) Verificar cuántos dispositivos conectados y qué hacen.\n"
+                "5) En horarios pico puede haber congestión (sobre todo en radio).\n"
+                "6) Si por cable da <50% del plan → escalar N2 indicando plan y resultado."
+            ),
+        ),
+
+        # ==================== WIFI ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="WiFi — cobertura y rendimiento",
+            categoria="Internet",
+            contenido=(
+                "Problemas de WiFi (no es un problema de internet, es de la red del hogar):\n"
+                "1) El WiFi pierde señal con cada pared (especialmente hormigón/ladrillo).\n"
+                "2) Router en el centro de la casa = mejor cobertura.\n"
+                "3) Banda 2.4GHz: más alcance, menos velocidad. 5GHz: menos alcance, más velocidad.\n"
+                "4) Interferencia: microondas, teléfonos inalámbricos, vecinos en mismo canal.\n"
+                "5) Solución: reiniciar router, cambiar canal WiFi, agregar extensor/mesh.\n"
+                "6) Si muchas habitaciones sin señal → sugerir access point o mesh.\n"
+                "La cooperativa puede ofrecer servicio de instalación de extensores (consultar área comercial)."
+            ),
+        ),
+
+        # ==================== MÓVIL IMOVI ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOVI — sin señal o sin servicio",
+            categoria="Móvil",
+            contenido=(
+                "Cooperativa Batán — servicio móvil IMOVI (MVNO).\n\n"
+                "Diagnóstico N1:\n"
+                "1) Reiniciar el teléfono.\n"
+                "2) Modo avión 15s y desactivar → fuerza re-registro en la red.\n"
+                "3) Selección de red manual: Ajustes > Redes móviles > Operador > elegir otra red "
+                "   (Personal/Claro), esperar registro, volver a IMOVI. Genera nuevo registro.\n"
+                "4) Verificar que la SIM esté bien insertada (sacar y poner).\n"
+                "5) Probar la SIM en otro teléfono para descartar problema del equipo.\n"
+                "6) Si en otra ubicación anda → zona sin cobertura.\n"
+                "Escalar a N2 con: MSISDN (número de línea), ubicación, si es solo señal o también datos."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOVI — sin datos móviles",
+            categoria="Móvil",
+            contenido=(
+                "Cuando hay señal (llamadas funcionan) pero no navega:\n"
+                "1) Verificar que datos móviles estén activados.\n"
+                "2) Verificar APN: nombre=internet.coopbatan.ar, MCC=722, MNC=310. "
+                "   En Android: Ajustes > Redes móviles > Nombres de punto de acceso.\n"
+                "   En iPhone: Ajustes > Datos móviles > Red de datos móviles.\n"
+                "3) Verificar que no haya un límite de datos alcanzado.\n"
+                "4) Reiniciar configuración de red (borra WiFi guardadas pero resuelve APN).\n"
+                "5) Si persiste → escalar N2 indicando MSISDN y si la señal está OK."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOVI — llamadas y SMS",
+            categoria="Móvil",
+            contenido=(
+                "Problemas con llamadas o mensajes de texto:\n"
+                "1) Si no puede hacer llamadas: reiniciar, modo avión, selección manual de red.\n"
+                "2) Si no recibe llamadas: verificar desvíos activos (*#21# para consultar).\n"
+                "3) Si las llamadas se cortan: probable zona de baja señal.\n"
+                "4) SMS de verificación que no llegan (A2P): son mensajes de apps/bancos. "
+                "   Estos dependen de acuerdos con las plataformas y pueden no llegar. "
+                "   Sugerir validar por otro medio (email, llamada). Si es crítico, escalar.\n"
+                "5) Si nada funciona (ni llamadas ni datos) → ver artículo 'sin señal'."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOVI — portabilidad numérica",
+            categoria="Móvil",
+            contenido=(
+                "Portabilidad de número a IMOVI:\n"
+                "1) Se solicita en oficina comercial con DNI y última factura del operador anterior.\n"
+                "2) El proceso tarda entre 3 y 5 días hábiles.\n"
+                "3) Durante la portabilidad puede haber un corte breve del servicio.\n"
+                "4) Si pasaron más de 5 días y no se completó → escalar a N2 con el número y DNI.\n"
+                "5) Para portar DESDE IMOVI a otro operador, se gestiona con el nuevo operador."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOVI — activar SIM / eSIM",
+            categoria="Móvil",
+            contenido=(
+                "Activación de SIM/eSIM nueva:\n"
+                "1) SIM física: insertar, reiniciar teléfono, esperar 5 min a registro automático.\n"
+                "2) eSIM: escanear QR proporcionado en oficina. Verificar perfil activo en "
+                "   Ajustes > Datos móviles > Planes de datos.\n"
+                "3) Si no se activa en 30 min → verificar EID/ICCID con el agente.\n"
+                "4) Configurar APN manualmente si los datos no funcionan post-activación.\n"
+                "Escalar si la activación no completa tras reiniciar y esperar."
+            ),
+        ),
+
+        # ==================== FACTURACIÓN ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Facturación — medios de pago",
             categoria="Facturación",
             contenido=(
-                "Si el abonado tiene estado corte/suspendido, indicar regularización de saldo "
-                "por los medios de Cooperativa Batán. La rehabilitación es automática tras "
-                "acreditación. No reiniciar equipos hasta regularizar."
+                "Medios de pago disponibles en Cooperativa Batán:\n"
+                "1) Rapipago y Pago Fácil (con código de barras de la boleta).\n"
+                "2) Transferencia bancaria al CBU de la Cooperativa (informar en oficina).\n"
+                "3) Débito automático (se tramita en oficina con CBU o tarjeta).\n"
+                "4) Oficina comercial: Av. Brown 1234, Batán. Lunes a viernes 8-16h.\n"
+                "5) Mercado Pago: buscar 'Cooperativa Batán' (en implementación).\n"
+                "Acreditación: Rapipago/PF en 24-48h, transferencia bancaria en 24h, "
+                "débito automático en fecha de vencimiento."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Corte por deuda — rehabilitación automática",
+            categoria="Facturación",
+            contenido=(
+                "Cuando el abonado tiene estado corte/suspendido:\n"
+                "1) Informar el saldo pendiente y los medios de pago.\n"
+                "2) La rehabilitación es AUTOMÁTICA tras acreditación del pago (no requiere "
+                "   llamar ni pedir habilitación manual).\n"
+                "3) Tiempo de rehabilitación: hasta 2 horas después de la acreditación.\n"
+                "4) NO intentar diagnóstico técnico si el servicio está cortado por deuda.\n"
+                "5) Si pagó hace más de 4 horas y sigue cortado → escalar a N2."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Facturación — reclamo de monto",
+            categoria="Facturación",
+            contenido=(
+                "Si el abonado no reconoce un monto en la factura:\n"
+                "1) Verificar si hubo cambio de plan, cargo por instalación, o mora.\n"
+                "2) Si es un cargo que no se puede explicar en N1 → derivar a agente con "
+                "   acceso al sistema de facturación.\n"
+                "3) Siempre ser empático: 'Entiendo la preocupación, vamos a revisarlo'."
+            ),
+        ),
+
+        # ==================== GENERAL ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Cooperativa Batán — información general",
+            categoria="General",
+            contenido=(
+                "Cooperativa de Provisión de Servicios Telefónicos y Otros Batán Ltda.\n"
+                "Servicios: Internet (FTTH, radio/wireless, ADSL), Telefonía móvil (IMOVI).\n"
+                "Marca internet: Ecolan.\n"
+                "Planes internet: desde 25Mb hasta 300Mb según tecnología y zona.\n"
+                "Planes IMOVI: desde 3GB hasta 50GB con minutos ilimitados nacionales.\n"
+                "Oficina: Av. Brown 1234, Batán. Tel: 0223-XXX-XXXX.\n"
+                "Horarios: Lunes a viernes 8-16h.\n"
+                "Guardia técnica: fuera de horario, los reclamos se atienden al día siguiente "
+                "salvo corte masivo."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Planes internet Ecolan — vigentes",
+            categoria="Comercial",
+            contenido=(
+                "Planes internet Ecolan vigentes (precios orientativos, confirmar en oficina):\n"
+                "- Ecolan 25Mb: ideal para 1-2 dispositivos, navegación y redes.\n"
+                "- Ecolan 50Mb: recomendado para 3-5 dispositivos, streaming HD.\n"
+                "- Ecolan 100Mb: familias con múltiples dispositivos y streaming 4K.\n"
+                "- Ecolan 200Mb: gamers, trabajo remoto pesado, múltiples streams 4K.\n"
+                "- Ecolan 300Mb: uso intensivo, disponible solo en FTTH.\n"
+                "Disponibilidad de velocidades según tecnología: FTTH hasta 300Mb, "
+                "radio hasta 100Mb, ADSL hasta 20Mb (según distancia a central).\n"
+                "Para contratar o cambiar → derivar a área comercial (agente)."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Planes IMOVI móvil — vigentes",
+            categoria="Comercial",
+            contenido=(
+                "Planes IMOVI vigentes (confirmar precios en oficina):\n"
+                "- IMOVI 3GB: 3GB datos + minutos ilimitados + SMS ilimitados.\n"
+                "- IMOVI 5GB: 5GB datos + minutos ilimitados + SMS ilimitados.\n"
+                "- IMOVI 15GB: 15GB datos + minutos ilimitados + WhatsApp libre.\n"
+                "- IMOVI 30GB: 30GB datos + minutos ilimitados + redes sociales libres.\n"
+                "- IMOVI 50GB: 50GB datos + todo ilimitado.\n"
+                "Todos los planes incluyen roaming nacional.\n"
+                "Portabilidad: se puede traer el número de otro operador (3-5 días hábiles).\n"
+                "Para contratar → oficina comercial con DNI."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Escalamiento a N2 — cuándo y cómo",
+            categoria="Procedimiento",
+            contenido=(
+                "Derivar a agente humano (N2) cuando:\n"
+                "1) El playbook N1 se agotó sin solución.\n"
+                "2) El abonado pide explícitamente hablar con una persona.\n"
+                "3) Problema claramente fuera de alcance del bot (falla masiva, configuración "
+                "   avanzada, reclamo comercial complejo).\n"
+                "4) Se necesita acceso a sistemas internos (facturación, HLR, NMS).\n\n"
+                "Al escalar incluir: servicio afectado, pasos ya realizados en N1, dirección "
+                "del abonado (si aplica), teléfono de contacto, resumen del síntoma."
             ),
         ),
     ]
