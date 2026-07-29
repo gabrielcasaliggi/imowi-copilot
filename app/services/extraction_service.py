@@ -13,7 +13,7 @@ from app.llm import chat_completion
 from app.models import EstructurarInput, EstructurarResponse, MensajeHistorial
 
 PROMPT_EXTRACCION = """
-Analizá el historial entre operador y Copilot NOC imowi. Tu salida alimenta un ticket para ingeniería del NOC.
+Analizá el historial entre operador y Copilot NOC. Tu salida alimenta un ticket para ingeniería del NOC.
 Objetivo: que el NOC resuelva MÁS RÁPIDO sin releer el chat.
 
 HISTORIAL:

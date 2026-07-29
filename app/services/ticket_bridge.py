@@ -10,7 +10,7 @@ from app.config import es_mirror_supabase_activo
 from app.estate import repository as repo
 from app.estate.models import Ticket
 
-logger = logging.getLogger("imowi")
+logger = logging.getLogger("operations_hub")
 
 
 def _cooperativa_nombre(db: Session, org_id: str) -> str:

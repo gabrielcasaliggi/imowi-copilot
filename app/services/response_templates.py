@@ -17,7 +17,7 @@ PLANTILLAS_RESPUESTA: list[dict[str, str]] = [
         "nombre": "Escalamiento NOC",
         "categoria": "Escalamiento",
         "contenido": (
-            "Con las pruebas N1 documentadas, escalamos el caso al NOC imowi "
+            "Con las pruebas N1 documentadas, escalamos el caso al NOC "
             "para revisión de red. Ticket registrado con el contexto operativo."
         ),
     },

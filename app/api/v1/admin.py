@@ -1,4 +1,4 @@
-"""Administración de cooperativas, usuarios e importación CSV — solo admin imowi."""
+"""Administración de cooperativas, usuarios e importación CSV — solo admin plataforma."""
 
 from __future__ import annotations
 
@@ -73,8 +73,6 @@ def update_organization(
     _: UsuarioSesion = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
-    if slug == "imowi" and body.nombre and body.nombre.strip().lower() != "imowi noc":
-        pass  # permitir renombrar display pero no bloquear
     org = repo.update_organization(
         db,
         slug,
@@ -158,7 +156,7 @@ async def import_organization_csv(
 ):
     org = _org_or_404(db, slug)
     if org.slug == "imowi":
-        raise HTTPException(400, "Importá usuarios en una cooperativa operativa, no en imowi NOC")
+        raise HTTPException(400, "Importá usuarios en una cooperativa operativa, no en la plataforma NOC")
     raw = await file.read()
     try:
         text = raw.decode("utf-8-sig")

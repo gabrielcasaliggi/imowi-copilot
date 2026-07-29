@@ -177,7 +177,7 @@ def evaluar_crear_ticket(
 
     if playbook_agotado or (persistencia and solicita):
         destino = "imowi_noc"
-        proveedor = "imowi NOC"
+        proveedor = "NOC"
         categoria = flujo.get("categoria_label", "General")
         if cat == "sms":
             destino = "carrier"
@@ -204,7 +204,7 @@ def evaluar_crear_ticket(
             crear_ticket=True,
             nivel="N2",
             destino="imowi_noc",
-            proveedor="imowi NOC",
+            proveedor="NOC",
             categoria=flujo.get("categoria_label", "General"),
             regla_aplicada="invariante_pasos_n1_agotados",
             motivo_escalamiento="Persistencia tras múltiples verificaciones N1.",

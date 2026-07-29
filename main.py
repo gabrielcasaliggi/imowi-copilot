@@ -1,5 +1,5 @@
 """
-imowi NOC Copilot — plataforma Agentic AI multitenant (OSS/BSS).
+Operations Hub — plataforma Agentic AI multitenant (OSS/BSS).
 Ejecutar: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
@@ -33,7 +33,7 @@ import app.estate.models  # noqa: F401 — registra tablas SQLAlchemy
 from app.knowledge import cargar_base_conocimiento, estadisticas
 from app.routers import auth_router, chat_router, tickets_router
 
-logger = logging.getLogger("imowi")
+logger = logging.getLogger("operations_hub")
 
 
 @asynccontextmanager
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
         "production" if es_produccion() else "development",
     )
     yield
-    logger.info("Apagando imowi NOC Copilot")
+    logger.info("Apagando Operations Hub")
 
 
 app = FastAPI(
@@ -166,5 +166,5 @@ async def root():
         "docs": "/docs",
         "health": "/health",
         "knowledge": kb,
-        "api_only": "Frontend en Netlify: configurá IMOWI_API_URL",
+        "api_only": "Frontend en Netlify: configurá IMOWI_API_URL (legacy) o la URL de la API",
     }

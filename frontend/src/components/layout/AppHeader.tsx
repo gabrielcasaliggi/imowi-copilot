@@ -8,7 +8,7 @@ export function AppHeader() {
 
   const brandColor = tenantContext?.brand_color || "#22d3ee";
   const logoLabel = tenantContext?.logo_label || "i";
-  const orgName = tenantContext?.organizacion_nombre || "imowi";
+  const orgName = tenantContext?.organizacion_nombre || "Operations Hub";
 
   return (
     <header className="glass border-b border-slate-800/80 px-4 py-3 flex items-center justify-between gap-4 shrink-0">
@@ -49,7 +49,7 @@ export function AppHeader() {
           </div>
         )}
         <div className="hidden md:flex flex-col items-end">
-          <span className="text-xs text-slate-300">{isAdmin ? "NOC imowi" : user?.nombre}</span>
+          <span className="text-xs text-slate-300">{isAdmin ? "Administrador NOC" : user?.nombre}</span>
           <span className="text-[10px] font-mono text-slate-500 uppercase">{user?.rol}</span>
         </div>
         <button

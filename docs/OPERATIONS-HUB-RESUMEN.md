@@ -1,10 +1,10 @@
-# imowi Operations Hub
+# Operations Hub
 
-## Copilot operativo para cooperativas y NOC imowi
+## Copilot operativo para cooperativas y NOC
 
-**imowi Operations Hub** es una plataforma agentic para centralizar la atencion de reclamos moviles de cooperativas revendedoras, guiando al operador N1, consultando contexto tecnico, clasificando incidentes y generando tickets auditables para el NOC o proveedores.
+**Operations Hub** es una plataforma agentic para centralizar la atencion de reclamos moviles de cooperativas revendedoras, guiando al operador N1, consultando contexto tecnico, clasificando incidentes y generando tickets auditables para el NOC o proveedores.
 
-El objetivo no es reemplazar JSC ni los sistemas contables existentes, sino ordenar la operacion diaria entre cooperativas e imowi, reduciendo incertidumbre, evitando escalaciones incompletas y dejando trazabilidad de cada caso.
+El objetivo no es reemplazar JSC ni los sistemas contables existentes, sino ordenar la operacion diaria entre cooperativas y el NOC, reduciendo incertidumbre, evitando escalaciones incompletas y dejando trazabilidad de cada caso.
 
 ---
 
@@ -14,7 +14,7 @@ El objetivo no es reemplazar JSC ni los sistemas contables existentes, sino orde
 - Estandariza criterios de resolucion en N1 y escalamiento a N2, carrier o proveedor.
 - Genera tickets con historial tecnico de las pruebas realizadas antes de escalar.
 - Permite operar multiples cooperativas con datos aislados por tenant.
-- Entrega al NOC imowi una vista global de tickets, red, estadisticas y seguimiento.
+- Entrega al NOC una vista global de tickets, red, estadisticas y seguimiento.
 - Combina reglas operativas, contexto JSC, base de conocimiento e IA cuando aporta valor.
 
 ---
@@ -97,7 +97,7 @@ El sistema clasifica los incidentes y define el destino operativo:
 | Tipo de caso | Destino posible |
 | --- | --- |
 | Caso resoluble en N1 | Cooperativa |
-| Roaming, datos o senal persistente | NOC imowi |
+| Roaming, datos o senal persistente | NOC |
 | SMS / A2P | Carrier |
 | SIM / eSIM | Proveedor SIM |
 | Provision / plataforma | Plataforma OSS/BSS |
@@ -106,7 +106,7 @@ Los tickets se crean con:
 
 - ID operativo, por ejemplo `JSC-1005`.
 - Nivel: N1, N2 o proveedor.
-- Destino: cooperativa, NOC imowi, carrier u otro proveedor.
+- Destino: cooperativa, NOC, carrier u otro proveedor.
 - Categoria.
 - Motivo de escalamiento.
 - Evidencia.
@@ -135,9 +135,9 @@ El NOC puede actualizar el ticket, agregar avances, cambiar estado y documentar 
 
 ---
 
-## Vista NOC imowi
+## Vista NOC
 
-El usuario admin de imowi accede a una vista global con:
+El usuario admin del equipo accede a una vista global con:
 
 - Tablero de tickets priorizados.
 - Estado, nivel, categoria y riesgo.
@@ -190,7 +190,7 @@ La plataforma esta preparada para operar multiples cooperativas en una misma ins
 | Rol | Capacidades |
 | --- | --- |
 | Operador cooperativa | Atiende reclamos, usa chat, ve sus tickets y su contexto |
-| Admin imowi / NOC | Vista global, tickets de todas las cooperativas, red, estadisticas y administracion |
+| Admin NOC | Vista global, tickets de todas las cooperativas, red, estadisticas y administracion |
 
 Cada cooperativa tiene:
 
@@ -242,7 +242,7 @@ Operador / NOC
 - Nuevo reclamo.
 - Registro de ticket NOC.
 
-### Para admin imowi
+### Para admin NOC
 
 - Tablero NOC.
 - Monitor de red.
@@ -286,7 +286,7 @@ https://imowi-copilot.vercel.app
 | --- | --- |
 | `batan` | Operador Cooperativa Batan |
 | `viamonte` | Operador Cooperativa Viamonte |
-| `admin` | NOC imowi / vista global |
+| `admin` | NOC / vista global |
 
 ---
 
@@ -298,13 +298,13 @@ https://imowi-copilot.vercel.app
 4. Seguir la guia operativa.
 5. Confirmar persistencia si el problema continua.
 6. Verificar que se cree ticket con ID.
-7. Ingresar como admin imowi.
+7. Ingresar como admin NOC.
 8. Revisar el ticket, timeline, destino y estado.
 
 ---
 
 ## Cierre
 
-imowi Operations Hub propone una capa operativa entre cooperativas y NOC que transforma reclamos conversacionales en flujos guiados, tickets trazables y decisiones de escalamiento consistentes.
+Operations Hub propone una capa operativa entre cooperativas y NOC que transforma reclamos conversacionales en flujos guiados, tickets trazables y decisiones de escalamiento consistentes.
 
 La plataforma ya permite demostrar valor operativo concreto: menos improvisacion en N1, mejor contexto para NOC y una base preparada para integrar automatizaciones futuras contra JSC, CRM, canales de notificacion y sistemas OSS/BSS.

@@ -1,4 +1,4 @@
-# imowi Operations Hub — Frontend Next.js
+# Operations Hub — Frontend Next.js
 
 Consola operativa principal (canónica). Ver [docs/FRONTEND-DEPLOY.md](../docs/FRONTEND-DEPLOY.md) para producción.
 
@@ -41,7 +41,7 @@ CORS_ORIGINS=http://localhost:3000
 
 | Usuario | Contraseña | Rol |
 |---------|------------|-----|
-| `admin` | `admin` | NOC imowi |
+| `admin` | `admin` | NOC |
 | `batan` | `batan` | Cooperativa Batán |
 | `viamonte` | `viamonte` | Cooperativa Viamonte |
 

@@ -1,4 +1,4 @@
-# imowi NOC Copilot
+# Operations Hub
 
 Copilot de soporte para operadores de cooperativas: chat asistido por IA, RAG sobre base de conocimiento y gestión de tickets para el NOC.
 
@@ -74,7 +74,7 @@ Frontend en **http://localhost:3000**. Agregar `http://localhost:3000` en `CORS_
 |---------|------------|-----|
 | `batan` | `batan` | Operador Cooperativa Batán |
 | `viamonte` | `viamonte` | Operador Cooperativa Viamonte |
-| `admin` | `admin` | NOC imowi — vista global |
+| `admin` | `admin` | Administrador NOC — vista global |
 
 Guía de uso operativo: [docs/USO-LOCAL-PRODUCTIVO.md](./docs/USO-LOCAL-PRODUCTIVO.md)
 
@@ -122,7 +122,7 @@ Detalle: [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md)
 ```bash
 git init
 git add .
-git commit -m "Initial commit — imowi NOC Copilot"
+git commit -m "Initial commit — Operations Hub"
 git remote add origin https://github.com/TU_ORG/Copilot-Tickets.git
 git push -u origin main
 ```
@@ -180,4 +180,4 @@ supabase/schema.sql
 
 ## Licencia
 
-Uso interno — demo imowi / Vertia.
+Uso interno — demo Vertia.

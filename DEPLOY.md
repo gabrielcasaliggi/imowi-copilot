@@ -1,4 +1,4 @@
-# Despliegue — imowi NOC Copilot
+# Despliegue — Operations Hub
 
 ## Qué persiste hoy
 
@@ -53,7 +53,7 @@ Usá **systemd** o **nginx** como reverse proxy con HTTPS (Let's Encrypt).
 Variables útiles:
 
 ```env
-DATA_DIR=/var/lib/imowi-copilot/data
+DATA_DIR=/var/lib/ops-hub/data
 AI_BASE_URL=https://api.groq.com/openai/v1
 AI_API_KEY=tu-clave
 AI_MODEL=llama-3.3-70b-versatile

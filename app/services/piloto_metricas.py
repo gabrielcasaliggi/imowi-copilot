@@ -1,4 +1,4 @@
-"""Telemetría mínima del piloto operativo imowi."""
+"""Telemetría mínima del piloto operativo."""
 
 from __future__ import annotations
 

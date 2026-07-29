@@ -1,8 +1,8 @@
 # Piloto Operativo Imowi — Guía y criterio Go/No-Go
 
-**Producto:** imowi Operations Hub — Piloto Operativo Controlado  
+**Producto:** Operations Hub — Piloto Operativo Controlado  
 **Duración sugerida:** 2 semanas  
-**Participantes:** 2–3 operadores N1 cooperativa + 1 referente NOC imowi
+**Participantes:** 2–3 operadores N1 cooperativa + 1 referente NOC
 
 ---
 
@@ -16,7 +16,7 @@ Validar si el copilot **reduce incertidumbre del operador**, **estandariza pasos
 
 1. Login operador: `batan` / `batan`
 2. Ejecutar reset: botón **Reset demo** o `./scripts/reset-demo-validacion.sh coop-batan`
-3. Verificar panel **Validación imowi** y **Estado del piloto** en sidebar
+3. Verificar panel **Validación operativa** y **Estado del piloto** en sidebar
 4. Repasar guion: [DEMO-VALIDACION.md](./DEMO-VALIDACION.md)
 
 ---
@@ -79,7 +79,7 @@ Eventos registrados automáticamente:
 
 ---
 
-## Checklist feedback (completar con imowi)
+## Checklist feedback (completar con el equipo)
 
 ### Por escenario
 
@@ -105,7 +105,7 @@ Eventos registrados automáticamente:
 
 Se cumplen **al menos 4 de 5**:
 
-1. **Playbooks:** imowi confirma que pasos roaming/datos/señal son correctos o ajustables en < 1 semana
+1. **Playbooks:** el equipo confirma que pasos roaming/datos/señal son correctos o ajustables en < 1 semana
 2. **Tickets:** ≥ 80% de escalamientos incluyen timeline con pasos N1
 3. **Operadores:** al menos 2/3 operadores califican utilidad ≥ 4/5
 4. **NOC:** referente confirma que resumen NOC ahorra retrabajo
@@ -124,7 +124,7 @@ Se cumplen **al menos 4 de 5**:
 
 ### Condicional — Go con condiciones
 
-- Go si imowi provee acceso JSC sandbox en 2 semanas
+- Go si el equipo provee acceso JSC sandbox en 2 semanas
 - Go limitado a 1 cooperativa hasta integrar contable
 
 ---
@@ -135,7 +135,7 @@ Se cumplen **al menos 4 de 5**:
 |-----|-----------------|
 | Facilitador Vertia | Guion, reset, captura feedback |
 | Operador coop | Ejecuta escenarios como N1 real |
-| Referente NOC imowi | Valida ticket, timeline, escalamiento |
+| Referente NOC | Valida ticket, timeline, escalamiento |
 | Observador (opcional) | Toma notas checklist |
 
 ---
@@ -145,7 +145,7 @@ Se cumplen **al menos 4 de 5**:
 1. Tabla checklist completada
 2. Export métricas (`GET /api/v1/demo/metricas`)
 3. Lista brechas integración ([INTEGRACION_PILOTO.md](./INTEGRACION_PILOTO.md))
-4. Decisión Go / No-Go / Condicional firmada por referente imowi
+4. Decisión Go / No-Go / Condicional firmada por el referente del piloto
 
 ---
 

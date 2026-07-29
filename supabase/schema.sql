@@ -1,4 +1,4 @@
--- imowi NOC Copilot — esquema inicial (Supabase / PostgreSQL)
+-- Operations Hub — esquema inicial (Supabase / PostgreSQL)
 -- Ejecutar en SQL Editor del proyecto Supabase
 
 create table if not exists tickets (

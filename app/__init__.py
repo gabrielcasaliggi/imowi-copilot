@@ -1,1 +1,1 @@
-"""imowi NOC Copilot — backend."""
+"""Operations Hub — backend."""

@@ -18,7 +18,7 @@ def seed_estate(db: Session) -> dict:
         return {"seeded": False, "message": "Data Estate ya inicializado"}
 
     orgs = [
-        Organization(nombre="imowi NOC", slug="imowi", logo_label="i", brand_color="#22d3ee"),
+        Organization(nombre="Plataforma NOC", slug="imowi", logo_label="N", brand_color="#22d3ee"),
         Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#34d399"),
         Organization(nombre="Cooperativa Viamonte", slug="coop-viamonte", logo_label="V", brand_color="#818cf8"),
     ]
@@ -28,8 +28,8 @@ def seed_estate(db: Session) -> dict:
     imowi, batan, viamonte = orgs
 
     users = [
-        User(organizacion_id=imowi.id, email="admin@imowi.com", nombre="Admin Sistema imowi", password=hash_password("admin"), rol="admin_sistema"),
-        User(organizacion_id=imowi.id, email="noc@imowi.com", nombre="Ingeniero NOC imowi", password=hash_password("noc"), rol="ingeniero_noc"),
+        User(organizacion_id=imowi.id, email="admin@ops-hub.demo", nombre="Admin Sistema NOC", password=hash_password("admin"), rol="admin_sistema"),
+        User(organizacion_id=imowi.id, email="noc@ops-hub.demo", nombre="Ingeniero NOC", password=hash_password("noc"), rol="ingeniero_noc"),
         User(organizacion_id=batan.id, email="noc@coopbatan.com", nombre="Ingeniero NOC CoopBatán", password=hash_password("noc"), rol="ingeniero_noc"),
         User(organizacion_id=batan.id, email="cliente@coopbatan.com", nombre="Operador Coop Batán", password=hash_password("cliente"), rol="cliente", must_change_password="Sí"),
         User(organizacion_id=viamonte.id, email="cliente@coopviamonte.com", nombre="Cliente Coop Viamonte", password=hash_password("cliente"), rol="cliente", must_change_password="Sí"),
@@ -78,7 +78,7 @@ def seed_estate(db: Session) -> dict:
         NetworkElement(organizacion_id=batan.id, elemento_red="OLT-Batan-Centro", metrica="latencia", valor_actual="12ms", estado_actual="Normal"),
         NetworkElement(organizacion_id=batan.id, elemento_red="Celda-Movistar-Güemes", metrica="pérdida_paquetes", valor_actual="0.2%", estado_actual="Normal"),
         NetworkElement(organizacion_id=batan.id, elemento_red="PGW-Roaming-SUR", metrica="consumo", valor_actual="68%", estado_actual="Normal"),
-        NetworkElement(organizacion_id=imowi.id, elemento_red="Core-IMOWI-01", metrica="latencia", valor_actual="8ms", estado_actual="Normal"),
+        NetworkElement(organizacion_id=imowi.id, elemento_red="Core-NOC-01", metrica="latencia", valor_actual="8ms", estado_actual="Normal"),
         NetworkElement(organizacion_id=viamonte.id, elemento_red="OLT-Viamonte-Norte", metrica="latencia", valor_actual="14ms", estado_actual="Normal"),
     ]
     db.add_all(telemetry)
@@ -116,7 +116,7 @@ def seed_lineas_jsc(db: Session) -> dict:
     ]
     if imowi:
         lineas.append(
-            LineaJSC(organizacion_id=imowi.id, msisdn="2235500001", jsc_ref="JSC-L-90001", abonado="Línea corporativa NOC", plan="Corporativo", estado_linea="Activa", iccid="8956123450090001", apn="internet.imowi.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0")
+            LineaJSC(organizacion_id=imowi.id, msisdn="2235500001", jsc_ref="JSC-L-90001", abonado="Línea corporativa NOC", plan="Corporativo", estado_linea="Activa", iccid="8956123450090001", apn="internet.movil", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0")
         )
     db.add_all(lineas)
     db.commit()

@@ -1,4 +1,4 @@
-"""Contexto multitenant — JWT + vista admin imowi."""
+"""Contexto multitenant — JWT + vista admin plataforma."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def get_tenant_context(
         organizacion_nombre=org.nombre,
         brand_color=org.brand_color,
         logo_label=org.logo_label,
-        usuario_email=f"{usuario.usuario}@imowi.demo",
+        usuario_email=f"{usuario.usuario}@ops-hub.demo",
         usuario_nombre=usuario.nombre,
         rol=rol,
         es_admin_imowi=usuario.rol == "admin",

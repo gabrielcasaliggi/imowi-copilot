@@ -44,7 +44,7 @@ AI_BASE_URL = os.getenv("AI_BASE_URL", "http://localhost:11434/v1")
 AI_API_KEY = os.getenv("AI_API_KEY", "ollama")
 AI_MODEL = os.getenv("AI_MODEL", "llama3.2")
 
-APP_TITLE = "imowi NOC Copilot"
+APP_TITLE = "Operations Hub"
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 DATA_DIR = os.getenv("DATA_DIR", "")
@@ -77,7 +77,7 @@ _DEFAULT_MOCK_USERS = {
         "password": "admin",
         "rol": "admin",
         "cooperativa": None,
-        "nombre": "NOC imowi — Administrador",
+        "nombre": "Administrador NOC",
         "org_slug": "imowi",
     },
     "batan": {
@@ -146,7 +146,7 @@ def _usuarios_desde_env() -> dict:
             "password": admin_pass,
             "rol": "admin",
             "cooperativa": None,
-            "nombre": "NOC imowi — Administrador",
+            "nombre": "Administrador NOC",
             "org_slug": "imowi",
         },
         coop_user: {

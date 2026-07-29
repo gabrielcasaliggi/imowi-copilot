@@ -1,12 +1,12 @@
 # Integración post-piloto — Contratos mínimos
 
-Documento de referencia para la conversación con imowi **después** del piloto operativo controlado. Define qué datos reales se necesitan para pasar de demo a integración.
+Documento de referencia para la conversación con el equipo **después** del piloto operativo controlado. Define qué datos reales se necesitan para pasar de demo a integración.
 
 ---
 
 ## Principio
 
-JSC y el sistema contable siguen siendo **sistemas maestro**. imowi Operations Hub consume datos, guía N1 y escala al NOC con trazabilidad. No reemplaza billing ni provisión.
+JSC y el sistema contable siguen siendo **sistemas maestro**. Operations Hub consume datos, guía N1 y escala al NOC con trazabilidad. No reemplaza billing ni provisión.
 
 ---
 
@@ -72,7 +72,7 @@ GET /cuentas/{msisdn}/estado
 
 | Operación demo | Operación real esperada |
 |----------------|-------------------------|
-| Crear ticket JSC-xxxx local | POST ticket en sistema NOC imowi |
+| Crear ticket JSC-xxxx local | POST ticket en sistema NOC |
 | Timeline `paso_operativo` | Comentarios / audit log en ticket externo |
 | Notificación consola | Email / webhook / cola NOC |
 | Update estado N1/N2 | PATCH estado + proveedor + SLA |
@@ -105,7 +105,7 @@ GET /cuentas/{msisdn}/estado
 
 | Demo | Producción |
 |------|------------|
-| KB tenant en SQLite + RAG Markdown global | KB curada por cooperativa + artículos imowi |
+| KB tenant en SQLite + RAG Markdown global | KB curada por cooperativa + artículos de plataforma |
 | `Base_de_Conocimiento_Tickets.md` (51k líneas) | Subset indexado por categoría/ticket type |
 
 **Recomendación post-piloto:** indexar solo artículos validados por NOC; desactivar RAG global durante flujo operativo activo (ya implementado parcialmente).
@@ -123,7 +123,7 @@ GET /cuentas/{msisdn}/estado
 
 ## 6. Checklist de readiness integración
 
-Antes de piloto extendido (30–45 días), imowi debe confirmar:
+Antes de piloto extendido (30–45 días), el equipo debe confirmar:
 
 - [ ] Acceso API JSC (sandbox o export)
 - [ ] Campo `estado_cuenta` confiable o API contable

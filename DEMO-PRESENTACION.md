@@ -1,4 +1,4 @@
-# imowi Operations Hub — Guía de presentación (10 min)
+# Operations Hub — Guía de presentación (10 min)
 
 ## Mensaje central
 
@@ -10,7 +10,7 @@
 
 | Usuario | Contraseña | Perfil |
 |---------|------------|--------|
-| `admin` | `admin` | NOC imowi — ve todas las cooperativas |
+| `admin` | `admin` | Administrador NOC — ve todas las cooperativas |
 | `batan` | `batan` | Operador Cooperativa Batán |
 | `viamonte` | `viamonte` | Operador Cooperativa Viamonte |
 
@@ -40,7 +40,7 @@
    ```
 2. El agente marca **estado cuenta: Deuda** y sugiere verificar contable antes de red.
 
-### 3. NOC imowi — vista global (2 min)
+### 3. Administrador NOC — vista global (2 min)
 
 1. Salir → Login **admin / admin**
 2. Selector **Vista cooperativa** → cambiar entre Batán y Viamonte
@@ -73,5 +73,5 @@
 ## Frases para stakeholders
 
 - *"JSC sigue siendo el sistema maestro; nosotros aceleramos la operación."*
-- *"Las cooperativas revenden con su marca; imowi conserva el control del NOC."*
+- *"Las cooperativas revenden con su marca; el NOC central conserva el control operativo."*
 - *"Los agentes no reemplazan al operador: ejecutan playbooks auditados."*

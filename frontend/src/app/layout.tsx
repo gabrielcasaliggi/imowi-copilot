@@ -3,7 +3,7 @@ import { Providers } from "@/components/layout/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "imowi Operations Hub",
+  title: "Operations Hub",
   description: "Consola operativa multitenant para soporte, NOC y gestión OSS/BSS",
 };
 

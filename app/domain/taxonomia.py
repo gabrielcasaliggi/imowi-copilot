@@ -54,7 +54,7 @@ PROVEEDORES: dict[str, str] = {
     "carrier": "Carrier principal (MNO)",
     "fabricante_sim": "Fabricante SIM / eSIM",
     "plataforma": "Plataforma OSS/BSS",
-    "imowi_noc": "NOC imowi",
+    "imowi_noc": "NOC",
     "cooperativa": "Cooperativa / revendedor",
 }
 

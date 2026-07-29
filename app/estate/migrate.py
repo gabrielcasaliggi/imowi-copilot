@@ -6,7 +6,7 @@ import logging
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-logger = logging.getLogger("imowi")
+logger = logging.getLogger("operations_hub")
 
 _TICKET_COLUMNS: dict[str, str] = {
     "nivel": "VARCHAR(16) DEFAULT 'N1'",

@@ -1,4 +1,4 @@
-"""Escenarios precargados para validación con imowi — guion operativo reproducible."""
+"""Escenarios precargados para validación operativa — guion operativo reproducible."""
 
 from __future__ import annotations
 

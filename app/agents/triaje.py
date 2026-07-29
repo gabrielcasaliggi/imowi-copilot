@@ -122,7 +122,7 @@ async def generar_respuesta_chat(
         )
     )
     sys = (
-        "Sos el Agente de Triaje del NOC (imowi / cooperativa). "
+        "Sos el Agente de Triaje del NOC (plataforma / cooperativa). "
         "Tono: profesional, directo, español rioplatense. "
         f"{tono} "
         "Evitá muletillas y arranques repetidos: no empieces con 'Entiendo que', "

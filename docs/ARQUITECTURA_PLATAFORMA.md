@@ -87,7 +87,7 @@ El frontend Next.js consume **solo v3** (`frontend/src/lib/api-client.ts`).
 | Nivel | Rol | Acción del bot |
 |-------|-----|----------------|
 | **N1** | Cooperativas revendedoras | Guiar con KB; ticket N1 si no alcanza |
-| **N2** | NOC imowi | Ticket interno tras persistencia post-N1 o escalamiento directo |
+| **N2** | NOC | Ticket interno tras persistencia post-N1 o escalamiento directo |
 
 Demo: sin ticketera externa. Proveedor sugerido queda en ticket N2 local.
 

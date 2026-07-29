@@ -52,7 +52,7 @@ STOPWORDS = frozenset(
 
 TERMINOS_TECNICOS = frozenset(
     """
-    esim esims roaming apn lte 5g imsi sms a2p jsc noc imowi sim iphone android
+    esim esims roaming apn lte 5g imsi sms a2p jsc noc sim iphone android
     datos llamadas cobertura volte imei eid movistar personal claro catel
     """.split()
 )
@@ -430,7 +430,7 @@ def formatear_modo_escalamiento() -> str:
 ═══ MODO FILTRO E HIGIENE — SIN COINCIDENCIA EN BASE DE CONOCIMIENTO ═══
 No se encontró un procedimiento aplicable en el historial de tickets cargado.
 DEBÉS:
-1. Avisar con empatía que el caso se escalará al NOC de imowi (no podés resolverlo con la KB).
+1. Avisar con empatía que el caso se escalará al NOC (no podés resolverlo con la KB).
 2. Exigir estrictamente los datos obligatorios que falten: Línea, Dispositivo, Descripción de falla
    (y Cooperativa si no la tenés).
 3. Cuando los datos estén completos: generá ticket al NOC y cerrá la conversación.

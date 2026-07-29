@@ -1,7 +1,7 @@
-const TOKEN_KEY = "imowi_token";
-const SESSION_KEY = "imowi_session";
-const TENANT_KEY = "imowi_tenant";
-const HIST_PREFIX = "imowi_hist_";
+const TOKEN_KEY = "ops_hub_token";
+const SESSION_KEY = "ops_hub_session";
+const TENANT_KEY = "ops_hub_tenant";
+const HIST_PREFIX = "ops_hub_hist_";
 
 export interface StoredChatMessage {
   rol: "usuario" | "asistente";

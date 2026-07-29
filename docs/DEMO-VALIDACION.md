@@ -1,6 +1,6 @@
-# Modo demo validación — imowi
+# Modo demo validación
 
-Sesión estructurada para que operadores y NOC de imowi evalúen el copilot con **3 escenarios reproducibles**, guion paso a paso y checklist de feedback.
+Sesión estructurada para que operadores y NOC evalúen el copilot con **3 escenarios reproducibles**, guion paso a paso y checklist de feedback.
 
 **Piloto operativo:** ver [PILOTO-IMOWI.md](./PILOTO-IMOWI.md) (Go/No-Go, métricas, roles).  
 **Integración post-piloto:** ver [INTEGRACION_PILOTO.md](./INTEGRACION_PILOTO.md).
@@ -20,7 +20,7 @@ Sesión estructurada para que operadores y NOC de imowi evalúen el copilot con 
 
 ## Panel en consola
 
-En el sidebar derecho aparece **Validación imowi** y **Estado del piloto**:
+En el sidebar derecho aparece **Validación operativa** y **Estado del piloto**:
 
 - **Iniciar** — limpia la sesión de chat y envía el mensaje inicial del escenario.
 - **Guion** — despliega los turnos que el operador debe escribir y qué esperar.
@@ -86,7 +86,7 @@ También podés resetear por CLI:
 
 ---
 
-## Checklist feedback imowi
+## Checklist feedback
 
 Marcar por escenario y al cierre de la sesión:
 

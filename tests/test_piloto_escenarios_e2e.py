@@ -1,4 +1,4 @@
-"""Tests E2E de los 3 escenarios del piloto operativo imowi."""
+"""Tests E2E de los 3 escenarios del piloto operativo."""
 
 from app.domain.demo_validacion import listar_escenarios_demo
 from app.services.motor_conversacional import procesar_turno_conversacional

@@ -62,7 +62,7 @@ Función: `mapear_ticket_a_jsc(ticket, org_nombre) -> TicketJSCPayload`.
 
 ---
 
-## Información a solicitar a imowi
+## Información a solicitar al equipo
 
 Checklist para reunión de integración:
 
@@ -113,7 +113,7 @@ JSC_WRITE_MODE=off|sandbox|production
 JSC_SYNC_INTERVAL_MINUTES=60
 ```
 
-Variables documentadas; implementación HTTP pendiente de contrato real de imowi.
+Variables documentadas; implementación HTTP pendiente de contrato real del equipo.
 
 ---
 
@@ -133,5 +133,5 @@ Variables documentadas; implementación HTTP pendiente de contrato real de imowi
 
 1. Piloto Go según [PILOTO-IMOWI.md](./PILOTO-IMOWI.md)
 2. Acceso sandbox JSC con MSISDN de prueba
-3. Documentación API de imowi con ejemplos
+3. Documentación API del proveedor con ejemplos
 4. Acuerdo de campos obligatorios para ticket N1

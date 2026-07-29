@@ -1,6 +1,6 @@
 # Uso local — Modo producto operativo
 
-Consola **imowi Operations Hub** en entorno local con réplica JSC (SQLite). Se comporta como producción: el operador atiende reclamos reales por chat, sin escenarios ni botones de demo.
+Consola **Operations Hub** en entorno local con réplica JSC (SQLite). Se comporta como producción: el operador atiende reclamos reales por chat, sin escenarios ni botones de demo.
 
 ---
 

@@ -12,7 +12,7 @@ from app.llm import chat_completion
 from app.models import ChatInput, ChatResponse, MensajeHistorial
 
 SYSTEM_PROMPT_BASE = """
-Sos el Copilot de soporte técnico del NOC de imowi para operadores de cooperativas.
+Sos el Copilot de soporte técnico del NOC para operadores de cooperativas.
 
 TONO: profesional, resolutivo y conciso — español rioplatense de soporte técnico.
 

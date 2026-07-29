@@ -34,7 +34,7 @@ class DemoEventoRequest(BaseModel):
 def get_escenarios_demo(
     ctx: TenantContext = Depends(get_tenant_context),
 ):
-    """Escenarios precargados para sesión de validación con imowi."""
+    """Escenarios precargados para sesión de validación operativa."""
     return {
         "tenant": ctx.organizacion_slug,
         "escenarios": listar_escenarios_demo(),
@@ -58,7 +58,7 @@ def get_metricas_piloto(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    """Resumen de eventos del piloto operativo para revisión con imowi."""
+    """Resumen de eventos del piloto operativo para revisión del piloto."""
     return {
         "tenant": ctx.organizacion_slug,
         "metricas": piloto_metricas.resumen_metricas_piloto(db, ctx.organizacion_id),

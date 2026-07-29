@@ -218,7 +218,7 @@ class AuditEvent(Base):
 
 
 class PilotEvent(Base):
-    """Eventos de telemetría del piloto operativo imowi."""
+    """Eventos de telemetría del piloto operativo."""
 
     __tablename__ = "pilot_events"
 

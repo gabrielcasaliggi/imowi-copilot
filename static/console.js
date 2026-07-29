@@ -1,9 +1,9 @@
 /**
- * imowi Operations Hub — demo presentación
+ * Operations Hub — demo presentación
  */
 (function () {
   const API = (window.IMOWI_API_URL || window.location.origin).replace(/\/$/, '');
-  const TOKEN_KEY = 'imowi_token';
+  const TOKEN_KEY = 'ops_hub_token';
 
   const state = {
     token: localStorage.getItem(TOKEN_KEY) || '',
@@ -25,7 +25,7 @@
     kb: [],
     traces: [],
     sending: false,
-    sessionId: localStorage.getItem('imowi_session') || '',
+    sessionId: localStorage.getItem('ops_hub_session') || '',
     estadoConversacion: null,
   };
 
@@ -93,7 +93,7 @@
     $('logoMark').textContent = state.logoLabel;
     $('logoMark').style.background = `linear-gradient(135deg, ${state.brandColor}, #3b82f6)`;
     $('orgTitle').textContent = state.orgName;
-    const rolLabel = isAdmin() ? 'NOC imowi' : state.usuario?.nombre || '';
+    const rolLabel = isAdmin() ? 'NOC' : state.usuario?.nombre || '';
     $('userBadge').textContent = `${rolLabel} · ${ctx.rol || state.rol}`;
   }
 
@@ -139,7 +139,7 @@
     state.sessionId = '';
     state.estadoConversacion = null;
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem('imowi_session');
+    localStorage.removeItem('ops_hub_session');
     showApp(false);
   }
 
@@ -174,7 +174,7 @@
   function ensureSessionId() {
     if (!state.sessionId) {
       state.sessionId = (crypto.randomUUID && crypto.randomUUID()) || `s-${Date.now()}`;
-      localStorage.setItem('imowi_session', state.sessionId);
+      localStorage.setItem('ops_hub_session', state.sessionId);
     }
     return state.sessionId;
   }
@@ -586,7 +586,7 @@
       renderChat();
       renderTicketFormacion();
       await refreshData();
-      appendTrace([`🔀 Vista NOC imowi → ${state.orgName}`]);
+      appendTrace([`🔀 Vista NOC → ${state.orgName}`]);
     };
   }
 
