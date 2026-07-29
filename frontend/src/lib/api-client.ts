@@ -13,6 +13,7 @@ import type {
   MeResponse,
   Organization,
   PilotMetricas,
+  PlatformSettingsResponse,
   StatsResponse,
   TelemetryElement,
   TenantContext,
@@ -448,4 +449,145 @@ export const api = {
   adminAudit(limit = 20) {
     return request<{ eventos: AuditEvent[] }>(`/api/v1/admin/audit?limit=${limit}`);
   },
+
+  adminSettings() {
+    return request<PlatformSettingsResponse>("/api/v1/admin/settings");
+  },
+
+  updateAdminSettings(settings: Record<string, unknown>) {
+    return request<PlatformSettingsResponse>("/api/v1/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    });
+  },
+
+  testAdminAi() {
+    return request<{ ok: boolean; model?: string; base_url?: string; reply?: string; error?: string }>(
+      "/api/v1/admin/settings/test-ai",
+      { method: "POST" },
+    );
+  },
+
+  testAdminWhatsapp() {
+    return request<{
+      ok: boolean;
+      phone_number_id_set?: boolean;
+      token_set?: boolean;
+      verify_token?: string;
+      default_org_slug?: string;
+      nota?: string;
+    }>("/api/v1/admin/settings/test-whatsapp", { method: "POST" });
+  },
+
+  inboxConversations(
+    params?: { estado?: string; mias?: boolean },
+    tenantSlug?: string,
+  ) {
+    const qs = new URLSearchParams();
+    if (params?.estado) qs.set("estado", params.estado);
+    if (params?.mias) qs.set("mias", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<{
+      tenant: string;
+      conversaciones: InboxConversation[];
+    }>(`/api/v1/inbox/conversations${suffix}`, { tenantSlug });
+  },
+
+  inboxConversation(id: string, tenantSlug?: string) {
+    return request<{
+      tenant: string;
+      conversacion: InboxConversation;
+      mensajes: InboxMessage[];
+    }>(`/api/v1/inbox/conversations/${id}`, { tenantSlug });
+  },
+
+  inboxClaim(id: string, tenantSlug?: string) {
+    return request<{ status: string; conversacion: InboxConversation }>(
+      `/api/v1/inbox/conversations/${id}/claim`,
+      { method: "POST", tenantSlug },
+    );
+  },
+
+  inboxRelease(id: string, tenantSlug?: string) {
+    return request<{ status: string; conversacion: InboxConversation }>(
+      `/api/v1/inbox/conversations/${id}/release`,
+      { method: "POST", tenantSlug },
+    );
+  },
+
+  inboxSend(id: string, texto: string, tenantSlug?: string) {
+    return request<{ status: string; mensaje: InboxMessage }>(
+      `/api/v1/inbox/conversations/${id}/messages`,
+      { method: "POST", body: JSON.stringify({ texto }), tenantSlug },
+    );
+  },
+
+  inboxClose(id: string, tenantSlug?: string) {
+    return request<{ status: string; conversacion: InboxConversation }>(
+      `/api/v1/inbox/conversations/${id}/close`,
+      { method: "POST", tenantSlug },
+    );
+  },
+
+  inboxSimulate(
+    body: { telefono: string; texto: string; usar_llama?: boolean },
+    tenantSlug?: string,
+  ) {
+    return request<{
+      ok: boolean;
+      conversacion_id?: string;
+      respuesta?: string;
+      estado?: string;
+      ticket_id?: string;
+      modo?: string;
+    }>("/api/v1/inbox/simulate", {
+      method: "POST",
+      body: JSON.stringify(body),
+      tenantSlug,
+    });
+  },
+
+  inboxAbonados(tenantSlug?: string) {
+    return request<{ tenant: string; abonados: InboxAbonado[] }>("/api/v1/inbox/abonados", {
+      tenantSlug,
+    });
+  },
 };
+
+export interface InboxAbonado {
+  id: string;
+  dni: string;
+  telefono_e164: string;
+  nombre: string;
+  servicio: string;
+  estado: string;
+  deuda_monto: string;
+  plan: string;
+  linea_msisdn: string;
+}
+
+export interface InboxConversation {
+  id: string;
+  canal: string;
+  wa_id: string;
+  telefono: string;
+  abonado_id: string;
+  abonado?: InboxAbonado | null;
+  estado: string;
+  agente_id: string;
+  session_id: string;
+  servicio_detectado: string;
+  ticket_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InboxMessage {
+  id: string;
+  conversacion_id: string;
+  direccion: string;
+  autor: string;
+  texto: string;
+  meta_message_id: string;
+  created_at: string;
+}

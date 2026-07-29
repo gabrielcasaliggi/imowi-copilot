@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from app.estate.models import Abonado, KnowledgeArticle, LineaJSC, NetworkElement, Organization, User
+from app.estate.security import hash_password
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
-from app.estate.models import KnowledgeArticle, LineaJSC, NetworkElement, Organization, User
-from app.estate.security import hash_password
 
 
 def _org(db: Session, slug: str) -> Organization | None:
@@ -121,3 +120,110 @@ def seed_lineas_jsc(db: Session) -> dict:
     db.add_all(lineas)
     db.commit()
     return {"seeded": True, "lineas": len(lineas)}
+
+
+def seed_abonados(db: Session) -> dict:
+    """Abonados demo Ecolan / móvil para canal WhatsApp (idempotente)."""
+    if db.scalar(select(Abonado).limit(1)):
+        n = db.scalar(select(func.count()).select_from(Abonado))
+        return {"seeded": False, "abonados": n or 0}
+
+    batan = _org(db, "coop-batan")
+    if not batan:
+        return {"seeded": False, "abonados": 0}
+
+    abonados = [
+        Abonado(
+            organizacion_id=batan.id,
+            dni="30111222",
+            telefono_e164="5492235551234",
+            nombre="María González",
+            servicio="ambos",
+            estado="activo",
+            deuda_monto="0",
+            plan="Ecolan 50Mb + Móvil 5GB",
+            linea_msisdn="2235551234",
+        ),
+        Abonado(
+            organizacion_id=batan.id,
+            dni="28555666",
+            telefono_e164="5492235555678",
+            nombre="Carlos Pérez",
+            servicio="internet",
+            estado="activo",
+            deuda_monto="0",
+            plan="Ecolan 100Mb",
+            linea_msisdn="",
+        ),
+        Abonado(
+            organizacion_id=batan.id,
+            dni="32123456",
+            telefono_e164="5492235559012",
+            nombre="Ana Ruiz",
+            servicio="movil",
+            estado="corte",
+            deuda_monto="2800",
+            plan="Móvil 3GB",
+            linea_msisdn="2235559012",
+        ),
+        Abonado(
+            organizacion_id=batan.id,
+            dni="27333444",
+            telefono_e164="5492235560001",
+            nombre="Jorge Martínez",
+            servicio="internet",
+            estado="suspendido",
+            deuda_monto="4500",
+            plan="Ecolan 50Mb",
+            linea_msisdn="",
+        ),
+        Abonado(
+            organizacion_id=batan.id,
+            dni="29888777",
+            telefono_e164="5492235560002",
+            nombre="Laura Díaz",
+            servicio="ambos",
+            estado="activo",
+            deuda_monto="0",
+            plan="Ecolan 100Mb + Móvil 15GB",
+            linea_msisdn="2235560002",
+        ),
+        Abonado(
+            organizacion_id=batan.id,
+            dni="26444555",
+            telefono_e164="5492235560099",
+            nombre="Pedro Ecolan",
+            servicio="internet",
+            estado="activo",
+            deuda_monto="0",
+            plan="Ecolan 30Mb",
+            linea_msisdn="",
+        ),
+    ]
+    db.add_all(abonados)
+
+    # KB internet Ecolan
+    kb_extra = [
+        KnowledgeArticle(
+            organizacion_id=batan.id,
+            titulo="Ecolan — sin internet en casa",
+            categoria="Internet",
+            contenido=(
+                "N1 Ecolan: 1) Reiniciar módem 30s. 2) Probar cable vs WiFi. "
+                "3) Verificar luces del módem. 4) Si hay deuda/corte, informar medios de pago. "
+                "5) Persistencia → ticket N2."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=batan.id,
+            titulo="Corte por deuda — rehabilitación",
+            categoria="Facturación",
+            contenido=(
+                "Si el abonado tiene estado corte/suspendido, indicar regularización de saldo. "
+                "La rehabilitación es automática tras acreditación. No reiniciar equipos hasta regularizar."
+            ),
+        ),
+    ]
+    db.add_all(kb_extra)
+    db.commit()
+    return {"seeded": True, "abonados": len(abonados)}

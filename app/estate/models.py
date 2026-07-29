@@ -35,6 +35,8 @@ class Organization(Base):
     ticket_events: Mapped[list["TicketEvent"]] = relationship(back_populates="organizacion")
     ticket_notifications: Mapped[list["TicketNotification"]] = relationship(back_populates="organizacion")
     casos_conversacion: Mapped[list["CasoConversacion"]] = relationship(back_populates="organizacion")
+    abonados: Mapped[list["Abonado"]] = relationship(back_populates="organizacion")
+    conversaciones_canal: Mapped[list["ConversacionCanal"]] = relationship(back_populates="organizacion")
 
 
 class User(Base):
@@ -215,6 +217,80 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped["Organization"] = relationship()
+
+
+class Abonado(Base):
+    """Abonado cooperativa (internet / móvil) para canal WhatsApp y N1."""
+
+    __tablename__ = "abonados"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    dni: Mapped[str] = mapped_column(String(20), default="", index=True)
+    telefono_e164: Mapped[str] = mapped_column(String(20), default="", index=True)
+    nombre: Mapped[str] = mapped_column(String(120), default="")
+    servicio: Mapped[str] = mapped_column(String(20), default="internet")  # internet|movil|ambos
+    estado: Mapped[str] = mapped_column(String(32), default="activo")  # activo|corte|suspendido
+    deuda_monto: Mapped[str] = mapped_column(String(40), default="0")
+    plan: Mapped[str] = mapped_column(String(80), default="")
+    linea_msisdn: Mapped[str] = mapped_column(String(16), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    organizacion: Mapped["Organization"] = relationship(back_populates="abonados")
+
+
+class ConversacionCanal(Base):
+    """Hilo WhatsApp / simulador para inbox de agentes."""
+
+    __tablename__ = "conversaciones_canal"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    canal: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp|simulate
+    wa_id: Mapped[str] = mapped_column(String(40), default="", index=True)
+    telefono: Mapped[str] = mapped_column(String(20), default="", index=True)
+    abonado_id: Mapped[str] = mapped_column(String(36), default="", index=True)
+    estado: Mapped[str] = mapped_column(String(24), default="bot", index=True)  # bot|espera_agente|con_agente|cerrado
+    agente_id: Mapped[str] = mapped_column(String(120), default="")
+    session_id: Mapped[str] = mapped_column(String(80), default="", index=True)
+    servicio_detectado: Mapped[str] = mapped_column(String(20), default="")
+    ticket_id: Mapped[str] = mapped_column(String(32), default="")
+    contexto_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    organizacion: Mapped["Organization"] = relationship(back_populates="conversaciones_canal")
+    mensajes: Mapped[list["MensajeCanal"]] = relationship(
+        back_populates="conversacion", cascade="all, delete-orphan"
+    )
+
+
+class MensajeCanal(Base):
+    """Mensaje de un hilo de canal (cliente / bot / agente)."""
+
+    __tablename__ = "mensajes_canal"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    conversacion_id: Mapped[str] = mapped_column(ForeignKey("conversaciones_canal.id"), index=True)
+    direccion: Mapped[str] = mapped_column(String(8), default="in")  # in|out
+    autor: Mapped[str] = mapped_column(String(16), default="cliente")  # cliente|bot|agente
+    texto: Mapped[str] = mapped_column(Text, default="")
+    meta_message_id: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    conversacion: Mapped["ConversacionCanal"] = relationship(back_populates="mensajes")
+
+
+class PlatformConfig(Base):
+    """Configuración de plataforma editable por admin (IA, WhatsApp, KB, playbooks)."""
+
+    __tablename__ = "platform_config"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default="default")
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    updated_by: Mapped[str] = mapped_column(String(120), default="")
 
 
 class PilotEvent(Base):

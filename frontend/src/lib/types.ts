@@ -48,6 +48,31 @@ export interface AuditEvent {
   created_at: string;
 }
 
+export interface PlatformSettingsResponse {
+  ai_configured: boolean;
+  whatsapp_configured: boolean;
+  database_driver: string;
+  database_url_masked: string;
+  updated_at?: string | null;
+  updated_by?: string;
+  settings: {
+    ai?: { base_url?: string; api_key?: string; model?: string; api_key_configured?: boolean };
+    whatsapp?: {
+      token?: string;
+      phone_number_id?: string;
+      verify_token?: string;
+      app_secret?: string;
+      default_org_slug?: string;
+      token_configured?: boolean;
+      app_secret_configured?: boolean;
+    };
+    database?: { url?: string; sslmode?: string; nota?: string; url_configured?: boolean };
+    knowledge?: { min_score?: number; top_k?: number; max_fragment_chars?: number };
+    canal?: { usar_llama_default?: boolean };
+    playbooks?: Record<string, { id: string; pregunta: string }[]>;
+  };
+}
+
 export interface ImportCsvResult {
   status: string;
   slug: string;

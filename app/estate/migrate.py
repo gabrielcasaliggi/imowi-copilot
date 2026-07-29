@@ -95,4 +95,16 @@ def migrate_schema(engine: Engine) -> list[str]:
                 cambios.append(f"users.{col}")
                 logger.info("Migración: columna agregada users.%s", col)
 
+    for tabla, model_name in (
+        ("abonados", "Abonado"),
+        ("conversaciones_canal", "ConversacionCanal"),
+        ("mensajes_canal", "MensajeCanal"),
+    ):
+        if not insp.has_table(tabla):
+            from app.estate import models as m
+
+            getattr(m, model_name).__table__.create(bind=engine)
+            cambios.append(tabla)
+            logger.info("Migración: tabla creada %s", tabla)
+
     return cambios

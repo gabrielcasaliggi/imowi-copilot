@@ -70,6 +70,14 @@ DATABASE_SSLMODE = os.getenv("DATABASE_SSLMODE", "require")
 KNOWLEDGE_MAX_FRAGMENT_CHARS = int(os.getenv("KNOWLEDGE_MAX_FRAGMENT_CHARS", "1800"))
 KNOWLEDGE_MAX_SYSTEM_TOKENS = int(os.getenv("KNOWLEDGE_MAX_SYSTEM_TOKENS", "4500"))
 
+# WhatsApp Cloud API (Meta)
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "").strip()
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip()
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "ops-hub-wa-verify").strip()
+WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "").strip()
+# Org por defecto para webhook (slug cooperativa)
+WHATSAPP_DEFAULT_ORG_SLUG = os.getenv("WHATSAPP_DEFAULT_ORG_SLUG", "coop-batan").strip()
+
 ESTADOS_TICKET_VALIDOS = ("Abierto", "En Revisión", "Cerrado")
 
 _DEFAULT_MOCK_USERS = {

@@ -1,4 +1,4 @@
-"""Cliente LLM compatible OpenAI (Ollama / Groq / Gemini)."""
+"""Cliente LLM compatible OpenAI (Ollama / Groq / Gemini / Llama)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,19 @@ from fastapi import HTTPException
 
 from app.config import AI_API_KEY, AI_BASE_URL, AI_MODEL
 
-_client = OpenAI(base_url=AI_BASE_URL, api_key=AI_API_KEY)
+
+def _resolve_ai_runtime() -> dict[str, str]:
+    try:
+        from app.estate.database import get_session_factory
+        from app.services.platform_settings import resolve_ai
+
+        db = get_session_factory()()
+        try:
+            return resolve_ai(db)
+        finally:
+            db.close()
+    except Exception:
+        return {"base_url": AI_BASE_URL, "api_key": AI_API_KEY, "model": AI_MODEL}
 
 
 def chat_completion(
@@ -16,11 +28,13 @@ def chat_completion(
     temperature: float = 0.2,
     json_mode: bool = False,
 ) -> str:
+    cfg = _resolve_ai_runtime()
+    client = OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"] or "ollama")
     try:
-        kwargs: dict = {"model": AI_MODEL, "messages": messages, "temperature": temperature}
+        kwargs: dict = {"model": cfg["model"], "messages": messages, "temperature": temperature}
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        response = _client.chat.completions.create(**kwargs)
+        response = client.chat.completions.create(**kwargs)
         return response.choices[0].message.content or ""
     except Exception as e:
         raise manejar_error_ia(e) from e

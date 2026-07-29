@@ -9,6 +9,7 @@ const NAV_GROUPS = [
     title: "Operación",
     items: [
       { href: "/soporte", label: "Consola de Soporte", id: "soporte", admin: false },
+      { href: "/inbox", label: "Inbox WhatsApp", id: "inbox", admin: false },
       { href: "/red", label: "Monitor de Red", id: "red", admin: true },
     ],
   },
@@ -28,7 +29,6 @@ const NAV_GROUPS = [
     ],
   },
 ];
-
 export function SidebarNav() {
   const pathname = usePathname();
   const { isAdmin } = useApp();

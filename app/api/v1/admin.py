@@ -209,3 +209,83 @@ def list_audit_events(
             for e in events
         ]
     }
+
+
+@router.get("/admin/settings")
+def get_platform_settings(
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.platform_settings import public_status
+
+    return public_status(db)
+
+
+@router.put("/admin/settings")
+def update_platform_settings(
+    body: dict,
+    admin: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.platform_settings import public_status, save_settings
+
+    patch = body.get("settings") if isinstance(body.get("settings"), dict) else body
+    if not isinstance(patch, dict):
+        raise HTTPException(400, "Body inválido")
+    # Solo secciones conocidas
+    allowed = {"ai", "whatsapp", "database", "knowledge", "canal", "playbooks"}
+    clean = {k: v for k, v in patch.items() if k in allowed}
+    save_settings(db, clean, actor=admin.usuario)
+    org = repo.get_org_by_slug(db, "imowi")
+    log_audit(
+        db,
+        org_id=org.id if org else "",
+        actor=admin.usuario,
+        accion="platform_settings_update",
+        recurso="platform_config",
+        detalle=f"secciones={','.join(sorted(clean.keys()))}",
+    )
+    return public_status(db)
+
+
+@router.post("/admin/settings/test-ai")
+def test_ai_connection(
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.platform_settings import resolve_ai
+
+    cfg = resolve_ai(db)
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"] or "ollama")
+        resp = client.chat.completions.create(
+            model=cfg["model"],
+            messages=[{"role": "user", "content": "Respondé solo: ok"}],
+            temperature=0,
+            max_tokens=8,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        return {"ok": True, "model": cfg["model"], "base_url": cfg["base_url"], "reply": text[:80]}
+    except Exception as e:
+        return {"ok": False, "model": cfg["model"], "base_url": cfg["base_url"], "error": str(e)[:240]}
+
+
+@router.post("/admin/settings/test-whatsapp")
+def test_whatsapp_config(
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.platform_settings import resolve_whatsapp
+    from app.services.whatsapp_client import whatsapp_configurado
+
+    cfg = resolve_whatsapp(db)
+    return {
+        "ok": whatsapp_configurado(),
+        "phone_number_id_set": bool(cfg.get("phone_number_id")),
+        "token_set": bool(cfg.get("token")),
+        "verify_token": cfg.get("verify_token") or "",
+        "default_org_slug": cfg.get("default_org_slug") or "",
+        "nota": "No envía mensaje real; solo valida que token y phone_number_id estén configurados.",
+    }

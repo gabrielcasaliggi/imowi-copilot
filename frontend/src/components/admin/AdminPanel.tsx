@@ -11,6 +11,7 @@ import {
   SidebarSection,
   StatusPill,
 } from "@/components/ui/GlassCard";
+import { PlatformSettingsPanel } from "@/components/admin/PlatformSettingsPanel";
 
 const CSV_EJEMPLO = `nombre,email,telefono,rol,linea_principal
 Operador Batán 1,operador1@coopbatan.com,2235551001,cliente,2235551234
@@ -20,6 +21,7 @@ const inputCls =
   "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
 export function AdminPanel() {
+  const [hubTab, setHubTab] = useState<"cooperativas" | "config">("cooperativas");
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedSlug, setSelectedSlug] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -164,8 +166,33 @@ export function AdminPanel() {
     <div className="admin-hub-page p-4 space-y-6 overflow-y-auto min-h-0">
       <SectionHeader
         title="Admin Hub"
-        subtitle="Gobierno multi-tenant · cooperativas · credenciales seguras · importación CSV · auditoría"
+        subtitle="Gobierno multi-tenant · configuración de plataforma · cooperativas · auditoría"
       />
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setHubTab("cooperativas")}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            hubTab === "cooperativas"
+              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
+          }`}
+        >
+          Cooperativas
+        </button>
+        <button
+          type="button"
+          onClick={() => setHubTab("config")}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            hubTab === "config"
+              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
+          }`}
+        >
+          Configuración plataforma
+        </button>
+      </div>
 
       {message && (
         <p className="text-sm text-cyan-200 border border-cyan-500/25 rounded-xl px-4 py-2.5 bg-cyan-500/8">
@@ -173,7 +200,9 @@ export function AdminPanel() {
         </p>
       )}
 
-      {loading ? (
+      {hubTab === "config" ? (
+        <PlatformSettingsPanel onMessage={setMessage} />
+      ) : loading ? (
         <p className="text-slate-500">Cargando plataforma…</p>
       ) : (
         <>

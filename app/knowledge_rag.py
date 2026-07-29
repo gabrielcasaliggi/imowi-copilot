@@ -16,6 +16,24 @@ from app.config import (
     KNOWLEDGE_TOP_K,
 )
 
+
+def _kb_defaults() -> dict:
+    try:
+        from app.estate.database import get_session_factory
+        from app.services.platform_settings import resolve_knowledge
+
+        db = get_session_factory()()
+        try:
+            return resolve_knowledge(db)
+        finally:
+            db.close()
+    except Exception:
+        return {
+            "min_score": KNOWLEDGE_MIN_SCORE,
+            "top_k": KNOWLEDGE_TOP_K,
+            "max_fragment_chars": KNOWLEDGE_MAX_FRAGMENT_CHARS,
+        }
+
 # ─── Estado global (cargado en startup) ───
 _bloques: list["BloqueConocimiento"] = []
 _indice_invertido: dict[str, set[int]] = {}
@@ -313,8 +331,8 @@ def buscar_contexto(
     if not _cargado or not _bloques:
         return ResultadoBusqueda(encontrado=False, modo="escalamiento")
 
-    min_score = min_score if min_score is not None else KNOWLEDGE_MIN_SCORE
-    top_k = top_k or KNOWLEDGE_TOP_K
+    min_score = min_score if min_score is not None else _kb_defaults()["min_score"]
+    top_k = top_k or _kb_defaults()["top_k"]
     query_tokens = tokenizar(consulta)
 
     if not query_tokens:
@@ -382,7 +400,7 @@ def formatear_contexto_para_prompt(
     if not resultado.encontrado or not resultado.bloque:
         return ""
 
-    max_chars = max_chars or KNOWLEDGE_MAX_FRAGMENT_CHARS
+    max_chars = max_chars or int(_kb_defaults()["max_fragment_chars"])
     query_tokens = tokenizar(consulta) or set(resultado.terminos_coincidentes)
     b = resultado.bloque
 
