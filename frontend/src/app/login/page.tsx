@@ -39,7 +39,7 @@ export default function LoginPage() {
             className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-slate-950"
             style={{ background: "linear-gradient(135deg, var(--brand), #3b82f6)" }}
           >
-            i
+            N
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-100">Operations Hub</h1>
