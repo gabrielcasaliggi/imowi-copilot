@@ -462,9 +462,7 @@ export function StatsDashboard() {
       </div>
       </div>
 
-      {!stats && tab === "operativo" ? (
-        <EmptyState label="Cargando tablero operativo..." />
-      ) : tab === "piloto" ? (
+      {tab === "piloto" ? (
         <div className="space-y-4">
           {!pilot ? (
             <EmptyState label="Sin métricas de piloto para este tenant." />
@@ -522,6 +520,8 @@ export function StatsDashboard() {
             </>
           )}
         </div>
+      ) : !stats ? (
+        <EmptyState label="Cargando tablero operativo..." />
       ) : (
         <>
           <ExecutivePanel data={executive} />
