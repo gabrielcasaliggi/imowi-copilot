@@ -69,6 +69,18 @@ export function InboxPanel() {
     refreshList().catch(() => setConvs([]));
   }, [refreshList]);
 
+  // Sincroniza hilo abierto + cola (mensajes del portal en vivo)
+  useEffect(() => {
+    const tick = () => {
+      void refreshList().catch(() => {});
+      if (selected) {
+        void openConv(selected).catch(() => {});
+      }
+    };
+    const id = window.setInterval(tick, 3000);
+    return () => window.clearInterval(id);
+  }, [selected, refreshList, openConv]);
+
   const onInject = async (e: FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
@@ -115,6 +127,7 @@ export function InboxPanel() {
       await api.inboxSend(selected, reply.trim(), slug);
       setReply("");
       await openConv(selected);
+      await refreshList();
     } finally {
       setBusy(false);
     }
@@ -128,7 +141,7 @@ export function InboxPanel() {
   };
 
   const openConvs = convs.filter((c) => c.estado !== "cerrado");
-            const visible = filtro ? convs : openConvs;
+  const visible = filtro ? convs : openConvs;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">
