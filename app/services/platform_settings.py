@@ -204,9 +204,14 @@ def resolve_playbooks(db: Session | None = None) -> dict[str, list[dict[str, str
 
 
 def playbooks_as_pasos(db: Session | None = None) -> dict[str, list[PasoPlaybook]]:
-    """Playbooks listos para el motor N1 (PasoPlaybook)."""
+    """Playbooks listos para el motor N1 (PasoPlaybook).
+
+    Usa los defaults de código como base. Si en DB hay una versión con los mismos
+    ids de paso, respeta el texto editado por admin. Si la estructura está
+    desactualizada (faltan ids nuevos), se reemplaza por el default.
+    """
     raw = resolve_playbooks(db)
-    out: dict[str, list[PasoPlaybook]] = {}
+    stored: dict[str, list[PasoPlaybook]] = {}
     for nombre, pasos in raw.items():
         converted: list[PasoPlaybook] = []
         for p in pasos or []:
@@ -218,10 +223,17 @@ def playbooks_as_pasos(db: Session | None = None) -> dict[str, list[PasoPlaybook
             elif isinstance(p, PasoPlaybook):
                 converted.append(p)
         if converted:
-            out[nombre] = converted
-    for nombre, pasos in PLAYBOOKS.items():
-        if nombre not in out:
-            out[nombre] = list(pasos)
+            stored[nombre] = converted
+
+    out: dict[str, list[PasoPlaybook]] = {n: list(ps) for n, ps in PLAYBOOKS.items()}
+    for nombre, pasos in stored.items():
+        if nombre not in PLAYBOOKS:
+            out[nombre] = pasos
+            continue
+        default_ids = {p.id for p in PLAYBOOKS[nombre]}
+        stored_ids = {p.id for p in pasos}
+        if default_ids <= stored_ids:
+            out[nombre] = pasos
     return out
 
 

@@ -26,7 +26,7 @@ function saveStored(s: PortalStored | null) {
 }
 
 export default function PortalPage() {
-  const [telefono, setTelefono] = useState("5492235551234");
+  const [telefono, setTelefono] = useState("");
   const [dni, setDni] = useState("");
   const [token, setToken] = useState("");
   const [conv, setConv] = useState<InboxConversation | null>(null);
@@ -34,6 +34,7 @@ export default function PortalPage() {
   const [texto, setTexto] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [modoInvitado, setModoInvitado] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const applyPayload = useCallback(
@@ -89,6 +90,7 @@ export default function PortalPage() {
         dni: dni.trim() || undefined,
         org_slug: "coop-batan",
       });
+      setModoInvitado(Boolean(res.modo_invitado) || !res.abonado_identificado);
       applyPayload(res.conversacion, res.mensajes || [], res.portal_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar");
@@ -122,6 +124,7 @@ export default function PortalPage() {
     setConv(null);
     setMensajes([]);
     setError("");
+    setModoInvitado(false);
   };
 
   const estadoHint =
@@ -131,7 +134,9 @@ export default function PortalPage() {
         ? "Estás hablando con un agente de Cooperativa Batán."
         : conv?.estado === "cerrado"
           ? "Conversación cerrada. Podés iniciar una nueva."
-          : "Asistente automático N1 · internet Ecolan, móvil y facturación.";
+          : modoInvitado || !conv?.abonado
+            ? "Asistente N1 · modo invitado (padrón aún no conectado)."
+            : "Asistente N1 · internet radio/ADSL, móvil IMOVI y facturación.";
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--background)] text-slate-200">
@@ -165,14 +170,16 @@ export default function PortalPage() {
             className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5 space-y-4 mt-6"
           >
             <div>
-              <h2 className="text-lg font-semibold text-slate-50">Identificate</h2>
+              <h2 className="text-lg font-semibold text-slate-50">Iniciar chat</h2>
               <p className="text-sm text-slate-400 mt-1">
-                Ingresá tu teléfono o DNI para hablar con el asistente. Si hace falta, un agente
-                continúa el chat.
+                Teléfono o DNI son opcionales por ahora. Si no figurás en el padrón demo,
+                igual podés hablar con el asistente.
               </p>
             </div>
             <div>
-              <label className="text-xs font-mono text-slate-500 block mb-1">Teléfono</label>
+              <label className="text-xs font-mono text-slate-500 block mb-1">
+                Teléfono (opcional)
+              </label>
               <input
                 value={telefono}
                 onChange={(e) => setTelefono(e.target.value)}
@@ -199,7 +206,8 @@ export default function PortalPage() {
               {busy ? "Conectando…" : "Iniciar chat"}
             </button>
             <p className="text-[10px] text-slate-600 font-mono">
-              Demo: 5492235551234 / DNI 30111222 (María)
+              Demo identificado: 5492235551234 / DNI 30111222 (María) · o entrá vacío como
+              invitado
             </p>
           </form>
         ) : (
@@ -207,7 +215,8 @@ export default function PortalPage() {
             <div className="flex justify-between items-start gap-2">
               <div>
                 <p className="text-sm text-slate-100">
-                  {conv.abonado?.nombre || "Abonado"} · {conv.telefono}
+                  {conv.abonado?.nombre || (modoInvitado ? "Invitado" : "Abonado")}
+                  {conv.telefono ? ` · ${conv.telefono}` : ""}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">{estadoHint}</p>
               </div>

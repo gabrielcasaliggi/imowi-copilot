@@ -1,4 +1,4 @@
-"""Playbooks N1 para abonado final (internet Ecolan + móvil) — Cooperativa Batán."""
+"""Playbooks N1 — Cooperativa Batán (internet radio/ADSL + móvil IMOVI)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from dataclasses import dataclass
 class PasoPlaybook:
     id: str
     pregunta: str
-    palabras_ok: tuple[str, ...] = ("si", "sí", "ok", "listo", "hecho", "verificado", "ya", "mejoro", "mejoró")
+    palabras_ok: tuple[str, ...] = (
+        "si", "sí", "ok", "listo", "hecho", "verificado", "ya", "mejoro", "mejoró",
+    )
     palabras_fail: tuple[str, ...] = ("no", "sigue", "persiste", "igual", "nada", "falla", "mal")
 
 
@@ -27,30 +29,69 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "¿Necesitás hablar con un agente?",
         ),
     ],
-    "internet": [
+    "internet_radio": [
         PasoPlaybook(
-            "reinicio_modem",
-            "Vamos con internet Ecolan. ¿Podés apagar el módem 30 segundos, encenderlo "
+            "reinicio_cpe",
+            "Internet Ecolan por radio/antena: ¿podés apagar el equipo de radio (CPE) "
+            "y el router 30 segundos, encender primero la radio y después el router, "
             "y decirme si vuelve la conexión?",
         ),
         PasoPlaybook(
-            "luces_modem",
-            "¿Las luces del módem están normales (sin alarma roja fija)? Respondé sí o no.",
+            "led_enlace",
+            "¿El LED de enlace/señal de la radio está fijo (sin parpadeo de alarma)? "
+            "Respondé sí o no.",
         ),
         PasoPlaybook(
-            "wifi_cable",
-            "¿El problema es solo WiFi o también falla si conectás por cable al router?",
+            "linea_vista",
+            "¿La antena tiene vista libre hacia la torre (sin obstáculos nuevos) "
+            "y el cable de alimentación está bien conectado?",
+        ),
+        PasoPlaybook(
+            "wifi_vs_cable",
+            "¿Falla solo el WiFi o también si conectás una PC por cable al router?",
         ),
         PasoPlaybook(
             "zona_vecinos",
-            "¿Solo te pasa a vos o también a vecinos / en otra habitación? "
+            "¿Solo te pasa a vos o también a vecinos de la misma zona? "
             "Si sigue igual, te derivo con un agente.",
+        ),
+    ],
+    "internet_adsl": [
+        PasoPlaybook(
+            "reinicio_modem_adsl",
+            "Internet ADSL (línea telefónica): ¿podés apagar el módem ADSL 30 segundos, "
+            "encenderlo y esperar 2 minutos a que sincronice? ¿Volvió?",
+        ),
+        PasoPlaybook(
+            "luces_adsl",
+            "¿La luz de DSL/Internet del módem quedó fija (sin alarma roja)? Respondé sí o no.",
+        ),
+        PasoPlaybook(
+            "filtro_splitter",
+            "Si tenés teléfono fijo: ¿el filtro/splitter está bien colocado "
+            "y no hay otros aparatos en la misma toma sin filtro?",
+        ),
+        PasoPlaybook(
+            "wifi_vs_cable",
+            "¿El problema es solo WiFi o también falla por cable al módem/router?",
+        ),
+        PasoPlaybook(
+            "persistencia",
+            "Si sigue sin servicio después de estos pasos, te derivo con un agente. "
+            "¿Querés que te pase con alguien?",
+        ),
+    ],
+    "internet": [
+        PasoPlaybook(
+            "tipo_acceso",
+            "Para internet Ecolan: ¿tu servicio es por radio/antena (inalámbrico) "
+            "o por línea telefónica (ADSL)?",
         ),
     ],
     "movil": [
         PasoPlaybook(
-            "reinicio_equipo",
-            "Para el móvil: ¿reiniciaste el teléfono y confirmás si vuelve la señal o los datos?",
+            "reinicio_imovi",
+            "Para móvil IMOVI: ¿reiniciaste el teléfono y confirmás si vuelve la señal o los datos?",
         ),
         PasoPlaybook(
             "modo_avion",
@@ -66,7 +107,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook(
             "menu_servicio",
             "Hola, soy el asistente de Cooperativa Batán. "
-            "¿Tu consulta es por internet Ecolan, móvil, o factura/deuda?",
+            "¿Tu consulta es por internet (radio o ADSL), móvil IMOVI, o factura/deuda?",
         ),
     ],
 }
@@ -79,6 +120,35 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     if any(
         k in t
         for k in (
+            "adsl",
+            "línea telefónica",
+            "linea telefonica",
+            "par de cobre",
+            "modem adsl",
+            "módem adsl",
+            "splitter",
+            "filtro adsl",
+        )
+    ):
+        return "internet_adsl"
+    if any(
+        k in t
+        for k in (
+            "radio",
+            "antena",
+            "cpe",
+            "inalambr",
+            "inalámbr",
+            "torre",
+            "ftth",
+            "wireless",
+            "enlace",
+        )
+    ):
+        return "internet_radio"
+    if any(
+        k in t
+        for k in (
             "wifi",
             "modem",
             "módem",
@@ -88,12 +158,15 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
             "internet fijo",
             "sin internet",
             "no anda internet",
+            "internet",
         )
     ):
         return "internet"
     if any(
         k in t
         for k in (
+            "imovi",
+            "imovu",
             "señal",
             "senal",
             "datos movil",
@@ -104,6 +177,8 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
             "4g",
             "5g",
             "celular",
+            "móvil",
+            "movil",
         )
     ):
         return "movil"
@@ -112,6 +187,16 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     if servicio_abonado == "movil":
         return "movil"
     return "general"
+
+
+def refinar_intencion_internet(texto: str) -> str | None:
+    """Tras preguntar radio vs ADSL, afina el playbook."""
+    t = (texto or "").lower()
+    if any(k in t for k in ("adsl", "línea", "linea", "telefono", "teléfono", "cobre", "splitter")):
+        return "internet_adsl"
+    if any(k in t for k in ("radio", "antena", "cpe", "inalambr", "inalámbr", "torre", "wireless", "enlace")):
+        return "internet_radio"
+    return None
 
 
 def respuesta_paso_ok(texto: str) -> bool | None:

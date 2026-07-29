@@ -17,7 +17,11 @@ def _now():
 
 
 def normalizar_telefono(raw: str) -> str:
-    digitos = re.sub(r"\D", "", raw or "")
+    s = (raw or "").strip()
+    # IDs sintéticos del portal (invitado) — no strippear letras
+    if s.startswith("guest"):
+        return s
+    digitos = re.sub(r"\D", "", s)
     if digitos.startswith("54") and len(digitos) >= 12:
         return digitos
     if len(digitos) == 10:

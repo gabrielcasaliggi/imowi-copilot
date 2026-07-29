@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.domain.flujos_abonado import (
     clasificar_intencion,
     pide_humano,
+    refinar_intencion_internet,
     respuesta_paso_ok,
 )
 from app.estate import canal_repo as crepo
@@ -180,65 +181,7 @@ def procesar_mensaje_entrante(
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
 
-    # Identificación
-    if not abonado:
-        dni = _extraer_dni(texto)
-        if dni:
-            abonado = crepo.find_abonado_por_dni(db, org_id, dni)
-        if not abonado:
-            if not ctx.get("pidio_dni"):
-                ctx["pidio_dni"] = True
-                crepo.set_contexto(conv, ctx)
-                db.commit()
-                resp = (
-                    "Hola, soy el asistente de Cooperativa Batán. "
-                    "Para identificarte, enviame tu DNI (solo números)."
-                )
-                if usar_llama:
-                    resp = _redactar_con_llama(resp, f"tel={conv.telefono}")
-                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
-                return {
-                    "ok": True,
-                    "modo": "bot",
-                    "conversacion_id": conv.id,
-                    "respuesta": resp,
-                    "estado": conv.estado,
-                }
-            resp = "No encontré ese DNI. Verificá el número o escribí *agente* para hablar con una persona."
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-            }
-
-    conv.abonado_id = abonado.id
-    if not ctx.get("saludo"):
-        ctx["saludo"] = True
-        crepo.set_contexto(conv, ctx)
-        db.commit()
-        saludo = (
-            f"Hola {abonado.nombre.split()[0]}, te identifiqué correctamente. "
-            f"Servicio: {abonado.servicio} · plan {abonado.plan or 'N/A'} · estado {abonado.estado}. "
-            "¿En qué te puedo ayudar?"
-        )
-        if usar_llama:
-            saludo = _redactar_con_llama(
-                saludo,
-                f"abonado={abonado.nombre} estado={abonado.estado} deuda={abonado.deuda_monto}",
-            )
-        _enviar_respuesta(db, org_id, conv, saludo, enviar_wa=(canal == "whatsapp"))
-        return {
-            "ok": True,
-            "modo": "bot",
-            "conversacion_id": conv.id,
-            "respuesta": saludo,
-            "estado": conv.estado,
-            "abonado": crepo.abonado_to_dict(abonado),
-        }
-
+    # Pedir agente tiene prioridad absoluta (también sin estar identificado)
     if pide_humano(texto):
         tid = _crear_ticket_n2(db, org_id, conv, abonado, "Cliente solicitó agente humano")
         resp = (
@@ -255,22 +198,106 @@ def procesar_mensaje_entrante(
             "ticket_id": tid,
         }
 
+    # Identificación — portal/web continúa como invitado si no hay match
+    if not abonado:
+        dni = _extraer_dni(texto)
+        if dni:
+            abonado = crepo.find_abonado_por_dni(db, org_id, dni)
+
+        if not abonado:
+            # WhatsApp: pedir DNI una sola vez; después seguir como invitado
+            if canal != "web" and not ctx.get("pidio_dni") and not ctx.get("invitado"):
+                ctx["pidio_dni"] = True
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                resp = (
+                    "Hola, soy el asistente de Cooperativa Batán. "
+                    "Para identificarte, enviame tu DNI (solo números). "
+                    "Si preferís, escribí *agente*."
+                )
+                if usar_llama:
+                    resp = _redactar_con_llama(resp, f"tel={conv.telefono}")
+                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                }
+
+            if not ctx.get("invitado"):
+                ctx["invitado"] = True
+                if dni:
+                    ctx["dni_intentado"] = dni
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+
+            if dni and not ctx.get("aviso_invitado"):
+                ctx["aviso_invitado"] = True
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                resp = (
+                    "No figurás todavía en el padrón local. Igual te atiendo: "
+                    "¿tu consulta es por internet (radio o ADSL), móvil IMOVI, o factura/deuda?"
+                )
+                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                }
+
+    if abonado:
+        conv.abonado_id = abonado.id
+        if not ctx.get("saludo"):
+            ctx["saludo"] = True
+            ctx.pop("invitado", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            saludo = (
+                f"Hola {abonado.nombre.split()[0]}, te identifiqué correctamente. "
+                f"Servicio: {abonado.servicio} · plan {abonado.plan or 'N/A'} · estado {abonado.estado}. "
+                "¿En qué te puedo ayudar?"
+            )
+            if usar_llama:
+                saludo = _redactar_con_llama(
+                    saludo,
+                    f"abonado={abonado.nombre} estado={abonado.estado} deuda={abonado.deuda_monto}",
+                )
+            _enviar_respuesta(db, org_id, conv, saludo, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": saludo,
+                "estado": conv.estado,
+                "abonado": crepo.abonado_to_dict(abonado),
+            }
+
     # Corte por deuda automático si aplica
     intencion = ctx.get("intencion") or ""
+    servicio_abo = abonado.servicio if abonado else ""
     if not intencion:
-        if _deuda_positiva(abonado) or abonado.estado in ("corte", "suspendido"):
+        if abonado and (_deuda_positiva(abonado) or abonado.estado in ("corte", "suspendido")):
             intencion = "corte_deuda"
         else:
-            intencion = clasificar_intencion(texto, abonado.servicio)
+            intencion = clasificar_intencion(texto, servicio_abo)
         ctx["intencion"] = intencion
         ctx["paso_idx"] = 0
-        conv.servicio_detectado = intencion if intencion in ("internet", "movil") else abonado.servicio
+        conv.servicio_detectado = (
+            intencion
+            if intencion in ("internet", "internet_radio", "internet_adsl", "movil")
+            else (servicio_abo or intencion)
+        )
         crepo.set_contexto(conv, ctx)
         db.commit()
         pb = _playbooks(db)
         pasos = pb.get(intencion) or pb["general"]
         pregunta = pasos[0].pregunta
-        if intencion == "corte_deuda":
+        if intencion == "corte_deuda" and abonado:
             pregunta = (
                 f"Tu cuenta figura con estado «{abonado.estado}» "
                 f"y saldo pendiente ${abonado.deuda_monto}. {pregunta}"
@@ -286,6 +313,51 @@ def procesar_mensaje_entrante(
             "estado": conv.estado,
             "intencion": intencion,
         }
+
+    # Refinar internet → radio / ADSL tras la pregunta de tipo de acceso
+    if intencion == "internet":
+        refinada = refinar_intencion_internet(texto)
+        if refinada:
+            intencion = refinada
+            ctx["intencion"] = intencion
+            ctx["paso_idx"] = 0
+            conv.servicio_detectado = intencion
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pb = _playbooks(db)
+            pasos = pb.get(intencion) or pb["general"]
+            pregunta = pasos[0].pregunta
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
+
+    # Si estaba en general y el usuario elige servicio, reclasificar
+    if intencion == "general":
+        nueva = clasificar_intencion(texto, servicio_abo)
+        if nueva != "general":
+            intencion = nueva
+            ctx["intencion"] = intencion
+            ctx["paso_idx"] = 0
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pb = _playbooks(db)
+            pasos = pb.get(intencion) or pb["general"]
+            pregunta = pasos[0].pregunta
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
 
     pb = _playbooks(db)
     pasos = pb.get(intencion) or pb["general"]

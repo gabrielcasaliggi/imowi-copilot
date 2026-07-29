@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
 import {
@@ -46,6 +46,9 @@ export function InboxPanel() {
   const [injectText, setInjectText] = useState("");
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const detailSeq = useRef(0);
+  const claimingRef = useRef(false);
 
   const refreshList = useCallback(async () => {
     const res = await api.inboxConversations(
@@ -57,8 +60,11 @@ export function InboxPanel() {
 
   const openConv = useCallback(
     async (id: string) => {
+      const seq = ++detailSeq.current;
       setSelected(id);
       const res = await api.inboxConversation(id, slug);
+      // Evitar que un poll viejo pise un claim reciente
+      if (seq !== detailSeq.current) return;
       setDetail(res.conversacion);
       setMensajes(res.mensajes || []);
     },
@@ -72,6 +78,7 @@ export function InboxPanel() {
   // Sincroniza hilo abierto + cola (mensajes del portal en vivo)
   useEffect(() => {
     const tick = () => {
+      if (claimingRef.current) return;
       void refreshList().catch(() => {});
       if (selected) {
         void openConv(selected).catch(() => {});
@@ -80,6 +87,10 @@ export function InboxPanel() {
     const id = window.setInterval(tick, 3000);
     return () => window.clearInterval(id);
   }, [selected, refreshList, openConv]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [mensajes]);
 
   const onInject = async (e: FormEvent) => {
     e.preventDefault();
@@ -103,32 +114,69 @@ export function InboxPanel() {
 
   const onClaim = async () => {
     if (!selected) return;
-    await api.inboxClaim(selected, slug);
-    await openConv(selected);
-    await refreshList();
+    setBusy(true);
+    claimingRef.current = true;
+    setHint("");
+    try {
+      const res = await api.inboxClaim(selected, slug);
+      detailSeq.current += 1;
+      if (res.conversacion) setDetail(res.conversacion);
+      await openConv(selected);
+      await refreshList();
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "No se pudo tomar el caso");
+    } finally {
+      claimingRef.current = false;
+      setBusy(false);
+    }
   };
 
   const onAssignSelf = async () => {
     if (!selected || !isAdmin) return;
-    await api.inboxAssign(
-      selected,
-      { agente_id: "admin@ops-hub.demo", agente_nombre: "Administración" },
-      slug,
-    );
-    await openConv(selected);
-    await refreshList();
+    setBusy(true);
+    claimingRef.current = true;
+    try {
+      const res = await api.inboxAssign(
+        selected,
+        { agente_id: "admin@ops-hub.demo", agente_nombre: "Administración" },
+        slug,
+      );
+      detailSeq.current += 1;
+      if (res.conversacion) setDetail(res.conversacion);
+      await openConv(selected);
+      await refreshList();
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "No se pudo reasignar");
+    } finally {
+      claimingRef.current = false;
+      setBusy(false);
+    }
   };
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
     if (!selected || !reply.trim()) return;
     setBusy(true);
+    claimingRef.current = true;
+    setHint("");
     try {
+      // Si sigue en bot / cola, tomar al enviar
+      if (detail?.estado === "bot" || detail?.estado === "espera_agente") {
+        try {
+          const claimed = await api.inboxClaim(selected, slug);
+          if (claimed.conversacion) setDetail(claimed.conversacion);
+        } catch {
+          /* inboxSend también auto-toma */
+        }
+      }
       await api.inboxSend(selected, reply.trim(), slug);
       setReply("");
       await openConv(selected);
       await refreshList();
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "Error al enviar");
     } finally {
+      claimingRef.current = false;
       setBusy(false);
     }
   };
@@ -142,6 +190,7 @@ export function InboxPanel() {
 
   const openConvs = convs.filter((c) => c.estado !== "cerrado");
   const visible = filtro ? convs : openConvs;
+  const puedeEscribir = Boolean(detail && detail.estado !== "cerrado");
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">
@@ -322,6 +371,7 @@ export function InboxPanel() {
                     <p className="whitespace-pre-wrap">{m.texto}</p>
                   </div>
                 ))}
+                <div ref={messagesEndRef} />
               </div>
               {detail.estado !== "cerrado" && (
                 <form onSubmit={onSend} className="p-3 border-t border-slate-800 flex gap-2">
@@ -330,11 +380,11 @@ export function InboxPanel() {
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Escribí la respuesta al abonado…"
                     className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                    disabled={busy || detail.estado === "bot"}
+                    disabled={busy || !puedeEscribir}
                   />
                   <button
                     type="submit"
-                    disabled={busy || !reply.trim() || detail.estado === "bot"}
+                    disabled={busy || !reply.trim() || !puedeEscribir}
                     className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-950 disabled:opacity-40"
                     style={{ background: "var(--brand)" }}
                   >
@@ -342,9 +392,12 @@ export function InboxPanel() {
                   </button>
                 </form>
               )}
+              {hint && (
+                <p className="px-3 pb-2 text-[11px] text-amber-400/90 font-mono">{hint}</p>
+              )}
               {detail.estado === "bot" && (
                 <p className="px-3 pb-3 text-[11px] text-slate-500">
-                  El bot N1 está atendiendo. Tomá la conversación para responder como agente.
+                  El bot N1 está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
                 </p>
               )}
             </>

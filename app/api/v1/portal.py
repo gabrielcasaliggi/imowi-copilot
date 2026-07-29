@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -24,7 +25,7 @@ _ALG = "HS256"
 
 
 class PortalSessionIn(BaseModel):
-    telefono: str = Field(default="", max_length=20)
+    telefono: str = Field(default="", max_length=40)
     dni: str = Field(default="", max_length=20)
     org_slug: str = Field(default="")
 
@@ -82,7 +83,7 @@ def _portal_auth(
 
 @router.post("/portal/session")
 def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
-    """Identifica abonado por teléfono y/o DNI y abre conversación canal=web."""
+    """Abre chat web. Si hay match de teléfono/DNI, identifica; si no, permite invitado."""
     slug = _org_slug(body.org_slug)
     org = repo.get_org_by_slug(db, slug)
     if not org:
@@ -90,8 +91,6 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
 
     tel = crepo.normalizar_telefono(body.telefono)
     dni = crepo.normalizar_dni(body.dni)
-    if not tel and not dni:
-        raise HTTPException(400, "Indicá teléfono o DNI")
 
     abonado: Abonado | None = None
     if tel:
@@ -101,8 +100,12 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         if abonado and abonado.telefono_e164:
             tel = crepo.normalizar_telefono(abonado.telefono_e164)
 
+    # Sin padrón conectado: igual dejamos iniciar conversación (guest)
     if not tel:
-        raise HTTPException(400, "No pudimos resolver un teléfono para la conversación")
+        if dni:
+            tel = f"guest{dni}"
+        else:
+            tel = f"guest{uuid.uuid4().hex[:12]}"
 
     conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal="web", wa_id=tel)
     if abonado and not conv.abonado_id:
@@ -112,12 +115,17 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(conv)
 
+    ctx = crepo.get_contexto(conv)
+    ctx["saludo"] = True
     if abonado:
-        ctx = crepo.get_contexto(conv)
         ctx["identificado"] = True
-        ctx["saludo"] = True
-        crepo.set_contexto(conv, ctx)
-        db.commit()
+        ctx.pop("invitado", None)
+    else:
+        ctx["invitado"] = True
+        if dni:
+            ctx["dni_intentado"] = dni
+    crepo.set_contexto(conv, ctx)
+    db.commit()
 
     token = _crear_portal_token(
         org_id=org.id,
@@ -134,12 +142,13 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         if abo:
             saludo = (
                 f"Hola {abo.nombre.split()[0]}, soy el asistente de Cooperativa Batán. "
-                "¿Tu consulta es por internet Ecolan, móvil, o factura/deuda?"
+                "¿Tu consulta es por internet (radio/antena o ADSL), móvil IMOVI, o factura/deuda?"
             )
         else:
             saludo = (
                 "Hola, soy el asistente de Cooperativa Batán. "
-                "Para identificarte, enviame tu DNI (solo números) o contame tu problema."
+                "Todavía no te encontramos en el padrón (próximamente se conecta la base). "
+                "Igual podés consultar: ¿internet por radio/antena, ADSL, móvil IMOVI, o factura/deuda?"
             )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
@@ -150,6 +159,7 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
         "mensajes": mensajes,
         "abonado_identificado": bool(abo),
+        "modo_invitado": not bool(abo),
     }
 
 

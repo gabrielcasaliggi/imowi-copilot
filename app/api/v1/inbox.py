@@ -81,6 +81,7 @@ def claim_conversation(
     c.estado = "con_agente"
     c.agente_id = ctx.usuario_email
     db.commit()
+    db.refresh(c)
     crepo.add_mensaje(
         db,
         _org_id(ctx),
@@ -89,7 +90,11 @@ def claim_conversation(
         autor="agente",
         texto=f"[Sistema] Agente {ctx.usuario_nombre} tomó el caso.",
     )
-    return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
+    abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
+    return {
+        "status": "ok",
+        "conversacion": crepo.conversacion_to_dict(c, abonado=abo),
+    }
 
 
 @router.post("/inbox/conversations/{conv_id}/release")
@@ -117,7 +122,7 @@ def agent_send_message(
     c = crepo.get_conversacion(db, _org_id(ctx), conv_id)
     if not c:
         raise HTTPException(404, "Conversación no encontrada")
-    if c.estado not in ("con_agente", "espera_agente"):
+    if c.estado not in ("con_agente", "espera_agente", "bot"):
         raise HTTPException(400, "Tomá el caso antes de responder")
     if c.estado != "con_agente":
         c.estado = "con_agente"

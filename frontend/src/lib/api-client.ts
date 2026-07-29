@@ -547,6 +547,7 @@ export const api = {
       conversacion: InboxConversation;
       mensajes: InboxMessage[];
       abonado_identificado: boolean;
+      modo_invitado?: boolean;
     }>("/api/v1/portal/session", {
       method: "POST",
       body: JSON.stringify(body),

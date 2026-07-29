@@ -202,31 +202,91 @@ def seed_abonados(db: Session) -> dict:
     ]
     db.add_all(abonados)
 
-    # KB internet Ecolan
-    kb_extra = [
-        KnowledgeArticle(
-            organizacion_id=batan.id,
-            titulo="Ecolan — sin internet en casa",
-            categoria="Internet",
-            contenido=(
-                "N1 Ecolan: 1) Reiniciar módem 30s. 2) Probar cable vs WiFi. "
-                "3) Verificar luces del módem. 4) Si hay deuda/corte, informar medios de pago. "
-                "5) Persistencia → ticket N2."
-            ),
-        ),
-        KnowledgeArticle(
-            organizacion_id=batan.id,
-            titulo="Corte por deuda — rehabilitación",
-            categoria="Facturación",
-            contenido=(
-                "Si el abonado tiene estado corte/suspendido, indicar regularización de saldo. "
-                "La rehabilitación es automática tras acreditación. No reiniciar equipos hasta regularizar."
-            ),
-        ),
-    ]
+    # KB servicios Batán (también se asegura en seed_kb_batan_servicios)
+    kb_extra = _articulos_kb_batan(batan.id)
     db.add_all(kb_extra)
     db.commit()
     return {"seeded": True, "abonados": len(abonados)}
+
+
+def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
+    return [
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet radio/FTTH inalámbrico — sin servicio",
+            categoria="Internet",
+            contenido=(
+                "Cooperativa Batán — internet Ecolan por radio/antena (wireless FTTH). "
+                "N1: 1) Apagar CPE/radio y router 30s; encender primero la radio, luego el router. "
+                "2) Verificar LED de enlace/señal fijo (sin alarma). "
+                "3) Confirmar línea de vista a la torre y alimentación del CPE. "
+                "4) Probar cable vs WiFi. 5) Preguntar si afecta a vecinos. "
+                "Persistencia → ticket N2 con zona y síntomas."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet ADSL — sin servicio",
+            categoria="Internet",
+            contenido=(
+                "Cooperativa Batán — internet ADSL (línea telefónica). "
+                "N1: 1) Reiniciar módem ADSL 30s y esperar sincronización (~2 min). "
+                "2) Luz DSL/Internet fija. 3) Revisar filtro/splitter si hay teléfono fijo. "
+                "4) Probar por cable al módem. Persistencia → N2 (posible falla de par o central)."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOVI — sin señal o datos móviles",
+            categoria="Móvil",
+            contenido=(
+                "Cooperativa Batán — servicio móvil IMOVI. "
+                "N1: 1) Reiniciar el teléfono. 2) Modo avión 15s. "
+                "3) Verificar si falla en una sola zona o en varias. "
+                "4) APN: internet.coopbatan.ar si aplica. Persistencia → N2 con MSISDN y ubicación."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Ecolan — sin internet en casa",
+            categoria="Internet",
+            contenido=(
+                "Primero identificar acceso: radio/antena (wireless) o ADSL. "
+                "Usar el playbook correspondiente. Si hay deuda/corte, priorizar regularización "
+                "antes de diagnóstico técnico."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Corte por deuda — rehabilitación",
+            categoria="Facturación",
+            contenido=(
+                "Si el abonado tiene estado corte/suspendido, indicar regularización de saldo "
+                "por los medios de Cooperativa Batán. La rehabilitación es automática tras "
+                "acreditación. No reiniciar equipos hasta regularizar."
+            ),
+        ),
+    ]
+
+
+def seed_kb_batan_servicios(db: Session) -> dict:
+    """Asegura artículos KB de radio/ADSL/IMOVI (idempotente por título)."""
+    batan = _org(db, "coop-batan")
+    if not batan:
+        return {"seeded": False, "articulos": 0}
+
+    existentes = {
+        a.titulo
+        for a in db.scalars(
+            select(KnowledgeArticle).where(KnowledgeArticle.organizacion_id == batan.id)
+        ).all()
+    }
+    nuevos = [a for a in _articulos_kb_batan(batan.id) if a.titulo not in existentes]
+    if not nuevos:
+        return {"seeded": False, "articulos": len(existentes)}
+    db.add_all(nuevos)
+    db.commit()
+    return {"seeded": True, "articulos": len(nuevos)}
 
 
 def seed_inbox_conversaciones(db: Session) -> dict:
