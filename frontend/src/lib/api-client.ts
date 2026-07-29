@@ -569,6 +569,7 @@ export interface InboxAbonado {
 export interface InboxConversation {
   id: string;
   canal: string;
+  canal_display?: string;
   wa_id: string;
   telefono: string;
   abonado_id: string;

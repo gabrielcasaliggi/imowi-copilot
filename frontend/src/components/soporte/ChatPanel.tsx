@@ -41,9 +41,9 @@ export function ChatPanel() {
 
       <div className="chat-action-bar px-4 py-3 flex justify-between items-start flex-wrap gap-3">
         <div>
-          <h2 className="font-semibold text-slate-50 text-base">Copilot de Reclamos</h2>
+          <h2 className="font-semibold text-slate-50 text-base">Asistente de reclamos</h2>
           <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-            Un caso por línea móvil · confirmaciones con botones
+            Internet Ecolan · móvil · facturación · un caso a la vez
           </p>
           <div className="mt-1.5">
             <EstadoCasoBadge />
@@ -63,7 +63,7 @@ export function ChatPanel() {
             disabled={sending}
             className="text-xs font-medium px-3.5 py-2 rounded-lg border border-violet-500/40 text-violet-200 hover:bg-violet-500/12 disabled:opacity-50 transition-colors"
           >
-            Registrar ticket NOC
+            Crear ticket N2
           </button>
         </div>
       </div>
@@ -125,7 +125,7 @@ export function ChatPanel() {
                     user ? "text-cyan-500/80" : "text-slate-500"
                   }`}
                 >
-                  {user ? "Operador" : "Copilot"}
+                  {user ? "Operador" : "Asistente"}
                 </p>
                 <div
                   className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${

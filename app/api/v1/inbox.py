@@ -1,4 +1,4 @@
-"""Inbox de agentes — conversaciones canal abonado + simulador WhatsApp."""
+"""Inbox de agentes — conversaciones canal abonado (WhatsApp)."""
 
 from __future__ import annotations
 
@@ -167,13 +167,15 @@ def simulate_inbound(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    """Inyecta un mensaje como si viniera de WhatsApp (demo sin Meta)."""
+    """Inyecta un mensaje entrante (solo admin plataforma · sin Meta)."""
+    if not ctx.es_admin_imowi:
+        raise HTTPException(403, "Solo administración puede inyectar entradas de canal")
     result = procesar_mensaje_entrante(
         db,
         _org_id(ctx),
         telefono=body.telefono,
         texto=body.texto,
-        canal="simulate",
+        canal="whatsapp",
         usar_llama=body.usar_llama,
     )
     return {"tenant": ctx.organizacion_slug, **result}

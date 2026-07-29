@@ -166,7 +166,7 @@ export function AdminPanel() {
     <div className="admin-hub-page p-4 space-y-6 overflow-y-auto min-h-0">
       <SectionHeader
         title="Admin Hub"
-        subtitle="Gobierno multi-tenant · configuración de plataforma · cooperativas · auditoría"
+        subtitle="Cooperativa Batán · configuración de plataforma · credenciales · auditoría"
       />
 
       <div className="flex flex-wrap gap-2">
@@ -351,7 +351,7 @@ export function AdminPanel() {
                         className="bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-2 text-sm"
                       >
                         <option value="cliente">Operador (cliente)</option>
-                        <option value="ingeniero_noc">Ingeniero NOC</option>
+                        <option value="ingeniero_noc">Supervisor soporte</option>
                       </select>
                       <input
                         placeholder="Clave inicial"

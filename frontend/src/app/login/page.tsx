@@ -15,7 +15,7 @@ export default function LoginPage() {
   const showDemoCredentials = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
-    if (ready && getToken()) router.replace("/soporte");
+    if (ready && getToken()) router.replace("/inbox");
   }, [ready, router]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -37,13 +37,15 @@ export default function LoginPage() {
         <div className="flex items-center gap-3 mb-8">
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-slate-950"
-            style={{ background: "linear-gradient(135deg, var(--brand), #3b82f6)" }}
+            style={{ background: "linear-gradient(135deg, var(--brand), #34d399)" }}
           >
-            N
+            B
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-100">Operations Hub</h1>
-            <p className="text-xs font-mono text-slate-500">Consola operativa multitenant</p>
+            <h1 className="text-xl font-semibold text-slate-100">Cooperativa Batán</h1>
+            <p className="text-xs font-mono text-slate-500">
+              Soporte abonados · Ecolan + móvil · WhatsApp
+            </p>
           </div>
         </div>
 
@@ -84,8 +86,8 @@ export default function LoginPage() {
 
         {showDemoCredentials && (
           <div className="mt-6 pt-4 border-t border-slate-800 text-[10px] font-mono text-slate-600 space-y-1">
-            <p>admin / admin — Administrador NOC</p>
-            <p>batan / batan · viamonte / viamonte — cooperativas</p>
+            <p>batan / batan — Agente cooperativa</p>
+            <p>admin / admin — Administración</p>
           </div>
         )}
       </div>

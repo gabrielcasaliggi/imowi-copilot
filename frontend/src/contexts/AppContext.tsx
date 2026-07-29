@@ -317,7 +317,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           `⚠️ Login OK, carga incompleta: ${e instanceof Error ? e.message : "Error"}`,
         ]);
       }
-      router.replace("/soporte");
+      router.replace("/inbox");
     },
     [boot, router, appendTrace],
   );

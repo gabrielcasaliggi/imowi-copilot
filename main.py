@@ -28,7 +28,7 @@ from app.config import (
 from app.estate.database import Base, get_engine, get_session_factory
 from app.estate.health import verificar_database
 from app.estate.migrate import migrate_schema
-from app.estate.seed import seed_abonados, seed_estate, seed_lineas_jsc
+from app.estate.seed import seed_abonados, seed_estate, seed_inbox_conversaciones, seed_lineas_jsc
 import app.estate.models  # noqa: F401 — registra tablas SQLAlchemy
 from app.knowledge import cargar_base_conocimiento, estadisticas
 from app.routers import auth_router, chat_router, tickets_router
@@ -51,8 +51,10 @@ async def lifespan(app: FastAPI):
         estate_info = seed_estate(db)
         lineas_info = seed_lineas_jsc(db)
         abonados_info = seed_abonados(db)
+        inbox_info = seed_inbox_conversaciones(db)
         estate_info["lineas_jsc"] = lineas_info
         estate_info["abonados"] = abonados_info
+        estate_info["inbox"] = inbox_info
     logger.info("Data Estate [%s]: %s", database_url_enmascarada(), estate_info)
     app.state.estate = estate_info
     app.state.database_health = verificar_database()

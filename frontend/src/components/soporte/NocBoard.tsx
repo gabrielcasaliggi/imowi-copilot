@@ -100,9 +100,9 @@ export function NocBoard() {
     <div className="flex-1 min-h-0 overflow-y-auto space-y-4 p-4">
       <div className="flex flex-wrap justify-between gap-2 items-start">
         <div>
-          <h2 className="font-semibold text-slate-100">Centro de Control NOC</h2>
+          <h2 className="font-semibold text-slate-100">Centro de tickets N2</h2>
           <p className="text-[10px] font-mono text-slate-500">
-            Priorización inteligente · causa probable · próxima acción
+            Priorización · causa probable · próxima acción · Batán
           </p>
         </div>
         <a
@@ -131,7 +131,7 @@ export function NocBoard() {
       <div className="grid gap-4 grid-cols-1 xl:grid-cols-2">
         <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
           <h3 className="text-xs font-mono uppercase tracking-wider text-slate-500 mb-3">
-            Cola NOC por riesgo
+            Cola por riesgo
           </h3>
           <div className="space-y-2">
             {priority.length ? (

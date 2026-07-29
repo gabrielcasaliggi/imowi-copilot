@@ -1,6 +1,8 @@
-# Operations Hub
+# Soporte Batán (Operations Hub)
 
-Copilot de soporte para operadores de cooperativas: chat asistido por IA, RAG sobre base de conocimiento y gestión de tickets para el NOC.
+Consola de soporte para **Cooperativa Batán**: bandeja WhatsApp (bot N1 + agentes), tickets N2, base de conocimiento e IA. Enfocada en internet Ecolan, móvil y facturación.
+
+Las APIs legacy de telemetría/JSC pueden existir en el backend pero **no forman parte de la UI operativa**.
 
 ## Arquitectura (producción)
 

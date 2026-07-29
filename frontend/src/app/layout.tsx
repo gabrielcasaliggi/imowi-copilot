@@ -3,8 +3,8 @@ import { Providers } from "@/components/layout/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Operations Hub",
-  description: "Consola operativa multitenant para soporte, NOC y gestión OSS/BSS",
+  title: "Soporte Batán",
+  description: "Consola de soporte para abonados — WhatsApp, internet Ecolan y móvil",
 };
 
 export default function RootLayout({

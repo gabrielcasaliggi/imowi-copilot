@@ -14,7 +14,7 @@ function formatHechoLabel(hecho: string): string {
   const labels: Record<string, string> = {
     datos_móviles: "Datos móviles",
     apn: "APN",
-    roaming_jsc: "Roaming JSC",
+    roaming_jsc: "Roaming",
     roaming_off: "Roaming off",
     roaming_on: "Roaming on",
     reinicio: "Reinicio",
@@ -23,6 +23,10 @@ function formatHechoLabel(hecho: string): string {
     zona_unica: "Zona única",
     varias_zonas: "Varias zonas",
     sim: "SIM",
+    modem: "Módem",
+    wifi: "WiFi",
+    cable: "Cable",
+    deuda: "Deuda",
   };
   const name = labels[key] || key.replace(/_/g, " ");
   if (val === "ok") return `${name}: OK`;
@@ -65,7 +69,7 @@ export function FlujoOperativoPanel({ flujo }: { flujo: FlujoOperativo | null })
               {flujo.categoria_label || flujo.categoria}
             </span>
             {flujo.completado && (
-              <span className="text-[11px] text-emerald-300 font-medium">Listo para NOC</span>
+              <span className="text-[11px] text-emerald-300 font-medium">Listo para N2</span>
             )}
           </div>
         </div>

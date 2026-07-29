@@ -10,27 +10,27 @@ import {
 } from "@/components/ui/GlassCard";
 
 const SUGGESTED_CATEGORIES = [
-  "Señal y cobertura",
-  "Datos / APN",
-  "Roaming",
-  "JSC",
-  "Escalamiento NOC",
+  "Internet Ecolan",
+  "Móvil",
+  "Facturación / deuda",
+  "WhatsApp N1",
+  "Escalamiento N2",
   "Procedimientos internos",
 ] as const;
 
 const INTELLIGENCE_USES = [
-  "Mejora respuestas del Copilot en consola de soporte",
-  "Refuerza clasificación de síntomas y categorías operativas",
-  "Alimenta recomendaciones de próximo paso y escalamiento",
-  "Reduce repreguntas cuando el operador usa lenguaje libre",
+  "Mejora respuestas del asistente en la consola",
+  "Refuerza clasificación de síntomas (internet, móvil, deuda)",
+  "Alimenta recomendaciones de próximo paso y escalamiento N2",
+  "Reduce repreguntas cuando el agente usa lenguaje libre",
   "Enriquece sugerencias KB en tickets y casos similares",
 ] as const;
 
 const CONTENT_GUIDE = [
-  "Procedimientos N1 paso a paso (señal, datos, roaming, SIM)",
-  "Reglas de escalamiento y criterios para abrir ticket NOC",
-  "Excepciones operativas por cooperativa o zona",
-  "Integraciones JSC: qué validar antes de automatizar",
+  "Procedimientos N1 paso a paso (módem, WiFi, señal móvil)",
+  "Reglas de escalamiento y criterios para abrir ticket N2",
+  "Excepciones operativas por zona o plan Ecolan",
+  "Medios de pago y rehabilitación tras corte por deuda",
   "Playbooks de resolución y criterios de cierre",
 ] as const;
 
@@ -63,7 +63,7 @@ export function KnowledgeBasePanel() {
   const tecnicos = useMemo(
     () =>
       kb.filter((a) =>
-        /señal|senal|datos|apn|roaming|jsc|noc|sim|red/i.test(
+        /ecolan|internet|módem|modem|wifi|móvil|movil|deuda|factura|whatsapp|n2|sim|señal|senal/i.test(
           `${a.categoria} ${a.titulo} ${a.contenido}`,
         ),
       ).length,
@@ -94,7 +94,7 @@ export function KnowledgeBasePanel() {
     <div className="p-4 space-y-6 overflow-y-auto min-h-0">
       <SectionHeader
         title="Intelligence Knowledge Center"
-        subtitle="Memoria operativa del tenant · cada artículo hace más inteligente al Copilot"
+        subtitle="Memoria operativa Batán · cada artículo mejora al asistente N1/N2"
       />
 
       <SidebarSection title="Impacto en inteligencia">
@@ -105,7 +105,7 @@ export function KnowledgeBasePanel() {
             label="Procedimientos técnicos"
             value={tecnicos}
             tone="violet"
-            helper="Señal, datos, roaming, JSC…"
+            helper="Ecolan, móvil, deuda…"
           />
         </div>
 
@@ -212,7 +212,7 @@ export function KnowledgeBasePanel() {
             <textarea
               value={contenido}
               onChange={(e) => setContenido(e.target.value)}
-              placeholder="Contenido: pasos, criterios, excepciones, integraciones JSC…"
+              placeholder="Contenido: pasos N1, criterios N2, medios de pago, excepciones Ecolan…"
               className={`${inputCls} min-h-[180px] resize-y`}
             />
             <button

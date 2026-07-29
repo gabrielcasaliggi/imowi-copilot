@@ -92,38 +92,40 @@ function ReclamosSimilares({
   );
 }
 
-function FichaJscCard() {
+function FichaAbonadoCard() {
   const { fichaJsc, casoActivo, lineaDetectada } = useApp();
   const linea = fichaJsc?.msisdn || casoActivo?.linea_msisdn || lineaDetectada;
   if (!fichaJsc) {
     return (
-      <GlassCard title="Ficha JSC" accent="cyan" variant="secondary">
+      <GlassCard title="Ficha abonado" accent="cyan" variant="secondary">
         {linea ? (
           <div className="space-y-2">
-            <DataRow label="Línea detectada" mono>
+            <DataRow label="Línea / teléfono" mono>
               <span className="text-cyan-300">{linea}</span>
             </DataRow>
             <p className="text-[11px] text-amber-300/90 leading-relaxed">
-              No figura en el catálogo operativo del tenant. El triaje continúa, pero conviene
-              importar o sincronizar la línea para validar abonado, plan y estado de cuenta.
+              Sin ficha completa aún. El triaje continúa; al identificar al abonado verás plan,
+              estado de servicio y deuda.
             </p>
           </div>
         ) : (
-          <p className="text-slate-500 text-xs">Ingresá la línea para consultar el catálogo operativo.</p>
+          <p className="text-slate-500 text-xs">
+            Ingresá teléfono o DNI del abonado para ver la ficha.
+          </p>
         )}
       </GlassCard>
     );
   }
   return (
-    <GlassCard title="Ficha JSC" accent="cyan" variant="secondary">
+    <GlassCard title="Ficha abonado" accent="cyan" variant="secondary">
       <div className="space-y-2">
-        <DataRow label="MSISDN" mono>
+        <DataRow label="Teléfono" mono>
           <span className="text-cyan-300">{fichaJsc.msisdn}</span>
         </DataRow>
         <DataRow label="Abonado">{fichaJsc.abonado}</DataRow>
         <DataRow label="Plan">{fichaJsc.plan}</DataRow>
         <div className="flex justify-between gap-2 items-center text-xs">
-          <span className="text-slate-500">Línea</span>
+          <span className="text-slate-500">Servicio</span>
           <StatusBadge value={fichaJsc.estado_linea} />
         </div>
         <div className="flex justify-between gap-2 items-center text-xs">
@@ -133,9 +135,6 @@ function FichaJscCard() {
             <span className="text-slate-400">{fichaJsc.saldo_resumen}</span>
           </span>
         </div>
-        <p className="text-[11px] text-slate-500 pt-1">
-          APN {fichaJsc.apn} · Roaming {fichaJsc.roaming_habilitado}
-        </p>
       </div>
     </GlassCard>
   );
@@ -167,7 +166,7 @@ function NotaInternaForm({
       <textarea
         value={nota}
         onChange={(e) => setNota(e.target.value)}
-        placeholder="Nota interna NOC (no visible al cliente)…"
+        placeholder="Nota interna (no visible al abonado)…"
         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px] min-h-[56px]"
       />
       <button
@@ -203,7 +202,7 @@ function PlantillasRespuesta({
   if (!plantillas.length) return null;
 
   return (
-    <GlassCard title="Plantillas NOC" variant="secondary">
+    <GlassCard title="Plantillas de respuesta" variant="secondary">
       <div className="space-y-1.5 max-h-40 overflow-y-auto">
         {plantillas.map((p) => (
           <button
@@ -264,7 +263,7 @@ function TicketAdminForm({
       estado,
       proveedor,
       resolucion_tecnica: resolucion,
-      destino: nivel === "N2" ? "imowi_noc" : "cooperativa",
+      destino: nivel === "N2" ? "n2_soporte" : "cooperativa",
     });
   };
 
@@ -382,7 +381,7 @@ function TicketFormacionCard() {
           {t.nivel && <StatusBadge value={t.nivel} />}
           {t.destino && (
             <span className="px-2 py-0.5 text-[11px] font-mono uppercase rounded border bg-slate-600/30 text-slate-300 border-slate-500/30">
-              {t.destino}
+              {t.destino === "imowi_noc" || t.destino === "n2_soporte" ? "N2" : t.destino}
             </span>
           )}
           <StatusBadge value={t.origen} />
@@ -403,7 +402,7 @@ function TicketFormacionCard() {
           />
         ) : (
           <p className="text-[11px] text-slate-500 pt-2 mt-2 border-t border-slate-800 leading-relaxed">
-            Vista de seguimiento: el NOC actualizará el estado y las novedades del ticket.
+            Seguimiento del ticket N2: el equipo de soporte actualizará el estado y las novedades.
           </p>
         )}
       </div>
@@ -443,8 +442,8 @@ export function SupportSidebar() {
         <EstadoOperativoPanel />
       </SidebarSection>
 
-      <SidebarSection title="Contexto técnico">
-        <FichaJscCard />
+      <SidebarSection title="Contexto del abonado">
+        <FichaAbonadoCard />
         <TicketFormacionCard />
         <PlantillasRespuesta
           categoria={ticketFormacion?.categoria}

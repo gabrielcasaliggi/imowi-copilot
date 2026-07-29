@@ -24,7 +24,7 @@ export function AppHeader() {
         <div className="min-w-0">
           <h1 className="font-semibold text-slate-100 truncate tracking-tight">{orgName}</h1>
           <p className="text-[10px] font-mono text-slate-500 truncate">
-            Operations Hub · Enterprise NOC
+            {isAdmin ? "Administración · Operations Hub" : "Soporte Batán · Ecolan + móvil"}
           </p>
         </div>
       </div>
@@ -49,7 +49,7 @@ export function AppHeader() {
           </div>
         )}
         <div className="hidden md:flex flex-col items-end">
-          <span className="text-xs text-slate-300">{isAdmin ? "Administrador NOC" : user?.nombre}</span>
+          <span className="text-xs text-slate-300">{isAdmin ? "Administración" : user?.nombre}</span>
           <span className="text-[10px] font-mono text-slate-500 uppercase">{user?.rol}</span>
         </div>
         <button

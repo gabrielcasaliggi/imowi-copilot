@@ -17,7 +17,7 @@ def seed_estate(db: Session) -> dict:
         return {"seeded": False, "message": "Data Estate ya inicializado"}
 
     orgs = [
-        Organization(nombre="Plataforma NOC", slug="imowi", logo_label="N", brand_color="#22d3ee"),
+        Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#22d3ee"),
         Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#34d399"),
         Organization(nombre="Cooperativa Viamonte", slug="coop-viamonte", logo_label="V", brand_color="#818cf8"),
     ]
@@ -227,3 +227,125 @@ def seed_abonados(db: Session) -> dict:
     db.add_all(kb_extra)
     db.commit()
     return {"seeded": True, "abonados": len(abonados)}
+
+
+def seed_inbox_conversaciones(db: Session) -> dict:
+    """Hilos WhatsApp abiertos para operar la bandeja sin Meta (idempotente)."""
+    from app.estate.models import ConversacionCanal, MensajeCanal
+    import json
+
+    batan = _org(db, "coop-batan")
+    if not batan:
+        return {"seeded": False, "conversaciones": 0}
+
+    abiertas = db.scalar(
+        select(func.count())
+        .select_from(ConversacionCanal)
+        .where(
+            ConversacionCanal.organizacion_id == batan.id,
+            ConversacionCanal.estado != "cerrado",
+        )
+    )
+    if abiertas and abiertas > 0:
+        return {"seeded": False, "conversaciones": abiertas}
+
+    by_tel = {
+        a.telefono_e164: a
+        for a in db.scalars(select(Abonado).where(Abonado.organizacion_id == batan.id)).all()
+    }
+    maria = by_tel.get("5492235551234")
+    ana = by_tel.get("5492235559012")
+    carlos = by_tel.get("5492235555678")
+    if not maria or not ana or not carlos:
+        return {"seeded": False, "conversaciones": 0, "reason": "faltan_abonados"}
+
+    scenarios: list[tuple[Abonado, str, str, list[tuple[str, str, str]], dict]] = [
+        (
+            maria,
+            "bot",
+            "internet",
+            [
+                ("in", "cliente", "Hola, no me anda el internet"),
+                (
+                    "out",
+                    "bot",
+                    "Hola María. Vamos con internet Ecolan. ¿Podés apagar el módem 30 segundos, "
+                    "encenderlo y decirme si vuelve la conexión?",
+                ),
+            ],
+            {"intencion": "internet", "paso_idx": 0, "identificado": True},
+        ),
+        (
+            ana,
+            "espera_agente",
+            "corte_deuda",
+            [
+                ("in", "cliente", "Hola, me cortaron el servicio"),
+                (
+                    "out",
+                    "bot",
+                    "Tu cuenta figura con estado «corte» y saldo pendiente $2800. "
+                    "Tu cuenta tiene un saldo pendiente y el servicio puede estar limitado. "
+                    "¿Querés que te indique cómo regularizarlo?",
+                ),
+                ("in", "cliente", "Quiero hablar con un agente"),
+                (
+                    "out",
+                    "bot",
+                    "Te derivo con un agente de Cooperativa Batán. Quedás en cola.",
+                ),
+            ],
+            {"intencion": "corte_deuda", "paso_idx": 0, "identificado": True, "escalado": True},
+        ),
+        (
+            carlos,
+            "espera_agente",
+            "internet",
+            [
+                ("in", "cliente", "Sigue sin internet después de reiniciar"),
+                (
+                    "out",
+                    "bot",
+                    "¿Las luces del módem son normales (sin alarma roja fija)? Respondé sí o no.",
+                ),
+                ("in", "cliente", "También por cable, necesito un técnico"),
+                (
+                    "out",
+                    "bot",
+                    "Entendido. Generamos el seguimiento y un agente de Batán te va a atender.",
+                ),
+            ],
+            {"intencion": "internet", "paso_idx": 1, "identificado": True, "escalado": True},
+        ),
+    ]
+
+    created = 0
+    for abo, estado, servicio, msgs, ctx in scenarios:
+        conv = ConversacionCanal(
+            organizacion_id=batan.id,
+            canal="whatsapp",
+            wa_id=abo.telefono_e164,
+            telefono=abo.telefono_e164,
+            abonado_id=abo.id,
+            estado=estado,
+            servicio_detectado=servicio,
+            session_id=f"wa:{batan.id}:{abo.telefono_e164}",
+            contexto_json=json.dumps(ctx, ensure_ascii=False),
+            ticket_id="",
+        )
+        db.add(conv)
+        db.flush()
+        for direccion, autor, texto in msgs:
+            db.add(
+                MensajeCanal(
+                    organizacion_id=batan.id,
+                    conversacion_id=conv.id,
+                    direccion=direccion,
+                    autor=autor,
+                    texto=texto,
+                )
+            )
+        created += 1
+
+    db.commit()
+    return {"seeded": True, "conversaciones": created}

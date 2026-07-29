@@ -5,11 +5,31 @@ import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
 import {
   api,
-  type InboxAbonado,
   type InboxConversation,
   type InboxMessage,
 } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+
+function canalLabel(c: InboxConversation): string {
+  const raw = c.canal_display || c.canal || "";
+  if (raw === "simulate" || raw === "whatsapp" || !raw) return "WhatsApp";
+  return raw;
+}
+
+function estadoLabel(estado: string): string {
+  switch (estado) {
+    case "bot":
+      return "Bot N1";
+    case "espera_agente":
+      return "En cola";
+    case "con_agente":
+      return "Con agente";
+    case "cerrado":
+      return "Cerrada";
+    default:
+      return estado;
+  }
+}
 
 export function InboxPanel() {
   const { tenantSlug, isAdmin, selectTicket } = useApp();
@@ -20,9 +40,9 @@ export function InboxPanel() {
   const [detail, setDetail] = useState<InboxConversation | null>(null);
   const [filtro, setFiltro] = useState("");
   const [reply, setReply] = useState("");
-  const [simTel, setSimTel] = useState("5492235551234");
-  const [simText, setSimText] = useState("Hola, no me anda el internet");
-  const [abonados, setAbonados] = useState<InboxAbonado[]>([]);
+  const [injectOpen, setInjectOpen] = useState(false);
+  const [injectTel, setInjectTel] = useState("");
+  const [injectText, setInjectText] = useState("");
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
 
@@ -46,16 +66,16 @@ export function InboxPanel() {
 
   useEffect(() => {
     refreshList().catch(() => setConvs([]));
-    api.inboxAbonados(slug).then((r) => setAbonados(r.abonados || [])).catch(() => {});
-  }, [refreshList, slug]);
+  }, [refreshList]);
 
-  const onSimulate = async (e: FormEvent) => {
+  const onInject = async (e: FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) return;
     setBusy(true);
     setHint("");
     try {
       const res = await api.inboxSimulate(
-        { telefono: simTel, texto: simText, usar_llama: false },
+        { telefono: injectTel, texto: injectText, usar_llama: false },
         slug,
       );
       setHint(res.respuesta || `Estado: ${res.estado}`);
@@ -95,6 +115,9 @@ export function InboxPanel() {
     await refreshList();
   };
 
+  const openConvs = convs.filter((c) => c.estado !== "cerrado");
+            const visible = filtro ? convs : openConvs;
+
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">
       <div className="flex flex-wrap justify-between gap-2 items-end">
@@ -102,67 +125,78 @@ export function InboxPanel() {
           <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
             Canal abonado
           </p>
-          <h2 className="text-xl font-semibold text-slate-50">Inbox WhatsApp</h2>
+          <h2 className="text-xl font-semibold text-slate-50">Bandeja WhatsApp</h2>
           <p className="text-sm text-slate-400">
-            Bot N1 · agentes · ticket N2 — simulador sin Meta
+            Conversaciones de abonados · N1 automático · transferencia a agente
           </p>
         </div>
-        <select
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
-        >
-          <option value="">Todas</option>
-          <option value="bot">Bot</option>
-          <option value="espera_agente">Espera agente</option>
-          <option value="con_agente">Con agente</option>
-          <option value="cerrado">Cerrado</option>
-        </select>
+        <div className="flex flex-wrap gap-2 items-center">
+          <select
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
+          >
+            <option value="">Abiertas</option>
+            <option value="bot">Bot N1</option>
+            <option value="espera_agente">En cola</option>
+            <option value="con_agente">Con agente</option>
+            <option value="cerrado">Cerradas</option>
+          </select>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setInjectOpen((v) => !v)}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:border-slate-500"
+            >
+              {injectOpen ? "Ocultar herramientas" : "Herramientas de canal"}
+            </button>
+          )}
+        </div>
       </div>
 
-      <form
-        onSubmit={onSimulate}
-        className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2"
-      >
-        <input
-          value={simTel}
-          onChange={(e) => setSimTel(e.target.value)}
-          placeholder="Teléfono WA (ej. 5492235551234)"
-          className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono"
-        />
-        <input
-          value={simText}
-          onChange={(e) => setSimText(e.target.value)}
-          placeholder="Mensaje del cliente…"
-          className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
-        />
-        <button
-          type="submit"
-          disabled={busy}
-          className="text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
+      {isAdmin && injectOpen && (
+        <form
+          onSubmit={onInject}
+          className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2"
         >
-          Simular WA
-        </button>
-        {hint && (
-          <p className="md:col-span-3 text-[11px] text-slate-400 font-mono">{hint}</p>
-        )}
-        {abonados.length > 0 && (
-          <p className="md:col-span-3 text-[10px] text-slate-600">
-            Demo:{" "}
-            {abonados
-              .slice(0, 4)
-              .map((a) => `${a.nombre.split(" ")[0]} ${a.telefono_e164}`)
-              .join(" · ")}
+          <p className="md:col-span-3 text-[11px] text-slate-500">
+            Inyectar mensaje entrante (solo administración · sin Meta Cloud API).
           </p>
-        )}
-      </form>
+          <input
+            value={injectTel}
+            onChange={(e) => setInjectTel(e.target.value)}
+            placeholder="Teléfono E.164"
+            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono"
+            required
+          />
+          <input
+            value={injectText}
+            onChange={(e) => setInjectText(e.target.value)}
+            placeholder="Texto del mensaje entrante…"
+            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
+            required
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200"
+          >
+            Inyectar entrada
+          </button>
+          {hint && (
+            <p className="md:col-span-3 text-[11px] text-slate-400 font-mono">{hint}</p>
+          )}
+        </form>
+      )}
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-3 overflow-hidden">
         <div className="rounded-xl border border-slate-800 bg-slate-950/40 overflow-y-auto p-2 space-y-1.5">
-          {!convs.length ? (
-            <p className="text-xs text-slate-500 p-2">Sin conversaciones. Usá el simulador.</p>
+          {!visible.length ? (
+            <p className="text-xs text-slate-500 p-2">
+              No hay conversaciones abiertas. Los mensajes entrantes aparecerán aquí.
+            </p>
           ) : (
-            convs.map((c) => (
+            visible.map((c) => (
               <button
                 key={c.id}
                 type="button"
@@ -175,10 +209,10 @@ export function InboxPanel() {
               >
                 <div className="flex justify-between gap-1">
                   <span className="font-mono text-[11px] text-cyan-300">{c.telefono}</span>
-                  <StatusBadge value={c.estado} />
+                  <StatusBadge value={estadoLabel(c.estado)} />
                 </div>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  {c.abonado?.nombre || "Sin identificar"} · {c.canal}
+                  {c.abonado?.nombre || "Sin identificar"} · {canalLabel(c)}
                 </p>
                 {c.ticket_id && (
                   <p className="text-[10px] text-amber-400/90 mt-0.5">{c.ticket_id}</p>
@@ -190,7 +224,7 @@ export function InboxPanel() {
 
         <div className="rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col min-h-0 overflow-hidden">
           {!detail ? (
-            <p className="text-sm text-slate-500 p-4">Seleccioná una conversación.</p>
+            <p className="text-sm text-slate-500 p-4">Seleccioná una conversación de la cola.</p>
           ) : (
             <>
               <div className="p-3 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">
@@ -199,7 +233,7 @@ export function InboxPanel() {
                     {detail.abonado?.nombre || "Cliente"} · {detail.telefono}
                   </p>
                   <p className="text-[11px] text-slate-500 font-mono">
-                    {detail.estado}
+                    {estadoLabel(detail.estado)} · {canalLabel(detail)}
                     {detail.agente_id ? ` · ${detail.agente_id}` : ""}
                     {detail.abonado
                       ? ` · ${detail.abonado.servicio} · ${detail.abonado.estado} · deuda $${detail.abonado.deuda_monto}`
@@ -207,20 +241,24 @@ export function InboxPanel() {
                   </p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={onClaim}
-                    className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
-                  >
-                    Tomar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="text-[11px] px-2 py-1 rounded border border-slate-600 text-slate-300"
-                  >
-                    Cerrar
-                  </button>
+                  {(detail.estado === "espera_agente" || detail.estado === "bot") && (
+                    <button
+                      type="button"
+                      onClick={onClaim}
+                      className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
+                    >
+                      Tomar
+                    </button>
+                  )}
+                  {detail.estado !== "cerrado" && (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="text-[11px] px-2 py-1 rounded border border-slate-600 text-slate-300"
+                    >
+                      Cerrar
+                    </button>
+                  )}
                   {detail.ticket_id && (
                     <Link
                       href="/soporte"
@@ -245,29 +283,36 @@ export function InboxPanel() {
                     }`}
                   >
                     <p className="text-[9px] font-mono uppercase text-slate-500 mb-0.5">
-                      {m.autor}
+                      {m.autor === "cliente" ? "abonado" : m.autor}
                     </p>
                     <p className="whitespace-pre-wrap">{m.texto}</p>
                   </div>
                 ))}
               </div>
-              <form onSubmit={onSend} className="p-3 border-t border-slate-800 flex gap-2">
-                <input
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder="Responder como agente…"
-                  className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                  disabled={busy}
-                />
-                <button
-                  type="submit"
-                  disabled={busy || !reply.trim()}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-950 disabled:opacity-40"
-                  style={{ background: "var(--brand)" }}
-                >
-                  Enviar
-                </button>
-              </form>
+              {detail.estado !== "cerrado" && (
+                <form onSubmit={onSend} className="p-3 border-t border-slate-800 flex gap-2">
+                  <input
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder="Escribí la respuesta al abonado…"
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                    disabled={busy || detail.estado === "bot"}
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy || !reply.trim() || detail.estado === "bot"}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-950 disabled:opacity-40"
+                    style={{ background: "var(--brand)" }}
+                  >
+                    Enviar
+                  </button>
+                </form>
+              )}
+              {detail.estado === "bot" && (
+                <p className="px-3 pb-3 text-[11px] text-slate-500">
+                  El bot N1 está atendiendo. Tomá la conversación para responder como agente.
+                </p>
+              )}
             </>
           )}
         </div>

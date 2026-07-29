@@ -10,7 +10,7 @@ export default function EstadisticasPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAdmin) router.replace("/soporte");
+    if (!isAdmin) router.replace("/inbox");
   }, [isAdmin, router]);
 
   if (!isAdmin) return null;

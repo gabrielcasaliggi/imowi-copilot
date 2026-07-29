@@ -8,27 +8,21 @@ const NAV_GROUPS = [
   {
     title: "Operación",
     items: [
-      { href: "/soporte", label: "Consola de Soporte", id: "soporte", admin: false },
-      { href: "/inbox", label: "Inbox WhatsApp", id: "inbox", admin: false },
-      { href: "/red", label: "Monitor de Red", id: "red", admin: true },
+      { href: "/inbox", label: "Bandeja WhatsApp", id: "inbox", admin: false },
+      { href: "/soporte", label: "Consola de tickets", id: "soporte", admin: false },
     ],
   },
   {
     title: "Gestión",
     items: [
-      { href: "/tickets", label: "Cola de Tickets", id: "tickets", admin: true },
+      { href: "/conocimiento", label: "Centro de conocimiento", id: "kb", admin: false },
+      { href: "/tickets", label: "Cola de tickets", id: "tickets", admin: true },
       { href: "/estadisticas", label: "Estadísticas", id: "stats", admin: true },
       { href: "/admin", label: "Administración", id: "admin", admin: true },
     ],
   },
-  {
-    title: "Conocimiento",
-    items: [
-      { href: "/conocimiento", label: "Centro de Conocimiento", id: "kb", admin: true },
-      { href: "/automatizacion", label: "Automatización", id: "automation", admin: true },
-    ],
-  },
 ];
+
 export function SidebarNav() {
   const pathname = usePathname();
   const { isAdmin } = useApp();
@@ -58,7 +52,7 @@ export function SidebarNav() {
       </nav>
       <aside className="w-60 shrink-0 border-r border-slate-800/80 p-3 hidden lg:block">
         <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600 px-2 mb-3">
-          Operations Hub
+          Soporte Batán
         </p>
         <nav className="space-y-4">
           {NAV_GROUPS.map((group) => {

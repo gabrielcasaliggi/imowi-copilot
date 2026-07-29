@@ -191,7 +191,7 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = (
-                    "Hola, soy el asistente de la cooperativa. "
+                    "Hola, soy el asistente de Cooperativa Batán. "
                     "Para identificarte, enviame tu DNI (solo números)."
                 )
                 if usar_llama:

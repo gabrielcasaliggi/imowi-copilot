@@ -192,9 +192,12 @@ def abonado_to_dict(a: Abonado | None) -> dict | None:
 
 
 def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None) -> dict:
+    canal_raw = c.canal or "whatsapp"
+    canal_display = "whatsapp" if canal_raw in ("whatsapp", "simulate", "") else canal_raw
     return {
         "id": c.id,
-        "canal": c.canal,
+        "canal": canal_raw,
+        "canal_display": canal_display,
         "wa_id": c.wa_id,
         "telefono": c.telefono,
         "abonado_id": c.abonado_id,
