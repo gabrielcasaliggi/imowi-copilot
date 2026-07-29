@@ -57,6 +57,16 @@ def cargar_tokens_desde_disco() -> int:
     return 0
 
 
+def _normalizar_rol_consola(rol: str) -> str:
+    """Unifica roles de consola: admin | agente (legacy cooperativa/cliente → agente)."""
+    r = (rol or "").strip().lower()
+    if r == "admin":
+        return "admin"
+    if r in ("agente", "cooperativa", "cliente", "operador", "ingeniero_noc", "admin_org"):
+        return "agente"
+    return r or "agente"
+
+
 def login_usuario(data: LoginInput) -> LoginResponse:
     cred = MOCK_USERS.get(data.usuario)
     if not cred or cred["password"] != data.password:
@@ -65,11 +75,12 @@ def login_usuario(data: LoginInput) -> LoginResponse:
             detail="Usuario o contraseña incorrectos",
         )
 
-    org_slug = cred.get("org_slug") or ("imowi" if cred["rol"] == "admin" else "coop-batan")
+    rol = _normalizar_rol_consola(cred["rol"])
+    org_slug = cred.get("org_slug") or ("imowi" if rol == "admin" else "coop-batan")
     token = _crear_token(
         {
             "usuario": data.usuario,
-            "rol": cred["rol"],
+            "rol": rol,
             "cooperativa": cred["cooperativa"],
             "nombre": cred["nombre"],
             "org_slug": org_slug,
@@ -77,7 +88,7 @@ def login_usuario(data: LoginInput) -> LoginResponse:
     )
     return LoginResponse(
         token=token,
-        rol=cred["rol"],
+        rol=rol,
         usuario=data.usuario,
         cooperativa=cred["cooperativa"],
         nombre=cred["nombre"],
@@ -137,7 +148,7 @@ def _rol_token_desde_estate(rol: str, org_slug: str) -> str:
         return "admin"
     if rol in ("admin_sistema", "admin"):
         return "admin"
-    return "cooperativa"
+    return "agente"
 
 
 def _resolver_sesion(token: str | None) -> UsuarioSesion | None:
@@ -146,7 +157,7 @@ def _resolver_sesion(token: str | None) -> UsuarioSesion | None:
     payload = _decodificar_token(token)
     if not payload:
         return None
-    rol = payload.get("rol", "")
+    rol = _normalizar_rol_consola(payload.get("rol", ""))
     return UsuarioSesion(
         usuario=payload.get("usuario", ""),
         rol=rol,

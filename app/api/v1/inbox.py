@@ -1,4 +1,4 @@
-"""Inbox de agentes — conversaciones canal abonado (WhatsApp)."""
+"""Inbox de agentes — conversaciones canal abonado (Web / WhatsApp)."""
 
 from __future__ import annotations
 
@@ -157,6 +157,41 @@ def close_conversation(
         direccion="out",
         autor="agente",
         texto="[Sistema] Conversación cerrada por el agente.",
+    )
+    return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
+
+
+class AssignIn(BaseModel):
+    agente_id: str = Field(..., min_length=1)
+    agente_nombre: str = Field(default="")
+
+
+@router.post("/inbox/conversations/{conv_id}/assign")
+def assign_conversation(
+    conv_id: str,
+    body: AssignIn,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    """Reasigna un hilo a un agente (solo admin)."""
+    if not ctx.es_admin_imowi:
+        raise HTTPException(403, "Solo administración puede reasignar conversaciones")
+    c = crepo.get_conversacion(db, _org_id(ctx), conv_id)
+    if not c:
+        raise HTTPException(404, "Conversación no encontrada")
+    if c.estado == "cerrado":
+        raise HTTPException(400, "La conversación está cerrada")
+    c.estado = "con_agente"
+    c.agente_id = body.agente_id.strip()
+    db.commit()
+    nombre = body.agente_nombre.strip() or body.agente_id
+    crepo.add_mensaje(
+        db,
+        _org_id(ctx),
+        c.id,
+        direccion="out",
+        autor="agente",
+        texto=f"[Sistema] Conversación asignada a {nombre}.",
     )
     return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
 

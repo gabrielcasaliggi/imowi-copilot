@@ -49,8 +49,12 @@ export function AppHeader() {
           </div>
         )}
         <div className="hidden md:flex flex-col items-end">
-          <span className="text-xs text-slate-300">{isAdmin ? "Administración" : user?.nombre}</span>
-          <span className="text-[10px] font-mono text-slate-500 uppercase">{user?.rol}</span>
+          <span className="text-xs text-slate-300">
+            {isAdmin ? "Administración" : user?.nombre}
+          </span>
+          <span className="text-[10px] font-mono text-slate-500 uppercase">
+            {isAdmin ? "admin" : "agente"}
+          </span>
         </div>
         <button
           type="button"

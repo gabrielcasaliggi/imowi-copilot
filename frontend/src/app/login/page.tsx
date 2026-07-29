@@ -86,10 +86,17 @@ export default function LoginPage() {
 
         {showDemoCredentials && (
           <div className="mt-6 pt-4 border-t border-slate-800 text-[10px] font-mono text-slate-600 space-y-1">
-            <p>batan / batan — Agente cooperativa</p>
+            <p>batan / batan — Agente</p>
             <p>admin / admin — Administración</p>
           </div>
         )}
+
+        <p className="mt-6 text-center text-xs text-slate-500">
+          ¿Sos abonado?{" "}
+          <a href="/portal" className="text-emerald-400/90 hover:text-emerald-300">
+            Ir al portal de soporte
+          </a>
+        </p>
       </div>
     </div>
   );

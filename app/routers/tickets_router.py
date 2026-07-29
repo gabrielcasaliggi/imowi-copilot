@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api", tags=["Tickets"])
 async def listar_tickets(usuario: UsuarioSesion = Depends(obtener_usuario_requerido)):
     """
     Admin: todos los tickets.
-    Cooperativa: solo los de su cooperativa.
+    Agente: solo los de su cooperativa.
     """
     if usuario.rol == "admin":
         return tickets_store.listar_todos()
@@ -28,7 +28,7 @@ async def detalle_ticket(
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
 
-    if usuario.rol == "cooperativa":
+    if usuario.rol in ("agente", "cooperativa"):
         if raw.get("creado_por", "").strip().lower() != usuario.usuario.strip().lower():
             from fastapi import HTTPException
             raise HTTPException(status_code=403, detail="Sin permiso para este ticket")
@@ -48,9 +48,9 @@ async def actualizar_contenido_ticket(
     data: TicketUpdateInput,
     usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
 ):
-    """Cooperativa: actualiza datos del reclamo al retomar o ampliar el caso."""
-    if usuario.rol != "cooperativa":
-        raise HTTPException(status_code=403, detail="Solo operadores de cooperativa")
+    """Agente: actualiza datos del reclamo al retomar o ampliar el caso."""
+    if usuario.rol not in ("agente", "cooperativa"):
+        raise HTTPException(status_code=403, detail="Solo agentes de la cooperativa")
     raw = tickets_store.obtener_ticket(ticket_id)
     if not raw:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")

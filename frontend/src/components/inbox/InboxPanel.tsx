@@ -12,7 +12,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
-  if (raw === "simulate" || raw === "whatsapp" || !raw) return "WhatsApp";
+  if (raw === "Web" || raw === "web") return "Web";
+  if (raw === "simulate" || raw === "whatsapp" || raw === "WhatsApp" || !raw) return "WhatsApp";
   return raw;
 }
 
@@ -95,6 +96,17 @@ export function InboxPanel() {
     await refreshList();
   };
 
+  const onAssignSelf = async () => {
+    if (!selected || !isAdmin) return;
+    await api.inboxAssign(
+      selected,
+      { agente_id: "admin@ops-hub.demo", agente_nombre: "Administración" },
+      slug,
+    );
+    await openConv(selected);
+    await refreshList();
+  };
+
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
     if (!selected || !reply.trim()) return;
@@ -125,9 +137,9 @@ export function InboxPanel() {
           <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
             Canal abonado
           </p>
-          <h2 className="text-xl font-semibold text-slate-50">Bandeja WhatsApp</h2>
+          <h2 className="text-xl font-semibold text-slate-50">Bandeja de conversaciones</h2>
           <p className="text-sm text-slate-400">
-            Conversaciones de abonados · N1 automático · transferencia a agente
+            Portal web · N1 automático · transferencia a agente
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -160,7 +172,7 @@ export function InboxPanel() {
           className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2"
         >
           <p className="md:col-span-3 text-[11px] text-slate-500">
-            Inyectar mensaje entrante (solo administración · sin Meta Cloud API).
+            Inyectar mensaje entrante (solo administración · pruebas internas).
           </p>
           <input
             value={injectTel}
@@ -248,6 +260,15 @@ export function InboxPanel() {
                       className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
                     >
                       Tomar
+                    </button>
+                  )}
+                  {isAdmin && detail.estado !== "cerrado" && (
+                    <button
+                      type="button"
+                      onClick={onAssignSelf}
+                      className="text-[11px] px-2 py-1 rounded border border-violet-500/30 text-violet-300"
+                    >
+                      Reasignar (admin)
                     </button>
                   )}
                   {detail.estado !== "cerrado" && (

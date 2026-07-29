@@ -8,7 +8,7 @@ const NAV_GROUPS = [
   {
     title: "Operación",
     items: [
-      { href: "/inbox", label: "Bandeja WhatsApp", id: "inbox", admin: false },
+      { href: "/inbox", label: "Bandeja", id: "inbox", admin: false },
       { href: "/soporte", label: "Consola de tickets", id: "soporte", admin: false },
     ],
   },

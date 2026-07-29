@@ -529,6 +529,77 @@ export const api = {
     );
   },
 
+  inboxAssign(
+    id: string,
+    body: { agente_id: string; agente_nombre?: string },
+    tenantSlug?: string,
+  ) {
+    return request<{ status: string; conversacion: InboxConversation }>(
+      `/api/v1/inbox/conversations/${id}/assign`,
+      { method: "POST", body: JSON.stringify(body), tenantSlug },
+    );
+  },
+
+  portalSession(body: { telefono?: string; dni?: string; org_slug?: string }) {
+    return request<{
+      portal_token: string;
+      org_slug: string;
+      conversacion: InboxConversation;
+      mensajes: InboxMessage[];
+      abonado_identificado: boolean;
+    }>("/api/v1/portal/session", {
+      method: "POST",
+      body: JSON.stringify(body),
+      skipAuth: true,
+    });
+  },
+
+  portalSend(texto: string, portalToken: string) {
+    return fetch(`${API_BASE}/api/v1/portal/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${portalToken}`,
+      },
+      body: JSON.stringify({ texto }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new ApiError(
+          typeof err.detail === "string" ? err.detail : res.statusText,
+          res.status,
+        );
+      }
+      return res.json() as Promise<{
+        ok: boolean;
+        conversacion_id?: string;
+        respuesta?: string;
+        estado?: string;
+        ticket_id?: string;
+        conversacion?: InboxConversation | null;
+        mensajes: InboxMessage[];
+      }>;
+    });
+  },
+
+  portalConversation(id: string, portalToken: string) {
+    return fetch(`${API_BASE}/api/v1/portal/conversations/${id}`, {
+      headers: { Authorization: `Bearer ${portalToken}` },
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new ApiError(
+          typeof err.detail === "string" ? err.detail : res.statusText,
+          res.status,
+        );
+      }
+      return res.json() as Promise<{
+        conversacion: InboxConversation;
+        mensajes: InboxMessage[];
+      }>;
+    });
+  },
+
   inboxSimulate(
     body: { telefono: string; texto: string; usar_llama?: boolean },
     tenantSlug?: string,

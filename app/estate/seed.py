@@ -27,11 +27,11 @@ def seed_estate(db: Session) -> dict:
     imowi, batan, viamonte = orgs
 
     users = [
-        User(organizacion_id=imowi.id, email="admin@ops-hub.demo", nombre="Admin Sistema NOC", password=hash_password("admin"), rol="admin_sistema"),
-        User(organizacion_id=imowi.id, email="noc@ops-hub.demo", nombre="Ingeniero NOC", password=hash_password("noc"), rol="ingeniero_noc"),
-        User(organizacion_id=batan.id, email="noc@coopbatan.com", nombre="Ingeniero NOC CoopBatán", password=hash_password("noc"), rol="ingeniero_noc"),
-        User(organizacion_id=batan.id, email="cliente@coopbatan.com", nombre="Operador Coop Batán", password=hash_password("cliente"), rol="cliente", must_change_password="Sí"),
-        User(organizacion_id=viamonte.id, email="cliente@coopviamonte.com", nombre="Cliente Coop Viamonte", password=hash_password("cliente"), rol="cliente", must_change_password="Sí"),
+        User(organizacion_id=imowi.id, email="admin@ops-hub.demo", nombre="Administración", password=hash_password("admin"), rol="admin_sistema"),
+        User(organizacion_id=imowi.id, email="noc@ops-hub.demo", nombre="Supervisor soporte", password=hash_password("noc"), rol="ingeniero_noc"),
+        User(organizacion_id=batan.id, email="agente@coopbatan.com", nombre="Agente Batán", password=hash_password("batan"), rol="agente"),
+        User(organizacion_id=batan.id, email="noc@coopbatan.com", nombre="Supervisor Batán", password=hash_password("noc"), rol="ingeniero_noc"),
+        User(organizacion_id=viamonte.id, email="agente@coopviamonte.com", nombre="Agente Viamonte", password=hash_password("viamonte"), rol="agente"),
     ]
     db.add_all(users)
 

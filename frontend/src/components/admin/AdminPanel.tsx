@@ -350,7 +350,8 @@ export function AdminPanel() {
                         onChange={(e) => setNewUser({ ...newUser, rol: e.target.value })}
                         className="bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-2 text-sm"
                       >
-                        <option value="cliente">Operador (cliente)</option>
+                        <option value="agente">Agente</option>
+                        <option value="cliente">Agente (legacy)</option>
                         <option value="ingeniero_noc">Supervisor soporte</option>
                       </select>
                       <input

@@ -1,6 +1,10 @@
 # Soporte Batán (Operations Hub)
 
-Consola de soporte para **Cooperativa Batán**: bandeja WhatsApp (bot N1 + agentes), tickets N2, base de conocimiento e IA. Enfocada en internet Ecolan, móvil y facturación.
+Consola de soporte para **Cooperativa Batán**: portal web del abonado (bot N1 → agente), bandeja de agentes, tickets N2, base de conocimiento e IA.
+
+- Abonados: [`/portal`](./docs/PORTAL-ABONADO.md)  
+- Agentes/admin: login consola  
+- WhatsApp Meta: fase posterior  
 
 Las APIs legacy de telemetría/JSC pueden existir en el backend pero **no forman parte de la UI operativa**.
 

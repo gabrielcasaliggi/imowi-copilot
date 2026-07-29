@@ -10,16 +10,16 @@ from app.auth import UsuarioSesion, obtener_usuario_requerido
 from app.estate import repository as repo
 from app.estate.database import get_db
 
-_ROLES_ADMIN_KB = ("admin_sistema", "admin_org", "ingeniero_noc", "admin", "cooperativa")
+_ROLES_ADMIN_KB = ("admin_sistema", "admin_org", "ingeniero_noc", "admin", "cooperativa", "agente")
 _ROLES_TELEMETRY = ("admin_sistema", "admin_org", "ingeniero_noc", "admin")
-_ROLES_COOP_KB = ("admin_sistema", "admin_org", "ingeniero_noc", "admin")
+_ROLES_COOP_KB = ("admin_sistema", "admin_org", "ingeniero_noc", "admin", "agente", "cooperativa")
 
 
 def _rol_plataforma(rol: str) -> str:
     if rol == "admin":
         return "admin_sistema"
-    if rol == "cooperativa":
-        return "ingeniero_noc"
+    if rol in ("cooperativa", "agente"):
+        return "agente"
     return rol
 
 

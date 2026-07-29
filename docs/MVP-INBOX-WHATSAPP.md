@@ -1,25 +1,19 @@
-# Inbox WhatsApp — guía operativa (Batán)
+# Inbox / Bandeja — guía operativa (Batán)
 
 ## Producto
 
-Consola de **Cooperativa Batán**: bandeja WhatsApp, bot N1 (Ecolan / móvil / deuda), escalamiento a ticket N2 y conocimiento. Sin superficie JSC/NOC/red en la UI.
+Consola de **Cooperativa Batán**: bandeja de conversaciones (portal web hoy; WhatsApp después), bot N1, tickets N2 y conocimiento.
 
-## Flujo agente
+## Roles
 
-1. Login `batan` / `batan` → entra en **Bandeja WhatsApp**
-2. Tomar hilo en cola → responder → cerrar
-3. Tickets N2: **Consola de tickets**
-4. KB: **Centro de conocimiento** (visible a agentes)
+- **Agente** (`batan`/`batan`): bandeja + tickets  
+- **Admin** (`admin`/`admin`): todo + reasignar  
+- **Abonado**: solo [`/portal`](./PORTAL-ABONADO.md)
 
-## Administración
+## Flujo
 
-`admin` / `admin` → Admin Hub (cooperativas + configuración IA/WhatsApp/playbooks).  
-Inyectar entrada WhatsApp: solo admin, en **Herramientas de canal**.
+1. Abonado entra a `/portal` → bot N1  
+2. Si no resuelve / pide agente → hilo en **Bandeja** (`espera_agente`)  
+3. Agente toma, responde, cierra; ticket N2 en consola de tickets  
 
-## Seed
-
-Si no hay conversaciones abiertas en `coop-batan`, al arrancar se crean 3 hilos realistas (`canal=whatsapp`).
-
-## Meta Cloud API
-
-Variables en `.env` / Configuración plataforma. Webhook: `/api/v1/whatsapp/webhook`.
+WhatsApp Cloud API: fase 2 (ver config plataforma). No es el canal prioritario de la UX actual.

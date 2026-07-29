@@ -143,7 +143,7 @@ def update_organization(
     return org
 
 
-_ROLES_VALIDOS = {"cliente", "ingeniero_noc", "admin_sistema", "admin_org", "admin", "operador", "cooperativa"}
+_ROLES_VALIDOS = {"cliente", "ingeniero_noc", "admin_sistema", "admin_org", "admin", "operador", "cooperativa", "agente"}
 
 
 def create_user_for_org(
@@ -163,9 +163,9 @@ def create_user_for_org(
         raise ValueError("Email inválido")
     if not valid_password(password):
         raise ValueError("La clave debe tener al menos 6 caracteres")
-    rol_norm = (rol or "cliente").lower()
-    if rol_norm in ("operador", "cooperativa"):
-        rol_norm = "cliente"
+    rol_norm = (rol or "agente").lower()
+    if rol_norm in ("operador", "cooperativa", "cliente"):
+        rol_norm = "agente"
     if rol_norm not in _ROLES_VALIDOS:
         raise ValueError(f"Rol '{rol}' no permitido")
     if db.scalar(select(User).where(User.email == email_norm)):
