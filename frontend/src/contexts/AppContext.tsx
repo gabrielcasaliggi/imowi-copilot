@@ -188,7 +188,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [logout]);
 
   const refreshData = useCallback(async () => {
-    const slug = isAdmin ? tenantSlug || getTenantSlug() : undefined;
+    const admin = user?.rol === "admin";
+    const slug = admin ? tenantSlug || getTenantSlug() || "imowi" : undefined;
     const ctx = await api.sessionContext(slug);
     setTenantContext(ctx);
 
@@ -211,7 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }).catch(() => {}),
     ];
 
-    if (isAdmin) {
+    if (admin) {
       loads.push(
         api.kb(slug).then((d) => setKb(d.articulos || [])),
         api.stats(undefined, slug).then(setStats).catch(() => setStats(null)),
@@ -223,7 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .filter((r) => r.status === "rejected")
       .map((r) => (r as PromiseRejectedResult).reason?.message || "módulo no disponible");
     if (failed.length) appendTrace(failed.map((m) => `⚠️ Carga parcial: ${m}`));
-  }, [tenantSlug, isAdmin, appendTrace, aplicarAlertasRed]);
+  }, [tenantSlug, user?.rol, appendTrace, aplicarAlertasRed]);
 
   const boot = useCallback(
     async (loginData?: LoginResponse) => {
@@ -241,13 +242,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { organizaciones } = await api.tenants();
       setOrgs(organizaciones);
 
-      if (me.rol === "admin") {
+      const admin = me.rol === "admin";
+      let slugForLoad: string | undefined;
+      if (admin) {
         const defaultSlug = getTenantSlug() || "imowi";
         setTenantSlugState(defaultSlug);
         setTenantSlug(defaultSlug);
+        slugForLoad = defaultSlug;
       } else {
         clearTenantSlug();
-        setTenantSlugState(me.org_slug || "coop-batan");
+        const coopSlug = me.org_slug || "coop-batan";
+        setTenantSlugState(coopSlug);
+        slugForLoad = undefined;
       }
 
       const sid = getSessionId() || newSessionId();
@@ -255,10 +261,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       else setSessionIdState(getSessionId());
       setHistorial(loadHistorial(getSessionId()));
 
-      await refreshData();
+      try {
+        const ctx = await api.sessionContext(slugForLoad);
+        setTenantContext(ctx);
+        const loads = [
+          api.tickets(slugForLoad).then((d) => setTickets(d.tickets || [])),
+          api.notifications(slugForLoad).then((d) => setNotifications(d.notificaciones || [])),
+          api.telemetry(slugForLoad).then((d) => {
+            const elementos = d.elementos || [];
+            setTelemetry(elementos);
+          }).catch(() => {}),
+        ];
+        if (admin) {
+          loads.push(
+            api.kb(slugForLoad).then((d) => setKb(d.articulos || [])),
+            api.stats(undefined, slugForLoad).then(setStats).catch(() => setStats(null)),
+          );
+        }
+        await Promise.allSettled(loads);
+      } catch (e) {
+        appendTrace([
+          `⚠️ Sesión iniciada, pero falló cargar datos: ${
+            e instanceof Error ? e.message : "Error"
+          }`,
+        ]);
+      }
       setReady(true);
     },
-    [refreshData],
+    [appendTrace],
   );
 
   // Bootstrap de sesión al recargar — patrón client-only intencional
@@ -278,10 +308,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       newSessionId();
       setSessionIdState(getSessionId());
-      await boot(data);
+      try {
+        await boot(data);
+      } catch (e) {
+        // Token ya guardado: entrar igual y mostrar error de carga parcial
+        setReady(true);
+        appendTrace([
+          `⚠️ Login OK, carga incompleta: ${e instanceof Error ? e.message : "Error"}`,
+        ]);
+      }
       router.replace("/soporte");
     },
-    [boot, router],
+    [boot, router, appendTrace],
   );
 
   const setTenant = useCallback(

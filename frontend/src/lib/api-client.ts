@@ -24,6 +24,9 @@ import type {
 const API_BASE =
   (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
+/** Timeout de red: evita que "Ingresando…" quede colgado si Render está despertando. */
+const REQUEST_TIMEOUT_MS = 45_000;
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -35,6 +38,7 @@ export class ApiError extends Error {
 type RequestOpts = RequestInit & {
   tenantSlug?: string;
   skipAuth?: boolean;
+  timeoutMs?: number;
 };
 
 let onUnauthorized: (() => void) | null = null;
@@ -55,10 +59,31 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     if (opts.tenantSlug) headers["X-Tenant-Slug"] = opts.tenantSlug;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers,
-  });
+  const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...opts,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError(
+        "El servidor no respondió a tiempo. Si es la primera carga del día, esperá ~1 min y reintentá (cold start).",
+        408,
+      );
+    }
+    throw new ApiError(
+      err instanceof Error ? err.message : "Error de red al contactar la API",
+      0,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (res.status === 401) {
     clearToken();
