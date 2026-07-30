@@ -220,24 +220,119 @@ function PlantillasRespuesta({
   );
 }
 
-function PublicarKbButton({ onPublish }: { onPublish: () => Promise<void> }) {
+function PublicarKbButton({
+  ticketId,
+  onPublish,
+}: {
+  ticketId: string;
+  onPublish: (body?: {
+    titulo?: string;
+    categoria?: string;
+    contenido?: string;
+  }) => Promise<void>;
+}) {
+  const { tenantSlug, isAdmin } = useApp();
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [titulo, setTitulo] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [contenido, setContenido] = useState("");
+  const [feedback, setFeedback] = useState("");
+
+  const loadDraft = async () => {
+    setLoading(true);
+    setFeedback("");
+    try {
+      const res = await api.ticketKbDraft(ticketId, isAdmin ? tenantSlug : undefined);
+      setTitulo(res.borrador.titulo || "");
+      setCategoria(res.borrador.categoria || "General");
+      setContenido(res.borrador.contenido || "");
+      setOpen(true);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "No se pudo cargar el borrador");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputCls =
+    "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
+
+  if (!open) {
+    return (
+      <div className="space-y-1.5">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={loadDraft}
+          className="w-full py-1.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 text-[11px] disabled:opacity-40"
+        >
+          {loading ? "Preparando…" : "Proponer mejora a KB"}
+        </button>
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          Envía el caso a la bandeja del admin. No se publica hasta aprobación.
+        </p>
+        {feedback && <p className="text-[10px] text-amber-300">{feedback}</p>}
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      disabled={loading}
-      onClick={async () => {
-        setLoading(true);
-        try {
-          await onPublish();
-        } finally {
-          setLoading(false);
-        }
-      }}
-      className="w-full py-1.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 text-[11px] disabled:opacity-40"
-    >
-      {loading ? "Publicando…" : "Publicar artículo KB desde ticket"}
-    </button>
+    <div className="space-y-2">
+      <input
+        className={inputCls}
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        placeholder="Título"
+      />
+      <input
+        className={inputCls}
+        value={categoria}
+        onChange={(e) => setCategoria(e.target.value)}
+        placeholder="Categoría"
+      />
+      <textarea
+        className={`${inputCls} min-h-[100px] resize-y`}
+        value={contenido}
+        onChange={(e) => setContenido(e.target.value)}
+        placeholder="Procedimiento / resolución"
+      />
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          disabled={loading || !titulo.trim() || !contenido.trim()}
+          onClick={async () => {
+            setLoading(true);
+            setFeedback("");
+            try {
+              await onPublish({
+                titulo: titulo.trim(),
+                categoria: categoria.trim() || "General",
+                contenido: contenido.trim(),
+              });
+              setFeedback("Propuesta enviada a revisión admin.");
+              setOpen(false);
+            } catch (err) {
+              setFeedback(err instanceof Error ? err.message : "Error al proponer");
+            } finally {
+              setLoading(false);
+            }
+          }}
+          className="flex-1 py-1.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 text-[11px] disabled:opacity-40"
+        >
+          {loading ? "Enviando…" : "Enviar a revisión"}
+        </button>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => setOpen(false)}
+          className="px-2 py-1.5 rounded border border-slate-700 text-slate-400 text-[11px]"
+        >
+          Cancelar
+        </button>
+      </div>
+      {feedback && <p className="text-[10px] text-cyan-300/90">{feedback}</p>}
+    </div>
   );
 }
 
@@ -454,9 +549,12 @@ export function SupportSidebar() {
             <NotaInternaForm onSubmit={(d) => addTicketNote(d, true)} />
           </GlassCard>
         )}
-        {isAdmin && ticketFormacion && (
+        {ticketFormacion && (
           <GlassCard title="Conocimiento" variant="secondary">
-            <PublicarKbButton onPublish={publishTicketKb} />
+            <PublicarKbButton
+              ticketId={ticketFormacion.id}
+              onPublish={publishTicketKb}
+            />
           </GlassCard>
         )}
 

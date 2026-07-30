@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.estate import repository as repo
-from app.estate.models import Ticket
+from app.estate.models import KnowledgeContribution, Ticket
 from app.estate.ticket_intelligence import inferir_causa_probable
 
 
@@ -112,6 +112,50 @@ def generar_postmortem(ticket: Ticket, org_name: str = "") -> str:
     )
 
 
+def cierre_positivo(ticket: Ticket) -> bool:
+    """Cierre con resolución documentada (candidato a propuesta KB)."""
+    if (ticket.estado or "") != "Cerrado":
+        return False
+    return bool((ticket.resolucion_tecnica or "").strip())
+
+
+def crear_propuesta_kb_desde_ticket(
+    db: Session,
+    org_id: str,
+    ticket: Ticket,
+    *,
+    org_name: str = "",
+    propuesto_por: str = "sistema-ia",
+    origen: str = "cierre",
+    titulo: str | None = None,
+    categoria: str | None = None,
+    contenido: str | None = None,
+    evitar_duplicado_pendiente: bool = True,
+) -> KnowledgeContribution | None:
+    """Crea contribución pendiente; no publica en KB hasta revisión admin."""
+    borrador = proponer_articulo_kb(ticket, org_name=org_name)
+    tit = (titulo or borrador["titulo"]).strip()
+    cat = (categoria or borrador["categoria"]).strip()
+    cont = (contenido or borrador["contenido"]).strip()
+    if not tit or not cont:
+        return None
+    if evitar_duplicado_pendiente:
+        existente = repo.find_pending_kb_contribution_for_ticket(db, org_id, ticket.id)
+        if existente:
+            return existente
+    return repo.add_kb_contribution(
+        db,
+        org_id,
+        titulo=tit,
+        categoria=cat,
+        contenido=cont,
+        ticket_id=ticket.id,
+        origen=origen,
+        nivel_ticket=ticket.nivel or "N1",
+        propuesto_por=propuesto_por,
+    )
+
+
 def procesar_cierre_ticket(
     db: Session,
     org_id: str,
@@ -135,7 +179,42 @@ def procesar_cierre_ticket(
         actor="sistema-ia",
     )
 
-    if kb:
+    contribucion = None
+    if cierre_positivo(ticket):
+        contribucion = crear_propuesta_kb_desde_ticket(
+            db,
+            org_id,
+            ticket,
+            org_name=org_name,
+            propuesto_por="sistema-ia",
+            origen="cierre",
+        )
+        if contribucion:
+            repo.add_ticket_event(
+                db,
+                org_id,
+                ticket.id,
+                tipo="kb_propuesta",
+                titulo="Propuesta KB enviada a revisión",
+                detalle=f"{contribucion.titulo} ({contribucion.id})",
+                nivel=ticket.nivel or "N1",
+                estado=ticket.estado,
+                actor="sistema-ia",
+                visible_cliente="No",
+            )
+            repo.add_ticket_notification(
+                db,
+                org_id,
+                ticket.id,
+                destinatario=ticket.creado_por,
+                titulo="Propuesta KB pendiente de revisión",
+                mensaje=(
+                    f"El cierre positivo de {ticket.id} generó una propuesta KB "
+                    f"para el administrador: {contribucion.titulo}."
+                ),
+            )
+
+    if kb and not contribucion:
         titulos = ", ".join(k["titulo"] for k in kb[:2])
         repo.add_ticket_notification(
             db,
@@ -150,4 +229,14 @@ def procesar_cierre_ticket(
         "kb_sugerencias": kb,
         "similares_resueltos": [s for s in similares if s.get("cerrado")],
         "postmortem": postmortem,
+        "contribucion_kb": (
+            {
+                "id": contribucion.id,
+                "titulo": contribucion.titulo,
+                "estado": contribucion.estado,
+                "origen": contribucion.origen,
+            }
+            if contribucion
+            else None
+        ),
     }

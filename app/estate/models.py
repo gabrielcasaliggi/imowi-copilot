@@ -30,6 +30,9 @@ class Organization(Base):
 
     usuarios: Mapped[list["User"]] = relationship(back_populates="organizacion")
     articulos_kb: Mapped[list["KnowledgeArticle"]] = relationship(back_populates="organizacion")
+    contribuciones_kb: Mapped[list["KnowledgeContribution"]] = relationship(
+        back_populates="organizacion"
+    )
     elementos_red: Mapped[list["NetworkElement"]] = relationship(back_populates="organizacion")
     tickets: Mapped[list["Ticket"]] = relationship(back_populates="organizacion")
     ticket_events: Mapped[list["TicketEvent"]] = relationship(back_populates="organizacion")
@@ -67,6 +70,30 @@ class KnowledgeArticle(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped["Organization"] = relationship(back_populates="articulos_kb")
+
+
+class KnowledgeContribution(Base):
+    """Propuesta a KB pendiente de revisión admin (cierres N1/N2 o aporte de agente)."""
+
+    __tablename__ = "knowledge_contributions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    ticket_id: Mapped[str] = mapped_column(String(32), default="", index=True)
+    titulo: Mapped[str] = mapped_column(String(200), nullable=False)
+    categoria: Mapped[str] = mapped_column(String(80), default="General")
+    contenido: Mapped[str] = mapped_column(Text, nullable=False)
+    estado: Mapped[str] = mapped_column(String(24), default="pendiente", index=True)
+    origen: Mapped[str] = mapped_column(String(32), default="cierre")  # cierre|agente|manual
+    nivel_ticket: Mapped[str] = mapped_column(String(16), default="")
+    propuesto_por: Mapped[str] = mapped_column(String(120), default="")
+    revisado_por: Mapped[str] = mapped_column(String(120), default="")
+    motivo_revision: Mapped[str] = mapped_column(Text, default="")
+    articulo_id: Mapped[str] = mapped_column(String(36), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    organizacion: Mapped["Organization"] = relationship(back_populates="contribuciones_kb")
 
 
 class NetworkElement(Base):

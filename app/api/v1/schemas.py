@@ -86,6 +86,21 @@ class TicketKbPublish(BaseModel):
     contenido: str | None = None
 
 
+class KBContributionCreate(BaseModel):
+    titulo: str
+    categoria: str = "General"
+    contenido: str
+    ticket_id: str = ""
+    origen: str = "agente"
+
+
+class KBContributionReview(BaseModel):
+    titulo: str | None = None
+    categoria: str | None = None
+    contenido: str | None = None
+    motivo_revision: str = ""
+
+
 class OrganizationCreate(BaseModel):
     nombre: str
     slug: str | None = None

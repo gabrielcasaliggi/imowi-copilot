@@ -1,6 +1,7 @@
 "use client";
 
 import { useApp } from "@/contexts/AppContext";
+import { PendingTasksBell } from "@/components/layout/PendingTasksBell";
 
 export function AppHeader() {
   const { user, isAdmin, orgs, tenantSlug, tenantContext, logout, setTenant } =
@@ -48,6 +49,7 @@ export function AppHeader() {
             </select>
           </div>
         )}
+        <PendingTasksBell />
         <div className="hidden md:flex flex-col items-end">
           <span className="text-xs text-slate-300">
             {isAdmin ? "Administración" : user?.nombre}

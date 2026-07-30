@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { api } from "@/lib/api-client";
 import type { Ticket } from "@/lib/types";
 
 function RiskBadge({ level, score }: { level?: string; score?: number }) {
@@ -83,7 +85,17 @@ function PriorityTicketRow({
 }
 
 export function NocBoard() {
-  const { isAdmin, stats, tickets, selectTicket } = useApp();
+  const { isAdmin, stats, tickets, selectTicket, tenantSlug } = useApp();
+  const [kbPendientes, setKbPendientes] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    void api
+      .kbContributions({ estado: "pendiente" }, tenantSlug)
+      .then((r) => setKbPendientes((r.contribuciones || []).length))
+      .catch(() => setKbPendientes(0));
+  }, [isAdmin, tenantSlug, tickets]);
+
   if (!isAdmin) return null;
 
   const resumen = stats?.resumen;
@@ -105,12 +117,20 @@ export function NocBoard() {
             Priorización · causa probable · próxima acción · Batán
           </p>
         </div>
-        <a
-          href="/tickets"
-          className="text-[10px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
-        >
-          Cola completa →
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/conocimiento"
+            className="text-[10px] font-mono px-2.5 py-1 rounded border border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+          >
+            KB pendientes: {kbPendientes} →
+          </a>
+          <a
+            href="/tickets"
+            className="text-[10px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+          >
+            Cola completa →
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">

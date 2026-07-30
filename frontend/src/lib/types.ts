@@ -312,6 +312,23 @@ export interface KBArticle {
   created_at?: string;
 }
 
+export interface KBContribution {
+  id: string;
+  ticket_id: string;
+  titulo: string;
+  categoria: string;
+  contenido: string;
+  estado: "pendiente" | "aprobada" | "rechazada" | string;
+  origen: string;
+  nivel_ticket: string;
+  propuesto_por: string;
+  revisado_por: string;
+  motivo_revision: string;
+  articulo_id: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface StatsDistribution {
   label: string;
   count: number;

@@ -13,6 +13,8 @@ from app.estate.database import get_db
 _ROLES_ADMIN_KB = ("admin_sistema", "admin_org", "ingeniero_noc", "admin", "cooperativa", "agente")
 _ROLES_TELEMETRY = ("admin_sistema", "admin_org", "ingeniero_noc", "admin")
 _ROLES_COOP_KB = ("admin_sistema", "admin_org", "ingeniero_noc", "admin", "agente", "cooperativa")
+_ROLES_KB_REVIEW = ("admin_sistema", "admin_org")
+_ROLES_KB_PROPOSE = ("admin_sistema", "admin_org", "ingeniero_noc", "admin", "agente", "cooperativa")
 
 
 def _rol_plataforma(rol: str) -> str:
@@ -58,6 +60,18 @@ def require_kb_admin(ctx: TenantContext = Depends(get_tenant_context)) -> Tenant
     if ctx.rol == "cliente":
         raise HTTPException(403, "Tu rol no puede editar la base de conocimiento")
     return ctx
+
+
+def require_kb_proposer(ctx: TenantContext = Depends(get_tenant_context)) -> TenantContext:
+    if ctx.rol == "cliente" or (ctx.rol not in _ROLES_KB_PROPOSE and not ctx.es_admin_imowi):
+        raise HTTPException(403, "Tu rol no puede proponer mejoras a la base de conocimiento")
+    return ctx
+
+
+def require_kb_reviewer(ctx: TenantContext = Depends(get_tenant_context)) -> TenantContext:
+    if ctx.es_admin_imowi or ctx.rol in _ROLES_KB_REVIEW:
+        return ctx
+    raise HTTPException(403, "Solo administradores pueden revisar contribuciones a la KB")
 
 
 def require_telemetry(ctx: TenantContext = Depends(get_tenant_context)) -> TenantContext:

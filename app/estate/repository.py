@@ -13,6 +13,7 @@ from app.config import ANOMALY_TTL_MINUTES
 from app.estate.models import (
     CasoConversacion,
     KnowledgeArticle,
+    KnowledgeContribution,
     LineaJSC,
     NetworkElement,
     Organization,
@@ -246,6 +247,137 @@ def add_kb(db: Session, org_id: str, titulo: str, categoria: str, contenido: str
     db.commit()
     db.refresh(art)
     return art
+
+
+def add_kb_contribution(
+    db: Session,
+    org_id: str,
+    *,
+    titulo: str,
+    categoria: str,
+    contenido: str,
+    ticket_id: str = "",
+    origen: str = "cierre",
+    nivel_ticket: str = "",
+    propuesto_por: str = "",
+) -> KnowledgeContribution:
+    contrib = KnowledgeContribution(
+        organizacion_id=org_id,
+        ticket_id=ticket_id or "",
+        titulo=titulo.strip()[:200],
+        categoria=(categoria or "General").strip()[:80],
+        contenido=contenido.strip(),
+        estado="pendiente",
+        origen=origen or "cierre",
+        nivel_ticket=nivel_ticket or "",
+        propuesto_por=propuesto_por or "",
+    )
+    db.add(contrib)
+    db.commit()
+    db.refresh(contrib)
+    return contrib
+
+
+def get_kb_contribution(
+    db: Session,
+    org_id: str,
+    contrib_id: str,
+    *,
+    admin_global: bool = False,
+) -> KnowledgeContribution | None:
+    q = select(KnowledgeContribution).where(KnowledgeContribution.id == contrib_id)
+    if not admin_global:
+        q = q.where(KnowledgeContribution.organizacion_id == org_id)
+    return db.scalar(q)
+
+
+def list_kb_contributions(
+    db: Session,
+    org_id: str,
+    *,
+    estado: str = "",
+    ticket_id: str = "",
+    admin_global: bool = False,
+    limit: int = 100,
+) -> list[KnowledgeContribution]:
+    q = select(KnowledgeContribution).order_by(KnowledgeContribution.created_at.desc()).limit(limit)
+    if not admin_global:
+        q = q.where(KnowledgeContribution.organizacion_id == org_id)
+    if estado:
+        q = q.where(KnowledgeContribution.estado == estado)
+    if ticket_id:
+        q = q.where(KnowledgeContribution.ticket_id == ticket_id)
+    return list(db.scalars(q).all())
+
+
+def find_pending_kb_contribution_for_ticket(
+    db: Session,
+    org_id: str,
+    ticket_id: str,
+) -> KnowledgeContribution | None:
+    if not ticket_id:
+        return None
+    return db.scalar(
+        select(KnowledgeContribution)
+        .where(
+            KnowledgeContribution.organizacion_id == org_id,
+            KnowledgeContribution.ticket_id == ticket_id,
+            KnowledgeContribution.estado == "pendiente",
+        )
+        .order_by(KnowledgeContribution.created_at.desc())
+        .limit(1)
+    )
+
+
+def approve_kb_contribution(
+    db: Session,
+    contrib: KnowledgeContribution,
+    *,
+    revisado_por: str,
+    titulo: str | None = None,
+    categoria: str | None = None,
+    contenido: str | None = None,
+    motivo_revision: str = "",
+) -> tuple[KnowledgeContribution, KnowledgeArticle]:
+    if titulo is not None and titulo.strip():
+        contrib.titulo = titulo.strip()[:200]
+    if categoria is not None and categoria.strip():
+        contrib.categoria = categoria.strip()[:80]
+    if contenido is not None and contenido.strip():
+        contrib.contenido = contenido.strip()
+    art = KnowledgeArticle(
+        organizacion_id=contrib.organizacion_id,
+        titulo=contrib.titulo,
+        categoria=contrib.categoria or "General",
+        contenido=contrib.contenido,
+    )
+    db.add(art)
+    db.flush()
+    contrib.estado = "aprobada"
+    contrib.revisado_por = revisado_por or ""
+    contrib.motivo_revision = (motivo_revision or "").strip()[:2000]
+    contrib.articulo_id = art.id
+    contrib.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(contrib)
+    db.refresh(art)
+    return contrib, art
+
+
+def reject_kb_contribution(
+    db: Session,
+    contrib: KnowledgeContribution,
+    *,
+    revisado_por: str,
+    motivo_revision: str = "",
+) -> KnowledgeContribution:
+    contrib.estado = "rechazada"
+    contrib.revisado_por = revisado_por or ""
+    contrib.motivo_revision = (motivo_revision or "").strip()[:2000]
+    contrib.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(contrib)
+    return contrib
 
 
 def list_telemetry(db: Session, org_id: str) -> list[NetworkElement]:

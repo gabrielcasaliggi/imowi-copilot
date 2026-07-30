@@ -6,6 +6,7 @@ import type {
   KBSuggestion,
   TicketLearning,
   KBArticle,
+  KBContribution,
   AdminUser,
   AuditEvent,
   ImportCsvResult,
@@ -235,7 +236,15 @@ export const api = {
   ) {
     return request<{
       status: string;
-      articulo: { id: string; titulo: string; categoria: string };
+      pendiente_revision?: boolean;
+      contribucion: {
+        id: string;
+        titulo: string;
+        categoria: string;
+        estado: string;
+        origen: string;
+      };
+      articulo?: { id: string; titulo: string; categoria: string };
     }>(`/api/v1/tickets/${id}/publish-kb`, {
       method: "POST",
       body: JSON.stringify(body || {}),
@@ -290,6 +299,73 @@ export const api = {
       body: JSON.stringify(body),
       tenantSlug,
     });
+  },
+
+  kbContributions(params?: { estado?: string; ticket_id?: string }, tenantSlug?: string) {
+    const qs = new URLSearchParams();
+    if (params?.estado) qs.set("estado", params.estado);
+    if (params?.ticket_id) qs.set("ticket_id", params.ticket_id);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<{ tenant: string; estado: string; contribuciones: KBContribution[] }>(
+      `/api/v1/kb/contributions${suffix}`,
+      { tenantSlug },
+    );
+  },
+
+  createKbContribution(
+    body: {
+      titulo: string;
+      categoria?: string;
+      contenido: string;
+      ticket_id?: string;
+      origen?: string;
+    },
+    tenantSlug?: string,
+  ) {
+    return request<{ status: string; contribucion: KBContribution }>(
+      "/api/v1/kb/contributions",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        tenantSlug,
+      },
+    );
+  },
+
+  approveKbContribution(
+    id: string,
+    body?: {
+      titulo?: string;
+      categoria?: string;
+      contenido?: string;
+      motivo_revision?: string;
+    },
+    tenantSlug?: string,
+  ) {
+    return request<{
+      status: string;
+      contribucion: KBContribution;
+      articulo: { id: string; titulo: string; categoria: string };
+    }>(`/api/v1/kb/contributions/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+      tenantSlug,
+    });
+  },
+
+  rejectKbContribution(
+    id: string,
+    body?: { motivo_revision?: string },
+    tenantSlug?: string,
+  ) {
+    return request<{ status: string; contribucion: KBContribution }>(
+      `/api/v1/kb/contributions/${id}/reject`,
+      {
+        method: "POST",
+        body: JSON.stringify(body || {}),
+        tenantSlug,
+      },
+    );
   },
 
   stats(params?: { desde?: string; hasta?: string }, tenantSlug?: string) {

@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_tenant_context, require_kb_admin
+from app.api.v1.deps import get_tenant_context, require_kb_admin, require_kb_proposer
 from app.api.v1.schemas import TenantContext, TicketEventCreate, TicketKbPublish, TicketUpdateV1
 from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db
-from app.estate.learning_loop import proponer_articulo_kb, similares_con_resolucion, sugerir_kb
+from app.estate.learning_loop import (
+    crear_propuesta_kb_desde_ticket,
+    proponer_articulo_kb,
+    similares_con_resolucion,
+    sugerir_kb,
+)
 from app.estate.ticket_intelligence import calcular_prioridad, explicar_escalamiento, ordenar_por_riesgo
 from app.services import ticket_bridge
 from app.services.ticket_queue import filtrar_tickets
@@ -317,47 +322,58 @@ def get_ticket_kb_draft(
 def publish_ticket_kb(
     ticket_id: str,
     body: TicketKbPublish,
-    ctx: TenantContext = Depends(require_kb_admin),
+    ctx: TenantContext = Depends(require_kb_proposer),
     db: Session = Depends(get_db),
 ):
+    """Propone artículo KB desde ticket (queda en bandeja admin; no publica directo)."""
     admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
     t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
     org = repo.get_org_by_id(db, t.organizacion_id)
-    borrador = proponer_articulo_kb(t, org_name=org.nombre if org else "")
-    titulo = (body.titulo or borrador["titulo"]).strip()
-    categoria = (body.categoria or borrador["categoria"]).strip()
-    contenido = (body.contenido or borrador["contenido"]).strip()
-    if not titulo or not contenido:
+    contrib = crear_propuesta_kb_desde_ticket(
+        db,
+        t.organizacion_id,
+        t,
+        org_name=org.nombre if org else "",
+        propuesto_por=ctx.usuario_email,
+        origen="agente",
+        titulo=body.titulo,
+        categoria=body.categoria,
+        contenido=body.contenido,
+        evitar_duplicado_pendiente=False,
+    )
+    if not contrib:
         raise HTTPException(400, "Título y contenido son obligatorios")
-    art = repo.add_kb(db, t.organizacion_id, titulo, categoria, contenido)
     repo.add_ticket_event(
         db,
         t.organizacion_id,
         ticket_id,
-        tipo="kb_publicada",
-        titulo="Artículo KB publicado",
-        detalle=f"{titulo} ({art.id})",
+        tipo="kb_propuesta",
+        titulo="Propuesta KB enviada a revisión",
+        detalle=f"{contrib.titulo} ({contrib.id})",
         nivel=t.nivel or "N1",
         estado=t.estado or "Abierto",
         actor=ctx.usuario_email,
-        visible_cliente="Sí",
+        visible_cliente="No",
     )
     log_audit(
         db,
         org_id=t.organizacion_id,
         actor=ctx.usuario_email,
-        accion="kb_desde_ticket",
+        accion="kb_propuesta",
         recurso=ticket_id,
-        detalle=f"{art.id}: {titulo}",
+        detalle=f"{contrib.id}: {contrib.titulo}",
     )
     return {
         "status": "ok",
-        "articulo": {
-            "id": art.id,
-            "titulo": art.titulo,
-            "categoria": art.categoria,
+        "pendiente_revision": True,
+        "contribucion": {
+            "id": contrib.id,
+            "titulo": contrib.titulo,
+            "categoria": contrib.categoria,
+            "estado": contrib.estado,
+            "origen": contrib.origen,
         },
     }
 

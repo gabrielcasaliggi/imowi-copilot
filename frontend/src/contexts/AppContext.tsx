@@ -96,9 +96,14 @@ interface AppContextValue {
   loadStats: (desde?: string, hasta?: string) => Promise<void>;
   simulateFailure: (elemento: string) => Promise<void>;
   createKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
+  proposeKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
   explainEscalation: () => Promise<string | null>;
   addTicketNote: (detalle: string, interno?: boolean) => Promise<void>;
-  publishTicketKb: () => Promise<void>;
+  publishTicketKb: (body?: {
+    titulo?: string;
+    categoria?: string;
+    contenido?: string;
+  }) => Promise<void>;
   appendTrace: (lines: string[]) => void;
   clearTraces: () => void;
 }
@@ -399,14 +404,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [ticketFormacion, isAdmin, tenantSlug, appendTrace],
   );
 
-  const publishTicketKb = useCallback(async () => {
-    if (!ticketFormacion?.id || !isAdmin) return;
-    const res = await api.publishTicketKb(ticketFormacion.id, undefined, tenantSlug);
-    const data = await api.kb(tenantSlug);
-    setKb(data.articulos || []);
-    await selectTicket(ticketFormacion.id);
-    appendTrace([`📚 KB publicada desde ticket: ${res.articulo.titulo}`]);
-  }, [ticketFormacion, isAdmin, tenantSlug, selectTicket, appendTrace]);
+  const publishTicketKb = useCallback(
+    async (body?: { titulo?: string; categoria?: string; contenido?: string }) => {
+      if (!ticketFormacion?.id) return;
+      const res = await api.publishTicketKb(
+        ticketFormacion.id,
+        body,
+        isAdmin ? tenantSlug : undefined,
+      );
+      await selectTicket(ticketFormacion.id);
+      appendTrace([
+        `📚 Propuesta KB enviada a revisión: ${res.contribucion.titulo}`,
+      ]);
+    },
+    [ticketFormacion, isAdmin, tenantSlug, selectTicket, appendTrace],
+  );
 
   const procesarRespuestaChat = useCallback(
     async (res: Awaited<ReturnType<typeof api.chat>>) => {
@@ -597,6 +609,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [tenantSlug, appendTrace],
   );
 
+  const proposeKbArticle = useCallback(
+    async (titulo: string, categoria: string, contenido: string) => {
+      const res = await api.createKbContribution(
+        { titulo, categoria, contenido, origen: "agente" },
+        isAdmin ? tenantSlug : undefined,
+      );
+      appendTrace([
+        `📬 Propuesta KB pendiente de revisión: ${res.contribucion.titulo}`,
+      ]);
+    },
+    [tenantSlug, isAdmin, appendTrace],
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       ready,
@@ -642,6 +667,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadStats,
       simulateFailure,
       createKbArticle,
+      proposeKbArticle,
       explainEscalation,
       addTicketNote,
       publishTicketKb,
@@ -692,6 +718,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadStats,
       simulateFailure,
       createKbArticle,
+      proposeKbArticle,
       explainEscalation,
       addTicketNote,
       publishTicketKb,

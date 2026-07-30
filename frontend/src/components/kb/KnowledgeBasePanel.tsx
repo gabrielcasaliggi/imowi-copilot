@@ -8,6 +8,7 @@ import {
   SectionHeader,
   SidebarSection,
 } from "@/components/ui/GlassCard";
+import { KbReviewTray } from "@/components/kb/KbReviewTray";
 
 const SUGGESTED_CATEGORIES = [
   "Internet Ecolan",
@@ -48,12 +49,13 @@ function formatDate(iso?: string): string {
 }
 
 export function KnowledgeBasePanel() {
-  const { kb, createKbArticle } = useApp();
+  const { kb, createKbArticle, proposeKbArticle, isAdmin } = useApp();
   const [titulo, setTitulo] = useState("");
   const [categoria, setCategoria] = useState("General");
   const [contenido, setContenido] = useState("");
   const [saving, setSaving] = useState(false);
   const [filterCat, setFilterCat] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState("");
 
   const categorias = useMemo(() => {
     const set = new Set(kb.map((a) => a.categoria).filter(Boolean));
@@ -78,10 +80,27 @@ export function KnowledgeBasePanel() {
     e.preventDefault();
     if (!titulo.trim() || !contenido.trim()) return;
     setSaving(true);
+    setFeedback("");
     try {
-      await createKbArticle(titulo.trim(), categoria.trim() || "General", contenido.trim());
+      if (isAdmin) {
+        await createKbArticle(
+          titulo.trim(),
+          categoria.trim() || "General",
+          contenido.trim(),
+        );
+        setFeedback("Artículo publicado en la KB.");
+      } else {
+        await proposeKbArticle(
+          titulo.trim(),
+          categoria.trim() || "General",
+          contenido.trim(),
+        );
+        setFeedback("Propuesta enviada a la bandeja del administrador.");
+      }
       setTitulo("");
       setContenido("");
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "No se pudo guardar");
     } finally {
       setSaving(false);
     }
@@ -96,6 +115,12 @@ export function KnowledgeBasePanel() {
         title="Intelligence Knowledge Center"
         subtitle="Memoria operativa Batán · cada artículo mejora al asistente N1/N2"
       />
+
+      {isAdmin && (
+        <SidebarSection title="Revisión de aportes">
+          <KbReviewTray />
+        </SidebarSection>
+      )}
 
       <SidebarSection title="Impacto en inteligencia">
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
@@ -189,8 +214,13 @@ export function KnowledgeBasePanel() {
             className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 space-y-3 h-fit sticky top-4"
           >
             <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400">
-              Publicar artículo
+              {isAdmin ? "Publicar artículo (admin)" : "Proponer mejora a KB"}
             </h3>
+            {!isAdmin && (
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Tu aporte llega a la bandeja del administrador. No se publica hasta que lo apruebe.
+              </p>
+            )}
             <input
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
@@ -221,8 +251,17 @@ export function KnowledgeBasePanel() {
               className="w-full py-2.5 rounded-xl font-semibold text-slate-950 text-sm disabled:opacity-50"
               style={{ background: "var(--brand)" }}
             >
-              {saving ? "Publicando…" : "Publicar en KB"}
+              {saving
+                ? isAdmin
+                  ? "Publicando…"
+                  : "Enviando…"
+                : isAdmin
+                  ? "Publicar en KB"
+                  : "Enviar a revisión"}
             </button>
+            {feedback && (
+              <p className="text-[11px] text-cyan-300/90 text-center">{feedback}</p>
+            )}
           </form>
 
           <GlassCard title="Qué incorporar" accent="emerald" variant="secondary">
