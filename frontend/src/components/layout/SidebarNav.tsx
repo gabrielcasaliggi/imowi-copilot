@@ -94,7 +94,7 @@ export function SidebarNav() {
       </nav>
       <aside className="w-60 shrink-0 border-r border-slate-800/80 p-3 hidden lg:block">
         <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600 px-2 mb-3">
-          Soporte Batán
+          Navegación
         </p>
         <nav className="space-y-4">
           {NAV_GROUPS.map((group) => {

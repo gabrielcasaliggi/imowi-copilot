@@ -33,8 +33,8 @@ export function AppHeader() {
         </div>
         <div className="min-w-0">
           <h1 className="font-semibold text-slate-100 truncate tracking-tight">{orgName}</h1>
-          <p className="text-[10px] font-mono text-slate-500 truncate">
-            {isAdmin ? "Administración · Operations Hub" : "Soporte Batán · Ecolan + móvil"}
+          <p className="text-[10px] font-mono text-slate-500 truncate uppercase">
+            {user?.rol || "agente"}
           </p>
         </div>
       </div>
@@ -61,10 +61,7 @@ export function AppHeader() {
         <AvailabilityControl />
         <PendingTasksBell />
         <div className="hidden md:flex flex-col items-end">
-          <span className="text-xs text-slate-300">{rolLabel}</span>
-          <span className="text-[10px] font-mono text-slate-500 uppercase">
-            {user?.rol || "agente"}
-          </span>
+          <span className="text-xs text-slate-300 truncate max-w-[10rem]">{rolLabel}</span>
         </div>
         <button
           type="button"

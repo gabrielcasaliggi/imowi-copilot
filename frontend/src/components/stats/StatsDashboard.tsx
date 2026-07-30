@@ -356,12 +356,23 @@ export function StatsDashboard() {
     if (!stats) return;
     const rows: string[][] = [
       ["metrica", "valor"],
+      ["tenant", tenantSlug || ""],
       ["total", String(stats.resumen?.total ?? 0)],
       ["abiertos", String(stats.resumen?.abiertos ?? 0)],
       ["cerrados", String(stats.resumen?.cerrados ?? 0)],
       ["n2", String(stats.resumen?.n2 ?? 0)],
       ["promedio_horas", String(stats.resumen?.promedio_horas ?? 0)],
       ["sla_vencido", String(slaVencidos)],
+      ["tasa_cierre", String(stats.resumen?.tasa_cierre ?? "")],
+      ["resumen_ejecutivo", executive?.resumen_ejecutivo || ""],
+      [
+        "horas_ahorradas_est",
+        String(executive?.ahorro_operativo?.horas_ahorradas_estimadas ?? ""),
+      ],
+      [
+        "escalaciones_evitadas_est",
+        String(executive?.ahorro_operativo?.escalaciones_evitadas_estimadas ?? ""),
+      ],
     ];
     (stats.distribuciones?.categoria || []).forEach((c) => {
       rows.push([`categoria:${c.label}`, String(c.count)]);
@@ -390,9 +401,9 @@ export function StatsDashboard() {
             <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
               Tablero de gestión
             </p>
-            <h2 className="mt-1 text-2xl font-semibold text-slate-50">Estadísticas operativas</h2>
+            <h2 className="mt-1 text-2xl font-semibold text-slate-50">Estadísticas</h2>
             <p className="mt-1 text-sm text-slate-400">
-              SLA, backlog y evolución de reclamos — Cooperativa Batán.
+              Análisis y reportes. La operación diaria está en Cola / Consola.
             </p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
@@ -443,12 +454,6 @@ export function StatsDashboard() {
             <KpiCard label="N2" value={r?.n2 || 0} tone="violet" helper="escalados" />
             <KpiCard label="Cerrados" value={r?.cerrados || 0} tone="emerald" helper="resueltos" />
             <KpiCard label="Prom. hs" value={r?.promedio_horas || 0} tone="default" helper="tiempo abierto" />
-            {typeof r?.tasa_cierre === "number" && (
-              <KpiCard label="% cierre" value={r.tasa_cierre} tone="emerald" />
-            )}
-            {typeof r?.porcentaje_n2 === "number" && (
-              <KpiCard label="% N2" value={r.porcentaje_n2} tone="violet" />
-            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-4">
@@ -485,14 +490,6 @@ export function StatsDashboard() {
               </h3>
               <RiskRanking data={executive?.ranking_riesgo || []} />
             </div>
-            {(stats.distribuciones?.cooperativa?.length ?? 0) > 0 && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                  Por cooperativa
-                </h3>
-                <BarList data={stats.distribuciones?.cooperativa || []} unit="tickets" color="#f59e0b" />
-              </div>
-            )}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
                 Reclamos mensuales
@@ -519,31 +516,32 @@ export function StatsDashboard() {
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
                 <h3 className="text-xs font-mono uppercase text-amber-300/80">
-                  Backlog crítico
+                  Top riesgo (muestra)
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Tickets abiertos ordenados por riesgo, SLA y próxima acción.
+                  Los 3 más urgentes. La cola completa y filtros están en Tickets.
                 </p>
               </div>
-              <span className="chip border-amber-500/30 bg-amber-500/10 text-amber-200">
-                {stats.backlog?.length || 0} activos
-              </span>
+              <Link
+                href="/tickets"
+                className="text-[11px] font-mono text-cyan-300 hover:text-cyan-200 shrink-0"
+              >
+                Ir a cola →
+              </Link>
             </div>
             {!stats.backlog?.length ? (
               <EmptyState label="Sin backlog abierto." />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {stats.backlog.map((t) => (
-        <Link
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {stats.backlog.slice(0, 3).map((t) => (
+                  <Link
                     key={t.id}
-                    href="/soporte"
+                    href={`/soporte?ticket=${encodeURIComponent(t.id)}`}
                     onClick={() => selectTicket(t.id)}
                     className="block p-3 rounded-xl border border-slate-800 bg-slate-950/55 hover:border-cyan-500/40 hover:bg-slate-950/80 transition-colors"
                   >
                     <div className="flex justify-between items-center gap-2">
-                      <span className="font-mono text-cyan-300 text-[11px]">
-                        {t.id}
-                      </span>
+                      <span className="font-mono text-cyan-300 text-[11px]">{t.id}</span>
                       <span className="text-[10px] font-mono text-slate-400">
                         {t.priority_score != null ? `${t.priority_score} pts` : `${t.horas_abierto} hs`}
                       </span>
@@ -551,9 +549,6 @@ export function StatsDashboard() {
                     <div className="flex gap-1 mt-2 flex-wrap">
                       <StatusBadge value={t.nivel} />
                       <StatusBadge value={t.estado} />
-                      {t.risk_level && t.risk_level !== "bajo" && (
-                        <span className="chip border-amber-500/30 bg-amber-500/10 text-amber-300">{t.risk_level}</span>
-                      )}
                       {t.estado_sla && (
                         <SlaBadge label={t.estado_sla} estado={t.estado_sla} />
                       )}
@@ -561,11 +556,6 @@ export function StatsDashboard() {
                     <p className="text-[10px] text-slate-500 mt-1 truncate">
                       {t.linea || ""} · {t.categoria || ""}
                     </p>
-                    {t.next_best_action && (
-                      <p className="text-[9px] text-cyan-500/80 mt-1 line-clamp-1">
-                        → {t.next_best_action}
-                      </p>
-                    )}
                   </Link>
                 ))}
               </div>

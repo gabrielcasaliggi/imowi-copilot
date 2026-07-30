@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
-import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
+import { SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
 import type { Ticket } from "@/lib/types";
@@ -19,23 +20,6 @@ function RiskBadge({ level, score }: { level?: string; score?: number }) {
     <span className={`px-2 py-0.5 text-[10px] font-mono rounded border ${cls}`}>
       {score ?? 0} · {level || "bajo"}
     </span>
-  );
-}
-
-function MiniList({ items }: { items: { label: string; count: number }[] }) {
-  if (!items.length) return <p className="text-xs text-slate-600">Sin datos.</p>;
-  return (
-    <div className="space-y-1">
-      {items.map((x) => (
-        <div
-          key={x.label}
-          className="flex justify-between gap-2 text-xs py-1 border-b border-slate-800/60 last:border-b-0"
-        >
-          <span className="text-slate-300 truncate">{x.label}</span>
-          <span className="font-mono text-slate-500">{x.count}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -75,17 +59,13 @@ function PriorityTicketRow({
           → {intel.next_best_action}
         </p>
       )}
-      {intel?.risk_reasons?.length ? (
-        <p className="text-[9px] text-slate-600 mt-1 truncate">
-          {intel.risk_reasons.join(" · ")}
-        </p>
-      ) : null}
     </button>
   );
 }
 
+/** Consola admin: solo acción (prioridad). Métricas → /estadisticas. Cola filtrable → /tickets. */
 export function NocBoard() {
-  const { isAdmin, stats, tickets, selectTicket, tenantSlug } = useApp();
+  const { isAdmin, tickets, selectTicket, tenantSlug } = useApp();
   const [kbPendientes, setKbPendientes] = useState(0);
 
   useEffect(() => {
@@ -98,91 +78,75 @@ export function NocBoard() {
 
   if (!isAdmin) return null;
 
-  const resumen = stats?.resumen;
   const abiertos = tickets.filter((t) => t.estado !== "Cerrado");
   const priority = [...abiertos]
     .sort(
       (a, b) =>
         (b.intelligence?.priority_score || 0) - (a.intelligence?.priority_score || 0),
     )
-    .slice(0, 10);
+    .slice(0, 8);
   const criticos = abiertos.filter((t) => (t.intelligence?.priority_score || 0) >= 75).length;
+  const slaVencidos = abiertos.filter(
+    (t) => t.estado_sla === "Vencido" || t.intelligence?.sla?.vencido,
+  ).length;
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto space-y-4 p-4">
       <div className="flex flex-wrap justify-between gap-2 items-start">
         <div>
-          <h2 className="font-semibold text-slate-100">Centro de tickets N2</h2>
+          <h2 className="font-semibold text-slate-100">Prioridad operativa</h2>
           <p className="text-[10px] font-mono text-slate-500">
-            Priorización · causa probable · próxima acción · Batán
+            Top riesgo · causa probable · próxima acción
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
-            href="/conocimiento"
-            className="text-[10px] font-mono px-2.5 py-1 rounded border border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
-          >
-            KB pendientes: {kbPendientes} →
-          </a>
-          <a
+          {kbPendientes > 0 && (
+            <Link
+              href="/conocimiento"
+              className="text-[10px] font-mono px-2.5 py-1 rounded border border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+            >
+              KB pendientes: {kbPendientes} →
+            </Link>
+          )}
+          <Link
             href="/tickets"
             className="text-[10px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
           >
-            Cola completa →
-          </a>
+            Cola filtrable →
+          </Link>
+          <Link
+            href="/estadisticas"
+            className="text-[10px] font-mono px-2.5 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-800/50"
+          >
+            Estadísticas →
+          </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <KpiCard label="Abiertos" value={resumen?.abiertos ?? abiertos.length} />
-        <KpiCard label="Críticos" value={criticos} />
-        <KpiCard
-          label="SLA vencido"
-          value={abiertos.filter((t) => t.estado_sla === "Vencido" || t.intelligence?.sla?.vencido).length}
-        />
-        <KpiCard
-          label="N2"
-          value={resumen?.n2 ?? tickets.filter((t) => t.nivel === "N2").length}
-        />
-        <KpiCard label="Cerrados" value={resumen?.cerrados ?? 0} />
-        <KpiCard label="Prom. hs" value={resumen?.promedio_horas ?? 0} />
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950/60 text-slate-300">
+          Abiertos <strong className="font-mono text-slate-100 ml-1">{abiertos.length}</strong>
+        </span>
+        <span className="px-2.5 py-1 rounded-lg border border-red-500/30 bg-red-500/10 text-red-200">
+          Críticos <strong className="font-mono ml-1">{criticos}</strong>
+        </span>
+        <span className="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
+          SLA vencido <strong className="font-mono ml-1">{slaVencidos}</strong>
+        </span>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 xl:grid-cols-2">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-          <h3 className="text-xs font-mono uppercase tracking-wider text-slate-500 mb-3">
-            Cola por riesgo
-          </h3>
-          <div className="space-y-2">
-            {priority.length ? (
-              priority.map((t) => (
-                <PriorityTicketRow key={t.id} t={t} onSelect={selectTicket} />
-              ))
-            ) : (
-              <p className="text-sm text-slate-500">Sin tickets abiertos.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-4">
-          <h3 className="text-xs font-mono uppercase tracking-wider text-slate-500">
-            Resumen operativo
-          </h3>
-          <div>
-            <p className="text-[10px] font-mono uppercase text-slate-500 mb-2">
-              Categorías principales
-            </p>
-            <MiniList items={(stats?.distribuciones?.categoria || []).slice(0, 5)} />
-          </div>
-          <div>
-            <p className="text-[10px] font-mono uppercase text-slate-500 mb-2">
-              Por cooperativa
-            </p>
-            <MiniList items={(stats?.distribuciones?.cooperativa || []).slice(0, 5)} />
-          </div>
-          <p className="text-[11px] text-slate-500">
-            El motor IA prioriza por nivel, SLA, antigüedad, recurrencia y categoría crítica.
-          </p>
+      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+        <h3 className="text-xs font-mono uppercase tracking-wider text-slate-500 mb-3">
+          Cola por riesgo
+        </h3>
+        <div className="space-y-2">
+          {priority.length ? (
+            priority.map((t) => (
+              <PriorityTicketRow key={t.id} t={t} onSelect={selectTicket} />
+            ))
+          ) : (
+            <p className="text-sm text-slate-500">Sin tickets abiertos.</p>
+          )}
         </div>
       </div>
     </div>

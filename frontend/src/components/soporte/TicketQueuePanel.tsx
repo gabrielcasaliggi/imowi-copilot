@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
-import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
+import { SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
 import type { Ticket } from "@/lib/types";
@@ -80,7 +80,7 @@ function TicketRow({
 
 export function TicketQueuePanel() {
   const router = useRouter();
-  const { isAdmin, can, tenantSlug, stats } = useApp();
+  const { isAdmin, can, tenantSlug } = useApp();
 
   const [items, setItems] = useState<Ticket[]>([]);
   const [agents, setAgents] = useState<{ email: string; nombre: string }[]>([]);
@@ -140,10 +140,6 @@ export function TicketQueuePanel() {
     await load();
   };
 
-  const abiertos = useMemo(
-    () => items.filter((t) => t.estado !== "Cerrado").length,
-    [items],
-  );
   const vencidos = useMemo(
     () =>
       items.filter(
@@ -191,11 +187,13 @@ export function TicketQueuePanel() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="En cola" value={items.length} />
-        <KpiCard label="Abiertos" value={abiertos} />
-        <KpiCard label="SLA vencido" value={vencidos} tone={vencidos ? "red" : "emerald"} />
-        <KpiCard label="Backlog global" value={stats?.resumen?.abiertos ?? abiertos} />
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950/60 text-slate-300">
+          En vista <strong className="font-mono text-slate-100 ml-1">{items.length}</strong>
+        </span>
+        <span className="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
+          SLA vencido <strong className="font-mono ml-1">{vencidos}</strong>
+        </span>
       </div>
 
       <form

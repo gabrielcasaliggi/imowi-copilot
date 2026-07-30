@@ -653,42 +653,56 @@ export function SupportSidebar() {
           )}
         </GlassCard>
 
-        <GlassCard title="Tickets" variant="secondary" className="min-h-[120px]">
-          {!tickets.length ? (
-            <p className="text-slate-500 text-xs">Sin tickets.</p>
-          ) : (
-            <div className="space-y-2">
-              {tickets.slice(0, 10).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => selectTicket(t.id)}
-                  className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 transition-colors"
-                >
-                  <div className="flex justify-between items-center gap-1">
-                    <span className="font-mono text-cyan-300 text-[11px]">{t.id}</span>
-                    <span className="flex gap-1 items-center">
-                      {t.intelligence && t.intelligence.priority_score > 0 && (
-                        <span className="text-[11px] font-mono text-amber-400">
-                          {t.intelligence.priority_score}
-                        </span>
-                      )}
-                      {t.nivel && <StatusBadge value={t.nivel} />}
-                      <StatusBadge value={t.estado} />
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {t.linea}
-                    {t.destino ? ` · ${t.destino}` : ""}
-                  </p>
-                  {t.organizacion && (
-                    <p className="text-[11px] text-slate-600 truncate">{t.organizacion}</p>
-                  )}
-                </button>
-              ))}
+        {isAdmin ? (
+          <GlassCard title="Atajos" variant="secondary">
+            <p className="text-xs text-slate-400 mb-2">
+              La cola por riesgo está en el panel principal. Usá estos atajos para no duplicar listas.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="/tickets"
+                className="text-[11px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+              >
+                Cola filtrable →
+              </a>
+              <a
+                href="/estadisticas"
+                className="text-[11px] font-mono px-2.5 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-800/50"
+              >
+                Estadísticas →
+              </a>
             </div>
-          )}
-        </GlassCard>
+          </GlassCard>
+        ) : (
+          <GlassCard title="Mis tickets recientes" variant="secondary" className="min-h-[120px]">
+            {!tickets.length ? (
+              <p className="text-slate-500 text-xs">Sin tickets.</p>
+            ) : (
+              <div className="space-y-2">
+                {tickets.slice(0, 6).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => selectTicket(t.id)}
+                    className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 transition-colors"
+                  >
+                    <div className="flex justify-between items-center gap-1">
+                      <span className="font-mono text-cyan-300 text-[11px]">{t.id}</span>
+                      <span className="flex gap-1 items-center">
+                        {t.nivel && <StatusBadge value={t.nivel} />}
+                        <StatusBadge value={t.estado} />
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {t.linea}
+                      {t.asignado_a ? ` · ${t.asignado_a}` : ""}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        )}
       </SidebarSection>
     </div>
   );
