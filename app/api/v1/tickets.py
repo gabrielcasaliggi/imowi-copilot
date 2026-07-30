@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context, require_kb_proposer
-from app.api.v1.schemas import TenantContext, TicketEventCreate, TicketKbPublish, TicketUpdateV1
+from app.api.v1.schemas import TenantContext, TicketEventCreate, TicketKbPublish, TicketReassign, TicketUpdateV1
 from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db
@@ -44,6 +44,7 @@ def _ticket_out(t, *, pool=None, db=None) -> dict:
         "categoria": t.categoria,
         "intent_ejecutado": t.intent_ejecutado,
         "creado_por": t.creado_por,
+        "asignado_a": getattr(t, "asignado_a", "") or "",
         "nivel": getattr(t, "nivel", "N1"),
         "destino": getattr(t, "destino", "cooperativa"),
         "proveedor": getattr(t, "proveedor", ""),
@@ -403,6 +404,8 @@ def update_ticket(
         motivo_escalamiento=body.motivo_escalamiento,
         estado_sla=body.estado_sla,
         ticket_externo_id=body.ticket_externo_id,
+        asignado_a=body.asignado_a,
+        actor=ctx.usuario_email,
         admin_global=admin_global,
     )
     if not t:
@@ -415,6 +418,53 @@ def update_ticket(
         accion=accion,
         recurso=ticket_id,
         detalle=f"estado={body.estado or t.estado} nivel={body.nivel or t.nivel}",
+    )
+    pool = _load_pool(db, ctx)
+    return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db)}
+
+
+@router.post("/tickets/{ticket_id}/reassign")
+def reassign_ticket(
+    ticket_id: str,
+    body: TicketReassign,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    if not ctx.puede("tickets.reassign"):
+        raise HTTPException(403, "Sin permiso para derivar / reasignar tickets")
+    destino = (body.asignado_a or "").strip()
+    if not destino:
+        raise HTTPException(400, "asignado_a es obligatorio")
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.update_ticket(
+        db,
+        ctx.organizacion_id,
+        ticket_id,
+        asignado_a=destino,
+        actor=ctx.usuario_email,
+        admin_global=admin_global,
+    )
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    if body.nota.strip():
+        repo.add_ticket_event(
+            db,
+            t.organizacion_id,
+            ticket_id,
+            tipo="nota",
+            titulo="Nota de derivación",
+            detalle=body.nota.strip(),
+            nivel=t.nivel,
+            estado=t.estado,
+            actor=ctx.usuario_email,
+        )
+    log_audit(
+        db,
+        org_id=t.organizacion_id,
+        actor=ctx.usuario_email,
+        accion="ticket_reasignacion",
+        recurso=ticket_id,
+        detalle=f"asignado_a={destino}",
     )
     pool = _load_pool(db, ctx)
     return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db)}

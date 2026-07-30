@@ -321,7 +321,7 @@ function RiskRanking({ data }: { data: ExecutiveAnalytics["ranking_riesgo"] }) {
 }
 
 export function StatsDashboard() {
-  const { stats, loadStats, selectTicket, tenantSlug } = useApp();
+  const { stats, loadStats, selectTicket, tenantSlug, can } = useApp();
   const [executive, setExecutive] = useState<ExecutiveAnalytics | null>(null);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -396,7 +396,7 @@ export function StatsDashboard() {
             </p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
-            {stats && (
+            {stats && can("reports.export") && (
               <button
                 type="button"
                 onClick={exportCsv}

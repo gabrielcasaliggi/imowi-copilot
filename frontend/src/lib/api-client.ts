@@ -206,6 +206,53 @@ export const api = {
     });
   },
 
+  reassignTicket(
+    id: string,
+    body: { asignado_a: string; nota?: string },
+    tenantSlug?: string,
+  ) {
+    return request<{ status: string; ticket: Ticket }>(`/api/v1/tickets/${id}/reassign`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      tenantSlug,
+    });
+  },
+
+  setAvailability(disponibilidad: string) {
+    return request<{ status: string; disponibilidad: string; persistido: boolean }>(
+      "/api/v1/me/availability",
+      { method: "PATCH", body: JSON.stringify({ disponibilidad }) },
+    );
+  },
+
+  orgUsers() {
+    return request<{ slug: string; usuarios: AdminUser[] }>("/api/v1/org/users");
+  },
+
+  createOrgUser(body: {
+    email: string;
+    nombre: string;
+    password?: string;
+    rol?: string;
+    telefono?: string;
+    linea_principal?: string;
+  }) {
+    return request<{ status: string; usuario: AdminUser }>("/api/v1/org/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  updateOrgUser(
+    userId: string,
+    body: { nombre?: string; activo?: boolean; password?: string },
+  ) {
+    return request<{ status: string; usuario: AdminUser }>(`/api/v1/org/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+
   addTicketNote(
     id: string,
     body: { titulo?: string; detalle: string; interno?: boolean },
@@ -380,6 +427,15 @@ export const api = {
 
   executiveAnalytics(tenantSlug?: string) {
     return request<ExecutiveAnalytics>("/api/v1/analytics/executive", { tenantSlug });
+  },
+
+  agentsPerformance(tenantSlug?: string) {
+    return request<{
+      tenant: string;
+      agentes: import("./types").AgentPerformanceRow[];
+      total_agentes: number;
+      tickets_abiertos: number;
+    }>("/api/v1/analytics/agents", { tenantSlug });
   },
 
   prioritizedTickets(tenantSlug?: string) {

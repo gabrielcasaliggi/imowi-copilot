@@ -676,6 +676,8 @@ def update_ticket(
     motivo_escalamiento: str | None = None,
     estado_sla: str | None = None,
     ticket_externo_id: str | None = None,
+    asignado_a: str | None = None,
+    actor: str = "operador",
     admin_global: bool = False,
 ) -> Ticket | None:
     t = get_ticket(db, org_id, ticket_id, admin_global=admin_global)
@@ -715,6 +717,11 @@ def update_ticket(
         t.ticket_externo_id = ticket_externo_id
         if ticket_externo_id:
             cambios.append(f"referencia externa={ticket_externo_id}")
+    if asignado_a is not None:
+        prev = getattr(t, "asignado_a", "") or ""
+        t.asignado_a = asignado_a.strip()
+        if t.asignado_a != prev:
+            cambios.append(f"asignado_a={t.asignado_a or '(sin asignar)'}")
     t.updated_at = datetime.now(UTC)
     if t.estado != "Cerrado":
         apply_sla_to_ticket(t)
@@ -736,21 +743,31 @@ def update_ticket(
             db,
             event_org_id,
             ticket_id,
-            tipo="actualizacion",
-            titulo="Ticket actualizado",
+            tipo="actualizacion" if asignado_a is None else "reasignacion",
+            titulo="Ticket reasignado" if asignado_a is not None else "Ticket actualizado",
             detalle=detalle,
             nivel=t.nivel,
             estado=t.estado,
-            actor="operador",
+            actor=actor,
         )
-        add_ticket_notification(
-            db,
-            event_org_id,
-            ticket_id,
-            destinatario=t.creado_por,
-            titulo=f"Novedad en ticket {t.id}",
-            mensaje=f"El ticket {t.id} fue actualizado: {detalle}. Nivel actual: {t.nivel}.",
-        )
+        if asignado_a:
+            add_ticket_notification(
+                db,
+                event_org_id,
+                ticket_id,
+                destinatario=asignado_a,
+                titulo="Ticket asignado",
+                mensaje=f"Se te asignó el ticket {ticket_id}",
+            )
+        elif t.creado_por:
+            add_ticket_notification(
+                db,
+                event_org_id,
+                ticket_id,
+                destinatario=t.creado_por,
+                titulo=f"Novedad en ticket {t.id}",
+                mensaje=f"El ticket {t.id} fue actualizado: {detalle}. Nivel actual: {t.nivel}.",
+            )
     return t
 
 
@@ -879,6 +896,53 @@ def mark_notification_read(
     db.commit()
     db.refresh(n)
     return n
+
+
+def agent_performance(db: Session, org_id: str) -> dict:
+    """Performance operativa de agentes de una cooperativa."""
+    from app.rbac import normalizar_rol_consola
+
+    users = [u for u in list_users_for_org(db, org_id) if normalizar_rol_consola(u.rol) == "agente"]
+    tickets = list_tickets(db, org_id)
+    abiertos = [t for t in tickets if t.estado != "Cerrado"]
+
+    agentes = []
+    for u in users:
+        email = (u.email or "").lower()
+        alias = email.split("@", 1)[0]
+        keys = {email, alias}
+        if u.nombre:
+            keys.add(u.nombre.lower())
+        asignados = [
+            t
+            for t in abiertos
+            if (getattr(t, "asignado_a", "") or "").lower() in keys
+        ]
+        creados_abiertos = [
+            t
+            for t in abiertos
+            if (t.creado_por or "").lower() in keys and not (getattr(t, "asignado_a", "") or "")
+        ]
+        cerrados = [
+            t
+            for t in tickets
+            if t.estado == "Cerrado"
+            and (
+                (getattr(t, "asignado_a", "") or "").lower() in keys
+                or (t.creado_por or "").lower() in keys
+            )
+        ]
+        carga = len(asignados) + len(creados_abiertos)
+        agentes.append(
+            {
+                **user_to_dict(u),
+                "tickets_abiertos": carga,
+                "tickets_asignados": len(asignados),
+                "tickets_cerrados": len(cerrados),
+            }
+        )
+    agentes.sort(key=lambda a: (-a["tickets_abiertos"], a["nombre"]))
+    return {"agentes": agentes, "total_agentes": len(agentes), "tickets_abiertos": len(abiertos)}
 
 
 def ticket_stats(

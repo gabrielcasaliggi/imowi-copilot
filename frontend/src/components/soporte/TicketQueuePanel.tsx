@@ -16,38 +16,65 @@ const SLA_OPTS = ["", "Vencido", "Crítico", "En riesgo", "En tiempo"];
 function TicketRow({
   t,
   onSelect,
+  canReassign,
+  agents,
+  onReassign,
 }: {
   t: Ticket;
   onSelect: (id: string) => void;
+  canReassign: boolean;
+  agents: { email: string; nombre: string }[];
+  onReassign: (ticketId: string, asignado_a: string) => void;
 }) {
   const intel = t.intelligence;
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(t.id)}
-      className="w-full text-left p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-cyan-500/40 transition-colors"
-    >
-      <div className="flex justify-between items-start gap-2">
-        <span className="font-mono text-cyan-300 text-xs">{t.id}</span>
-        <span className="text-[10px] font-mono text-amber-400">
-          {intel?.priority_score ?? 0}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-1 mt-1.5">
-        {t.nivel && <StatusBadge value={t.nivel} />}
-        <StatusBadge value={t.estado} />
-        <SlaBadge label={t.sla_label} estado={t.estado_sla || intel?.sla?.estado_sla} />
-      </div>
-      <p className="text-[11px] text-slate-400 mt-1 truncate">
-        {t.organizacion ? `${t.organizacion} · ` : ""}
-        {t.linea || "—"} · {t.categoria || "General"}
-      </p>
-      {intel?.next_best_action && (
-        <p className="text-[10px] text-cyan-500/80 mt-1 line-clamp-1">
-          → {intel.next_best_action}
+    <div className="w-full text-left p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-cyan-500/40 transition-colors">
+      <button type="button" onClick={() => onSelect(t.id)} className="w-full text-left">
+        <div className="flex justify-between items-start gap-2">
+          <span className="font-mono text-cyan-300 text-xs">{t.id}</span>
+          <span className="text-[10px] font-mono text-amber-400">
+            {intel?.priority_score ?? 0}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {t.nivel && <StatusBadge value={t.nivel} />}
+          <StatusBadge value={t.estado} />
+          <SlaBadge label={t.sla_label} estado={t.estado_sla || intel?.sla?.estado_sla} />
+        </div>
+        <p className="text-[11px] text-slate-400 mt-1 truncate">
+          {t.organizacion ? `${t.organizacion} · ` : ""}
+          {t.linea || "—"} · {t.categoria || "General"}
         </p>
+        {t.asignado_a && (
+          <p className="text-[10px] text-violet-300/90 mt-1 truncate">
+            Asignado: {t.asignado_a}
+          </p>
+        )}
+        {intel?.next_best_action && (
+          <p className="text-[10px] text-cyan-500/80 mt-1 line-clamp-1">
+            → {intel.next_best_action}
+          </p>
+        )}
+      </button>
+      {canReassign && agents.length > 0 && (
+        <select
+          value={t.asignado_a || ""}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            e.stopPropagation();
+            if (e.target.value) onReassign(t.id, e.target.value);
+          }}
+          className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300"
+        >
+          <option value="">Derivar a agente…</option>
+          {agents.map((a) => (
+            <option key={a.email} value={a.email}>
+              {a.nombre} ({a.email})
+            </option>
+          ))}
+        </select>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -56,6 +83,7 @@ export function TicketQueuePanel() {
   const { isAdmin, can, tenantSlug, stats } = useApp();
 
   const [items, setItems] = useState<Ticket[]>([]);
+  const [agents, setAgents] = useState<{ email: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState("");
   const [nivel, setNivel] = useState("");
@@ -63,6 +91,9 @@ export function TicketQueuePanel() {
   const [categoria, setCategoria] = useState("");
   const [q, setQ] = useState("");
   const [soloAbiertos, setSoloAbiertos] = useState(true);
+
+  const canReassign = can("tickets.reassign");
+  const slug = isAdmin ? tenantSlug : undefined;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,19 +107,38 @@ export function TicketQueuePanel() {
           q,
           solo_abiertos: soloAbiertos,
         },
-        tenantSlug,
+        slug,
       );
       setItems(res.tickets || []);
     } finally {
       setLoading(false);
     }
-  }, [estado, nivel, sla, categoria, q, soloAbiertos, tenantSlug]);
+  }, [estado, nivel, sla, categoria, q, soloAbiertos, slug]);
 
   const canQueue = can("tickets.queue.view");
 
   useEffect(() => {
     if (canQueue) load();
   }, [canQueue, load]);
+
+  useEffect(() => {
+    if (!canReassign) return;
+    void api
+      .orgUsers()
+      .then((d) =>
+        setAgents(
+          (d.usuarios || [])
+            .filter((u) => u.activo !== false)
+            .map((u) => ({ email: u.email, nombre: u.nombre })),
+        ),
+      )
+      .catch(() => setAgents([]));
+  }, [canReassign]);
+
+  const onReassign = async (ticketId: string, asignado_a: string) => {
+    await api.reassignTicket(ticketId, { asignado_a }, slug);
+    await load();
+  };
 
   const abiertos = useMemo(
     () => items.filter((t) => t.estado !== "Cerrado").length,
@@ -122,7 +172,7 @@ export function TicketQueuePanel() {
   }
 
   return (
-    <div className="p-4 space-y-4 overflow-y-auto min-h-0 flex-1">
+    <div className="space-y-4 min-h-0">
       <div className="flex flex-wrap justify-between gap-3 items-end">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
@@ -220,7 +270,14 @@ export function TicketQueuePanel() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
           {items.map((t) => (
-            <TicketRow key={t.id} t={t} onSelect={onSelect} />
+            <TicketRow
+              key={t.id}
+              t={t}
+              onSelect={onSelect}
+              canReassign={canReassign}
+              agents={agents}
+              onReassign={(id, email) => void onReassign(id, email)}
+            />
           ))}
         </div>
       )}

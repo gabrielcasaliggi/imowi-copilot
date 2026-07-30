@@ -56,6 +56,18 @@ export interface RbacPermission {
   descripcion: string;
 }
 
+export interface AgentPerformanceRow {
+  id: string;
+  email: string;
+  nombre: string;
+  rol: string;
+  activo?: boolean;
+  disponibilidad?: string;
+  tickets_abiertos: number;
+  tickets_asignados: number;
+  tickets_cerrados: number;
+}
+
 export interface AuditEvent {
   id: string;
   organizacion_id: string;
@@ -165,6 +177,7 @@ export interface Ticket {
   categoria: string;
   intent_ejecutado?: string;
   creado_por?: string;
+  asignado_a?: string;
   nivel?: string;
   destino?: string;
   proveedor?: string;

@@ -2,6 +2,7 @@
 
 import { useApp } from "@/contexts/AppContext";
 import { PendingTasksBell } from "@/components/layout/PendingTasksBell";
+import { AvailabilityControl } from "@/components/layout/AvailabilityControl";
 
 export function AppHeader() {
   const { user, isAdmin, orgs, tenantSlug, tenantContext, logout, setTenant } =
@@ -57,6 +58,7 @@ export function AppHeader() {
             </select>
           </div>
         )}
+        <AvailabilityControl />
         <PendingTasksBell />
         <div className="hidden md:flex flex-col items-end">
           <span className="text-xs text-slate-300">{rolLabel}</span>

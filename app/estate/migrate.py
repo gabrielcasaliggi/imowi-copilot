@@ -18,6 +18,7 @@ _TICKET_COLUMNS: dict[str, str] = {
     "estado_sla": "VARCHAR(32) DEFAULT 'Pendiente'",
     "ticket_externo_id": "VARCHAR(64) DEFAULT ''",
     "regla_clasificacion": "VARCHAR(64) DEFAULT ''",
+    "asignado_a": "VARCHAR(120) DEFAULT ''",
 }
 
 _CASO_COLUMNS: dict[str, str] = {

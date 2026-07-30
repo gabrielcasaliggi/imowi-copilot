@@ -76,6 +76,12 @@ class TicketUpdateV1(BaseModel):
     motivo_escalamiento: str | None = None
     estado_sla: str | None = None
     ticket_externo_id: str | None = None
+    asignado_a: str | None = None
+
+
+class TicketReassign(BaseModel):
+    asignado_a: str
+    nota: str = ""
 
 
 class TicketEventCreate(BaseModel):

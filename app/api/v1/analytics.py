@@ -27,7 +27,6 @@ def ticket_analytics(
         or ctx.puede("stats.agents")
     ):
         raise HTTPException(403, "Sin permiso para ver estadísticas de tickets")
-    # Vista multi-coop solo con stats.global
     admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
@@ -57,6 +56,17 @@ def executive_dashboard(
     admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
     data = executive_analytics(db, admin_global=admin_global, org_id=ctx.organizacion_id)
     return {"tenant": ctx.organizacion_slug, "alcance": "global" if admin_global else "organizacion", **data}
+
+
+@router.get("/analytics/agents")
+def agents_performance(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    if not (ctx.puede("stats.agents") or ctx.puede("stats.global")):
+        raise HTTPException(403, "Sin permiso para ver performance de agentes")
+    data = repo.agent_performance(db, ctx.organizacion_id)
+    return {"tenant": ctx.organizacion_slug, **data}
 
 
 def _parse_desde(value: str | None) -> datetime | None:

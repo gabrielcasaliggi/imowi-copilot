@@ -148,6 +148,7 @@ class Ticket(Base):
     categoria: Mapped[str] = mapped_column(String(80), default="General")
     intent_ejecutado: Mapped[str] = mapped_column(String(80), default="")
     creado_por: Mapped[str] = mapped_column(String(120), default="")
+    asignado_a: Mapped[str] = mapped_column(String(120), default="")
     # Clasificación operativa N1 / N2 / Proveedor
     nivel: Mapped[str] = mapped_column(String(16), default="N1")
     destino: Mapped[str] = mapped_column(String(32), default="cooperativa")
