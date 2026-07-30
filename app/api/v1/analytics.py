@@ -21,14 +21,20 @@ def ticket_analytics(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    if not ctx.es_admin_imowi:
-        raise HTTPException(403, "Las estadísticas globales son exclusivas del administrador NOC")
+    if not (
+        ctx.puede("stats.global")
+        or ctx.puede("stats.bot")
+        or ctx.puede("stats.agents")
+    ):
+        raise HTTPException(403, "Sin permiso para ver estadísticas de tickets")
+    # Vista multi-coop solo con stats.global
+    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
     stats = repo.ticket_stats(
         db,
         ctx.organizacion_id,
-        admin_global=ctx.es_admin_imowi and ctx.organizacion_slug == "imowi",
+        admin_global=admin_global,
         desde=desde_dt,
         hasta=hasta_dt,
     )
@@ -36,6 +42,7 @@ def ticket_analytics(
         "tenant": ctx.organizacion_slug,
         "desde": desde_dt.isoformat() if desde_dt else None,
         "hasta": hasta_dt.isoformat() if hasta_dt else None,
+        "alcance": "global" if admin_global else "organizacion",
         **stats,
     }
 
@@ -45,11 +52,11 @@ def executive_dashboard(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    if not ctx.es_admin_imowi:
-        raise HTTPException(403, "Analytics ejecutivo exclusivo del administrador NOC")
-    admin_global = ctx.organizacion_slug == "imowi"
+    if not (ctx.puede("stats.global") or ctx.puede("stats.bot")):
+        raise HTTPException(403, "Sin permiso para analytics ejecutivo / performance del bot")
+    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
     data = executive_analytics(db, admin_global=admin_global, org_id=ctx.organizacion_id)
-    return {"tenant": ctx.organizacion_slug, **data}
+    return {"tenant": ctx.organizacion_slug, "alcance": "global" if admin_global else "organizacion", **data}
 
 
 def _parse_desde(value: str | None) -> datetime | None:

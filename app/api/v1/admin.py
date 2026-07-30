@@ -5,13 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.v1.schemas import OrganizationCreate, OrganizationUpdate, UserCreate
+from app.api.v1.schemas import OrganizationCreate, OrganizationUpdate, UserCreate, UserUpdate
 from app.auth import UsuarioSesion, requiere_admin
 from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db
 from app.estate.import_csv import import_usuarios_csv
 from app.estate.security import valid_email, valid_password
+from app.rbac import roles_alta_permitidos
 
 router = APIRouter(tags=["Admin"])
 
@@ -116,6 +117,15 @@ def create_organization_user(
     db: Session = Depends(get_db),
 ):
     org = _org_or_404(db, slug)
+    from app.rbac import normalizar_rol_consola
+
+    allowed = roles_alta_permitidos(actor_rol="admin", org_slug=slug)
+    rol_norm = normalizar_rol_consola(body.rol or "agente", slug)
+    if rol_norm not in allowed:
+        raise HTTPException(
+            400,
+            f"Rol '{body.rol}' no permitido en esta organización. Permitidos: {', '.join(sorted(allowed))}",
+        )
     if not body.email.strip() or not body.nombre.strip():
         raise HTTPException(400, "Email y nombre son obligatorios")
     if not valid_email(body.email.strip()):
@@ -130,7 +140,7 @@ def create_organization_user(
             email=body.email.strip(),
             nombre=body.nombre.strip(),
             password=pwd,
-            rol=body.rol or "cliente",
+            rol=rol_norm,
             telefono=body.telefono,
             linea_principal=body.linea_principal,
         )
@@ -143,6 +153,44 @@ def create_organization_user(
         accion="usuario_alta",
         recurso=user.email,
         detalle=f"Usuario {user.nombre} ({user.rol}) en {slug}",
+    )
+    return {"status": "ok", "usuario": repo.user_to_dict(user)}
+
+
+@router.patch("/admin/organizations/{slug}/users/{user_id}")
+def update_organization_user(
+    slug: str,
+    user_id: str,
+    body: UserUpdate,
+    admin: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    org = _org_or_404(db, slug)
+    allowed = roles_alta_permitidos(actor_rol="admin", org_slug=slug)
+    try:
+        user = repo.update_user_for_org(
+            db,
+            org.id,
+            user_id,
+            nombre=body.nombre,
+            rol=body.rol,
+            telefono=body.telefono,
+            linea_principal=body.linea_principal,
+            activo=body.activo,
+            password=body.password,
+            allowed_roles=allowed if body.rol is not None else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not user:
+        raise HTTPException(404, "Usuario no encontrado")
+    log_audit(
+        db,
+        org_id=org.id,
+        actor=admin.usuario,
+        accion="usuario_actualizacion",
+        recurso=user.email,
+        detalle=f"activo={repo.user_is_active(user)} rol={user.rol}",
     )
     return {"status": "ok", "usuario": repo.user_to_dict(user)}
 

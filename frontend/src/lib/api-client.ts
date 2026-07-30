@@ -488,6 +488,35 @@ export const api = {
     );
   },
 
+  updateAdminUser(
+    slug: string,
+    userId: string,
+    body: {
+      nombre?: string;
+      rol?: string;
+      telefono?: string;
+      linea_principal?: string;
+      activo?: boolean;
+      password?: string;
+    },
+  ) {
+    return request<{ status: string; usuario: AdminUser }>(
+      `/api/v1/admin/organizations/${slug}/users/${userId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
+  },
+
+  rbacRoles() {
+    return request<{ roles: import("./types").RbacRole[] }>("/api/v1/rbac/roles");
+  },
+
+  rbacPermissions() {
+    return request<{
+      permisos: import("./types").RbacPermission[];
+      matriz: import("./types").RbacRole[];
+    }>("/api/v1/rbac/permissions");
+  },
+
   async importUsersCsv(slug: string, file: File): Promise<ImportCsvResult> {
     const headers: Record<string, string> = {};
     const token = getToken();

@@ -51,6 +51,7 @@ interface AppContextValue {
   ready: boolean;
   user: MeResponse | null;
   isAdmin: boolean;
+  can: (codigo: string) => boolean;
   orgs: Organization[];
   tenantSlug: string;
   tenantContext: TenantContext | null;
@@ -143,6 +144,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ticketLearning, setTicketLearning] = useState<TicketLearning | null>(null);
 
   const isAdmin = user?.rol === "admin";
+  const permisos = user?.permisos ?? [];
+  const can = useCallback(
+    (codigo: string) => isAdmin || permisos.includes(codigo),
+    [isAdmin, permisos],
+  );
 
   const aplicarAlertasRed = useCallback((alertas: AlertaRed[]) => {
     setAlertasRed(alertas);
@@ -194,13 +200,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshData = useCallback(async () => {
     const admin = user?.rol === "admin";
+    const perms = user?.permisos ?? [];
+    const has = (c: string) => admin || perms.includes(c);
     const slug = admin ? tenantSlug || getTenantSlug() || "imowi" : undefined;
     const ctx = await api.sessionContext(slug);
     setTenantContext(ctx);
 
-    const loads = [
-      api.tickets(slug).then((d) => setTickets(d.tickets || [])),
-      api.notifications(slug).then((d) => setNotifications(d.notificaciones || [])),
+    const loads: Promise<unknown>[] = [];
+    if (has("tickets.queue.view") || has("tickets.view")) {
+      loads.push(api.tickets(slug).then((d) => setTickets(d.tickets || [])));
+      loads.push(api.notifications(slug).then((d) => setNotifications(d.notificaciones || [])));
+    } else {
+      setTickets([]);
+      setNotifications([]);
+    }
+    loads.push(
       api.telemetry(slug).then((d) => {
         const elementos = d.elementos || [];
         setTelemetry(elementos);
@@ -215,13 +229,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }));
         if (anomalias.length) aplicarAlertasRed(anomalias);
       }).catch(() => {}),
-    ];
+    );
 
-    if (admin) {
-      loads.push(
-        api.kb(slug).then((d) => setKb(d.articulos || [])),
-        api.stats(undefined, slug).then(setStats).catch(() => setStats(null)),
-      );
+    if (admin || has("kb.publish") || has("kb.propose")) {
+      loads.push(api.kb(slug).then((d) => setKb(d.articulos || [])).catch(() => {}));
+    }
+    if (has("stats.global") || has("stats.bot") || has("stats.agents")) {
+      loads.push(api.stats(undefined, slug).then(setStats).catch(() => setStats(null)));
     }
 
     const results = await Promise.allSettled(loads);
@@ -229,7 +243,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .filter((r) => r.status === "rejected")
       .map((r) => (r as PromiseRejectedResult).reason?.message || "módulo no disponible");
     if (failed.length) appendTrace(failed.map((m) => `⚠️ Carga parcial: ${m}`));
-  }, [tenantSlug, user?.rol, appendTrace, aplicarAlertasRed]);
+  }, [tenantSlug, user?.rol, user?.permisos, appendTrace, aplicarAlertasRed]);
 
   const boot = useCallback(
     async (loginData?: LoginResponse) => {
@@ -240,6 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             cooperativa: loginData.cooperativa,
             nombre: loginData.nombre,
             org_slug: loginData.org_slug,
+            permisos: loginData.permisos,
           }
         : await api.me();
 
@@ -248,6 +263,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setOrgs(organizaciones);
 
       const admin = me.rol === "admin";
+      const perms = me.permisos ?? [];
+      const has = (c: string) => admin || perms.includes(c);
       let slugForLoad: string | undefined;
       if (admin) {
         const defaultSlug = getTenantSlug() || "imowi";
@@ -269,17 +286,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const ctx = await api.sessionContext(slugForLoad);
         setTenantContext(ctx);
-        const loads = [
-          api.tickets(slugForLoad).then((d) => setTickets(d.tickets || [])),
-          api.notifications(slugForLoad).then((d) => setNotifications(d.notificaciones || [])),
+        const loads: Promise<unknown>[] = [];
+        if (has("tickets.queue.view") || has("tickets.view")) {
+          loads.push(api.tickets(slugForLoad).then((d) => setTickets(d.tickets || [])));
+          loads.push(
+            api.notifications(slugForLoad).then((d) => setNotifications(d.notificaciones || [])),
+          );
+        }
+        loads.push(
           api.telemetry(slugForLoad).then((d) => {
             const elementos = d.elementos || [];
             setTelemetry(elementos);
           }).catch(() => {}),
-        ];
-        if (admin) {
+        );
+        if (admin || has("kb.publish") || has("kb.propose")) {
+          loads.push(api.kb(slugForLoad).then((d) => setKb(d.articulos || [])).catch(() => {}));
+        }
+        if (has("stats.global") || has("stats.bot") || has("stats.agents")) {
           loads.push(
-            api.kb(slugForLoad).then((d) => setKb(d.articulos || [])),
             api.stats(undefined, slugForLoad).then(setStats).catch(() => setStats(null)),
           );
         }
@@ -627,6 +651,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ready,
       user,
       isAdmin,
+      can,
       orgs,
       tenantSlug,
       tenantContext,
@@ -678,6 +703,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ready,
       user,
       isAdmin,
+      can,
       orgs,
       tenantSlug,
       tenantContext,

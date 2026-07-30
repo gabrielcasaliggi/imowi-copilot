@@ -79,9 +79,13 @@ Frontend en **http://localhost:3000**. Agregar `http://localhost:3000` en `CORS_
 
 | Usuario | Contraseña | Rol |
 |---------|------------|-----|
-| `batan` | `batan` | Operador Cooperativa Batán |
-| `viamonte` | `viamonte` | Operador Cooperativa Viamonte |
-| `admin` | `admin` | Administrador NOC — vista global |
+| `admin` | `admin` | Administrador — plataforma |
+| `supervisor` | `supervisor` | Supervisor Batán |
+| `ejecutivo` | `ejecutivo` | Ejecutivo Batán |
+| `batan` | `batan` | Agente Batán |
+| `viamonte` | `viamonte` | Agente Viamonte |
+
+Roles y permisos: [docs/RBAC-ROLES-PERMISOS.md](./docs/RBAC-ROLES-PERMISOS.md)
 
 Guía de uso operativo: [docs/USO-LOCAL-PRODUCTIVO.md](./docs/USO-LOCAL-PRODUCTIVO.md)
 

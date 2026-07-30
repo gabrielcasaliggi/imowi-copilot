@@ -14,14 +14,14 @@ import {
 import { PlatformSettingsPanel } from "@/components/admin/PlatformSettingsPanel";
 
 const CSV_EJEMPLO = `nombre,email,telefono,rol,linea_principal
-Operador Batán 1,operador1@coopbatan.com,2235551001,cliente,2235551234
-Operador Batán 2,operador2@coopbatan.com,2235551002,cliente,2235555678`;
+Operador Batán 1,operador1@coopbatan.com,2235551001,agente,2235551234
+Supervisor Batán,supervisor1@coopbatan.com,2235551002,supervisor,2235555678`;
 
 const inputCls =
   "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
 export function AdminPanel() {
-  const [hubTab, setHubTab] = useState<"cooperativas" | "config">("cooperativas");
+  const [hubTab, setHubTab] = useState<"cooperativas" | "config" | "rbac">("cooperativas");
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedSlug, setSelectedSlug] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -30,6 +30,12 @@ export function AdminPanel() {
   const [message, setMessage] = useState("");
   const [importResult, setImportResult] = useState<ImportCsvResult | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [rbacRoles, setRbacRoles] = useState<
+    { codigo: string; nombre: string; descripcion: string; permisos: string[] }[]
+  >([]);
+  const [rbacPerms, setRbacPerms] = useState<
+    { codigo: string; dominio: string; descripcion: string }[]
+  >([]);
 
   const [newOrg, setNewOrg] = useState({
     nombre: "",
@@ -42,7 +48,7 @@ export function AdminPanel() {
     nombre: "",
     email: "",
     password: "cliente",
-    rol: "cliente",
+    rol: "agente",
     telefono: "",
     linea_principal: "",
   });
@@ -115,7 +121,7 @@ export function AdminPanel() {
         nombre: "",
         email: "",
         password: "cliente",
-        rol: "cliente",
+        rol: "agente",
         telefono: "",
         linea_principal: "",
       });
@@ -128,6 +134,33 @@ export function AdminPanel() {
       setBusy(false);
     }
   };
+
+  const onToggleUserActive = async (user: AdminUser) => {
+    if (!selectedSlug) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.updateAdminUser(selectedSlug, user.id, { activo: !(user.activo !== false) });
+      setMessage(
+        user.activo === false ? `Usuario ${user.email} reactivado.` : `Usuario ${user.email} desactivado.`,
+      );
+      await loadUsers(selectedSlug);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Error al actualizar usuario");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadRbac = useCallback(async () => {
+    const [roles, perms] = await Promise.all([api.rbacRoles(), api.rbacPermissions()]);
+    setRbacRoles(roles.roles);
+    setRbacPerms(perms.permisos);
+  }, []);
+
+  useEffect(() => {
+    if (hubTab === "rbac") void Promise.resolve().then(loadRbac);
+  }, [hubTab, loadRbac]);
 
   const onImportCsv = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -192,6 +225,17 @@ export function AdminPanel() {
         >
           Configuración plataforma
         </button>
+        <button
+          type="button"
+          onClick={() => setHubTab("rbac")}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            hubTab === "rbac"
+              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
+          }`}
+        >
+          Roles y permisos
+        </button>
       </div>
 
       {message && (
@@ -202,6 +246,63 @@ export function AdminPanel() {
 
       {hubTab === "config" ? (
         <PlatformSettingsPanel onMessage={setMessage} />
+      ) : hubTab === "rbac" ? (
+        <div className="space-y-4">
+          <SidebarSection title="Roles de consola">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {rbacRoles.map((r) => (
+                <GlassCard key={r.codigo} title={r.nombre} accent="cyan" variant="secondary">
+                  <p className="text-xs text-slate-400 mb-2">{r.descripcion}</p>
+                  <p className="text-[11px] font-mono text-slate-500 mb-2">{r.codigo}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {r.permisos.length} permisos · ver matriz abajo
+                  </p>
+                </GlassCard>
+              ))}
+            </div>
+          </SidebarSection>
+          <SidebarSection title="Matriz de permisos">
+            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-950/80 text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Permiso</th>
+                    <th className="px-3 py-2 font-medium">Dominio</th>
+                    {rbacRoles.map((r) => (
+                      <th key={r.codigo} className="px-3 py-2 font-medium text-center">
+                        {r.codigo}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rbacPerms.map((p) => (
+                    <tr key={p.codigo} className="border-t border-slate-800/80">
+                      <td className="px-3 py-2">
+                        <span className="font-mono text-slate-200">{p.codigo}</span>
+                        <p className="text-slate-500 mt-0.5">{p.descripcion}</p>
+                      </td>
+                      <td className="px-3 py-2 text-slate-500">{p.dominio}</td>
+                      {rbacRoles.map((r) => (
+                        <td key={r.codigo} className="px-3 py-2 text-center">
+                          {r.permisos.includes(p.codigo) ? (
+                            <span className="text-emerald-400">Sí</span>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2">
+              Catálogo fijo de esta versión. Edición interactiva de la matriz queda para una
+              siguiente iteración.
+            </p>
+          </SidebarSection>
+        </div>
       ) : loading ? (
         <p className="text-slate-500">Cargando plataforma…</p>
       ) : (
@@ -351,8 +452,8 @@ export function AdminPanel() {
                         className="bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-2 text-sm"
                       >
                         <option value="agente">Agente</option>
-                        <option value="cliente">Agente (legacy)</option>
-                        <option value="ingeniero_noc">Supervisor soporte</option>
+                        <option value="supervisor">Supervisor</option>
+                        <option value="ejecutivo">Ejecutivo</option>
                       </select>
                       <input
                         placeholder="Clave inicial"
@@ -386,8 +487,21 @@ export function AdminPanel() {
                             {u.must_change_password && (
                               <p className="text-[11px] text-amber-400 mt-0.5">Debe cambiar clave</p>
                             )}
+                            {u.activo === false && (
+                              <p className="text-[11px] text-rose-400 mt-0.5">Desactivado</p>
+                            )}
                           </div>
-                          <span className="text-slate-500 shrink-0 text-[11px]">{u.rol}</span>
+                          <div className="shrink-0 flex flex-col items-end gap-1">
+                            <span className="text-slate-500 text-[11px]">{u.rol}</span>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void onToggleUserActive(u)}
+                              className="text-[11px] text-cyan-300/90 hover:text-cyan-200 disabled:opacity-50"
+                            >
+                              {u.activo === false ? "Reactivar" : "Desactivar"}
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}

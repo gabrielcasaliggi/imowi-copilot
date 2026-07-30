@@ -144,7 +144,11 @@ def update_organization(
     return org
 
 
-_ROLES_VALIDOS = {"cliente", "ingeniero_noc", "admin_sistema", "admin_org", "admin", "operador", "cooperativa", "agente"}
+_ROLES_VALIDOS = {"admin", "supervisor", "ejecutivo", "agente", "cliente", "ingeniero_noc", "admin_sistema", "admin_org", "operador", "cooperativa"}
+
+
+def user_is_active(user: User) -> bool:
+    return (getattr(user, "activo", None) or "Sí").strip().lower() in ("sí", "si", "yes", "true", "1")
 
 
 def create_user_for_org(
@@ -154,21 +158,23 @@ def create_user_for_org(
     email: str,
     nombre: str,
     password: str = "cliente",
-    rol: str = "cliente",
+    rol: str = "agente",
     telefono: str = "",
     linea_principal: str = "",
     must_change_password: bool | None = None,
 ) -> User:
+    from app.rbac import normalizar_rol_consola
+
     email_norm = email.strip().lower()
     if not valid_email(email_norm):
         raise ValueError("Email inválido")
     if not valid_password(password):
         raise ValueError("La clave debe tener al menos 6 caracteres")
-    rol_norm = (rol or "agente").lower()
-    if rol_norm in ("operador", "cooperativa", "cliente"):
-        rol_norm = "agente"
-    if rol_norm not in _ROLES_VALIDOS:
+    rol_raw = (rol or "agente").lower()
+    if rol_raw not in _ROLES_VALIDOS:
         raise ValueError(f"Rol '{rol}' no permitido")
+    org = db.get(Organization, org_id)
+    rol_norm = normalizar_rol_consola(rol_raw, org.slug if org else None)
     if db.scalar(select(User).where(User.email == email_norm)):
         raise ValueError(f"El email {email} ya está registrado")
     force_change = must_change_password
@@ -183,8 +189,77 @@ def create_user_for_org(
         telefono=telefono,
         linea_principal=linea_principal,
         must_change_password="Sí" if force_change else "No",
+        activo="Sí",
+        disponibilidad="disponible",
     )
     db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def update_user_for_org(
+    db: Session,
+    org_id: str,
+    user_id: str,
+    *,
+    nombre: str | None = None,
+    rol: str | None = None,
+    telefono: str | None = None,
+    linea_principal: str | None = None,
+    activo: bool | None = None,
+    password: str | None = None,
+    disponibilidad: str | None = None,
+    allowed_roles: set[str] | frozenset[str] | None = None,
+) -> User | None:
+    from app.rbac import normalizar_rol_consola
+
+    user = db.scalar(select(User).where(User.id == user_id, User.organizacion_id == org_id))
+    if not user:
+        return None
+    if nombre is not None:
+        user.nombre = nombre.strip()
+    if telefono is not None:
+        user.telefono = telefono
+    if linea_principal is not None:
+        user.linea_principal = linea_principal
+    if activo is not None:
+        user.activo = "Sí" if activo else "No"
+    if disponibilidad is not None:
+        user.disponibilidad = disponibilidad.strip().lower() or "disponible"
+    if password is not None:
+        if not valid_password(password):
+            raise ValueError("La clave debe tener al menos 6 caracteres")
+        user.password = hash_password(password)
+        user.must_change_password = "No"
+    if rol is not None:
+        org = db.get(Organization, org_id)
+        rol_norm = normalizar_rol_consola(rol, org.slug if org else None)
+        if allowed_roles is not None and rol_norm not in allowed_roles:
+            raise ValueError(f"No podés asignar el rol '{rol_norm}'")
+        user.rol = rol_norm
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user_by_id(db: Session, org_id: str, user_id: str) -> User | None:
+    return db.scalar(select(User).where(User.id == user_id, User.organizacion_id == org_id))
+
+
+def set_user_availability(db: Session, org_id: str, email: str, disponibilidad: str) -> User | None:
+    user = get_user_by_email(db, org_id, email)
+    if not user:
+        # Alias sin dominio completo
+        rows = db.scalars(select(User).where(User.organizacion_id == org_id)).all()
+        value = email.strip().lower()
+        user = next(
+            (u for u in rows if u.email.lower() == value or u.email.lower().split("@", 1)[0] == value),
+            None,
+        )
+    if not user:
+        return None
+    user.disponibilidad = (disponibilidad or "disponible").strip().lower()
     db.commit()
     db.refresh(user)
     return user
@@ -199,6 +274,8 @@ def user_to_dict(user: User) -> dict:
         "telefono": user.telefono or "",
         "linea_principal": user.linea_principal or "",
         "must_change_password": (user.must_change_password or "No") == "Sí",
+        "activo": user_is_active(user),
+        "disponibilidad": getattr(user, "disponibilidad", None) or "disponible",
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
 

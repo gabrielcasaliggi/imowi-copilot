@@ -53,7 +53,8 @@ function TicketRow({
 
 export function TicketQueuePanel() {
   const router = useRouter();
-  const { isAdmin, tenantSlug, stats } = useApp();
+  const { isAdmin, can, tenantSlug, stats } = useApp();
+
   const [items, setItems] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState("");
@@ -83,9 +84,11 @@ export function TicketQueuePanel() {
     }
   }, [estado, nivel, sla, categoria, q, soloAbiertos, tenantSlug]);
 
+  const canQueue = can("tickets.queue.view");
+
   useEffect(() => {
-    if (isAdmin) load();
-  }, [isAdmin, load]);
+    if (canQueue) load();
+  }, [canQueue, load]);
 
   const abiertos = useMemo(
     () => items.filter((t) => t.estado !== "Cerrado").length,
@@ -110,10 +113,10 @@ export function TicketQueuePanel() {
     load();
   };
 
-  if (!isAdmin) {
+  if (!canQueue) {
     return (
       <div className="p-6 text-sm text-slate-500">
-        La cola operativa está disponible para administradores NOC.
+        No tenés permiso para ver la cola de tickets.
       </div>
     );
   }

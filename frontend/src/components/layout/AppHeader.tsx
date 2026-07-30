@@ -10,6 +10,14 @@ export function AppHeader() {
   const brandColor = tenantContext?.brand_color || "#22d3ee";
   const logoLabel = tenantContext?.logo_label || "i";
   const orgName = tenantContext?.organizacion_nombre || "Operations Hub";
+  const rolLabel =
+    user?.rol === "admin"
+      ? "Administración"
+      : user?.rol === "supervisor"
+        ? "Supervisor"
+        : user?.rol === "ejecutivo"
+          ? "Ejecutivo"
+          : user?.nombre || "Agente";
 
   return (
     <header className="glass border-b border-slate-800/80 px-4 py-3 flex items-center justify-between gap-4 shrink-0">
@@ -51,11 +59,9 @@ export function AppHeader() {
         )}
         <PendingTasksBell />
         <div className="hidden md:flex flex-col items-end">
-          <span className="text-xs text-slate-300">
-            {isAdmin ? "Administración" : user?.nombre}
-          </span>
+          <span className="text-xs text-slate-300">{rolLabel}</span>
           <span className="text-[10px] font-mono text-slate-500 uppercase">
-            {isAdmin ? "admin" : "agente"}
+            {user?.rol || "agente"}
           </span>
         </div>
         <button

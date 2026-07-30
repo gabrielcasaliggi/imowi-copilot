@@ -29,6 +29,8 @@ _USER_COLUMNS: dict[str, str] = {
     "telefono": "VARCHAR(32) DEFAULT ''",
     "linea_principal": "VARCHAR(16) DEFAULT ''",
     "must_change_password": "VARCHAR(8) DEFAULT 'No'",
+    "activo": "VARCHAR(8) DEFAULT 'Sí'",
+    "disponibilidad": "VARCHAR(24) DEFAULT 'disponible'",
     "last_login_at": "DATETIME",
 }
 
@@ -94,6 +96,7 @@ def migrate_schema(engine: Engine) -> list[str]:
                 _add_column(engine, "users", col, ddl)
                 cambios.append(f"users.{col}")
                 logger.info("Migración: columna agregada users.%s", col)
+        cambios.extend(_migrate_legacy_roles(engine))
 
     for tabla, model_name in (
         ("abonados", "Abonado"),
@@ -108,4 +111,58 @@ def migrate_schema(engine: Engine) -> list[str]:
             cambios.append(tabla)
             logger.info("Migración: tabla creada %s", tabla)
 
+    return cambios
+
+
+def _migrate_legacy_roles(engine: Engine) -> list[str]:
+    """Normaliza roles legacy de users al catálogo de consola (docs/RBAC-ROLES-PERMISOS.md)."""
+    cambios: list[str] = []
+    statements = [
+        (
+            "UPDATE users SET rol = 'admin' WHERE lower(rol) IN ('admin_sistema', 'admin')",
+            "users.rol→admin",
+        ),
+        (
+            "UPDATE users SET rol = 'supervisor' WHERE lower(rol) = 'admin_org'",
+            "users.rol admin_org→supervisor",
+        ),
+        (
+            "UPDATE users SET rol = 'agente' WHERE lower(rol) IN ('operador', 'cooperativa', 'cliente')",
+            "users.rol legacy→agente",
+        ),
+    ]
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(
+                text(
+                    """
+                    UPDATE users u
+                    SET rol = CASE
+                        WHEN o.slug = 'imowi' THEN 'admin'
+                        ELSE 'supervisor'
+                    END
+                    FROM organizations o
+                    WHERE u.organizacion_id = o.id AND lower(u.rol) = 'ingeniero_noc'
+                    """
+                )
+            )
+        else:
+            conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET rol = CASE
+                        WHEN organizacion_id IN (SELECT id FROM organizations WHERE slug = 'imowi')
+                        THEN 'admin'
+                        ELSE 'supervisor'
+                    END
+                    WHERE lower(rol) = 'ingeniero_noc'
+                    """
+                )
+            )
+        cambios.append("users.rol ingeniero_noc→admin|supervisor")
+        for sql, label in statements:
+            conn.execute(text(sql))
+            cambios.append(label)
+    logger.info("Migración: roles de usuario normalizados a catálogo RBAC")
     return cambios

@@ -54,6 +54,8 @@ class User(Base):
     telefono: Mapped[str] = mapped_column(String(32), default="")
     linea_principal: Mapped[str] = mapped_column(String(16), default="")
     must_change_password: Mapped[str] = mapped_column(String(8), default="No")
+    activo: Mapped[str] = mapped_column(String(8), default="Sí")
+    disponibilidad: Mapped[str] = mapped_column(String(24), default="disponible")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     organizacion: Mapped["Organization"] = relationship(back_populates="usuarios")

@@ -95,6 +95,20 @@ _DEFAULT_MOCK_USERS = {
         "nombre": "Agente Batán",
         "org_slug": "coop-batan",
     },
+    "supervisor": {
+        "password": "supervisor",
+        "rol": "supervisor",
+        "cooperativa": "Cooperativa Batán",
+        "nombre": "Supervisor Batán",
+        "org_slug": "coop-batan",
+    },
+    "ejecutivo": {
+        "password": "ejecutivo",
+        "rol": "ejecutivo",
+        "cooperativa": "Cooperativa Batán",
+        "nombre": "Ejecutivo Batán",
+        "org_slug": "coop-batan",
+    },
     "viamonte": {
         "password": "viamonte",
         "rol": "agente",

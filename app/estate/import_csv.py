@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.estate.models import LineaJSC, Organization, User
 from app.estate.security import hash_password, valid_email, valid_password
 
-_ROLES_VALIDOS = {"cliente", "ingeniero_noc", "admin_sistema", "admin_org"}
+_ROLES_VALIDOS = {"agente", "supervisor", "ejecutivo", "cliente", "ingeniero_noc", "admin_sistema", "admin_org", "operador", "cooperativa"}
 _ALIASES = {
     "nombre": ("nombre", "name", "operador"),
     "email": ("email", "correo", "mail"),
@@ -96,11 +96,16 @@ def import_usuarios_csv(
             continue
 
         rol = (row.get("rol") or default_rol).lower()
-        if rol in ("operador", "cooperativa"):
-            rol = "cliente"
+        from app.rbac import normalizar_rol_consola
+
         if rol not in _ROLES_VALIDOS:
             result.omitidos += 1
             result.errores.append(f"Fila {idx}: rol '{rol}' no válido.")
+            continue
+        rol = normalizar_rol_consola(rol, org.slug)
+        if org.slug != "imowi" and rol == "admin":
+            result.omitidos += 1
+            result.errores.append(f"Fila {idx}: rol admin no permitido en cooperativa.")
             continue
 
         password = row.get("password") or default_password

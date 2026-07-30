@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_tenant_context, require_kb_admin, require_kb_proposer
+from app.api.v1.deps import get_tenant_context, require_kb_proposer
 from app.api.v1.schemas import TenantContext, TicketEventCreate, TicketKbPublish, TicketUpdateV1
 from app.estate import repository as repo
 from app.estate.audit import log_audit
@@ -106,6 +106,8 @@ def list_tickets(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
+    if not ctx.puede("tickets.queue.view") and not ctx.puede("tickets.view"):
+        raise HTTPException(403, "Sin permiso para ver la cola de tickets")
     admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
     tickets = ticket_bridge.listar_tickets(db, ctx.organizacion_id, admin_global=admin_global)
     pool = tickets
@@ -141,8 +143,8 @@ def list_prioritized_tickets(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    if not ctx.es_admin_imowi:
-        raise HTTPException(403, "Cola priorizada exclusiva del administrador NOC")
+    if not ctx.puede("tickets.queue.view"):
+        raise HTTPException(403, "Sin permiso para ver la cola priorizada")
     pool = _load_pool(db, ctx)
     scored = ordenar_por_riesgo(pool, pool=pool)
     return {
@@ -382,11 +384,11 @@ def publish_ticket_kb(
 def update_ticket(
     ticket_id: str,
     body: TicketUpdateV1,
-    ctx: TenantContext = Depends(require_kb_admin),
+    ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    if not ctx.es_admin_imowi:
-        raise HTTPException(403, "Solo el administrador NOC puede actualizar seguimiento de tickets")
+    if not ctx.puede("tickets.update"):
+        raise HTTPException(403, "Sin permiso para actualizar tickets")
     admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
     t = repo.update_ticket(
         db,

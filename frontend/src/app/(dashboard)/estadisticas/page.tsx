@@ -6,14 +6,15 @@ import { StatsDashboard } from "@/components/stats/StatsDashboard";
 import { useApp } from "@/contexts/AppContext";
 
 export default function EstadisticasPage() {
-  const { isAdmin } = useApp();
+  const { can } = useApp();
   const router = useRouter();
+  const allowed = can("stats.global") || can("stats.bot") || can("stats.agents");
 
   useEffect(() => {
-    if (!isAdmin) router.replace("/inbox");
-  }, [isAdmin, router]);
+    if (!allowed) router.replace("/inbox");
+  }, [allowed, router]);
 
-  if (!isAdmin) return null;
+  if (!allowed) return null;
 
   return <StatsDashboard />;
 }

@@ -10,25 +10,38 @@ const NAV_GROUPS = [
   {
     title: "Operación",
     items: [
-      { href: "/inbox", label: "Bandeja", id: "inbox", admin: false },
-      { href: "/soporte", label: "Consola de tickets", id: "soporte", admin: false },
+      { href: "/inbox", label: "Bandeja", id: "inbox", permission: null as string | null },
+      { href: "/soporte", label: "Consola de tickets", id: "soporte", permission: null },
     ],
   },
   {
     title: "Gestión",
     items: [
-      { href: "/conocimiento", label: "Centro de conocimiento", id: "kb", admin: false },
-      { href: "/tickets", label: "Cola de tickets", id: "tickets", admin: true },
-      { href: "/estadisticas", label: "Estadísticas", id: "stats", admin: true },
-      { href: "/admin", label: "Administración", id: "admin", admin: true },
+      { href: "/conocimiento", label: "Centro de conocimiento", id: "kb", permission: "kb.propose" },
+      { href: "/tickets", label: "Cola de tickets", id: "tickets", permission: "tickets.queue.view" },
+      {
+        href: "/estadisticas",
+        label: "Estadísticas",
+        id: "stats",
+        permission: "stats.any",
+      },
+      { href: "/admin", label: "Administración", id: "admin", permission: "orgs.manage" },
     ],
   },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { isAdmin, tenantSlug } = useApp();
+  const { isAdmin, can, tenantSlug } = useApp();
   const [kbPendingCount, setKbPendingCount] = useState(0);
+
+  const canSee = (permission: string | null) => {
+    if (!permission) return true;
+    if (permission === "stats.any") {
+      return can("stats.global") || can("stats.bot") || can("stats.agents");
+    }
+    return can(permission);
+  };
 
   const loadKbPending = useCallback(async () => {
     if (!isAdmin) {
@@ -57,9 +70,7 @@ export function SidebarNav() {
         : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
     }`;
 
-  const flatItems = NAV_GROUPS.flatMap((g) =>
-    g.items.filter((n) => !n.admin || isAdmin),
-  );
+  const flatItems = NAV_GROUPS.flatMap((g) => g.items.filter((n) => canSee(n.permission)));
 
   return (
     <>
@@ -87,7 +98,7 @@ export function SidebarNav() {
         </p>
         <nav className="space-y-4">
           {NAV_GROUPS.map((group) => {
-            const items = group.items.filter((n) => !n.admin || isAdmin);
+            const items = group.items.filter((n) => canSee(n.permission));
             if (!items.length) return null;
             return (
               <div key={group.title}>

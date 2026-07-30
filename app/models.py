@@ -19,6 +19,7 @@ class LoginResponse(BaseModel):
     nombre: str
     org_slug: str = "imowi"
     must_change_password: bool = False
+    permisos: list[str] = []
 
 
 class ContextoTicket(BaseModel):

@@ -5,6 +5,7 @@ export interface LoginResponse {
   cooperativa?: string;
   nombre: string;
   org_slug?: string;
+  permisos?: string[];
 }
 
 export interface MeResponse {
@@ -13,6 +14,7 @@ export interface MeResponse {
   cooperativa?: string;
   nombre: string;
   org_slug?: string;
+  permisos?: string[];
 }
 
 export interface Organization {
@@ -35,7 +37,23 @@ export interface AdminUser {
   telefono: string;
   linea_principal: string;
   must_change_password?: boolean;
+  activo?: boolean;
+  disponibilidad?: string;
   last_login_at?: string | null;
+}
+
+export interface RbacRole {
+  codigo: string;
+  nombre: string;
+  descripcion: string;
+  permisos: string[];
+  system: boolean;
+}
+
+export interface RbacPermission {
+  codigo: string;
+  dominio: string;
+  descripcion: string;
 }
 
 export interface AuditEvent {

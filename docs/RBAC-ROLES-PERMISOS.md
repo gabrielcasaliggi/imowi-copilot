@@ -2,7 +2,7 @@
 
 Documento de diseño acordado para el modelo de acceso de la consola Operations Hub.
 
-**Estado:** diseño aprobado — pendiente de implementación.  
+**Estado:** implementación en curso (catálogo, JWT, guards, Admin Hub roles/permisos).  
 **Fecha:** 2026-07-30  
 **Alcance:** consola de agentes/admin (no portal abonado).
 

@@ -14,6 +14,10 @@ class TenantContext(BaseModel):
     rol: str
     es_admin_imowi: bool = False
     cooperativa_legacy: str | None = None
+    permisos: list[str] = Field(default_factory=list)
+
+    def puede(self, codigo: str) -> bool:
+        return codigo in self.permisos
 
 
 class ChatMessage(BaseModel):
@@ -118,6 +122,19 @@ class UserCreate(BaseModel):
     email: str
     nombre: str
     password: str = "cliente"
-    rol: str = "cliente"
+    rol: str = "agente"
     telefono: str = ""
     linea_principal: str = ""
+
+
+class UserUpdate(BaseModel):
+    nombre: str | None = None
+    rol: str | None = None
+    telefono: str | None = None
+    linea_principal: str | None = None
+    activo: bool | None = None
+    password: str | None = None
+
+
+class AvailabilityUpdate(BaseModel):
+    disponibilidad: str
