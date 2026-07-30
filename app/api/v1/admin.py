@@ -379,6 +379,8 @@ def test_billtrack_connection(
     params = connection_params(cfg)
     url = str(params.get("url") or cfg.get("url") or "").strip()
     sslmode = str(params.get("sslmode") or "disable")
+    host = str(params.get("host") or cfg.get("host") or "").strip()
+    port = params.get("port") or cfg.get("port") or 5432
 
     if not url and not (cfg.get("host") and cfg.get("user")):
         return {
@@ -399,9 +401,33 @@ def test_billtrack_connection(
             "hint": "Reingresá la contraseña (no se puede probar con el valor enmascarado si nunca se guardó).",
         }
 
+    # Preflight TCP: falla claro si el proceso del API no tiene ruta (VPN) al host
+    from app.services.billtrack import preflight_tcp
+
+    tcp = preflight_tcp(host, port)
+    if host and not tcp.get("tcp_ok"):
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "billtrack",
+            "tcp_ok": False,
+            "sslmode": sslmode,
+            "error": f"TCP no alcanza {host}:{tcp.get('port')}: {tcp.get('error') or 'sin ruta'}",
+            "hint": tcp.get("hint")
+            or (
+                "Activá la VPN (WireGuard) en la máquina donde corre el API, "
+                "o ejecutá el backend en local — no en Render/cloud."
+            ),
+            "nota": (
+                "Postgres externo de solo lectura (padrón de clientes). "
+                "No es la base del sistema ni debe usarse para persistir tickets."
+            ),
+        }
+
     result = probar_conexion_database(url, sslmode=sslmode)
     result["scope"] = "billtrack"
     result["sslmode"] = sslmode
+    result["tcp_ok"] = True
     result["nota"] = (
         "Postgres externo de solo lectura (padrón de clientes). "
         "No es la base del sistema ni debe usarse para persistir tickets."

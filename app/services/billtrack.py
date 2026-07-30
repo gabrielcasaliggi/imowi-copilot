@@ -85,6 +85,38 @@ def connection_params(cfg: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def preflight_tcp(host: str, port: int | str = 5432, *, timeout: float = 5.0) -> dict:
+    """Comprueba si host:port es alcanzable a nivel TCP (antes de autenticar)."""
+    import socket
+
+    host = (host or "").strip()
+    try:
+        port_n = int(port or 5432)
+    except (TypeError, ValueError):
+        port_n = 5432
+    out: dict = {"host": host, "port": port_n, "tcp_ok": False}
+    if not host:
+        out["error"] = "host vacío"
+        return out
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((host, port_n))
+        out["tcp_ok"] = True
+    except OSError as exc:
+        out["error"] = str(exc)[:160]
+        err = str(exc).lower()
+        if "unreachable" in err or "timed out" in err or "timeout" in err:
+            out["hint"] = (
+                "El API no alcanza ese host:puerto. BillTrack suele estar solo en la red "
+                "interna/VPN (p. ej. WireGuard). Corré el backend en una máquina con VPN "
+                "conectada — un deploy en Render/cloud no puede llegar a esa IP."
+            )
+    finally:
+        sock.close()
+    return out
+
+
 def resolve_connection(db: Session | None = None) -> dict[str, Any]:
     from app.services.platform_settings import resolve_billtrack
 

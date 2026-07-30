@@ -1,0 +1,86 @@
+# Stack completo para servidor Ubuntu (IP pública)
+# Uso: docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
+#
+# Servicios: Postgres (Data Estate) + API FastAPI + Frontend Next.js + Nginx
+
+name: operations-hub
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ops_hub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definí POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ops_hub}
+    volumes:
+      - ops_hub_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ops_hub} -d ${POSTGRES_DB:-ops_hub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      APP_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8000"
+      DATA_DIR: /app/data
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ops_hub}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ops_hub}
+      DATABASE_SSLMODE: disable
+    volumes:
+      - ops_hub_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL:-http://localhost}
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      - api
+    networks:
+      - internal
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - internal
+
+volumes:
+  ops_hub_pgdata:
+  ops_hub_data:
+
+networks:
+  internal:
+    driver: bridge

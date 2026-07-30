@@ -121,8 +121,8 @@ def probar_conexion_database(
             out["hint"] = "Este servidor no soporta SSL. Usá sslmode=disable."
         elif "timeout" in low:
             out["hint"] = (
-                "Timeout de red: el host:puerto no es alcanzable desde este proceso "
-                "(firewall/VPN), o la URL está mal armada (escapá ':' y '\\' en la password)."
+                "Timeout de red: el API no alcanza ese host (hace falta VPN/WireGuard en la "
+                "máquina del backend). Un deploy en Render/cloud no llega a IPs internas."
             )
         elif "password authentication failed" in low:
             out["hint"] = "Credenciales rechazadas: revisá usuario/contraseña."
