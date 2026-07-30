@@ -74,7 +74,12 @@ DATABASE_SSLMODE = os.getenv("DATABASE_SSLMODE", "require")
 BILLTRACK_DATABASE_URL = normalizar_database_url(os.getenv("BILLTRACK_DATABASE_URL", "")) if os.getenv(
     "BILLTRACK_DATABASE_URL", ""
 ).strip() else ""
-BILLTRACK_SSLMODE = os.getenv("BILLTRACK_SSLMODE", "prefer").strip() or "prefer"
+BILLTRACK_SSLMODE = os.getenv("BILLTRACK_SSLMODE", "disable").strip() or "disable"
+BILLTRACK_HOST = os.getenv("BILLTRACK_HOST", "").strip()
+BILLTRACK_PORT = os.getenv("BILLTRACK_PORT", "5432").strip() or "5432"
+BILLTRACK_USER = os.getenv("BILLTRACK_USER", "").strip()
+BILLTRACK_PASSWORD = os.getenv("BILLTRACK_PASSWORD", "")
+BILLTRACK_DBNAME = os.getenv("BILLTRACK_DBNAME", "postgres").strip() or "postgres"
 BILLTRACK_ENABLED = os.getenv("BILLTRACK_ENABLED", "false").strip().lower() in (
     "1",
     "true",

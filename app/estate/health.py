@@ -53,7 +53,14 @@ def probar_conexion_database(
     raw = (url or "").strip() or DATABASE_URL
     normalized = normalizar_database_url(raw)
     is_pg = normalized.startswith("postgresql")
-    mode = (sslmode or DATABASE_SSLMODE or "require").strip() or "require"
+    testing_active = not (url or "").strip()
+    if sslmode is not None and str(sslmode).strip():
+        mode = str(sslmode).strip()
+    elif testing_active:
+        mode = (DATABASE_SSLMODE or "require").strip() or "require"
+    else:
+        # BillTrack / externos on-prem: sin TLS por defecto
+        mode = "disable"
     out: dict = {
         "ok": False,
         "connected": False,
@@ -107,7 +114,20 @@ def probar_conexion_database(
         out["latency_ms"] = int((time.perf_counter() - t0) * 1000)
     except Exception as exc:
         out["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        out["error"] = str(exc)[:240]
+        err = str(exc)[:240]
+        out["error"] = err
+        low = err.lower()
+        if "does not support ssl" in low or "ssl was required" in low:
+            out["hint"] = "Este servidor no soporta SSL. Usá sslmode=disable."
+        elif "timeout" in low:
+            out["hint"] = (
+                "Timeout de red: el host:puerto no es alcanzable desde este proceso "
+                "(firewall/VPN), o la URL está mal armada (escapá ':' y '\\' en la password)."
+            )
+        elif "password authentication failed" in low:
+            out["hint"] = "Credenciales rechazadas: revisá usuario/contraseña."
+        elif "database" in low and ("does not exist" in low or "no existe" in low):
+            out["hint"] = "El nombre de la base (dbname) no existe en ese servidor."
     finally:
         if engine is not None:
             engine.dispose()

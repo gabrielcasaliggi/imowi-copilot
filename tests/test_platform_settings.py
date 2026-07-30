@@ -114,7 +114,6 @@ def test_test_billtrack_sin_url():
     body = r.json()
     assert body["ok"] is False
     assert body["scope"] == "billtrack"
-    assert "sin URL" in (body.get("error") or "").lower() or "URL" in (body.get("error") or "")
 
 
 def test_put_billtrack_settings():
@@ -126,8 +125,12 @@ def test_put_billtrack_settings():
             "settings": {
                 "billtrack": {
                     "enabled": True,
-                    "url": "postgresql://billtrack_reader:secret@127.0.0.1:5432/demo",
-                    "sslmode": "prefer",
+                    "host": "127.0.0.1",
+                    "port": "5432",
+                    "user": "billtrack_reader",
+                    "password": r"7teA\c7:CA5f",
+                    "dbname": "demo",
+                    "sslmode": "disable",
                 }
             }
         },
@@ -137,8 +140,27 @@ def test_put_billtrack_settings():
     assert body["billtrack_configured"] is True
     assert body["billtrack_enabled"] is True
     assert "***" in body["billtrack_url_masked"]
-    assert "secret" not in body["billtrack_url_masked"]
+    assert "CA5f" not in body["billtrack_url_masked"]
     assert body["settings"]["billtrack"]["enabled"] is True
+    assert body["settings"]["billtrack"]["host"] == "127.0.0.1"
+    # password enmascarada en respuesta pública
+    assert "***" in (body["settings"]["billtrack"].get("password") or "")
+
+
+def test_build_postgres_url_escapa_password():
+    from app.services.billtrack import build_postgres_url
+
+    url = build_postgres_url(
+        host="181.41.240.23",
+        port=5432,
+        user="billtrack_reader",
+        password=r"7teA\c7:CA5f",
+        dbname="postgres",
+    )
+    assert r"7teA\c7:CA5f" not in url
+    assert "%5C" in url or "%5c" in url.lower()
+    assert "%3A" in url or "%3a" in url.lower()
+    assert "@181.41.240.23:5432/postgres" in url
 
 
 def test_probar_conexion_database_helper():

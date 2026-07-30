@@ -102,10 +102,16 @@ export interface PlatformSettingsResponse {
     database?: { url?: string; sslmode?: string; nota?: string; url_configured?: boolean };
     billtrack?: {
       enabled?: boolean;
+      host?: string;
+      port?: string;
+      user?: string;
+      password?: string;
+      dbname?: string;
       url?: string;
       sslmode?: string;
       nota?: string;
       url_configured?: boolean;
+      password_configured?: boolean;
     };
     knowledge?: { min_score?: number; top_k?: number; max_fragment_chars?: number };
     canal?: { usar_llama_default?: boolean };

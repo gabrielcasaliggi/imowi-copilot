@@ -13,8 +13,13 @@ from app.config import (
     AI_BASE_URL,
     AI_MODEL,
     BILLTRACK_DATABASE_URL,
+    BILLTRACK_DBNAME,
     BILLTRACK_ENABLED,
+    BILLTRACK_HOST,
+    BILLTRACK_PASSWORD,
+    BILLTRACK_PORT,
     BILLTRACK_SSLMODE,
+    BILLTRACK_USER,
     DATABASE_SSLMODE,
     DATABASE_URL,
     KNOWLEDGE_MAX_FRAGMENT_CHARS,
@@ -36,6 +41,7 @@ _SECRET_KEYS = {
     ("ai", "api_key"),
     ("whatsapp", "token"),
     ("whatsapp", "app_secret"),
+    ("billtrack", "password"),
 }
 
 _URL_SECRET_KEYS = {
@@ -68,11 +74,17 @@ def _default_payload() -> dict[str, Any]:
         },
         "billtrack": {
             "enabled": BILLTRACK_ENABLED,
+            "host": BILLTRACK_HOST,
+            "port": BILLTRACK_PORT,
+            "user": BILLTRACK_USER,
+            "password": BILLTRACK_PASSWORD,
+            "dbname": BILLTRACK_DBNAME,
             "url": BILLTRACK_DATABASE_URL,
             "sslmode": BILLTRACK_SSLMODE,
             "nota": (
                 "Postgres externo de solo lectura: padrón de clientes para que el bot "
-                "valide acciones. Independiente del Data Estate."
+                "valide acciones. Independiente del Data Estate. Este servidor suele "
+                "requerir sslmode=disable."
             ),
         },
         "knowledge": {
@@ -171,6 +183,18 @@ def save_settings(
             sec[key] = current.get(section, {}).get(key, "")
 
     merged = _deep_merge(current, incoming)
+
+    # BillTrack: reconstruir URL con password escapado (evita timeout por ':' en la pass)
+    bt = merged.get("billtrack")
+    if isinstance(bt, dict):
+        from app.services.billtrack import connection_params
+
+        built = connection_params(bt)
+        if built.get("url"):
+            bt["url"] = built["url"]
+        if built.get("sslmode"):
+            bt["sslmode"] = built["sslmode"]
+
     row = db.get(PlatformConfig, CONFIG_ID)
     if not row:
         row = PlatformConfig(id=CONFIG_ID, payload_json="{}")
@@ -204,6 +228,8 @@ def resolve_whatsapp(db: Session | None = None) -> dict[str, str]:
 
 def resolve_billtrack(db: Session | None = None) -> dict[str, Any]:
     """Credenciales del Postgres externo BillTrack (consulta de clientes)."""
+    from app.services.billtrack import connection_params, parse_postgres_url
+
     s = get_merged_settings(db).get("billtrack") or {}
     if not isinstance(s, dict):
         s = {}
@@ -212,13 +238,37 @@ def resolve_billtrack(db: Session | None = None) -> dict[str, Any]:
         enabled = enabled_raw.strip().lower() in ("1", "true", "yes", "on")
     else:
         enabled = bool(enabled_raw) if enabled_raw is not None else BILLTRACK_ENABLED
+
+    host = str(s.get("host") or BILLTRACK_HOST or "").strip()
+    user = str(s.get("user") or BILLTRACK_USER or "").strip()
+    password = str(s.get("password") if s.get("password") is not None else BILLTRACK_PASSWORD)
+    dbname = str(s.get("dbname") or BILLTRACK_DBNAME or "postgres").strip() or "postgres"
+    port = str(s.get("port") or BILLTRACK_PORT or "5432").strip() or "5432"
     url = str(s.get("url") or BILLTRACK_DATABASE_URL or "").strip()
-    return {
+    sslmode = str(s.get("sslmode") or BILLTRACK_SSLMODE or "disable").strip() or "disable"
+
+    # Si solo hay URL (legacy/env), completar campos visibles
+    if url and not host:
+        parsed = parse_postgres_url(url)
+        host = parsed.get("host") or host
+        user = parsed.get("user") or user
+        dbname = parsed.get("dbname") or dbname
+        port = parsed.get("port") or port
+
+    cfg = {
         "enabled": enabled,
+        "host": host,
+        "port": port,
+        "user": user,
+        "password": password,
+        "dbname": dbname,
         "url": url,
-        "sslmode": str(s.get("sslmode") or BILLTRACK_SSLMODE or "prefer").strip() or "prefer",
+        "sslmode": sslmode,
         "nota": str(s.get("nota") or ""),
     }
+    built = connection_params(cfg)
+    cfg["url"] = built["url"] or url
+    return cfg
 
 
 def resolve_knowledge(db: Session | None = None) -> dict[str, float | int]:
@@ -304,14 +354,15 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     ai = resolve_ai(db)
     bt = resolve_billtrack(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
+    bt_url = str(bt.get("url") or "")
     return {
         "ai_configured": bool(ai.get("base_url") and ai.get("model")),
         "whatsapp_configured": bool(wa.get("token") and wa.get("phone_number_id")),
         "database_driver": "postgresql" if "postgresql" in (DATABASE_URL or "") else "sqlite",
         "database_url_masked": database_url_enmascarada(),
-        "billtrack_configured": bool(bt.get("url")),
-        "billtrack_enabled": bool(bt.get("enabled") and bt.get("url")),
-        "billtrack_url_masked": database_url_enmascarada(bt["url"]) if bt.get("url") else "",
+        "billtrack_configured": bool(bt_url or (bt.get("host") and bt.get("user"))),
+        "billtrack_enabled": bool(bt.get("enabled") and (bt_url or bt.get("host"))),
+        "billtrack_url_masked": database_url_enmascarada(bt_url) if bt_url else "",
         "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
         "updated_by": row.updated_by if row else "",
         "settings": s,

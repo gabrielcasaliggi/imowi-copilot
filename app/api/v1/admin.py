@@ -360,29 +360,48 @@ def test_billtrack_connection(
 ):
     """Prueba el Postgres externo BillTrack (consulta de clientes para el bot)."""
     from app.estate.health import probar_conexion_database
+    from app.services.billtrack import connection_params
     from app.services.platform_settings import resolve_billtrack
 
     payload = body if isinstance(body, dict) else {}
-    url = str(payload.get("url") or "").strip()
-    sslmode = str(payload.get("sslmode") or "").strip() or None
-
     cfg = resolve_billtrack(db)
-    if not url or "***" in url:
-        url = str(cfg.get("url") or "").strip()
-    if not sslmode:
-        sslmode = str(cfg.get("sslmode") or "").strip() or None
+
+    # Overlay del formulario (password enmascarada → se conserva la guardada)
+    for key in ("host", "port", "user", "password", "dbname", "url", "sslmode"):
+        if key in payload and payload.get(key) is not None:
+            val = payload.get(key)
+            if key == "password" and "***" in str(val or ""):
+                continue
+            if key == "url" and "***" in str(val or ""):
+                continue
+            cfg[key] = val
+
+    params = connection_params(cfg)
+    url = str(params.get("url") or cfg.get("url") or "").strip()
+    sslmode = str(params.get("sslmode") or "disable")
+
+    if not url and not (cfg.get("host") and cfg.get("user")):
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "billtrack",
+            "error": "BillTrack sin host/usuario (o URL) configurado",
+            "hint": "Completá host, puerto, usuario, contraseña y nombre de base. SSL: disable.",
+            "nota": "Postgres externo de solo lectura para validar clientes. Independiente del Data Estate.",
+        }
 
     if not url:
         return {
             "ok": False,
             "connected": False,
             "scope": "billtrack",
-            "error": "BillTrack sin URL configurada",
-            "nota": "Postgres externo de solo lectura para validar clientes. Independiente del Data Estate.",
+            "error": "Falta la contraseña para armar la conexión",
+            "hint": "Reingresá la contraseña (no se puede probar con el valor enmascarado si nunca se guardó).",
         }
 
     result = probar_conexion_database(url, sslmode=sslmode)
     result["scope"] = "billtrack"
+    result["sslmode"] = sslmode
     result["nota"] = (
         "Postgres externo de solo lectura (padrón de clientes). "
         "No es la base del sistema ni debe usarse para persistir tickets."

@@ -684,7 +684,15 @@ export const api = {
     }>("/api/v1/admin/settings/test-database", { method: "POST" });
   },
 
-  testAdminBilltrack(payload?: { url?: string; sslmode?: string }) {
+  testAdminBilltrack(payload?: {
+    host?: string;
+    port?: string | number;
+    user?: string;
+    password?: string;
+    dbname?: string;
+    url?: string;
+    sslmode?: string;
+  }) {
     return request<{
       ok: boolean;
       connected?: boolean;
@@ -697,6 +705,7 @@ export const api = {
       current_user?: string | null;
       scope?: string;
       nota?: string;
+      hint?: string;
       error?: string;
     }>("/api/v1/admin/settings/test-billtrack", {
       method: "POST",

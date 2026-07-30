@@ -30,8 +30,12 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
   const [dbCfg, setDbCfg] = useState({ url: "", sslmode: "require", nota: "" });
   const [billtrack, setBilltrack] = useState({
     enabled: false,
-    url: "",
-    sslmode: "prefer",
+    host: "",
+    port: "5432",
+    user: "",
+    password: "",
+    dbname: "postgres",
+    sslmode: "disable",
     nota: "",
   });
   const [billtrackTest, setBilltrackTest] = useState<{
@@ -63,8 +67,12 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     });
     setBilltrack({
       enabled: Boolean(s.billtrack?.enabled ?? res.billtrack_enabled),
-      url: s.billtrack?.url || res.billtrack_url_masked || "",
-      sslmode: s.billtrack?.sslmode || "prefer",
+      host: s.billtrack?.host || "",
+      port: String(s.billtrack?.port || "5432"),
+      user: s.billtrack?.user || "",
+      password: s.billtrack?.password || "",
+      dbname: s.billtrack?.dbname || "postgres",
+      sslmode: s.billtrack?.sslmode || "disable",
       nota: s.billtrack?.nota || "",
     });
     setKb({
@@ -168,21 +176,26 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     setBusy(true);
     try {
       const r = await api.testAdminBilltrack({
-        url: billtrack.url,
-        sslmode: billtrack.sslmode,
+        host: billtrack.host,
+        port: billtrack.port,
+        user: billtrack.user,
+        password: billtrack.password,
+        dbname: billtrack.dbname,
+        sslmode: billtrack.sslmode || "disable",
       });
       if (r.ok) {
         const parts = [
           r.current_database ? `db ${r.current_database}` : null,
           r.current_user ? `user ${r.current_user}` : null,
           r.latency_ms != null ? `${r.latency_ms} ms` : null,
+          r.sslmode ? `ssl ${r.sslmode}` : null,
           r.server_version ? `v${r.server_version}` : null,
         ].filter(Boolean);
         const detail = parts.join(" · ");
         setBilltrackTest({ ok: true, detail });
         onMessage?.(`BillTrack OK · ${detail}`);
       } else {
-        const detail = r.error || "No se pudo conectar";
+        const detail = [r.error || "No se pudo conectar", r.hint].filter(Boolean).join(" — ");
         setBilltrackTest({ ok: false, detail });
         onMessage?.(`BillTrack falló: ${detail}`);
       }
@@ -367,12 +380,12 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
 
       {section === "billtrack" && (
         <GlassCard title="BillTrack — padrón de clientes (solo lectura)" accent="amber" variant="secondary">
-          <div className="grid gap-3">
-            <p className="text-xs text-amber-200/90">
+          <div className="grid gap-3 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs text-amber-200/90">
               Conexión externa para que el bot consulte datos de clientes y valide acciones. No es la
-              base del sistema: los tickets, la config y el canal siguen en el Data Estate.
+              base del sistema. Este servidor on-prem no habla SSL: dejá <code>disable</code>.
             </p>
-            <label className="flex items-center gap-2 text-sm text-slate-200">
+            <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={billtrack.enabled}
@@ -382,33 +395,85 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
               Habilitar consultas BillTrack para el bot
             </label>
             <div>
-              <label className={labelCls}>URL Postgres (enmascarada o nueva)</label>
+              <label className={labelCls}>Host / IP</label>
               <input
                 className={inputCls}
-                value={billtrack.url}
+                value={billtrack.host}
                 onChange={(e) => {
-                  setBilltrack({ ...billtrack, url: e.target.value });
+                  setBilltrack({ ...billtrack, host: e.target.value });
                   setBilltrackTest(null);
                 }}
-                placeholder="postgresql://billtrack_reader:***@host:5432/dbname"
+                placeholder="181.41.240.23"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Puerto</label>
+              <input
+                className={inputCls}
+                value={billtrack.port}
+                onChange={(e) => {
+                  setBilltrack({ ...billtrack, port: e.target.value });
+                  setBilltrackTest(null);
+                }}
+                placeholder="5432"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Usuario</label>
+              <input
+                className={inputCls}
+                value={billtrack.user}
+                onChange={(e) => {
+                  setBilltrack({ ...billtrack, user: e.target.value });
+                  setBilltrackTest(null);
+                }}
+                placeholder="billtrack_reader"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Contraseña (dejar enmascarada si no cambiás)</label>
+              <input
+                className={inputCls}
+                type="password"
+                value={billtrack.password}
+                onChange={(e) => {
+                  setBilltrack({ ...billtrack, password: e.target.value });
+                  setBilltrackTest(null);
+                }}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Nombre de base (dbname)</label>
+              <input
+                className={inputCls}
+                value={billtrack.dbname}
+                onChange={(e) => {
+                  setBilltrack({ ...billtrack, dbname: e.target.value });
+                  setBilltrackTest(null);
+                }}
+                placeholder="postgres"
               />
             </div>
             <div>
               <label className={labelCls}>SSL mode</label>
-              <input
+              <select
                 className={inputCls}
                 value={billtrack.sslmode}
                 onChange={(e) => {
                   setBilltrack({ ...billtrack, sslmode: e.target.value });
                   setBilltrackTest(null);
                 }}
-                placeholder="prefer | require | disable"
-              />
+              >
+                <option value="disable">disable (recomendado para este servidor)</option>
+                <option value="prefer">prefer</option>
+                <option value="allow">allow</option>
+                <option value="require">require</option>
+              </select>
             </div>
             {data?.billtrack_url_masked && (
-              <p className="text-xs text-slate-500">Guardada: {data.billtrack_url_masked}</p>
+              <p className="md:col-span-2 text-xs text-slate-500">URL armada: {data.billtrack_url_masked}</p>
             )}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 disabled={busy}
@@ -428,10 +493,6 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 />
               )}
             </div>
-            <p className="text-[11px] text-slate-500">
-              Si la contraseña tiene `:`, `\`, `@` o `/`, codificalos en la URL (`:` → `%3A`, `\` →
-              `%5C`). Nombre de base (`/dbname`) requerido.
-            </p>
           </div>
         </GlassCard>
       )}
