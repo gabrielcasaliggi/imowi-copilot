@@ -169,6 +169,22 @@ def get_conversacion(db: Session, org_id: str, conv_id: str) -> ConversacionCana
     return c
 
 
+def get_conversacion_by_ticket(
+    db: Session, org_id: str, ticket_id: str
+) -> ConversacionCanal | None:
+    tid = (ticket_id or "").strip()
+    if not tid:
+        return None
+    return db.scalar(
+        select(ConversacionCanal)
+        .where(
+            ConversacionCanal.organizacion_id == org_id,
+            ConversacionCanal.ticket_id == tid,
+        )
+        .order_by(ConversacionCanal.updated_at.desc())
+    )
+
+
 def list_mensajes(db: Session, conversacion_id: str) -> list[MensajeCanal]:
     return list(
         db.scalars(

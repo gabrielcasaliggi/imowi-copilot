@@ -459,7 +459,12 @@ def claim_ticket(
         if actual_l not in {yo.lower(), yo_alias} and yo.lower() not in actual_l:
             raise HTTPException(409, f"Ticket ya tomado por {actual}")
         pool = _load_pool(db, ctx)
-        return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db), "ya_asignado": True}
+        return {
+            "status": "ok",
+            "ticket": _ticket_out(t, pool=pool, db=db),
+            "ya_asignado": True,
+            "conversacion_id": "",
+        }
 
     t = repo.update_ticket(
         db,
@@ -471,6 +476,14 @@ def claim_ticket(
     )
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    # Si hay conversación de canal ligada, también tomarla
+    from app.estate import canal_repo as crepo
+
+    conv = crepo.get_conversacion_by_ticket(db, t.organizacion_id, ticket_id)
+    if conv and conv.estado != "cerrado":
+        conv.estado = "con_agente"
+        conv.agente_id = yo
+        db.commit()
     log_audit(
         db,
         org_id=t.organizacion_id,
@@ -480,7 +493,46 @@ def claim_ticket(
         detalle=f"asignado_a={yo}",
     )
     pool = _load_pool(db, ctx)
-    return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db), "ya_asignado": False}
+    return {
+        "status": "ok",
+        "ticket": _ticket_out(t, pool=pool, db=db),
+        "ya_asignado": False,
+        "conversacion_id": conv.id if conv else "",
+    }
+
+
+@router.get("/tickets/{ticket_id}/conversation")
+def ticket_conversation(
+    ticket_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    """Conversación de canal ligada al ticket (chat con el abonado)."""
+    if not (ctx.puede("tickets.view") or ctx.puede("tickets.queue.view")):
+        raise HTTPException(403, "Sin permiso")
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    from app.estate import canal_repo as crepo
+    from app.estate.models import Abonado
+
+    conv = crepo.get_conversacion_by_ticket(db, t.organizacion_id, ticket_id)
+    if not conv:
+        return {
+            "tenant": ctx.organizacion_slug,
+            "ticket_id": ticket_id,
+            "conversacion": None,
+            "mensajes": [],
+        }
+    abo = db.get(Abonado, conv.abonado_id) if conv.abonado_id else None
+    mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
+    return {
+        "tenant": ctx.organizacion_slug,
+        "ticket_id": ticket_id,
+        "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
+        "mensajes": mensajes,
+    }
 
 
 @router.post("/tickets/{ticket_id}/reassign")

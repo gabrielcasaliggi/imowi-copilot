@@ -577,6 +577,81 @@ export function SupportSidebar() {
     appendTrace([`📋 Plantilla «${nombre}» copiada al portapapeles`]);
   };
 
+  // Agente: contexto del ticket tomado (no flujo N1 del asistente)
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
+        <SidebarSection title="Caso que estás atendiendo">
+          <TicketFormacionCard />
+          {ticketFormacion && (
+            <GlassCard title="Notas internas" variant="secondary">
+              <NotaInternaForm onSubmit={(d) => addTicketNote(d, true)} />
+            </GlassCard>
+          )}
+          {ticketFormacion && (
+            <GlassCard title="Proponer a KB" variant="secondary">
+              <PublicarKbButton
+                ticketId={ticketFormacion.id}
+                onPublish={publishTicketKb}
+              />
+            </GlassCard>
+          )}
+          {ticketKbSuggestions.length > 0 && (
+            <GlassCard title="KB sugerida" variant="secondary">
+              <div className="space-y-2.5">
+                {ticketKbSuggestions.map((k) => (
+                  <div
+                    key={k.id}
+                    className="text-xs border-b border-slate-800/60 pb-2.5 last:border-0"
+                  >
+                    <p className="text-slate-200 font-medium">{k.titulo}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{k.categoria}</p>
+                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                      {k.fragmento}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+        </SidebarSection>
+
+        <SidebarSection title="Historial del ticket">
+          <GlassCard title="Eventos" variant="secondary">
+            {!ticketFormacion ? (
+              <p className="text-slate-500 text-xs font-mono">Sin ticket activo.</p>
+            ) : !ticketTimeline.length ? (
+              <p className="text-slate-500 text-xs font-mono">Sin eventos todavía.</p>
+            ) : (
+              <div className="space-y-3">
+                {ticketTimeline.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className={`pl-3 border-l ${
+                      ev.visible_cliente === "No"
+                        ? "border-violet-500/40"
+                        : "border-cyan-500/30"
+                    }`}
+                  >
+                    <div className="flex justify-between gap-2">
+                      <span className="text-[11px] font-mono text-slate-400">{ev.tipo}</span>
+                      <span className="text-[10px] text-slate-600 font-mono shrink-0">
+                        {ev.created_at?.slice(0, 16) || ""}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                      {ev.titulo || ev.detalle || "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </SidebarSection>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
       <SidebarSection title="Resumen operativo">

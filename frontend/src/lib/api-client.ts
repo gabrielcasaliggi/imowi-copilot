@@ -219,10 +219,24 @@ export const api = {
   },
 
   claimTicket(id: string, tenantSlug?: string) {
-    return request<{ status: string; ticket: Ticket; ya_asignado?: boolean }>(
-      `/api/v1/tickets/${id}/claim`,
-      { method: "POST", tenantSlug },
-    );
+    return request<{
+      status: string;
+      ticket: Ticket;
+      ya_asignado?: boolean;
+      conversacion_id?: string;
+    }>(`/api/v1/tickets/${id}/claim`, {
+      method: "POST",
+      tenantSlug,
+    });
+  },
+
+  ticketConversation(id: string, tenantSlug?: string) {
+    return request<{
+      tenant: string;
+      ticket_id: string;
+      conversacion: InboxConversation | null;
+      mensajes: InboxMessage[];
+    }>(`/api/v1/tickets/${id}/conversation`, { tenantSlug });
   },
 
   setAvailability(disponibilidad: string) {

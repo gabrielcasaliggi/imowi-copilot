@@ -258,10 +258,10 @@ export function TicketQueuePanel() {
           <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
             Cola N2
           </p>
-          <h2 className="text-xl font-semibold text-slate-50">Tickets tomables</h2>
+          <h2 className="text-xl font-semibold text-slate-50">Cola</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Casos que el bot no resolvió. Tomá uno libre → se bloquea para vos → trabajalo en
-            Consola.
+            Tickets N2 ya armados que podés tomar. Al tomarlos quedan asignados a vos y se
+            abren en Consola para atender al cliente.
           </p>
         </div>
         <Link

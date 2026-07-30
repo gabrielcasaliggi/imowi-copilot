@@ -199,9 +199,11 @@ export function InboxPanel() {
           <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
             Canal abonado
           </p>
-          <h2 className="text-xl font-semibold text-slate-50">Bandeja de conversaciones</h2>
+          <h2 className="text-xl font-semibold text-slate-50">Bandeja</h2>
           <p className="text-sm text-slate-400">
-            Canal en vivo (WhatsApp / portal). Acá ves lo que habla el bot con el abonado.
+            {isAdmin
+              ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
+              : "Canal en vivo (WhatsApp / portal): ves lo que entra y lo que hace el bot. Para tomar trabajo humano usá la Cola."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -317,15 +319,16 @@ export function InboxPanel() {
                   </p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {(detail.estado === "espera_agente" || detail.estado === "bot") && (
-                    <button
-                      type="button"
-                      onClick={onClaim}
-                      className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
-                    >
-                      Tomar
-                    </button>
-                  )}
+                  {isAdmin &&
+                    (detail.estado === "espera_agente" || detail.estado === "bot") && (
+                      <button
+                        type="button"
+                        onClick={onClaim}
+                        className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
+                      >
+                        Tomar
+                      </button>
+                    )}
                   {isAdmin && detail.estado !== "cerrado" && (
                     <button
                       type="button"
@@ -335,7 +338,7 @@ export function InboxPanel() {
                       Reasignar (admin)
                     </button>
                   )}
-                  {detail.estado !== "cerrado" && (
+                  {isAdmin && detail.estado !== "cerrado" && (
                     <button
                       type="button"
                       onClick={onClose}
@@ -346,13 +349,31 @@ export function InboxPanel() {
                   )}
                   {detail.ticket_id && (
                     <Link
-                      href="/soporte"
-                      onClick={() => selectTicket(detail.ticket_id)}
+                      href={
+                        isAdmin
+                          ? `/soporte?ticket=${encodeURIComponent(detail.ticket_id)}`
+                          : `/tickets`
+                      }
+                      onClick={() => {
+                        if (isAdmin) selectTicket(detail.ticket_id);
+                      }}
                       className="text-[11px] px-2 py-1 rounded border border-amber-500/30 text-amber-300"
                     >
-                      Ticket {detail.ticket_id}
+                      {isAdmin
+                        ? `Ticket ${detail.ticket_id}`
+                        : `Ver en Cola (${detail.ticket_id})`}
                     </Link>
                   )}
+                  {!isAdmin &&
+                    !detail.ticket_id &&
+                    detail.estado === "espera_agente" && (
+                      <Link
+                        href="/tickets"
+                        className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
+                      >
+                        Ir a Cola
+                      </Link>
+                    )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -375,7 +396,7 @@ export function InboxPanel() {
                 ))}
                 <div ref={messagesEndRef} />
               </div>
-              {detail.estado !== "cerrado" && (
+              {isAdmin && detail.estado !== "cerrado" && (
                 <form onSubmit={onSend} className="p-3 border-t border-slate-800 flex gap-2">
                   <input
                     value={reply}
@@ -394,10 +415,19 @@ export function InboxPanel() {
                   </button>
                 </form>
               )}
+              {!isAdmin && (
+                <p className="px-3 py-2.5 text-[11px] text-slate-500 border-t border-slate-800">
+                  Solo monitoreo. Para atender al abonado: tomá el ticket N2 en{" "}
+                  <Link href="/tickets" className="text-cyan-400 hover:text-cyan-300">
+                    Cola
+                  </Link>{" "}
+                  y trabajalo en Consola.
+                </p>
+              )}
               {hint && (
                 <p className="px-3 pb-2 text-[11px] text-amber-400/90 font-mono">{hint}</p>
               )}
-              {detail.estado === "bot" && (
+              {isAdmin && detail.estado === "bot" && (
                 <p className="px-3 pb-3 text-[11px] text-slate-500">
                   El bot N1 está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
                 </p>
