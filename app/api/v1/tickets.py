@@ -63,6 +63,15 @@ def _ticket_out(t, *, pool=None, db=None) -> dict:
     }
 
 
+def _ver_timeline_interno(ctx: TenantContext) -> bool:
+    """Admin y supervisor ven notas internas / trazabilidad operativa completa."""
+    return bool(
+        ctx.es_admin_imowi
+        or ctx.puede("tickets.reassign")
+        or ctx.puede("orgs.manage")
+    )
+
+
 def _event_out(e) -> dict:
     return {
         "id": e.id,
@@ -104,6 +113,8 @@ def list_tickets(
     categoria: str = "",
     q: str = "",
     solo_abiertos: bool = False,
+    asignacion: str = "",
+    asignado_a: str = "",
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
@@ -120,6 +131,8 @@ def list_tickets(
         categoria=categoria,
         q=q,
         solo_abiertos=solo_abiertos,
+        asignacion=asignacion,
+        asignado_a=asignado_a,
     )
     scored = ordenar_por_riesgo(tickets, pool=pool)
     open_ids = {t.id for t, _ in scored}
@@ -134,6 +147,8 @@ def list_tickets(
             "categoria": categoria,
             "q": q,
             "solo_abiertos": solo_abiertos,
+            "asignacion": asignacion,
+            "asignado_a": asignado_a,
         },
         "tickets": [_ticket_out(t, pool=pool, db=db) for t in ordered],
     }
@@ -201,7 +216,7 @@ def get_ticket_detail(
         db,
         ctx.organizacion_id,
         ticket_id,
-        solo_visibles=not ctx.es_admin_imowi,
+        solo_visibles=not _ver_timeline_interno(ctx),
         admin_global=admin_global,
     )
     org_id = t.organizacion_id
@@ -238,7 +253,7 @@ def get_ticket_timeline(
         db,
         ctx.organizacion_id,
         ticket_id,
-        solo_visibles=not ctx.es_admin_imowi,
+        solo_visibles=not _ver_timeline_interno(ctx),
         admin_global=ctx.es_admin_imowi and ctx.organizacion_slug == "imowi",
     )
     return {"tenant": ctx.organizacion_slug, "ticket_id": ticket_id, "timeline": [_event_out(e) for e in eventos]}

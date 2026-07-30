@@ -567,18 +567,69 @@ export function SupportSidebar() {
     ticketKbSuggestions,
     ticketLearning,
     isAdmin,
+    can,
     addTicketNote,
     publishTicketKb,
     appendTrace,
   } = useApp();
+
+  const isSupervisor = can("tickets.reassign");
 
   const onPickPlantilla = (contenido: string, nombre: string) => {
     navigator.clipboard?.writeText(contenido).catch(() => {});
     appendTrace([`📋 Plantilla «${nombre}» copiada al portapapeles`]);
   };
 
+  const TimelineBlock = () => (
+    <GlassCard title="Historial del ticket" variant="secondary">
+      {!ticketFormacion ? (
+        <p className="text-slate-500 text-xs font-mono">
+          Seleccioná un ticket para ver avances.
+        </p>
+      ) : !ticketTimeline.length ? (
+        <p className="text-slate-500 text-xs font-mono">Sin eventos todavía.</p>
+      ) : (
+        <div className="space-y-3">
+          {ticketTimeline.map((ev) => (
+            <div
+              key={ev.id}
+              className={`pl-3 border-l ${
+                ev.visible_cliente === "No"
+                  ? "border-violet-500/40"
+                  : "border-cyan-500/30"
+              }`}
+            >
+              <div className="flex justify-between gap-2">
+                <p className="text-xs text-slate-200 font-medium">{ev.titulo}</p>
+                <span className="flex gap-1 items-center">
+                  {ev.visible_cliente === "No" && (
+                    <span className="text-[9px] font-mono text-violet-400 uppercase">
+                      interno
+                    </span>
+                  )}
+                  {ev.nivel && <StatusBadge value={ev.nivel} />}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                {ev.tipo}
+                {ev.estado ? ` · ${ev.estado}` : ""}
+                {ev.actor ? ` · ${ev.actor}` : ""}
+                {ev.created_at
+                  ? ` · ${ev.created_at.slice(0, 16).replace("T", " ")}`
+                  : ""}
+              </p>
+              {ev.detalle && (
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">{ev.detalle}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+
   // Agente: contexto del ticket tomado (no flujo N1 del asistente)
-  if (!isAdmin) {
+  if (!isAdmin && !isSupervisor) {
     return (
       <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
         <SidebarSection title="Caso que estás atendiendo">
@@ -617,36 +668,33 @@ export function SupportSidebar() {
         </SidebarSection>
 
         <SidebarSection title="Historial del ticket">
-          <GlassCard title="Eventos" variant="secondary">
-            {!ticketFormacion ? (
-              <p className="text-slate-500 text-xs font-mono">Sin ticket activo.</p>
-            ) : !ticketTimeline.length ? (
-              <p className="text-slate-500 text-xs font-mono">Sin eventos todavía.</p>
-            ) : (
-              <div className="space-y-3">
-                {ticketTimeline.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className={`pl-3 border-l ${
-                      ev.visible_cliente === "No"
-                        ? "border-violet-500/40"
-                        : "border-cyan-500/30"
-                    }`}
-                  >
-                    <div className="flex justify-between gap-2">
-                      <span className="text-[11px] font-mono text-slate-400">{ev.tipo}</span>
-                      <span className="text-[10px] text-slate-600 font-mono shrink-0">
-                        {ev.created_at?.slice(0, 16) || ""}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                      {ev.titulo || ev.detalle || "—"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </GlassCard>
+          <TimelineBlock />
+        </SidebarSection>
+      </div>
+    );
+  }
+
+  // Supervisor: seguimiento + trazabilidad completa (sin mesa N1)
+  if (!isAdmin && isSupervisor) {
+    return (
+      <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
+        <SidebarSection title="Seguimiento supervisor">
+          <TicketFormacionCard />
+          {ticketFormacion && (
+            <GlassCard title="Notas internas" variant="secondary">
+              <NotaInternaForm onSubmit={(d) => addTicketNote(d, true)} />
+            </GlassCard>
+          )}
+        </SidebarSection>
+        <SidebarSection title="Trazabilidad N2">
+          <TimelineBlock />
+          {ticketLearning?.postmortem && (
+            <GlassCard title="Aprendizaje operativo" accent="emerald" variant="secondary">
+              <pre className="text-[11px] text-slate-400 whitespace-pre-wrap leading-relaxed">
+                {ticketLearning.postmortem}
+              </pre>
+            </GlassCard>
+          )}
         </SidebarSection>
       </div>
     );

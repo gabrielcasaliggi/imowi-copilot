@@ -33,6 +33,8 @@ def filtrar_tickets(
     categoria: str = "",
     q: str = "",
     solo_abiertos: bool = False,
+    asignacion: str = "",
+    asignado_a: str = "",
 ) -> list[Ticket]:
     out = list(tickets)
     if solo_abiertos:
@@ -52,6 +54,18 @@ def filtrar_tickets(
             if sla_l in estado_sla or (sla_l == "vencido" and compute_sla(t).get("vencido")):
                 filtrados.append(t)
         out = filtrados
+    asig_mode = (asignacion or "").strip().lower()
+    if asig_mode in {"libre", "pendiente", "sin_asignar"}:
+        out = [t for t in out if not (getattr(t, "asignado_a", "") or "").strip()]
+    elif asig_mode in {"asignado", "tomado"}:
+        out = [t for t in out if (getattr(t, "asignado_a", "") or "").strip()]
+    agente = (asignado_a or "").strip().lower()
+    if agente:
+        out = [
+            t
+            for t in out
+            if agente in (getattr(t, "asignado_a", "") or "").strip().lower()
+        ]
     if q:
         qn = q.strip().lower()
         if qn:

@@ -38,3 +38,17 @@ def test_solo_abiertos():
     out = filtrar_tickets(tickets, solo_abiertos=True)
     assert len(out) == 1
     assert out[0].id == "A"
+
+
+def test_filtrar_asignacion_y_agente():
+    libre = _ticket(id="L", estado="Abierto")
+    libre.asignado_a = ""
+    mío = _ticket(id="M", estado="Abierto")
+    mío.asignado_a = "agente@ops-hub.demo"
+    otro = _ticket(id="O", estado="Abierto")
+    otro.asignado_a = "otro@ops-hub.demo"
+
+    tickets = [libre, mío, otro]
+    assert [t.id for t in filtrar_tickets(tickets, asignacion="libre")] == ["L"]
+    assert {t.id for t in filtrar_tickets(tickets, asignacion="asignado")} == {"M", "O"}
+    assert [t.id for t in filtrar_tickets(tickets, asignado_a="agente@ops-hub.demo")] == ["M"]

@@ -153,6 +153,8 @@ export const api = {
       categoria?: string;
       q?: string;
       solo_abiertos?: boolean;
+      asignacion?: string;
+      asignado_a?: string;
     } | string,
     tenantSlug?: string,
   ) {
@@ -163,6 +165,8 @@ export const api = {
       categoria?: string;
       q?: string;
       solo_abiertos?: boolean;
+      asignacion?: string;
+      asignado_a?: string;
     } | undefined;
     let slug = tenantSlug;
     if (typeof paramsOrTenant === "string") {
@@ -177,6 +181,8 @@ export const api = {
     if (params?.categoria) qs.set("categoria", params.categoria);
     if (params?.q) qs.set("q", params.q);
     if (params?.solo_abiertos) qs.set("solo_abiertos", "true");
+    if (params?.asignacion) qs.set("asignacion", params.asignacion);
+    if (params?.asignado_a) qs.set("asignado_a", params.asignado_a);
     const suffix = qs.toString() ? `?${qs}` : "";
     return request<{ tenant: string; tickets: Ticket[] }>(`/api/v1/tickets${suffix}`, {
       tenantSlug: slug,

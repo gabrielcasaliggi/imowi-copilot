@@ -33,7 +33,7 @@ function estadoLabel(estado: string): string {
 }
 
 export function InboxPanel() {
-  const { tenantSlug, isAdmin, selectTicket } = useApp();
+  const { tenantSlug, isAdmin, can, selectTicket } = useApp();
   const slug = isAdmin ? tenantSlug : undefined;
   const [convs, setConvs] = useState<InboxConversation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -203,7 +203,9 @@ export function InboxPanel() {
           <p className="text-sm text-slate-400">
             {isAdmin
               ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
-              : "Canal en vivo (WhatsApp / portal): ves lo que entra y lo que hace el bot. Para tomar trabajo humano usá la Cola."}
+              : can("tickets.reassign")
+                ? "Canal en vivo: monitoreá bot y abonados. La asignación de trabajo N2 se hace en Cola."
+                : "Canal en vivo (WhatsApp / portal): ves lo que entra y lo que hace el bot. Para tomar trabajo humano usá la Cola."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">

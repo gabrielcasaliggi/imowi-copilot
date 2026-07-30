@@ -9,9 +9,10 @@ import { SupportSidebar } from "@/components/soporte/SupportSidebar";
 import { useApp } from "@/contexts/AppContext";
 
 export default function SoportePage() {
-  const { isAdmin, selectTicket, ticketFormacion } = useApp();
+  const { isAdmin, can, selectTicket, ticketFormacion } = useApp();
   const searchParams = useSearchParams();
   const ticketParam = searchParams.get("ticket");
+  const showSidebar = isAdmin || Boolean(ticketFormacion) || can("tickets.reassign");
 
   useEffect(() => {
     if (ticketParam) selectTicket(ticketParam);
@@ -30,7 +31,7 @@ export default function SoportePage() {
             </div>
           )}
         </div>
-        {(isAdmin || ticketFormacion) && (
+        {showSidebar && (
           <div className="workbench-sidebar min-h-0 rounded-2xl border border-slate-800/60 overflow-hidden">
             <SupportSidebar />
           </div>
