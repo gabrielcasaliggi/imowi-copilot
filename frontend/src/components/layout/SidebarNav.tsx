@@ -6,26 +6,61 @@ import { usePathname } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api-client";
 
-const NAV_GROUPS = [
+type NavItem = {
+  href: string;
+  label: string;
+  /** Etiqueta corta única en nav móvil (evita “tickets” duplicado). */
+  shortLabel: string;
+  id: string;
+  permission: string | null;
+};
+
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Operación",
     items: [
-      { href: "/inbox", label: "Bandeja", id: "inbox", permission: null as string | null },
-      { href: "/soporte", label: "Consola de tickets", id: "soporte", permission: null },
+      { href: "/inbox", label: "Bandeja", shortLabel: "Bandeja", id: "inbox", permission: null },
+      {
+        href: "/soporte",
+        label: "Consola",
+        shortLabel: "Consola",
+        id: "soporte",
+        permission: null,
+      },
+      {
+        href: "/tickets",
+        label: "Cola",
+        shortLabel: "Cola",
+        id: "tickets",
+        permission: "tickets.queue.view",
+      },
     ],
   },
   {
     title: "Gestión",
     items: [
-      { href: "/conocimiento", label: "Centro de conocimiento", id: "kb", permission: "kb.propose" },
-      { href: "/tickets", label: "Cola de tickets", id: "tickets", permission: "tickets.queue.view" },
+      // Solo quien publica/revisa ve el centro completo. Proponer KB = desde consola/ticket.
+      {
+        href: "/conocimiento",
+        label: "Conocimiento",
+        shortLabel: "KB",
+        id: "kb",
+        permission: "kb.publish",
+      },
       {
         href: "/estadisticas",
         label: "Estadísticas",
+        shortLabel: "Stats",
         id: "stats",
         permission: "stats.any",
       },
-      { href: "/admin", label: "Administración", id: "admin", permission: "orgs.manage" },
+      {
+        href: "/admin",
+        label: "Administración",
+        shortLabel: "Admin",
+        id: "admin",
+        permission: "orgs.manage",
+      },
     ],
   },
 ];
@@ -44,7 +79,7 @@ export function SidebarNav() {
   };
 
   const loadKbPending = useCallback(async () => {
-    if (!isAdmin) {
+    if (!can("kb.publish")) {
       setKbPendingCount(0);
       return;
     }
@@ -54,14 +89,14 @@ export function SidebarNav() {
     } catch {
       setKbPendingCount(0);
     }
-  }, [isAdmin, tenantSlug]);
+  }, [can, tenantSlug]);
 
   useEffect(() => {
     void loadKbPending();
-    if (!isAdmin) return;
+    if (!can("kb.publish")) return;
     const id = window.setInterval(() => void loadKbPending(), 45_000);
     return () => window.clearInterval(id);
-  }, [isAdmin, loadKbPending]);
+  }, [can, loadKbPending]);
 
   const linkClass = (active: boolean) =>
     `block text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
@@ -77,11 +112,11 @@ export function SidebarNav() {
       <nav className="lg:hidden flex gap-2 p-2 border-b border-slate-800/80 overflow-x-auto shrink-0">
         {flatItems.map((item) => {
           const active = pathname.startsWith(item.href);
-          const showKbBadge = item.id === "kb" && isAdmin && kbPendingCount > 0;
+          const showKbBadge = item.id === "kb" && kbPendingCount > 0;
           return (
             <Link key={item.href} href={item.href} className={linkClass(active)}>
               <span className="inline-flex items-center gap-1.5">
-                {item.label.split(" ").slice(-1)[0]}
+                {item.shortLabel}
                 {showKbBadge && (
                   <span className="min-w-[1rem] h-4 px-1 rounded-full bg-amber-400 text-slate-950 text-[9px] font-bold flex items-center justify-center">
                     {kbPendingCount > 9 ? "9+" : kbPendingCount}
@@ -108,7 +143,7 @@ export function SidebarNav() {
                 <div className="space-y-1">
                   {items.map((item) => {
                     const active = pathname.startsWith(item.href);
-                    const showKbBadge = item.id === "kb" && isAdmin && kbPendingCount > 0;
+                    const showKbBadge = item.id === "kb" && kbPendingCount > 0;
                     return (
                       <Link key={item.href} href={item.href} className={linkClass(active)}>
                         <span className="flex items-center justify-between gap-2">

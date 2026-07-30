@@ -176,14 +176,14 @@ export function TicketQueuePanel() {
           </p>
           <h2 className="text-xl font-semibold text-slate-50">Cola operativa</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Filtros, SLA y priorización — contexto telco preservado.
+            Lista filtrable de la cooperativa. Abrí un ticket para trabajarlo en la Consola.
           </p>
         </div>
         <Link
           href="/soporte"
           className="text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/10"
         >
-          Ir a consola
+          Ir a Consola
         </Link>
       </div>
 
