@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas import OrganizationCreate, OrganizationUpdate, UserCreate, UserUpdate
@@ -281,7 +281,7 @@ def update_platform_settings(
     if not isinstance(patch, dict):
         raise HTTPException(400, "Body inválido")
     # Solo secciones conocidas
-    allowed = {"ai", "whatsapp", "database", "knowledge", "canal", "playbooks"}
+    allowed = {"ai", "whatsapp", "database", "billtrack", "knowledge", "canal", "playbooks"}
     clean = {k: v for k, v in patch.items() if k in allowed}
     save_settings(db, clean, actor=admin.usuario)
     org = repo.get_org_by_slug(db, "imowi")
@@ -337,3 +337,54 @@ def test_whatsapp_config(
         "default_org_slug": cfg.get("default_org_slug") or "",
         "nota": "No envía mensaje real; solo valida que token y phone_number_id estén configurados.",
     }
+
+
+@router.post("/admin/settings/test-database")
+def test_database_connection(
+    _: UsuarioSesion = Depends(requiere_admin),
+):
+    """Prueba el Data Estate activo del proceso (DATABASE_URL), no BillTrack."""
+    from app.estate.health import probar_conexion_database
+
+    result = probar_conexion_database()
+    result["scope"] = "data_estate"
+    result["nota"] = "Conexión del sistema (tickets/config). No es el padrón BillTrack de clientes."
+    return result
+
+
+@router.post("/admin/settings/test-billtrack")
+def test_billtrack_connection(
+    body: dict = Body(default={}),
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Prueba el Postgres externo BillTrack (consulta de clientes para el bot)."""
+    from app.estate.health import probar_conexion_database
+    from app.services.platform_settings import resolve_billtrack
+
+    payload = body if isinstance(body, dict) else {}
+    url = str(payload.get("url") or "").strip()
+    sslmode = str(payload.get("sslmode") or "").strip() or None
+
+    cfg = resolve_billtrack(db)
+    if not url or "***" in url:
+        url = str(cfg.get("url") or "").strip()
+    if not sslmode:
+        sslmode = str(cfg.get("sslmode") or "").strip() or None
+
+    if not url:
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "billtrack",
+            "error": "BillTrack sin URL configurada",
+            "nota": "Postgres externo de solo lectura para validar clientes. Independiente del Data Estate.",
+        }
+
+    result = probar_conexion_database(url, sslmode=sslmode)
+    result["scope"] = "billtrack"
+    result["nota"] = (
+        "Postgres externo de solo lectura (padrón de clientes). "
+        "No es la base del sistema ni debe usarse para persistir tickets."
+    )
+    return result

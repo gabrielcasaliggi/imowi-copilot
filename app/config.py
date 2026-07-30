@@ -65,8 +65,23 @@ KNOWLEDGE_TOP_K = int(os.getenv("KNOWLEDGE_TOP_K", "1"))
 ANOMALY_TTL_MINUTES = int(os.getenv("ANOMALY_TTL_MINUTES", "30"))
 
 # Data Estate — SQLite local o PostgreSQL (Supabase) en producción
+# (tickets, config, canal, KB — NO es el padrón BillTrack de clientes)
 DATABASE_URL = normalizar_database_url(os.getenv("DATABASE_URL", "sqlite:///./data/estate.db"))
 DATABASE_SSLMODE = os.getenv("DATABASE_SSLMODE", "require")
+
+# BillTrack — Postgres externo de solo lectura para que el bot consulte clientes
+# (separado del Data Estate; no escribir tickets/config ahí)
+BILLTRACK_DATABASE_URL = normalizar_database_url(os.getenv("BILLTRACK_DATABASE_URL", "")) if os.getenv(
+    "BILLTRACK_DATABASE_URL", ""
+).strip() else ""
+BILLTRACK_SSLMODE = os.getenv("BILLTRACK_SSLMODE", "prefer").strip() or "prefer"
+BILLTRACK_ENABLED = os.getenv("BILLTRACK_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
 KNOWLEDGE_MAX_FRAGMENT_CHARS = int(os.getenv("KNOWLEDGE_MAX_FRAGMENT_CHARS", "1800"))
 KNOWLEDGE_MAX_SYSTEM_TOKENS = int(os.getenv("KNOWLEDGE_MAX_SYSTEM_TOKENS", "4500"))
 

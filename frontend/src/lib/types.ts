@@ -83,6 +83,9 @@ export interface PlatformSettingsResponse {
   whatsapp_configured: boolean;
   database_driver: string;
   database_url_masked: string;
+  billtrack_configured?: boolean;
+  billtrack_enabled?: boolean;
+  billtrack_url_masked?: string;
   updated_at?: string | null;
   updated_by?: string;
   settings: {
@@ -97,6 +100,13 @@ export interface PlatformSettingsResponse {
       app_secret_configured?: boolean;
     };
     database?: { url?: string; sslmode?: string; nota?: string; url_configured?: boolean };
+    billtrack?: {
+      enabled?: boolean;
+      url?: string;
+      sslmode?: string;
+      nota?: string;
+      url_configured?: boolean;
+    };
     knowledge?: { min_score?: number; top_k?: number; max_fragment_chars?: number };
     canal?: { usar_llama_default?: boolean };
     playbooks?: Record<string, { id: string; pregunta: string }[]>;

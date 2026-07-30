@@ -667,6 +667,43 @@ export const api = {
     }>("/api/v1/admin/settings/test-whatsapp", { method: "POST" });
   },
 
+  testAdminDatabase() {
+    return request<{
+      ok: boolean;
+      connected?: boolean;
+      dialect?: string;
+      url_masked?: string;
+      sslmode?: string | null;
+      latency_ms?: number | null;
+      server_version?: string | null;
+      current_database?: string | null;
+      current_user?: string | null;
+      scope?: string;
+      nota?: string;
+      error?: string;
+    }>("/api/v1/admin/settings/test-database", { method: "POST" });
+  },
+
+  testAdminBilltrack(payload?: { url?: string; sslmode?: string }) {
+    return request<{
+      ok: boolean;
+      connected?: boolean;
+      dialect?: string;
+      url_masked?: string;
+      sslmode?: string | null;
+      latency_ms?: number | null;
+      server_version?: string | null;
+      current_database?: string | null;
+      current_user?: string | null;
+      scope?: string;
+      nota?: string;
+      error?: string;
+    }>("/api/v1/admin/settings/test-billtrack", {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
   inboxConversations(
     params?: { estado?: string; mias?: boolean },
     tenantSlug?: string,

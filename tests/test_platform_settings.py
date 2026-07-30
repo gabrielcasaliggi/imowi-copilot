@@ -88,3 +88,64 @@ def test_test_whatsapp_endpoint():
     r = client.post("/api/v1/admin/settings/test-whatsapp", headers=_admin_headers())
     assert r.status_code == 200
     assert "ok" in r.json()
+
+
+def test_test_database_endpoint_sqlite_activa():
+    r = client.post(
+        "/api/v1/admin/settings/test-database",
+        headers=_admin_headers(),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["connected"] is True
+    assert body["scope"] == "data_estate"
+    assert body["dialect"] in ("sqlite", "postgresql")
+    assert "url_masked" in body
+
+
+def test_test_billtrack_sin_url():
+    r = client.post(
+        "/api/v1/admin/settings/test-billtrack",
+        headers=_admin_headers(),
+        json={},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is False
+    assert body["scope"] == "billtrack"
+    assert "sin URL" in (body.get("error") or "").lower() or "URL" in (body.get("error") or "")
+
+
+def test_put_billtrack_settings():
+    h = _admin_headers()
+    r = client.put(
+        "/api/v1/admin/settings",
+        headers=h,
+        json={
+            "settings": {
+                "billtrack": {
+                    "enabled": True,
+                    "url": "postgresql://billtrack_reader:secret@127.0.0.1:5432/demo",
+                    "sslmode": "prefer",
+                }
+            }
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["billtrack_configured"] is True
+    assert body["billtrack_enabled"] is True
+    assert "***" in body["billtrack_url_masked"]
+    assert "secret" not in body["billtrack_url_masked"]
+    assert body["settings"]["billtrack"]["enabled"] is True
+
+
+def test_probar_conexion_database_helper():
+    from app.estate.health import probar_conexion_database
+
+    info = probar_conexion_database()
+    assert info["ok"] is True
+    assert info["connected"] is True
+    assert info["latency_ms"] is not None
+    assert info["latency_ms"] >= 0

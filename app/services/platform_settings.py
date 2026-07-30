@@ -12,6 +12,9 @@ from app.config import (
     AI_API_KEY,
     AI_BASE_URL,
     AI_MODEL,
+    BILLTRACK_DATABASE_URL,
+    BILLTRACK_ENABLED,
+    BILLTRACK_SSLMODE,
     DATABASE_SSLMODE,
     DATABASE_URL,
     KNOWLEDGE_MAX_FRAGMENT_CHARS,
@@ -33,7 +36,11 @@ _SECRET_KEYS = {
     ("ai", "api_key"),
     ("whatsapp", "token"),
     ("whatsapp", "app_secret"),
+}
+
+_URL_SECRET_KEYS = {
     ("database", "url"),
+    ("billtrack", "url"),
 }
 
 
@@ -54,7 +61,19 @@ def _default_payload() -> dict[str, Any]:
         "database": {
             "url": DATABASE_URL,
             "sslmode": DATABASE_SSLMODE,
-            "nota": "Cambiar la URL en producción suele requerir reinicio del servicio (Render env).",
+            "nota": (
+                "Data Estate del sistema (tickets, config, canal). "
+                "No confundir con BillTrack. Cambiar en producción suele requerir reinicio."
+            ),
+        },
+        "billtrack": {
+            "enabled": BILLTRACK_ENABLED,
+            "url": BILLTRACK_DATABASE_URL,
+            "sslmode": BILLTRACK_SSLMODE,
+            "nota": (
+                "Postgres externo de solo lectura: padrón de clientes para que el bot "
+                "valide acciones. Independiente del Data Estate."
+            ),
         },
         "knowledge": {
             "min_score": KNOWLEDGE_MIN_SCORE,
@@ -114,11 +133,15 @@ def mask_settings(payload: dict[str, Any]) -> dict[str, Any]:
             else:
                 out[section][key] = _mask(val)
                 out[section][f"{key}_configured"] = True
-    if "database" in out and isinstance(out["database"], dict):
-        url = out["database"].get("url") or ""
-        if url and not str(url).startswith("***") and ":***@" not in str(url):
-            out["database"]["url"] = database_url_enmascarada(str(url))
-            out["database"]["url_configured"] = True
+    for section, key in _URL_SECRET_KEYS:
+        if section in out and isinstance(out[section], dict) and key in out[section]:
+            url = str(out[section].get(key) or "")
+            if not url:
+                out[section][key] = ""
+                out[section][f"{key}_configured"] = False
+            else:
+                out[section][key] = database_url_enmascarada(url)
+                out[section][f"{key}_configured"] = True
     return out
 
 
@@ -142,7 +165,7 @@ def save_settings(
     incoming = deepcopy(patch or {})
 
     # No pisar secretos si el cliente reenvía valor enmascarado
-    for section, key in _SECRET_KEYS:
+    for section, key in (*_SECRET_KEYS, *_URL_SECRET_KEYS):
         sec = incoming.get(section)
         if isinstance(sec, dict) and key in sec and _is_masked(str(sec.get(key) or "")):
             sec[key] = current.get(section, {}).get(key, "")
@@ -176,6 +199,25 @@ def resolve_whatsapp(db: Session | None = None) -> dict[str, str]:
         "verify_token": str(s.get("verify_token") or WHATSAPP_VERIFY_TOKEN or "ops-hub-wa-verify"),
         "app_secret": str(s.get("app_secret") or WHATSAPP_APP_SECRET),
         "default_org_slug": str(s.get("default_org_slug") or WHATSAPP_DEFAULT_ORG_SLUG or "coop-batan"),
+    }
+
+
+def resolve_billtrack(db: Session | None = None) -> dict[str, Any]:
+    """Credenciales del Postgres externo BillTrack (consulta de clientes)."""
+    s = get_merged_settings(db).get("billtrack") or {}
+    if not isinstance(s, dict):
+        s = {}
+    enabled_raw = s.get("enabled")
+    if isinstance(enabled_raw, str):
+        enabled = enabled_raw.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        enabled = bool(enabled_raw) if enabled_raw is not None else BILLTRACK_ENABLED
+    url = str(s.get("url") or BILLTRACK_DATABASE_URL or "").strip()
+    return {
+        "enabled": enabled,
+        "url": url,
+        "sslmode": str(s.get("sslmode") or BILLTRACK_SSLMODE or "prefer").strip() or "prefer",
+        "nota": str(s.get("nota") or ""),
     }
 
 
@@ -260,12 +302,16 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     s = mask_settings(get_merged_settings(db))
     wa = resolve_whatsapp(db)
     ai = resolve_ai(db)
+    bt = resolve_billtrack(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
     return {
         "ai_configured": bool(ai.get("base_url") and ai.get("model")),
         "whatsapp_configured": bool(wa.get("token") and wa.get("phone_number_id")),
         "database_driver": "postgresql" if "postgresql" in (DATABASE_URL or "") else "sqlite",
         "database_url_masked": database_url_enmascarada(),
+        "billtrack_configured": bool(bt.get("url")),
+        "billtrack_enabled": bool(bt.get("enabled") and bt.get("url")),
+        "billtrack_url_masked": database_url_enmascarada(bt["url"]) if bt.get("url") else "",
         "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
         "updated_by": row.updated_by if row else "",
         "settings": s,

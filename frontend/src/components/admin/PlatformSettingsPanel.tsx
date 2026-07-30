@@ -11,12 +11,13 @@ const inputCls =
 const labelCls = "block text-xs text-slate-400 mb-1";
 
 type PlaybookMap = Record<string, { id: string; pregunta: string }[]>;
+type SettingsSection = "ai" | "whatsapp" | "database" | "billtrack" | "knowledge" | "playbooks";
 
 export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string) => void }) {
   const [data, setData] = useState<PlatformSettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [section, setSection] = useState<"ai" | "whatsapp" | "database" | "knowledge" | "playbooks">("ai");
+  const [section, setSection] = useState<SettingsSection>("ai");
 
   const [ai, setAi] = useState({ base_url: "", api_key: "", model: "" });
   const [wa, setWa] = useState({
@@ -27,6 +28,16 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     default_org_slug: "",
   });
   const [dbCfg, setDbCfg] = useState({ url: "", sslmode: "require", nota: "" });
+  const [billtrack, setBilltrack] = useState({
+    enabled: false,
+    url: "",
+    sslmode: "prefer",
+    nota: "",
+  });
+  const [billtrackTest, setBilltrackTest] = useState<{
+    ok: boolean;
+    detail: string;
+  } | null>(null);
   const [kb, setKb] = useState({ min_score: 0.15, top_k: 1, max_fragment_chars: 1800 });
   const [playbooksJson, setPlaybooksJson] = useState("");
 
@@ -49,6 +60,12 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       url: s.database?.url || res.database_url_masked || "",
       sslmode: s.database?.sslmode || "require",
       nota: s.database?.nota || "",
+    });
+    setBilltrack({
+      enabled: Boolean(s.billtrack?.enabled ?? res.billtrack_enabled),
+      url: s.billtrack?.url || res.billtrack_url_masked || "",
+      sslmode: s.billtrack?.sslmode || "prefer",
+      nota: s.billtrack?.nota || "",
     });
     setKb({
       min_score: Number(s.knowledge?.min_score ?? 0.15),
@@ -90,6 +107,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         ai,
         whatsapp: wa,
         database: dbCfg,
+        billtrack,
         knowledge: kb,
         playbooks,
       });
@@ -130,16 +148,64 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     }
   };
 
+  const testEstateDb = async () => {
+    setBusy(true);
+    try {
+      const r = await api.testAdminDatabase();
+      onMessage?.(
+        r.ok
+          ? `Data Estate OK · ${r.dialect} · ${r.latency_ms ?? "?"} ms`
+          : `Data Estate falló: ${r.error || "sin conexión"}`,
+      );
+    } catch (err) {
+      onMessage?.(err instanceof Error ? err.message : "Error test Data Estate");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testBilltrack = async () => {
+    setBusy(true);
+    try {
+      const r = await api.testAdminBilltrack({
+        url: billtrack.url,
+        sslmode: billtrack.sslmode,
+      });
+      if (r.ok) {
+        const parts = [
+          r.current_database ? `db ${r.current_database}` : null,
+          r.current_user ? `user ${r.current_user}` : null,
+          r.latency_ms != null ? `${r.latency_ms} ms` : null,
+          r.server_version ? `v${r.server_version}` : null,
+        ].filter(Boolean);
+        const detail = parts.join(" · ");
+        setBilltrackTest({ ok: true, detail });
+        onMessage?.(`BillTrack OK · ${detail}`);
+      } else {
+        const detail = r.error || "No se pudo conectar";
+        setBilltrackTest({ ok: false, detail });
+        onMessage?.(`BillTrack falló: ${detail}`);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Error test BillTrack";
+      setBilltrackTest({ ok: false, detail });
+      onMessage?.(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <p className="text-slate-500 text-sm">Cargando configuración…</p>;
   }
 
-  const tabs = [
-    { id: "ai" as const, label: "API IA" },
-    { id: "whatsapp" as const, label: "WhatsApp" },
-    { id: "database" as const, label: "Base de datos" },
-    { id: "knowledge" as const, label: "Conocimiento" },
-    { id: "playbooks" as const, label: "Playbooks" },
+  const tabs: { id: SettingsSection; label: string }[] = [
+    { id: "ai", label: "API IA" },
+    { id: "whatsapp", label: "WhatsApp" },
+    { id: "billtrack", label: "Clientes (BillTrack)" },
+    { id: "database", label: "Data Estate" },
+    { id: "knowledge", label: "Conocimiento" },
+    { id: "playbooks", label: "Playbooks" },
   ];
 
   return (
@@ -167,7 +233,29 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
               label={data.whatsapp_configured ? "WA OK" : "WA pendiente"}
               tone={data.whatsapp_configured ? "available" : "soon"}
             />
-            <StatusPill label={data.database_driver} tone="neutral" />
+            <StatusPill
+              label={
+                billtrackTest
+                  ? billtrackTest.ok
+                    ? "BillTrack OK"
+                    : "BillTrack falló"
+                  : data.billtrack_enabled
+                    ? "BillTrack listo"
+                    : data.billtrack_configured
+                      ? "BillTrack off"
+                      : "BillTrack pendiente"
+              }
+              tone={
+                billtrackTest
+                  ? billtrackTest.ok
+                    ? "available"
+                    : "soon"
+                  : data.billtrack_enabled
+                    ? "available"
+                    : "neutral"
+              }
+            />
+            <StatusPill label={`Estate · ${data.database_driver}`} tone="neutral" />
           </div>
         )}
       </div>
@@ -277,16 +365,86 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         </GlassCard>
       )}
 
-      {section === "database" && (
-        <GlassCard title="Conexión a base de datos" accent="amber" variant="secondary">
+      {section === "billtrack" && (
+        <GlassCard title="BillTrack — padrón de clientes (solo lectura)" accent="amber" variant="secondary">
           <div className="grid gap-3">
             <p className="text-xs text-amber-200/90">
-              La URL activa del proceso viene del entorno (Render/Supabase). Guardar aquí deja el valor
-              documentado para migración on-prem; aplicar un cambio de connection string en vivo suele
-              requerir reinicio del servicio.
+              Conexión externa para que el bot consulte datos de clientes y valide acciones. No es la
+              base del sistema: los tickets, la config y el canal siguen en el Data Estate.
+            </p>
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={billtrack.enabled}
+                onChange={(e) => setBilltrack({ ...billtrack, enabled: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Habilitar consultas BillTrack para el bot
+            </label>
+            <div>
+              <label className={labelCls}>URL Postgres (enmascarada o nueva)</label>
+              <input
+                className={inputCls}
+                value={billtrack.url}
+                onChange={(e) => {
+                  setBilltrack({ ...billtrack, url: e.target.value });
+                  setBilltrackTest(null);
+                }}
+                placeholder="postgresql://billtrack_reader:***@host:5432/dbname"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>SSL mode</label>
+              <input
+                className={inputCls}
+                value={billtrack.sslmode}
+                onChange={(e) => {
+                  setBilltrack({ ...billtrack, sslmode: e.target.value });
+                  setBilltrackTest(null);
+                }}
+                placeholder="prefer | require | disable"
+              />
+            </div>
+            {data?.billtrack_url_masked && (
+              <p className="text-xs text-slate-500">Guardada: {data.billtrack_url_masked}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void testBilltrack()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-amber-500/40"
+              >
+                Probar conexión BillTrack
+              </button>
+              {billtrackTest && (
+                <StatusPill
+                  label={
+                    billtrackTest.ok
+                      ? `Conectada · ${billtrackTest.detail}`
+                      : `Falló · ${billtrackTest.detail}`
+                  }
+                  tone={billtrackTest.ok ? "available" : "soon"}
+                />
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Si la contraseña tiene `:`, `\`, `@` o `/`, codificalos en la URL (`:` → `%3A`, `\` →
+              `%5C`). Nombre de base (`/dbname`) requerido.
+            </p>
+          </div>
+        </GlassCard>
+      )}
+
+      {section === "database" && (
+        <GlassCard title="Data Estate — base del sistema" accent="cyan" variant="secondary">
+          <div className="grid gap-3">
+            <p className="text-xs text-slate-400">
+              Acá vive lo que opera la plataforma: tickets, usuarios, config, canal, KB. Separado de
+              BillTrack. La URL activa del proceso viene de <code>DATABASE_URL</code> del entorno.
             </p>
             <div>
-              <label className={labelCls}>DATABASE_URL (enmascarada o nueva)</label>
+              <label className={labelCls}>DATABASE_URL (documentación / migración)</label>
               <input
                 className={inputCls}
                 value={dbCfg.url}
@@ -306,6 +464,16 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 Activa ahora: {data.database_url_masked} · driver {data.database_driver}
               </p>
             )}
+            <div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void testEstateDb()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-cyan-500/40"
+              >
+                Probar Data Estate activo
+              </button>
+            </div>
           </div>
         </GlassCard>
       )}
