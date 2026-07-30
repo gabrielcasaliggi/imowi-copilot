@@ -4,6 +4,7 @@ Consola de soporte para **Cooperativa Batán**: portal web del abonado (bot N1 �
 
 - Abonados: [`/portal`](./docs/PORTAL-ABONADO.md)  
 - Agentes/admin: login consola  
+- Roles y permisos (diseño): [`docs/RBAC-ROLES-PERMISOS.md`](./docs/RBAC-ROLES-PERMISOS.md)  
 - WhatsApp Meta: fase posterior  
 
 Las APIs legacy de telemetría/JSC pueden existir en el backend pero **no forman parte de la UI operativa**.

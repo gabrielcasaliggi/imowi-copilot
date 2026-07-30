@@ -97,8 +97,13 @@ Ver [PRODUCCION-SUPABASE.md](./PRODUCCION-SUPABASE.md) y [FRONTEND-DEPLOY.md](./
 
 Health: `GET /health` → `database: postgresql`, `database_connected: true`.
 
+## Roles y permisos (RBAC)
+
+Modelo objetivo de consola (admin, supervisor, ejecutivo, agente) y aislamiento por tenant: [RBAC-ROLES-PERMISOS.md](./RBAC-ROLES-PERMISOS.md).
+
 ## Próximos pasos
 
 1. Piloto con matriz [PILOTO-VALIDACION.md](./PILOTO-VALIDACION.md)
 2. Integración JSC real — [JSC_INTEGRACION.md](./JSC_INTEGRACION.md)
-3. Deprecar endpoints legacy cuando el piloto esté validado
+3. Implementar RBAC — [RBAC-ROLES-PERMISOS.md](./RBAC-ROLES-PERMISOS.md)
+4. Deprecar endpoints legacy cuando el piloto esté validado
