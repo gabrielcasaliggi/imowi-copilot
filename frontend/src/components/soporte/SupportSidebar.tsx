@@ -426,13 +426,70 @@ function TicketAdminForm({
   );
 }
 
+function TicketAgentForm({
+  ticket,
+  onUpdate,
+}: {
+  ticket: NonNullable<ReturnType<typeof useApp>["ticketFormacion"]>;
+  onUpdate: (body: Record<string, string>) => Promise<void>;
+}) {
+  const [estado, setEstado] = useState(ticket.estado || "Abierto");
+  const [resolucion, setResolucion] = useState(ticket.resolucion_tecnica || "");
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    onUpdate({
+      estado,
+      resolucion_tecnica: resolucion,
+    });
+  };
+
+  return (
+    <form onSubmit={onSubmit} className="pt-2 mt-2 border-t border-slate-800 space-y-2">
+      <select
+        value={estado}
+        onChange={(e) => setEstado(e.target.value)}
+        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px]"
+      >
+        {["Abierto", "En Revisión", "Pendiente Cliente", "Cerrado"].map((e) => (
+          <option key={e} value={e}>
+            {e}
+          </option>
+        ))}
+      </select>
+      <textarea
+        value={resolucion}
+        onChange={(e) => setResolucion(e.target.value)}
+        placeholder="Qué hiciste / resolución del caso…"
+        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px] min-h-[54px]"
+      />
+      <button
+        type="submit"
+        className="w-full py-1.5 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+      >
+        Guardar seguimiento
+      </button>
+      <p className="text-[10px] text-slate-500 leading-relaxed">
+        Si resolviste bien, proponé una mejora a KB abajo. Si no, dejá el caso documentado para
+        ticket externo (JSAT) más adelante.
+      </p>
+    </form>
+  );
+}
+
 function TicketFormacionCard() {
   const { ticketFormacion, isAdmin, updateTicket, explainEscalation } = useApp();
 
   if (!ticketFormacion) {
     return (
-      <GlassCard title="Ticket en formación" variant="secondary">
-        <p className="text-slate-500 text-xs font-mono">Pendiente de escalamiento.</p>
+      <GlassCard title="Ticket activo" variant="secondary">
+        <p className="text-slate-500 text-xs leading-relaxed">
+          Todavía no hay un ticket en esta consola. Tomá uno desde la{" "}
+          <a href="/tickets" className="text-cyan-300 hover:text-cyan-200">
+            Cola
+          </a>
+          .
+        </p>
       </GlassCard>
     );
   }
@@ -441,11 +498,16 @@ function TicketFormacionCard() {
   const intel = t.intelligence;
 
   return (
-    <GlassCard title="Ticket en formación" variant="secondary">
+    <GlassCard title="Ticket activo" variant="secondary">
       <div className="space-y-2 text-xs">
         <DataRow label="ID" mono>
           <span className="text-cyan-300">{t.id}</span>
         </DataRow>
+        {t.asignado_a && (
+          <DataRow label="Asignado">
+            <span className="text-violet-300 truncate">{t.asignado_a}</span>
+          </DataRow>
+        )}
         {intel && intel.priority_score > 0 && (
           <div className="p-2.5 rounded-lg border border-violet-500/20 bg-violet-500/5 space-y-1.5">
             <div className="flex justify-between">
@@ -464,9 +526,6 @@ function TicketFormacionCard() {
                 />
               </div>
             )}
-            {intel.risk_reasons?.length ? (
-              <p className="text-[11px] text-slate-500">{intel.risk_reasons.join(" · ")}</p>
-            ) : null}
           </div>
         )}
         <DataRow label="Línea" mono>
@@ -474,17 +533,8 @@ function TicketFormacionCard() {
         </DataRow>
         <div className="flex flex-wrap gap-1.5 pt-0.5">
           {t.nivel && <StatusBadge value={t.nivel} />}
-          {t.destino && (
-            <span className="px-2 py-0.5 text-[11px] font-mono uppercase rounded border bg-slate-600/30 text-slate-300 border-slate-500/30">
-              {t.destino === "imowi_noc" || t.destino === "n2_soporte" ? "N2" : t.destino}
-            </span>
-          )}
-          <StatusBadge value={t.origen} />
           <StatusBadge value={t.estado} />
         </div>
-        {t.proveedor && (
-          <p className="text-amber-300 text-[11px]">→ {t.proveedor}</p>
-        )}
         {t.motivo_escalamiento && (
           <p className="text-slate-400 text-[11px] leading-relaxed">{t.motivo_escalamiento}</p>
         )}
@@ -496,9 +546,7 @@ function TicketFormacionCard() {
             onExplain={explainEscalation}
           />
         ) : (
-          <p className="text-[11px] text-slate-500 pt-2 mt-2 border-t border-slate-800 leading-relaxed">
-            Seguimiento del ticket N2: el equipo de soporte actualizará el estado y las novedades.
-          </p>
+          <TicketAgentForm key={t.id} ticket={t} onUpdate={updateTicket} />
         )}
       </div>
     </GlassCard>

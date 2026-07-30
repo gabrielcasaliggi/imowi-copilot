@@ -388,9 +388,22 @@ def update_ticket(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    if not ctx.puede("tickets.update"):
-        raise HTTPException(403, "Sin permiso para actualizar tickets")
     admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t_existente = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t_existente:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+
+    if not ctx.puede("tickets.update"):
+        # Agente: solo puede actualizar tickets asignados a él
+        if not ctx.puede("tickets.queue.view"):
+            raise HTTPException(403, "Sin permiso para actualizar tickets")
+        asignado = (getattr(t_existente, "asignado_a", "") or "").strip().lower()
+        yo = (ctx.usuario_email or "").strip().lower()
+        alias = yo.split("@", 1)[0]
+        if not asignado or (asignado not in {yo, alias} and yo not in asignado):
+            raise HTTPException(403, "Solo podés actualizar tickets asignados a vos")
+        if body.asignado_a is not None:
+            raise HTTPException(403, "Para reasignar usá la derivación del supervisor")
     t = repo.update_ticket(
         db,
         ctx.organizacion_id,
@@ -421,6 +434,53 @@ def update_ticket(
     )
     pool = _load_pool(db, ctx)
     return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db)}
+
+
+@router.post("/tickets/{ticket_id}/claim")
+def claim_ticket(
+    ticket_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    """Agente toma un ticket libre de la cola N2 (queda bloqueado para otros)."""
+    if not ctx.puede("tickets.queue.view"):
+        raise HTTPException(403, "Sin permiso para tomar tickets de la cola")
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    t = repo.get_ticket(db, ctx.organizacion_id, ticket_id, admin_global=admin_global)
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    if t.estado == "Cerrado":
+        raise HTTPException(400, "No se puede tomar un ticket cerrado")
+    actual = (getattr(t, "asignado_a", "") or "").strip()
+    yo = (ctx.usuario_email or "").strip()
+    yo_alias = yo.split("@", 1)[0].lower() if yo else ""
+    if actual:
+        actual_l = actual.lower()
+        if actual_l not in {yo.lower(), yo_alias} and yo.lower() not in actual_l:
+            raise HTTPException(409, f"Ticket ya tomado por {actual}")
+        pool = _load_pool(db, ctx)
+        return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db), "ya_asignado": True}
+
+    t = repo.update_ticket(
+        db,
+        ctx.organizacion_id,
+        ticket_id,
+        asignado_a=yo,
+        actor=yo,
+        admin_global=admin_global,
+    )
+    if not t:
+        raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
+    log_audit(
+        db,
+        org_id=t.organizacion_id,
+        actor=yo,
+        accion="ticket_claim",
+        recurso=ticket_id,
+        detalle=f"asignado_a={yo}",
+    )
+    pool = _load_pool(db, ctx)
+    return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db), "ya_asignado": False}
 
 
 @router.post("/tickets/{ticket_id}/reassign")

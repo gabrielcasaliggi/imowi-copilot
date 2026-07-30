@@ -218,6 +218,13 @@ export const api = {
     });
   },
 
+  claimTicket(id: string, tenantSlug?: string) {
+    return request<{ status: string; ticket: Ticket; ya_asignado?: boolean }>(
+      `/api/v1/tickets/${id}/claim`,
+      { method: "POST", tenantSlug },
+    );
+  },
+
   setAvailability(disponibilidad: string) {
     return request<{ status: string; disponibilidad: string; persistido: boolean }>(
       "/api/v1/me/availability",

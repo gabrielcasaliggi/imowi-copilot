@@ -13,23 +13,42 @@ const ESTADOS = ["", "Abierto", "En Revisión", "Escalado", "Pendiente Cliente",
 const NIVELES = ["", "N1", "N2"];
 const SLA_OPTS = ["", "Vencido", "Crítico", "En riesgo", "En tiempo"];
 
+function isMine(t: Ticket, keys: Set<string>) {
+  const a = (t.asignado_a || "").trim().toLowerCase();
+  return !!a && keys.has(a);
+}
+
+function isFree(t: Ticket) {
+  return !(t.asignado_a || "").trim();
+}
+
 function TicketRow({
   t,
-  onSelect,
+  mine,
+  free,
+  canClaim,
   canReassign,
   agents,
+  claiming,
+  onOpen,
+  onClaim,
   onReassign,
 }: {
   t: Ticket;
-  onSelect: (id: string) => void;
+  mine: boolean;
+  free: boolean;
+  canClaim: boolean;
   canReassign: boolean;
   agents: { email: string; nombre: string }[];
+  claiming: string | null;
+  onOpen: (id: string) => void;
+  onClaim: (id: string) => void;
   onReassign: (ticketId: string, asignado_a: string) => void;
 }) {
   const intel = t.intelligence;
   return (
     <div className="w-full text-left p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-cyan-500/40 transition-colors">
-      <button type="button" onClick={() => onSelect(t.id)} className="w-full text-left">
+      <button type="button" onClick={() => onOpen(t.id)} className="w-full text-left">
         <div className="flex justify-between items-start gap-2">
           <span className="font-mono text-cyan-300 text-xs">{t.id}</span>
           <span className="text-[10px] font-mono text-amber-400">
@@ -39,16 +58,24 @@ function TicketRow({
         <div className="flex flex-wrap gap-1 mt-1.5">
           {t.nivel && <StatusBadge value={t.nivel} />}
           <StatusBadge value={t.estado} />
+          {mine && (
+            <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded border border-violet-500/40 text-violet-200 bg-violet-500/10">
+              Mío
+            </span>
+          )}
+          {free && t.estado !== "Cerrado" && (
+            <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded border border-emerald-500/40 text-emerald-200 bg-emerald-500/10">
+              Libre
+            </span>
+          )}
           <SlaBadge label={t.sla_label} estado={t.estado_sla || intel?.sla?.estado_sla} />
         </div>
         <p className="text-[11px] text-slate-400 mt-1 truncate">
           {t.organizacion ? `${t.organizacion} · ` : ""}
           {t.linea || "—"} · {t.categoria || "General"}
         </p>
-        {t.asignado_a && (
-          <p className="text-[10px] text-violet-300/90 mt-1 truncate">
-            Asignado: {t.asignado_a}
-          </p>
+        {t.asignado_a && !mine && (
+          <p className="text-[10px] text-slate-500 mt-1 truncate">Asignado: {t.asignado_a}</p>
         )}
         {intel?.next_best_action && (
           <p className="text-[10px] text-cyan-500/80 mt-1 line-clamp-1">
@@ -56,6 +83,27 @@ function TicketRow({
           </p>
         )}
       </button>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {canClaim && free && t.estado !== "Cerrado" && (
+          <button
+            type="button"
+            disabled={claiming === t.id}
+            onClick={() => onClaim(t.id)}
+            className="text-[11px] px-2.5 py-1 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+          >
+            {claiming === t.id ? "Tomando…" : "Tomar"}
+          </button>
+        )}
+        {mine && (
+          <button
+            type="button"
+            onClick={() => onOpen(t.id)}
+            className="text-[11px] px-2.5 py-1 rounded-lg border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/10"
+          >
+            Abrir en Consola
+          </button>
+        )}
+      </div>
       {canReassign && agents.length > 0 && (
         <select
           value={t.asignado_a || ""}
@@ -80,20 +128,35 @@ function TicketRow({
 
 export function TicketQueuePanel() {
   const router = useRouter();
-  const { isAdmin, can, tenantSlug } = useApp();
+  const { isAdmin, can, tenantSlug, user, selectTicket } = useApp();
 
   const [items, setItems] = useState<Ticket[]>([]);
   const [agents, setAgents] = useState<{ email: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [claiming, setClaiming] = useState<string | null>(null);
+  const [hint, setHint] = useState("");
   const [estado, setEstado] = useState("");
-  const [nivel, setNivel] = useState("");
+  const [nivel, setNivel] = useState(isAdmin || can("tickets.reassign") ? "" : "N2");
   const [sla, setSla] = useState("");
   const [categoria, setCategoria] = useState("");
   const [q, setQ] = useState("");
   const [soloAbiertos, setSoloAbiertos] = useState(true);
+  const [soloTomables, setSoloTomables] = useState(!(isAdmin || can("tickets.reassign")));
 
   const canReassign = can("tickets.reassign");
+  const canClaim = can("tickets.queue.view") && !can("orgs.manage");
   const slug = isAdmin ? tenantSlug : undefined;
+
+  const myKeys = useMemo(() => {
+    const s = new Set<string>();
+    if (user?.usuario) {
+      const u = user.usuario.toLowerCase();
+      s.add(u);
+      if (!u.includes("@")) s.add(`${u}@ops-hub.demo`);
+      else s.add(u.split("@", 1)[0]);
+    }
+    return s;
+  }, [user]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,22 +198,43 @@ export function TicketQueuePanel() {
       .catch(() => setAgents([]));
   }, [canReassign]);
 
+  const visible = useMemo(() => {
+    if (!soloTomables) return items;
+    return items.filter(
+      (t) =>
+        t.estado !== "Cerrado" &&
+        (isFree(t) || isMine(t, myKeys)),
+    );
+  }, [items, soloTomables, myKeys]);
+
+  const libres = useMemo(
+    () => visible.filter((t) => isFree(t) && t.estado !== "Cerrado").length,
+    [visible],
+  );
+
   const onReassign = async (ticketId: string, asignado_a: string) => {
     await api.reassignTicket(ticketId, { asignado_a }, slug);
     await load();
   };
 
-  const vencidos = useMemo(
-    () =>
-      items.filter(
-        (t) =>
-          t.estado !== "Cerrado" &&
-          (t.estado_sla === "Vencido" || t.intelligence?.sla?.vencido),
-      ).length,
-    [items],
-  );
+  const onClaim = async (ticketId: string) => {
+    setClaiming(ticketId);
+    setHint("");
+    try {
+      const res = await api.claimTicket(ticketId, slug);
+      await selectTicket(res.ticket.id);
+      await load();
+      router.push(`/soporte?ticket=${encodeURIComponent(res.ticket.id)}`);
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "No se pudo tomar el ticket");
+      await load();
+    } finally {
+      setClaiming(null);
+    }
+  };
 
-  const onSelect = (id: string) => {
+  const onOpen = async (id: string) => {
+    await selectTicket(id);
     router.push(`/soporte?ticket=${encodeURIComponent(id)}`);
   };
 
@@ -172,11 +256,12 @@ export function TicketQueuePanel() {
       <div className="flex flex-wrap justify-between gap-3 items-end">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
-            Gestión de tickets
+            Cola N2
           </p>
-          <h2 className="text-xl font-semibold text-slate-50">Cola operativa</h2>
+          <h2 className="text-xl font-semibold text-slate-50">Tickets tomables</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Lista filtrable de la cooperativa. Abrí un ticket para trabajarlo en la Consola.
+            Casos que el bot no resolvió. Tomá uno libre → se bloquea para vos → trabajalo en
+            Consola.
           </p>
         </div>
         <Link
@@ -189,12 +274,18 @@ export function TicketQueuePanel() {
 
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950/60 text-slate-300">
-          En vista <strong className="font-mono text-slate-100 ml-1">{items.length}</strong>
+          En vista <strong className="font-mono text-slate-100 ml-1">{visible.length}</strong>
         </span>
-        <span className="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
-          SLA vencido <strong className="font-mono ml-1">{vencidos}</strong>
+        <span className="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+          Libres <strong className="font-mono ml-1">{libres}</strong>
         </span>
       </div>
+
+      {hint && (
+        <p className="text-xs text-amber-300 border border-amber-500/25 rounded-lg px-3 py-2 bg-amber-500/8">
+          {hint}
+        </p>
+      )}
 
       <form
         onSubmit={onFilter}
@@ -253,6 +344,14 @@ export function TicketQueuePanel() {
           />
           Solo abiertos
         </label>
+        <label className="flex items-center gap-2 text-xs text-slate-400 px-1 col-span-2">
+          <input
+            type="checkbox"
+            checked={soloTomables}
+            onChange={(e) => setSoloTomables(e.target.checked)}
+          />
+          Solo libres + míos
+        </label>
         <button
           type="submit"
           className="col-span-2 md:col-span-1 text-xs py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
@@ -263,17 +362,24 @@ export function TicketQueuePanel() {
 
       {loading ? (
         <p className="text-sm text-slate-500">Cargando cola…</p>
-      ) : !items.length ? (
-        <p className="text-sm text-slate-500">Sin tickets con esos filtros.</p>
+      ) : !visible.length ? (
+        <p className="text-sm text-slate-500">
+          No hay tickets tomables con esos filtros. Probá desmarcar “Solo libres + míos”.
+        </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-          {items.map((t) => (
+          {visible.map((t) => (
             <TicketRow
               key={t.id}
               t={t}
-              onSelect={onSelect}
+              mine={isMine(t, myKeys)}
+              free={isFree(t)}
+              canClaim={canClaim}
               canReassign={canReassign}
               agents={agents}
+              claiming={claiming}
+              onOpen={(id) => void onOpen(id)}
+              onClaim={(id) => void onClaim(id)}
               onReassign={(id, email) => void onReassign(id, email)}
             />
           ))}

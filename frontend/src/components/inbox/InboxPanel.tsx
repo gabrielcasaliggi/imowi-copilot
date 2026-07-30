@@ -22,7 +22,7 @@ function estadoLabel(estado: string): string {
     case "bot":
       return "Bot N1";
     case "espera_agente":
-      return "En cola";
+      return "Espera agente";
     case "con_agente":
       return "Con agente";
     case "cerrado":
@@ -201,7 +201,7 @@ export function InboxPanel() {
           </p>
           <h2 className="text-xl font-semibold text-slate-50">Bandeja de conversaciones</h2>
           <p className="text-sm text-slate-400">
-            Portal web · N1 automático · transferencia a agente
+            Canal en vivo (WhatsApp / portal). Acá ves lo que habla el bot con el abonado.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -212,7 +212,7 @@ export function InboxPanel() {
           >
             <option value="">Abiertas</option>
             <option value="bot">Bot N1</option>
-            <option value="espera_agente">En cola</option>
+            <option value="espera_agente">Espera agente</option>
             <option value="con_agente">Con agente</option>
             <option value="cerrado">Cerradas</option>
           </select>
@@ -298,7 +298,9 @@ export function InboxPanel() {
 
         <div className="rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col min-h-0 overflow-hidden">
           {!detail ? (
-            <p className="text-sm text-slate-500 p-4">Seleccioná una conversación de la cola.</p>
+            <p className="text-sm text-slate-500 p-4">
+              Seleccioná una conversación del canal para ver el hilo en vivo.
+            </p>
           ) : (
             <>
               <div className="p-3 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">

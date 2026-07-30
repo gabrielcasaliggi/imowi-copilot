@@ -79,7 +79,7 @@ export function AgentSelfPanel() {
           </div>
         </div>
         <p className="text-[11px] text-slate-500 mt-3">
-          Solo tu carga. La cola completa está abajo para tomar o seguir casos de la cooperativa.
+          Solo tu carga. Abajo están los tickets libres para tomar.
         </p>
       </GlassCard>
     </SidebarSection>

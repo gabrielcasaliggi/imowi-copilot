@@ -578,13 +578,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateTicket = useCallback(
     async (body: Record<string, string>) => {
-      if (!ticketFormacion || !isAdmin) return;
-      const res = await api.updateTicket(ticketFormacion.id, body, tenantSlug);
+      if (!ticketFormacion) return;
+      const hdr = isAdmin ? tenantSlug : undefined;
+      const res = await api.updateTicket(ticketFormacion.id, body, hdr);
       setTicketFormacion(res.ticket);
       await selectTicket(ticketFormacion.id);
-      const tix = await api.tickets(tenantSlug);
+      const tix = await api.tickets(hdr);
       setTickets(tix.tickets || []);
-      const notif = await api.notifications(tenantSlug);
+      const notif = await api.notifications(hdr);
       setNotifications(notif.notificaciones || []);
       if (isAdmin) api.stats(undefined, tenantSlug).then(setStats).catch(() => {});
       appendTrace([`📬 Seguimiento actualizado para ${ticketFormacion.id}`]);
