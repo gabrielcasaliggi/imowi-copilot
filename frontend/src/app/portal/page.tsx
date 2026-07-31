@@ -43,6 +43,7 @@ export default function PortalPage() {
   const [mensajes, setMensajes] = useState<InboxMessage[]>([]);
   const [texto, setTexto] = useState("");
   const [busy, setBusy] = useState(false);
+  const [botTyping, setBotTyping] = useState(false);
   const [error, setError] = useState("");
   const [modoInvitado, setModoInvitado] = useState(false);
   const [newPin, setNewPin] = useState("");
@@ -93,7 +94,7 @@ export default function PortalPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensajes]);
+  }, [mensajes, botTyping]);
 
   const onStartDni = async (e: FormEvent) => {
     e.preventDefault();
@@ -182,11 +183,24 @@ export default function PortalPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!token || !texto.trim()) return;
-    setBusy(true);
+    if (!token || !texto.trim() || botTyping) return;
     setError("");
     const outgoing = texto.trim();
     setTexto("");
+    // Mostrar el mensaje del cliente al instante mientras el bot arma la respuesta
+    setMensajes((prev) => [
+      ...prev,
+      {
+        id: `local-${Date.now()}`,
+        conversacion_id: conv?.id || "",
+        autor: "cliente",
+        texto: outgoing,
+        direccion: "in",
+        meta_message_id: "",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    setBotTyping(true);
     try {
       const res = await api.portalSend(outgoing, token);
       if (res.conversacion) setConv(res.conversacion);
@@ -194,8 +208,9 @@ export default function PortalPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al enviar");
       setTexto(outgoing);
+      setMensajes((prev) => prev.filter((m) => !String(m.id).startsWith("local-")));
     } finally {
-      setBusy(false);
+      setBotTyping(false);
     }
   };
 
@@ -387,21 +402,44 @@ export default function PortalPage() {
                   {m.texto}
                 </div>
               ))}
+              {botTyping && (
+                <div
+                  className="mr-auto bg-slate-800 text-slate-200 text-sm rounded-xl px-3 py-2 max-w-[90%]"
+                  aria-live="polite"
+                  aria-label="El asistente está escribiendo"
+                >
+                  <p className="text-[10px] font-mono text-slate-500 mb-1">bot</p>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:0ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:150ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              )}
               <div ref={bottomRef} />
             </div>
+            <p
+              className={`text-[11px] font-mono min-h-[1rem] ${
+                botTyping ? "text-emerald-400/90" : "text-transparent"
+              }`}
+              aria-live="polite"
+            >
+              {botTyping ? "Recibido · el asistente está armando la respuesta…" : "·"}
+            </p>
             <form onSubmit={onSend} className="flex gap-2">
               <input
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
-                placeholder="Escribí tu consulta…"
-                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm"
+                placeholder={botTyping ? "Esperá la respuesta…" : "Escribí tu consulta…"}
+                disabled={botTyping}
+                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60"
               />
               <button
                 type="submit"
-                disabled={busy || !texto.trim()}
+                disabled={botTyping || !texto.trim()}
                 className="px-4 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
               >
-                Enviar
+                {botTyping ? "…" : "Enviar"}
               </button>
             </form>
           </>
