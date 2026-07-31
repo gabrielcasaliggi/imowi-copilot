@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
+import { setToken } from "@/lib/storage";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -21,11 +22,17 @@ export default function ChangePasswordPage() {
     setLoading(true);
     setError("");
     try {
-      await api.changePassword(current, next);
-      router.replace("/inbox");
+      const res = await api.changePassword(current, next);
+      // El backend invalida el JWT viejo (token_version); hay que guardar el nuevo
+      if (res.token) {
+        setToken(res.token);
+        window.location.replace("/inbox");
+        return;
+      }
+      // Fallback: forzar re-login limpio
+      window.location.replace("/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cambiar");
-    } finally {
       setLoading(false);
     }
   };

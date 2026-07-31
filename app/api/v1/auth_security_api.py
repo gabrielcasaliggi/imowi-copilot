@@ -60,6 +60,9 @@ def change_password(
     usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
     db: Session = Depends(get_db),
 ):
+    from app.auth import _crear_token
+    from app.rbac import permisos_para_rol
+
     if usuario.user_id.startswith("mock:"):
         raise HTTPException(400, "Usuarios demo no pueden cambiar contraseña; usá un usuario de DB")
     user = db.get(User, usuario.user_id)
@@ -91,6 +94,27 @@ def change_password(
         user.email_verified_at = datetime.now(UTC)
     user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
     db.commit()
+    db.refresh(user)
+
+    # Invalidar JWT anterior (jti) si existe
+    logout_sesion(db, usuario)
+
+    org = repo.get_org_by_id(db, user.organizacion_id)
+    org_slug = org.slug if org else usuario.org_slug
+    rol = normalizar_rol_consola(user.rol, org_slug)
+    cooperativa = None if org_slug == "imowi" else (org.nombre if org else usuario.cooperativa)
+    token = _crear_token(
+        {
+            "usuario": user.email,
+            "rol": rol,
+            "cooperativa": cooperativa,
+            "nombre": user.nombre,
+            "org_slug": org_slug,
+        },
+        user_id=user.id,
+        token_version=int(getattr(user, "token_version", 0) or 0),
+        must_change=False,
+    )
     log_audit(
         db,
         org_id=user.organizacion_id,
@@ -99,7 +123,17 @@ def change_password(
         recurso=user.email,
         detalle="password updated",
     )
-    return {"status": "ok", "must_change_password": False}
+    return {
+        "status": "ok",
+        "must_change_password": False,
+        "token": token,
+        "rol": rol,
+        "usuario": user.email,
+        "cooperativa": cooperativa,
+        "nombre": user.nombre,
+        "org_slug": org_slug,
+        "permisos": sorted(permisos_para_rol(rol)),
+    }
 
 
 @router.post("/auth/logout")

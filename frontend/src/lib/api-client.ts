@@ -134,13 +134,20 @@ export const api = {
   },
 
   changePassword(current_password: string, new_password: string) {
-    return request<{ status: string; must_change_password: boolean }>(
-      "/api/v1/auth/change-password",
-      {
-        method: "POST",
-        body: JSON.stringify({ current_password, new_password }),
-      },
-    );
+    return request<{
+      status: string;
+      must_change_password: boolean;
+      token?: string;
+      rol?: string;
+      usuario?: string;
+      cooperativa?: string | null;
+      nombre?: string;
+      org_slug?: string;
+      permisos?: string[];
+    }>("/api/v1/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    });
   },
 
   createInvite(body: { email: string; nombre?: string; rol?: string }, tenantSlug?: string) {
