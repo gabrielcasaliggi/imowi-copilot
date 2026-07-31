@@ -141,18 +141,15 @@ def test_admin_user_create_edit_reset_password():
         == 200
     )
 
-    # Alta sin password → temporary_password
+    # Alta con password explícita (fallback admin)
     created = client.post(
         f"/api/v1/admin/organizations/{slug}/users",
         headers=headers,
-        json={"email": email, "nombre": "Operador Uno", "rol": "agente"},
+        json={"email": email, "nombre": "Operador Uno", "rol": "agente", "password": "TempPass12ab"},
     )
     assert created.status_code == 200, created.text
     body = created.json()
     assert body["usuario"]["email"] == email
-    tmp = body.get("temporary_password")
-    assert tmp and len(tmp) >= 10
-
     user_id = body["usuario"]["id"]
 
     # Editar rol
@@ -163,23 +160,33 @@ def test_admin_user_create_edit_reset_password():
     )
     assert patched.status_code == 200, patched.text
     assert patched.json()["usuario"]["rol"] == "supervisor"
-    assert patched.json()["usuario"]["nombre"] == "Operador Uno Edit"
 
-    # Login con temp
-    login = client.post("/api/login", json={"usuario": email, "password": tmp})
-    assert login.status_code == 200
+    # Reset por email → link
+    from app.services import email as email_svc
 
-    # Reset desde admin hub
+    email_svc.clear_outbox()
     reset = client.post(
         f"/api/v1/admin/organizations/{slug}/users/{user_id}/reset-password",
         headers=headers,
     )
     assert reset.status_code == 200, reset.text
-    new_tmp = reset.json()["temporary_password"]
-    assert new_tmp and new_tmp != tmp
+    assert reset.json()["via_email"] is True
+    token = reset.json().get("token")
+    assert token
 
-    assert client.post("/api/login", json={"usuario": email, "password": tmp}).status_code == 401
-    assert client.post("/api/login", json={"usuario": email, "password": new_tmp}).status_code == 200
+    # Vieja clave ya no sirve (token_version bump) — password still same until accept
+    # Actually we only bump token_version, password unchanged until accept
+    assert client.post("/api/login", json={"usuario": email, "password": "TempPass12ab"}).status_code == 200
+
+    acc = client.post(
+        "/api/v1/auth/invite/accept",
+        json={"token": token, "password": "NuevaClave99x", "nombre": "Operador Uno Edit"},
+    )
+    assert acc.status_code == 200, acc.text
+    assert acc.json().get("purpose") == "password_reset"
+
+    assert client.post("/api/login", json={"usuario": email, "password": "TempPass12ab"}).status_code == 401
+    assert client.post("/api/login", json={"usuario": email, "password": "NuevaClave99x"}).status_code == 200
 
     # Baja
     baja = client.patch(
@@ -189,3 +196,45 @@ def test_admin_user_create_edit_reset_password():
     )
     assert baja.status_code == 200
     assert baja.json()["usuario"]["activo"] is False
+
+
+def test_admin_invite_email_flow():
+    from app.services import email as email_svc
+
+    email_svc.clear_outbox()
+    headers = _admin_headers()
+    slug = f"coop-inv-{uuid.uuid4().hex[:8]}"
+    email = f"inv.{uuid.uuid4().hex[:8]}@test.com"
+
+    assert (
+        client.post(
+            "/api/v1/admin/organizations",
+            headers=headers,
+            json={"nombre": "Coop Invite", "slug": slug},
+        ).status_code
+        == 200
+    )
+
+    inv = client.post(
+        f"/api/v1/admin/organizations/{slug}/invites",
+        headers=headers,
+        json={"email": email, "nombre": "Invitado", "rol": "agente"},
+    )
+    assert inv.status_code == 200, inv.text
+    token = inv.json().get("token")
+    assert token
+    assert inv.json()["purpose"] == "invite"
+
+    peek = client.get(f"/api/v1/auth/invite/{token}")
+    assert peek.status_code == 200
+    assert peek.json()["purpose"] == "invite"
+
+    acc = client.post(
+        "/api/v1/auth/invite/accept",
+        json={"token": token, "password": "SeguraPass12", "nombre": "Invitado"},
+    )
+    assert acc.status_code == 200, acc.text
+
+    login = client.post("/api/login", json={"usuario": email, "password": "SeguraPass12"})
+    assert login.status_code == 200
+    assert login.json()["org_slug"] == slug

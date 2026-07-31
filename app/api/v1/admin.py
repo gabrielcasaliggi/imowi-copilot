@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas import OrganizationCreate, OrganizationUpdate, UserCreate, UserUpdate
@@ -244,35 +245,158 @@ def admin_reset_user_password(
     admin: UsuarioSesion = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
-    """Reset de clave desde Admin Hub. Siempre devuelve temporary_password al admin."""
-    import secrets
-    import string
+    """Envía link de reset por email. El usuario define su nueva clave en /invite."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.estate.models import UserInvite
+    from app.estate.security import generate_invite_token, hash_token
+    from app.services import email as email_svc
 
     org = _org_or_404(db, slug)
     user = repo.get_user_by_id(db, org.id, user_id)
     if not user:
         raise HTTPException(404, "Usuario no encontrado")
-    new_pw = "Tmp" + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10)) + "1a"
-    from app.estate.security import hash_password
 
-    user.password = hash_password(new_pw)
-    user.must_change_password = "Sí"
+    # Invalidar resets pendientes previos
+    now = datetime.now(UTC)
+    pending = list(
+        db.scalars(
+            select(UserInvite).where(
+                UserInvite.organizacion_id == org.id,
+                UserInvite.email == user.email,
+                UserInvite.purpose == "password_reset",
+                UserInvite.accepted_at.is_(None),
+            )
+        ).all()
+    )
+    for inv in pending:
+        inv.accepted_at = now
+
+    raw = generate_invite_token()
+    invite = UserInvite(
+        organizacion_id=org.id,
+        email=user.email,
+        nombre=user.nombre or "",
+        rol=user.rol,
+        purpose="password_reset",
+        token_hash=hash_token(raw),
+        invited_by=admin.usuario,
+        expires_at=now + timedelta(hours=24),
+    )
+    db.add(invite)
     user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
     db.commit()
+
+    sent = email_svc.send_password_reset_email(
+        to=user.email,
+        nombre=user.nombre or user.email,
+        org_nombre=org.nombre,
+        token=raw,
+    )
     log_audit(
         db,
         org_id=org.id,
         actor=admin.usuario,
-        accion="auth.reset_password",
+        accion="auth.reset_password_email",
         recurso=user.email,
-        detalle="admin_hub",
+        detalle=f"admin_hub sent={sent}",
     )
-    return {
+    from app.config import es_produccion
+
+    out: dict = {
         "status": "ok",
         "email": user.email,
+        "via_email": True,
+        "email_sent": sent,
         "must_change_password": True,
-        "temporary_password": new_pw,
     }
+    if not sent or not es_produccion():
+        out["token"] = raw
+        out["invite_link"] = email_svc.invite_public_link(raw)
+    return out
+
+
+@router.post("/admin/organizations/{slug}/invites")
+def admin_create_invite(
+    slug: str,
+    body: dict = Body(...),
+    admin: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Invitación por email desde Admin Hub (alta de operador sin clave temporal)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.estate.models import User, UserInvite
+    from app.estate.security import generate_invite_token, hash_token, valid_email
+    from app.rbac import normalizar_rol_consola
+    from app.services import email as email_svc
+
+    org = _org_or_404(db, slug)
+    email = str(body.get("email") or "").strip().lower()
+    nombre = str(body.get("nombre") or "").strip()
+    if not email or not valid_email(email):
+        raise HTTPException(400, "Email inválido")
+    allowed = roles_alta_permitidos(actor_rol="admin", org_slug=slug)
+    rol = normalizar_rol_consola(str(body.get("rol") or "agente"), slug)
+    if rol not in allowed:
+        raise HTTPException(400, f"Rol '{rol}' no permitido. Permitidos: {', '.join(sorted(allowed))}")
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(400, "El email ya está registrado — usá «Reset por email»")
+
+    now = datetime.now(UTC)
+    for inv in db.scalars(
+        select(UserInvite).where(
+            UserInvite.organizacion_id == org.id,
+            UserInvite.email == email,
+            UserInvite.purpose == "invite",
+            UserInvite.accepted_at.is_(None),
+        )
+    ).all():
+        inv.accepted_at = now
+
+    raw = generate_invite_token()
+    invite = UserInvite(
+        organizacion_id=org.id,
+        email=email,
+        nombre=nombre,
+        rol=rol,
+        purpose="invite",
+        token_hash=hash_token(raw),
+        invited_by=admin.usuario,
+        expires_at=now + timedelta(hours=72),
+    )
+    db.add(invite)
+    db.commit()
+
+    sent = email_svc.send_invite_email(
+        to=email,
+        nombre=nombre or email,
+        org_nombre=org.nombre,
+        token=raw,
+        rol=rol,
+    )
+    log_audit(
+        db,
+        org_id=org.id,
+        actor=admin.usuario,
+        accion="auth.invite_create",
+        recurso=email,
+        detalle=f"admin_hub rol={rol} sent={sent}",
+    )
+    from app.config import es_produccion
+
+    out: dict = {
+        "status": "ok",
+        "email": email,
+        "rol": rol,
+        "purpose": "invite",
+        "expires_at": invite.expires_at.isoformat(),
+        "email_sent": sent,
+    }
+    if not sent or not es_produccion():
+        out["token"] = raw
+        out["invite_link"] = email_svc.invite_public_link(raw)
+    return out
 
 
 @router.post("/admin/organizations/{slug}/import-csv")

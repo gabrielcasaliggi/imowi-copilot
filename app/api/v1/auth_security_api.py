@@ -52,6 +52,38 @@ class InviteAcceptIn(BaseModel):
 class ResetPasswordIn(BaseModel):
     new_password: str = Field(default="", max_length=200)
     must_change: bool = True
+    via_email: bool = True  # True = link por email; False = clave temporal (legacy)
+
+
+def _invite_link_payload(raw_token: str, email_sent: bool) -> dict:
+    from app.config import es_produccion
+
+    out: dict = {"email_sent": email_sent}
+    # Si el mail no salió, el admin necesita el link para compartirlo.
+    # En non-prod siempre devolvemos token para tests.
+    if not email_sent or not es_produccion():
+        out["token"] = raw_token
+        out["invite_link"] = email_svc.invite_public_link(raw_token)
+    return out
+
+
+def _expire_pending_invites(db: Session, *, org_id: str, email: str, purpose: str) -> None:
+    """Invalida invites pendientes del mismo email/purpose marcándolos aceptados (usados)."""
+    now = datetime.now(UTC)
+    rows = list(
+        db.scalars(
+            select(UserInvite).where(
+                UserInvite.organizacion_id == org_id,
+                UserInvite.email == email,
+                UserInvite.purpose == purpose,
+                UserInvite.accepted_at.is_(None),
+            )
+        ).all()
+    )
+    for inv in rows:
+        inv.accepted_at = now
+    if rows:
+        db.flush()
 
 
 @router.post("/auth/change-password")
@@ -185,7 +217,9 @@ def create_invite(
     if rol not in allowed and not ctx.puede("users.manage"):
         raise HTTPException(403, f"No podés invitar con rol '{rol}'")
     if db.scalar(select(User).where(User.email == email)):
-        raise HTTPException(400, "El email ya está registrado")
+        raise HTTPException(400, "El email ya está registrado — usá reset por email si olvidó la clave")
+
+    _expire_pending_invites(db, org_id=ctx.organizacion_id, email=email, purpose="invite")
 
     raw = generate_invite_token()
     invite = UserInvite(
@@ -193,6 +227,7 @@ def create_invite(
         email=email,
         nombre=(body.nombre or "").strip(),
         rol=rol,
+        purpose="invite",
         token_hash=hash_token(raw),
         invited_by=ctx.usuario_email,
         expires_at=datetime.now(UTC) + timedelta(hours=72),
@@ -220,14 +255,10 @@ def create_invite(
         "status": "ok",
         "email": email,
         "rol": rol,
+        "purpose": "invite",
         "expires_at": invite.expires_at.isoformat(),
-        "email_sent": sent,
+        **_invite_link_payload(raw, sent),
     }
-    # En non-prod devolver token para tests
-    from app.config import es_produccion
-
-    if not es_produccion():
-        out["token"] = raw
     return out
 
 
@@ -254,6 +285,7 @@ def list_invites(
                 "expires_at": i.expires_at.isoformat() if i.expires_at else None,
                 "accepted_at": i.accepted_at.isoformat() if i.accepted_at else None,
                 "invited_by": i.invited_by,
+                "purpose": getattr(i, "purpose", None) or "invite",
                 "pendiente": i.accepted_at is None,
             }
             for i in rows
@@ -272,10 +304,12 @@ def peek_invite(token: str, db: Session = Depends(get_db)):
     if exp < datetime.now(UTC):
         raise HTTPException(410, "Invitación expirada")
     org = repo.get_org_by_id(db, invite.organizacion_id)
+    purpose = getattr(invite, "purpose", None) or "invite"
     return {
         "email": invite.email,
         "nombre": invite.nombre,
         "rol": invite.rol,
+        "purpose": purpose,
         "org_slug": org.slug if org else "",
         "org_nombre": org.nombre if org else "",
         "expires_at": invite.expires_at.isoformat(),
@@ -297,6 +331,41 @@ def accept_invite(body: InviteAcceptIn, db: Session = Depends(get_db)):
             400,
             "La clave no cumple la política: " + ", ".join(password_policy_errors(body.password)),
         )
+
+    purpose = getattr(invite, "purpose", None) or "invite"
+    org = repo.get_org_by_id(db, invite.organizacion_id)
+
+    if purpose == "password_reset":
+        user = db.scalar(select(User).where(User.email == invite.email))
+        if not user or user.organizacion_id != invite.organizacion_id:
+            raise HTTPException(404, "Usuario no encontrado para este reset")
+        user.password = hash_password(body.password)
+        user.must_change_password = "No"
+        user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+        if not user.email_verified_at:
+            user.email_verified_at = datetime.now(UTC)
+        if body.nombre.strip():
+            user.nombre = body.nombre.strip()
+        invite.accepted_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(user)
+        log_audit(
+            db,
+            org_id=invite.organizacion_id,
+            actor=invite.email,
+            accion="auth.password_reset_accept",
+            recurso=invite.email,
+            detalle="via_email_link",
+        )
+        return {
+            "status": "ok",
+            "email": user.email,
+            "nombre": user.nombre,
+            "rol": user.rol,
+            "purpose": purpose,
+            "org_slug": org.slug if org else "",
+        }
+
     if db.scalar(select(User).where(User.email == invite.email)):
         raise HTTPException(400, "El email ya está registrado")
 
@@ -324,12 +393,12 @@ def accept_invite(body: InviteAcceptIn, db: Session = Depends(get_db)):
         recurso=invite.email,
         detalle=f"rol={invite.rol}",
     )
-    org = repo.get_org_by_id(db, invite.organizacion_id)
     return {
         "status": "ok",
         "email": user.email,
         "nombre": user.nombre,
         "rol": user.rol,
+        "purpose": purpose,
         "org_slug": org.slug if org else "",
     }
 
@@ -344,6 +413,51 @@ def reset_user_password(
     user = repo.get_user_by_id(db, ctx.organizacion_id, user_id)
     if not user:
         raise HTTPException(404, "Usuario no encontrado")
+
+    # Flujo preferido: link por email para que el usuario defina su clave
+    if body.via_email and not body.new_password:
+        _expire_pending_invites(
+            db, org_id=ctx.organizacion_id, email=user.email, purpose="password_reset"
+        )
+        raw = generate_invite_token()
+        invite = UserInvite(
+            organizacion_id=ctx.organizacion_id,
+            email=user.email,
+            nombre=user.nombre or "",
+            rol=user.rol,
+            purpose="password_reset",
+            token_hash=hash_token(raw),
+            invited_by=ctx.usuario_email,
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+        db.add(invite)
+        # Invalidar sesiones actuales hasta que complete el reset
+        user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+        db.commit()
+
+        org = repo.get_org_by_id(db, ctx.organizacion_id)
+        sent = email_svc.send_password_reset_email(
+            to=user.email,
+            nombre=user.nombre or user.email,
+            org_nombre=org.nombre if org else ctx.organizacion_slug,
+            token=raw,
+        )
+        log_audit(
+            db,
+            org_id=ctx.organizacion_id,
+            actor=ctx.usuario_email,
+            accion="auth.reset_password_email",
+            recurso=user.email,
+            detalle=f"sent={sent}",
+        )
+        return {
+            "status": "ok",
+            "email": user.email,
+            "must_change_password": True,
+            "via_email": True,
+            **_invite_link_payload(raw, sent),
+        }
+
     import secrets
     import string
 
@@ -356,7 +470,7 @@ def reset_user_password(
         new_pw = body.new_password
     else:
         alphabet = string.ascii_letters + string.digits
-        new_pw = "Tmp" + "".join(secrets.choice(alphabet) for _ in range(10)) + "1"
+        new_pw = "Tmp" + "".join(secrets.choice(alphabet) for _ in range(10)) + "1a"
     user.password = hash_password(new_pw)
     user.must_change_password = "Sí" if body.must_change else "No"
     user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
@@ -369,10 +483,10 @@ def reset_user_password(
         recurso=user.email,
         detalle="must_change=" + str(body.must_change),
     )
-    # El admin/supervisor que resetea necesita la clave para entregarla al operador.
     return {
         "status": "ok",
         "email": user.email,
         "must_change_password": body.must_change,
+        "via_email": False,
         "temporary_password": new_pw,
     }

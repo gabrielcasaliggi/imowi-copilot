@@ -37,6 +37,10 @@ _USER_COLUMNS: dict[str, str] = {
     "email_verified_at": "DATETIME",
 }
 
+_INVITE_COLUMNS: dict[str, str] = {
+    "purpose": "VARCHAR(32) DEFAULT 'invite'",
+}
+
 _SLA_COLUMNS: dict[str, str] = {
     "sla_policy": "VARCHAR(32) DEFAULT ''",
     "sla_due_at": "DATETIME",
@@ -112,6 +116,13 @@ def migrate_schema(engine: Engine) -> list[str]:
                 logger.info("Migración: columna agregada users.%s", col)
         cambios.extend(_migrate_legacy_roles(engine))
 
+    if insp.has_table("user_invites"):
+        existentes_inv = {c["name"] for c in insp.get_columns("user_invites")}
+        for col, ddl in _INVITE_COLUMNS.items():
+            if col not in existentes_inv:
+                _add_column(engine, "user_invites", col, ddl)
+                cambios.append(f"user_invites.{col}")
+                logger.info("Migración: columna agregada user_invites.%s", col)
     for tabla, model_name in (
         ("abonados", "Abonado"),
         ("conversaciones_canal", "ConversacionCanal"),

@@ -36,7 +36,13 @@ export function AdminPanel() {
     { actor: string; ok: boolean; reason: string; ip: string; created_at: string | null }[]
   >([]);
   const [invites, setInvites] = useState<
-    { email: string; rol: string; pendiente: boolean; expires_at: string | null }[]
+    {
+      email: string;
+      rol: string;
+      pendiente: boolean;
+      expires_at: string | null;
+      purpose?: string;
+    }[]
   >([]);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [showDelete, setShowDelete] = useState(false);
@@ -58,6 +64,12 @@ export function AdminPanel() {
   const [revealedPassword, setRevealedPassword] = useState<{ email: string; password: string } | null>(
     null,
   );
+  const [inviteShare, setInviteShare] = useState<{
+    email: string;
+    link?: string;
+    emailSent: boolean;
+    kind: "invite" | "reset";
+  } | null>(null);
 
   const [newOrg, setNewOrg] = useState({
     nombre: "",
@@ -121,6 +133,7 @@ export function AdminPanel() {
     setDeleteConfirm("");
     setEditingId(null);
     setRevealedPassword(null);
+    setInviteShare(null);
   }, [selectedSlug, loadUsers, loadInvites]);
 
   useEffect(() => {
@@ -208,23 +221,28 @@ export function AdminPanel() {
     setBusy(true);
     setMessage("");
     setRevealedPassword(null);
+    setInviteShare(null);
     try {
-      const res = await api.createAdminUser(selectedSlug, {
+      const res = await api.adminCreateInvite(selectedSlug, {
         email: userForm.email.trim(),
         nombre: userForm.nombre.trim() || userForm.email.split("@")[0],
         rol: userForm.rol,
       });
       setUserForm({ email: "", nombre: "", rol: "agente" });
-      if (res.temporary_password) {
-        setRevealedPassword({ email: res.usuario.email, password: res.temporary_password });
-        setMessage(`Usuario creado: ${res.usuario.email}. Guardá la clave temporal.`);
-      } else {
-        setMessage(`Usuario creado: ${res.usuario.email}`);
-      }
-      await loadUsers(selectedSlug);
-      await loadOrgs();
+      setInviteShare({
+        email: res.email,
+        link: res.invite_link,
+        emailSent: res.email_sent,
+        kind: "invite",
+      });
+      setMessage(
+        res.email_sent
+          ? `Invitación enviada a ${res.email}. El operador definirá su clave al aceptar el mail.`
+          : `Invitación creada para ${res.email}, pero el email no se envió (revisá SMTP). Compartí el link abajo.`,
+      );
+      await loadInvites(selectedSlug);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Error al crear usuario");
+      setMessage(err instanceof Error ? err.message : "Error al invitar usuario");
     } finally {
       setBusy(false);
     }
@@ -296,10 +314,20 @@ export function AdminPanel() {
     setBusy(true);
     setMessage("");
     setRevealedPassword(null);
+    setInviteShare(null);
     try {
       const r = await api.adminResetUserPassword(selectedSlug, user.id);
-      setRevealedPassword({ email: r.email, password: r.temporary_password });
-      setMessage(`Clave reseteada para ${r.email}. Debe cambiarla al ingresar.`);
+      setInviteShare({
+        email: r.email,
+        link: r.invite_link,
+        emailSent: Boolean(r.email_sent),
+        kind: "reset",
+      });
+      setMessage(
+        r.email_sent
+          ? `Reset enviado a ${r.email}. Debe abrir el mail y definir una nueva clave.`
+          : `Reset preparado para ${r.email}, pero el email no se envió. Compartí el link abajo.`,
+      );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al resetear clave");
     } finally {
@@ -342,6 +370,35 @@ export function AdminPanel() {
             type="button"
             className="text-xs text-amber-200 underline"
             onClick={() => setRevealedPassword(null)}
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
+      {inviteShare && (
+        <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 space-y-2">
+          <p className="text-sm text-emerald-100">
+            {inviteShare.kind === "reset" ? "Reset por email" : "Invitación"} ·{" "}
+            <span className="font-mono">{inviteShare.email}</span>
+            {inviteShare.emailSent ? " · mail enviado" : " · mail no enviado"}
+          </p>
+          {inviteShare.link ? (
+            <>
+              <p className="text-[11px] text-emerald-200/80">
+                Link para que defina su contraseña (copiá y compartí si hace falta):
+              </p>
+              <p className="font-mono text-xs text-emerald-50 break-all select-all">{inviteShare.link}</p>
+            </>
+          ) : (
+            <p className="text-[11px] text-emerald-200/80">
+              El operador recibirá el enlace por correo para cargar su contraseña.
+            </p>
+          )}
+          <button
+            type="button"
+            className="text-xs text-emerald-200 underline"
+            onClick={() => setInviteShare(null)}
           >
             Cerrar
           </button>
@@ -625,7 +682,7 @@ export function AdminPanel() {
                     </div>
 
                     <div>
-                      <p className="text-xs text-slate-400 mb-1.5">Alta de usuario</p>
+                      <p className="text-xs text-slate-400 mb-1.5">Invitar por email</p>
                       <form className="space-y-2" onSubmit={onCreateUser}>
                         <input
                           className={inputCls}
@@ -658,21 +715,24 @@ export function AdminPanel() {
                             disabled={busy}
                             className="shrink-0 px-3 rounded-lg border border-emerald-500/35 text-emerald-200 text-xs disabled:opacity-50"
                           >
-                            Crear
+                            Invitar
                           </button>
                         </div>
                       </form>
                       <p className="text-[10px] text-slate-500 mt-1.5">
-                        Se genera una clave temporal (mostrada arriba). También podés invitar por
-                        email si hay SMTP.
+                        Se envía un mail con link para que active la cuenta y cree su contraseña.
+                        Requiere SMTP configurado (`SMTP_HOST` / `PUBLIC_URL`).
                       </p>
                       {invites.filter((i) => i.pendiente).length > 0 && (
                         <ul className="mt-2 text-[10px] font-mono text-slate-500 space-y-0.5">
                           {invites
                             .filter((i) => i.pendiente)
-                            .slice(0, 5)
+                            .slice(0, 8)
                             .map((i) => (
-                              <li key={i.email}>invite pendiente · {i.email}</li>
+                              <li key={`${i.email}-${i.expires_at}`}>
+                                pendiente · {i.email}
+                                {i.purpose === "password_reset" ? " (reset)" : ""} · {i.rol}
+                              </li>
                             ))}
                         </ul>
                       )}
@@ -786,7 +846,7 @@ export function AdminPanel() {
                                     className="text-[10px] text-amber-300/90"
                                     onClick={() => void onResetPassword(u)}
                                   >
-                                    Reset clave
+                                    Reset por email
                                   </button>
                                 </div>
                               </>

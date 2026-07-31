@@ -157,11 +157,32 @@ export const api = {
       rol: string;
       expires_at: string;
       email_sent: boolean;
+      purpose?: string;
       token?: string;
+      invite_link?: string;
     }>("/api/v1/auth/invites", {
       method: "POST",
       body: JSON.stringify(body),
       tenantSlug,
+    });
+  },
+
+  adminCreateInvite(
+    slug: string,
+    body: { email: string; nombre?: string; rol?: string },
+  ) {
+    return request<{
+      status: string;
+      email: string;
+      rol: string;
+      expires_at: string;
+      email_sent: boolean;
+      purpose?: string;
+      token?: string;
+      invite_link?: string;
+    }>(`/api/v1/admin/organizations/${encodeURIComponent(slug)}/invites`, {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   },
 
@@ -175,6 +196,7 @@ export const api = {
         expires_at: string | null;
         accepted_at: string | null;
         invited_by: string;
+        purpose?: string;
         pendiente: boolean;
       }[];
     }>("/api/v1/auth/invites", { tenantSlug });
@@ -185,6 +207,7 @@ export const api = {
       email: string;
       nombre: string;
       rol: string;
+      purpose?: string;
       org_slug: string;
       org_nombre: string;
       expires_at: string;
@@ -786,7 +809,11 @@ export const api = {
       status: string;
       email: string;
       must_change_password: boolean;
-      temporary_password: string;
+      via_email?: boolean;
+      email_sent?: boolean;
+      temporary_password?: string;
+      token?: string;
+      invite_link?: string;
     }>(`/api/v1/admin/organizations/${encodeURIComponent(slug)}/users/${encodeURIComponent(userId)}/reset-password`, {
       method: "POST",
       body: JSON.stringify({}),

@@ -103,6 +103,31 @@ def send_invite_email(*, to: str, nombre: str, org_nombre: str, token: str, rol:
     return send_email(to=to, subject=subject, body_text=body, html=html)
 
 
+def send_password_reset_email(*, to: str, nombre: str, org_nombre: str, token: str) -> bool:
+    base = PUBLIC_URL or "http://localhost:3000"
+    link = f"{base}/invite?token={token}"
+    subject = f"Restablecer contraseña — {org_nombre}"
+    body = (
+        f"Hola {nombre or to},\n\n"
+        f"Recibimos un pedido para restablecer tu contraseña en Operations Hub ({org_nombre}).\n"
+        f"Para elegir una nueva contraseña, abrí:\n\n{link}\n\n"
+        f"El enlace vence en 24 horas. Si no lo pediste, ignorá este mensaje.\n"
+    )
+    html = (
+        f"<p>Hola {nombre or to},</p>"
+        f"<p>Pedido de restablecimiento de contraseña en "
+        f"<strong>Operations Hub</strong> ({org_nombre}).</p>"
+        f'<p><a href="{link}">Definir nueva contraseña</a></p>'
+        f"<p>El enlace vence en 24 horas. Si no lo pediste, ignorá este mensaje.</p>"
+    )
+    return send_email(to=to, subject=subject, body_text=body, html=html)
+
+
+def invite_public_link(token: str) -> str:
+    base = PUBLIC_URL or "http://localhost:3000"
+    return f"{base}/invite?token={token}"
+
+
 def send_otp_email(*, to: str, otp: str, org_nombre: str, ttl_minutes: int) -> bool:
     subject = f"Código de acceso — {org_nombre}"
     body = (
