@@ -9,9 +9,15 @@ from sqlalchemy.orm import Session
 
 from app.domain.flujos_abonado import (
     clasificar_intencion,
+    detecta_frustracion,
+    es_paso_derivacion,
+    indica_resuelto,
     pide_humano,
     refinar_intencion_internet,
+    registrar_queja,
+    resumen_handoff,
     respuesta_paso_ok,
+    tag_para_intencion,
 )
 from app.estate import canal_repo as crepo
 from app.estate.models import Abonado, ConversacionCanal
@@ -84,11 +90,13 @@ def _redactar_con_llama(
                 {
                     "role": "system",
                     "content": (
-                        "Sos el asistente de soporte N1 de una cooperativa (internet Ecolan y móvil IMOVI). "
-                        "Respondé en español argentino, breve (máx 4 oraciones), sin inventar datos ni precios. "
-                        "El borrador es el paso obligatorio del playbook: conservá su pregunta o instrucción. "
-                        "Si hay base de conocimiento, podés aclarar con un detalle concreto del artículo, "
-                        "sin desviarte del playbook ni saltar pasos."
+                        "Sos el Asistente Virtual Oficial de Cooperativa Batán y Ecolan Tecnologías. "
+                        "Resolvé N1 de forma autónoma: internet FTTH/Wireless/ADSL, móvil IMOVI, "
+                        "telefonía fija, facturación/QR Fiserv y, con tono formal, Ecolan B2B. "
+                        "Residencial: amable y claro. Corporativo Ecolan: técnico y orientado a SLA. "
+                        "No inventes potencias OLT, saldos ni turnos reales si no están en el contexto. "
+                        "Conservá la pregunta/instrucción del playbook; pedí el dato que falta. "
+                        "No derives a humano antes de agotar el diagnóstico N1, salvo pedido explícito."
                     ),
                 },
                 {
@@ -114,6 +122,9 @@ def _crear_ticket_n2(
     conv: ConversacionCanal,
     abonado: Abonado | None,
     motivo: str,
+    *,
+    intencion: str = "",
+    paso_idx: int = 0,
 ) -> str:
     if conv.ticket_id:
         return conv.ticket_id
@@ -121,22 +132,33 @@ def _crear_ticket_n2(
     evidencia = "\n".join(f"[{m.autor}] {m.texto}" for m in mensajes[-12:])
     nombre = abonado.nombre if abonado else conv.telefono
     linea = (abonado.linea_msisdn if abonado else "") or conv.telefono
-    cat = conv.servicio_detectado or (abonado.servicio if abonado else "General")
+    intent = intencion or conv.servicio_detectado or (abonado.servicio if abonado else "general")
+    tag = tag_para_intencion(str(intent))
+    handoff = resumen_handoff(
+        abonado=abonado,
+        telefono=conv.telefono,
+        intencion=str(intent),
+        motivo=motivo,
+        paso_idx=paso_idx,
+    )
+    descripcion = (
+        f"[ORIGEN: BOT] {tag} Escalamiento N2 canal abonado ({nombre}): {motivo}. {handoff}"
+    )
     t = ticket_bridge.crear_ticket(
         db,
         org_id,
         linea=linea,
-        dispositivo="Canal WhatsApp",
-        descripcion_falla=f"Escalamiento N2 desde canal abonado ({nombre}): {motivo}",
-        origen="WhatsApp",
-        categoria=cat.title() if cat else "Canal Abonado",
-        creado_por=f"wa:{conv.telefono}",
+        dispositivo="Canal abonado",
+        descripcion_falla=descripcion[:2000],
+        origen="WhatsApp" if conv.canal == "whatsapp" else "Portal",
+        categoria=str(intent).replace("_", " ").title() if intent else "Canal Abonado",
+        creado_por=f"bot:{conv.telefono}",
         nivel="N2",
         destino="imowi_noc",
         proveedor="NOC",
-        motivo_escalamiento=motivo,
+        motivo_escalamiento=f"{tag} {motivo}",
         evidencia=evidencia,
-        acciones_n1_realizadas=motivo,
+        acciones_n1_realizadas=handoff,
         regla_clasificacion="canal_abonado_n2",
     )
     conv.ticket_id = t.id
@@ -224,9 +246,48 @@ def procesar_mensaje_entrante(
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
 
+    # Frustración / reiteración de la misma queja → handoff
+    if detecta_frustracion(texto, ctx):
+        intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
+        paso = int(ctx.get("paso_idx") or 0)
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            "Reiteración/frustración del abonado sin resolución N1",
+            intencion=intent,
+            paso_idx=paso,
+        )
+        resp = (
+            f"Entiendo la molestia. Te derivo con un agente con el historial. "
+            f"Ticket {tid}. Quedate en este chat."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": tid,
+        }
+    ctx = registrar_queja(ctx, texto)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+
     # Pedir agente tiene prioridad absoluta (también sin estar identificado)
     if pide_humano(texto):
-        tid = _crear_ticket_n2(db, org_id, conv, abonado, "Cliente solicitó agente humano")
+        intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            "Cliente solicitó agente humano",
+            intencion=intent,
+            paso_idx=int(ctx.get("paso_idx") or 0),
+        )
         resp = (
             f"Te derivo con un agente. Ticket {tid}. "
             "Quedate en esta conversación, te van a responder acá."
@@ -254,9 +315,9 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = (
-                    "Hola, soy el asistente de Cooperativa Batán. "
-                    "Para identificarte, enviame tu DNI (solo números). "
-                    "Si preferís, escribí *agente*."
+                    "Hola, soy el Asistente Virtual de Cooperativa Batán y Ecolan. "
+                    "Para identificarte (facturas, diagnóstico de cuenta o visitas), "
+                    "enviame tu DNI o N.º de socio. Si preferís, escribí *agente*."
                 )
                 if usar_llama:
                     resp = _redactar_con_llama(
@@ -288,7 +349,8 @@ def procesar_mensaje_entrante(
                 db.commit()
                 resp = (
                     "No figurás todavía en el padrón local. Igual te atiendo: "
-                    "¿tu consulta es por internet (radio o ADSL), móvil IMOVI, o factura/deuda?"
+                    "¿tu consulta es por internet (fibra, radio o ADSL), móvil IMOVI, "
+                    "telefonía fija, factura/pago, o un servicio Ecolan empresa?"
                 )
                 _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
                 return {
@@ -436,8 +498,112 @@ def procesar_mensaje_entrante(
     pb = _playbooks(db)
     pasos = pb.get(intencion) or pb["general"]
     paso_idx = int(ctx.get("paso_idx") or 0)
+    paso_idx = max(0, min(paso_idx, max(len(pasos) - 1, 0)))
+    paso_actual = pasos[paso_idx] if pasos else None
     veredicto = respuesta_paso_ok(texto)
 
+    def _preguntar(idx: int, *, prefijo: str = "") -> dict:
+        pregunta = pasos[idx].pregunta
+        if prefijo:
+            pregunta = f"{prefijo}{pregunta}"
+        if usar_llama:
+            pregunta = _redactar_con_llama(
+                pregunta,
+                f"paso={idx} intencion={intencion}",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": pregunta,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+
+    def _escalar(motivo: str) -> dict:
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            motivo,
+            intencion=intencion,
+            paso_idx=paso_idx,
+        )
+        resp = (
+            f"Avancé todo lo posible en soporte N1 y generé el ticket {tid} "
+            "para un agente. Te van a responder por este mismo chat."
+        )
+        if usar_llama:
+            resp = _redactar_con_llama(
+                resp,
+                f"escalamiento intencion={intencion} paso={paso_idx}",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": tid,
+        }
+
+    # El abonado dice que ya quedó resuelto
+    if indica_resuelto(texto):
+        conv.estado = "cerrado"
+        db.commit()
+        resp = (
+            "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
+            "escribime de nuevo y te ayudo. ¡Gracias!"
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "cerrado",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+        }
+
+    # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
+    if veredicto is True and es_paso_derivacion(paso_actual):
+        return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
+
+    # Sigue fallando → siguiente paso de diagnóstico (no escalar en el primero)
+    if veredicto is False:
+        if paso_idx >= len(pasos) - 1:
+            if es_paso_derivacion(paso_actual):
+                # Última pregunta de derivación respondida con "no"
+                resp = (
+                    "Entendido, no te derivo por ahora. Si más adelante necesitás "
+                    "ayuda o querés hablar con un agente, escribí *agente*."
+                )
+                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                }
+            return _escalar(
+                f"Playbook {intencion} agotado sin resolución en paso {paso_idx}"
+            )
+        paso_idx += 1
+        ctx["paso_idx"] = paso_idx
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return _preguntar(paso_idx)
+
+    # Afirmación / paso cumplido → avanzar en el playbook
     if veredicto is True:
         paso_idx += 1
         ctx["paso_idx"] = paso_idx
@@ -458,49 +624,24 @@ def procesar_mensaje_entrante(
                 "respuesta": resp,
                 "estado": conv.estado,
             }
-        pregunta = pasos[paso_idx].pregunta
-        if usar_llama:
-            pregunta = _redactar_con_llama(
-                pregunta,
-                f"paso={paso_idx} intencion={intencion}",
-                db=db,
-                org_id=org_id,
-                consulta=texto,
-            )
-        _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
-        return {
-            "ok": True,
-            "modo": "bot",
-            "conversacion_id": conv.id,
-            "respuesta": pregunta,
-            "estado": conv.estado,
-        }
+        return _preguntar(paso_idx)
 
-    if veredicto is False or paso_idx >= len(pasos) - 1:
-        tid = _crear_ticket_n2(
-            db,
-            org_id,
-            conv,
-            abonado,
-            f"Playbook {intencion} sin resolución en paso {paso_idx}",
-        )
-        resp = (
-            f"No pudimos resolverlo en N1. Generé el ticket {tid} para un agente. "
-            "Te van a contactar por este chat."
-        )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
-        return {
-            "ok": True,
-            "modo": "espera_agente",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-            "ticket_id": tid,
-        }
+    # Respuesta informativa / ambigua: avanzar si no es sí/no cerrado,
+    # para recolectar datos; nunca escalar solo por estar en el último paso.
+    if paso_idx < len(pasos) - 1 and not es_paso_derivacion(paso_actual):
+        paso_idx += 1
+        ctx["paso_idx"] = paso_idx
+        # Guardar pista del mensaje para el contexto
+        ctx["ultima_respuesta_libre"] = (texto or "")[:240]
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return _preguntar(paso_idx)
 
-    # Respuesta ambigua: repetir paso
     pregunta = pasos[min(paso_idx, len(pasos) - 1)].pregunta
-    resp = f"No te entendí del todo. {pregunta}"
+    resp = (
+        "Para seguir ayudándote necesito un poco más de detalle. "
+        f"{pregunta}"
+    )
     if usar_llama:
         resp = _redactar_con_llama(
             resp,
