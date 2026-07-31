@@ -88,6 +88,17 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   }
 
   if (res.status === 401) {
+    // Login / endpoints sin token: mostrar el detalle real (credenciales, etc.)
+    if (opts.skipAuth) {
+      const err = await res.json().catch(() => ({}));
+      const detail =
+        typeof err.detail === "string"
+          ? err.detail
+          : Array.isArray(err.detail)
+            ? err.detail.map((d: { msg?: string }) => d.msg).join(", ")
+            : "";
+      throw new ApiError(detail || "Usuario o contraseña incorrectos", 401);
+    }
     clearToken();
     onUnauthorized?.();
     throw new ApiError("Sesión expirada", 401);
