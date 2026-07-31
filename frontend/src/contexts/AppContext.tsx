@@ -192,6 +192,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTicketsSimilares([]);
     setTicketExistente(null);
     setIntencionPendiente(null);
+    // Sin esto AuthGuard se queda en "Cargando sesión…" tras fallo de boot
+    setReady(true);
     router.replace("/login");
   }, [router]);
 
@@ -256,10 +258,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             nombre: loginData.nombre,
             org_slug: loginData.org_slug,
             permisos: loginData.permisos,
+            must_change_password: loginData.must_change_password,
           }
         : await api.me();
 
       setUser(me);
+
+      // Con must_change el backend bloquea el resto de APIs (403) → no cargar datos
+      if (me.must_change_password) {
+        setReady(true);
+        router.replace("/change-password");
+        return;
+      }
+
       const { organizaciones } = await api.tenants();
       setOrgs(organizaciones);
 
@@ -318,7 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setReady(true);
     },
-    [appendTrace],
+    [appendTrace, router],
   );
 
   // Bootstrap de sesión al recargar — patrón client-only intencional
@@ -329,7 +340,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return () => cancelAnimationFrame(id);
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore session
-    void boot().catch(() => logout());
+    void boot().catch(() => {
+      logout();
+    });
   }, [boot, logout]);
 
   const login = useCallback(

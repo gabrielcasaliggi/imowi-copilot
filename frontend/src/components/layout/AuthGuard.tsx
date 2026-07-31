@@ -14,10 +14,18 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     if (!getToken() || !user) router.replace("/login");
   }, [ready, user, router]);
 
-  if (!ready || !user) {
+  if (!ready) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-slate-500 font-mono text-sm">Cargando sesión…</p>
+      </div>
+    );
+  }
+
+  if (!getToken() || !user) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-slate-500 font-mono text-sm">Redirigiendo…</p>
       </div>
     );
   }
