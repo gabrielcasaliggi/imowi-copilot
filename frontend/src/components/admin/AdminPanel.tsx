@@ -2,33 +2,29 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
-import type { AdminUser, AuditEvent, ImportCsvResult, Organization } from "@/lib/types";
+import type { AdminUser, AuditEvent, Organization } from "@/lib/types";
 import {
   GlassCard,
   KpiCard,
-  PanelHeader,
   SectionHeader,
   SidebarSection,
   StatusPill,
 } from "@/components/ui/GlassCard";
 import { PlatformSettingsPanel } from "@/components/admin/PlatformSettingsPanel";
 
-const CSV_EJEMPLO = `nombre,email,telefono,rol,linea_principal
-Operador Batán 1,operador1@coopbatan.com,2235551001,agente,2235551234
-Supervisor Batán,supervisor1@coopbatan.com,2235551002,supervisor,2235555678`;
-
 const inputCls =
   "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
+type HubTab = "cooperativas" | "seguridad" | "config" | "roles";
+
 export function AdminPanel() {
-  const [hubTab, setHubTab] = useState<"cooperativas" | "config" | "rbac" | "seguridad">("cooperativas");
+  const [hubTab, setHubTab] = useState<HubTab>("cooperativas");
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedSlug, setSelectedSlug] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [importResult, setImportResult] = useState<ImportCsvResult | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [loginEvents, setLoginEvents] = useState<
     { actor: string; ok: boolean; reason: string; ip: string; created_at: string | null }[]
@@ -37,6 +33,8 @@ export function AdminPanel() {
     { email: string; rol: string; pendiente: boolean; expires_at: string | null }[]
   >([]);
   const [inviteForm, setInviteForm] = useState({ email: "", nombre: "", rol: "agente" });
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [showDelete, setShowDelete] = useState(false);
   const [rbacRoles, setRbacRoles] = useState<
     { codigo: string; nombre: string; descripcion: string; permisos: string[] }[]
   >([]);
@@ -51,48 +49,93 @@ export function AdminPanel() {
     brand_color: "#34d399",
   });
 
-  const [newUser, setNewUser] = useState({
-    nombre: "",
-    email: "",
-    password: "",
-    rol: "agente",
-    telefono: "",
-    linea_principal: "",
-  });
-
   const cooperativas = orgs.filter((o) => !o.es_plataforma && o.slug !== "imowi");
+  const selectedOrg = orgs.find((o) => o.slug === selectedSlug);
+  const totalUsuarios = cooperativas.reduce((a, o) => a + (o.usuarios || 0), 0);
+  const totalAbiertos = cooperativas.reduce((a, o) => a + (o.tickets_abiertos || 0), 0);
 
   const loadOrgs = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.adminOrganizations();
       setOrgs(data.organizaciones);
-      if (!selectedSlug) {
+      setSelectedSlug((prev) => {
+        if (prev && data.organizaciones.some((o) => o.slug === prev)) return prev;
         const first = data.organizaciones.find((o) => o.slug !== "imowi");
-        if (first) setSelectedSlug(first.slug);
-      }
+        return first?.slug || "";
+      });
     } finally {
       setLoading(false);
     }
-  }, [selectedSlug]);
+  }, []);
 
   const loadUsers = useCallback(async (slug: string) => {
-    if (!slug) return;
+    if (!slug) {
+      setUsers([]);
+      return;
+    }
     const data = await api.adminUsers(slug);
     setUsers(data.usuarios);
   }, []);
 
+  const loadInvites = useCallback(async (slug: string) => {
+    if (!slug) {
+      setInvites([]);
+      return;
+    }
+    try {
+      const d = await api.listInvites(slug);
+      setInvites(d.invites);
+    } catch {
+      setInvites([]);
+    }
+  }, []);
+
   useEffect(() => {
-    void Promise.resolve().then(loadOrgs);
+    void loadOrgs();
   }, [loadOrgs]);
 
   useEffect(() => {
-    if (selectedSlug) void Promise.resolve().then(() => loadUsers(selectedSlug));
-  }, [selectedSlug, loadUsers]);
+    if (!selectedSlug) return;
+    void loadUsers(selectedSlug);
+    void loadInvites(selectedSlug);
+    setShowDelete(false);
+    setDeleteConfirm("");
+  }, [selectedSlug, loadUsers, loadInvites]);
 
   useEffect(() => {
-    void api.adminAudit(15).then((d) => setAuditEvents(d.eventos)).catch(() => setAuditEvents([]));
-  }, [message, busy]);
+    void api.adminAudit(20).then((d) => setAuditEvents(d.eventos)).catch(() => setAuditEvents([]));
+  }, [message]);
+
+  useEffect(() => {
+    if (hubTab === "roles") {
+      void Promise.all([api.rbacRoles(), api.rbacPermissions()]).then(([roles, perms]) => {
+        setRbacRoles(roles.roles);
+        setRbacPerms(perms.permisos);
+      });
+    }
+    if (hubTab === "seguridad") {
+      void api
+        .loginEvents("console", 50)
+        .then((d) => setLoginEvents(d.eventos))
+        .catch(() => setLoginEvents([]));
+    }
+  }, [hubTab]);
+
+  const tabBtn = (id: HubTab, label: string) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setHubTab(id)}
+      className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+        hubTab === id
+          ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+          : "border-slate-700/80 text-slate-400 hover:border-slate-500"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   const onCreateOrg = async (e: FormEvent) => {
     e.preventDefault();
@@ -107,9 +150,8 @@ export function AdminPanel() {
       });
       setNewOrg({ nombre: "", slug: "", logo_label: "C", brand_color: "#34d399" });
       setSelectedSlug(created.organizacion.slug);
-      setMessage("Cooperativa creada. Ahora podés cargar su primera credencial abajo.");
+      setMessage(`Cooperativa creada: ${created.organizacion.nombre}`);
       await loadOrgs();
-      await loadUsers(created.organizacion.slug);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al crear cooperativa");
     } finally {
@@ -117,26 +159,21 @@ export function AdminPanel() {
     }
   };
 
-  const onCreateUser = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!selectedSlug) return;
+  const onDeleteOrg = async () => {
+    if (!selectedSlug || deleteConfirm !== selectedSlug) return;
     setBusy(true);
     setMessage("");
     try {
-      await api.createAdminUser(selectedSlug, newUser);
-      setNewUser({
-        nombre: "",
-        email: "",
-        password: "cliente",
-        rol: "agente",
-        telefono: "",
-        linea_principal: "",
-      });
-      setMessage("Usuario creado.");
-      await loadUsers(selectedSlug);
+      const res = await api.deleteOrganization(selectedSlug);
+      setMessage(
+        `Eliminada ${res.eliminada.nombre}: ${res.eliminada.usuarios} usuarios, ${res.eliminada.tickets} tickets`,
+      );
+      setShowDelete(false);
+      setDeleteConfirm("");
+      setSelectedSlug("");
       await loadOrgs();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Error al crear usuario");
+      setMessage(err instanceof Error ? err.message : "Error al eliminar");
     } finally {
       setBusy(false);
     }
@@ -145,12 +182,8 @@ export function AdminPanel() {
   const onToggleUserActive = async (user: AdminUser) => {
     if (!selectedSlug) return;
     setBusy(true);
-    setMessage("");
     try {
       await api.updateAdminUser(selectedSlug, user.id, { activo: !(user.activo !== false) });
-      setMessage(
-        user.activo === false ? `Usuario ${user.email} reactivado.` : `Usuario ${user.email} desactivado.`,
-      );
       await loadUsers(selectedSlug);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al actualizar usuario");
@@ -159,118 +192,18 @@ export function AdminPanel() {
     }
   };
 
-  const loadRbac = useCallback(async () => {
-    const [roles, perms] = await Promise.all([api.rbacRoles(), api.rbacPermissions()]);
-    setRbacRoles(roles.roles);
-    setRbacPerms(perms.permisos);
-  }, []);
-
-  useEffect(() => {
-    if (hubTab === "rbac") void Promise.resolve().then(loadRbac);
-  }, [hubTab, loadRbac]);
-
-  const onImportCsv = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedSlug) return;
-    const input = e.currentTarget.elements.namedItem("csvfile") as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      setMessage("Seleccioná un archivo CSV.");
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    setImportResult(null);
-    try {
-      const result = await api.importUsersCsv(selectedSlug, file);
-      setImportResult(result);
-      setMessage(
-        `Importación: ${result.creados} creados, ${result.actualizados} actualizados, ${result.lineas_creadas} líneas.`,
-      );
-      input.value = "";
-      await loadUsers(selectedSlug);
-      await loadOrgs();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Error al importar CSV");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const selectedOrg = orgs.find((o) => o.slug === selectedSlug);
-  const totalUsuarios = cooperativas.reduce((a, o) => a + (o.usuarios || 0), 0);
-  const totalAbiertos = cooperativas.reduce((a, o) => a + (o.tickets_abiertos || 0), 0);
-  const totalLineas = cooperativas.reduce((a, o) => a + (o.lineas || 0), 0);
-
   return (
-    <div className="admin-hub-page p-4 space-y-6 overflow-y-auto min-h-0">
+    <div className="admin-hub-page p-4 space-y-5 overflow-y-auto min-h-0">
       <SectionHeader
         title="Admin Hub"
-        subtitle="Cooperativa Batán · configuración de plataforma · credenciales · auditoría"
+        subtitle="Cooperativas · usuarios · seguridad"
       />
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setHubTab("cooperativas")}
-          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-            hubTab === "cooperativas"
-              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
-          }`}
-        >
-          Cooperativas
-        </button>
-        <button
-          type="button"
-          onClick={() => setHubTab("config")}
-          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-            hubTab === "config"
-              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
-          }`}
-        >
-          Configuración plataforma
-        </button>
-        <button
-          type="button"
-          onClick={() => setHubTab("rbac")}
-          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-            hubTab === "rbac"
-              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
-          }`}
-        >
-          Roles y permisos
-        </button>
-        <button
-          type="button"
-          onClick={() => setHubTab("rbac")}
-          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-            hubTab === "rbac"
-              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
-          }`}
-        >
-          Roles y permisos
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setHubTab("seguridad");
-            void api.loginEvents("console", 40).then((d) => setLoginEvents(d.eventos)).catch(() => setLoginEvents([]));
-            if (selectedSlug) {
-              void api.listInvites(selectedSlug).then((d) => setInvites(d.invites)).catch(() => setInvites([]));
-            }
-          }}
-          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-            hubTab === "seguridad"
-              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
-          }`}
-        >
-          Seguridad
-        </button>
+        {tabBtn("cooperativas", "Cooperativas")}
+        {tabBtn("seguridad", "Seguridad")}
+        {tabBtn("config", "Config")}
+        {tabBtn("roles", "Roles")}
       </div>
 
       {message && (
@@ -279,155 +212,28 @@ export function AdminPanel() {
         </p>
       )}
 
-      {hubTab === "seguridad" ? (
-        <div className="space-y-4">
-          <SidebarSection title="Invitar operador por email">
-            <form
-              className="grid grid-cols-1 md:grid-cols-4 gap-2"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!selectedSlug) return;
-                setBusy(true);
-                try {
-                  const res = await api.createInvite(inviteForm, selectedSlug);
-                  setMessage(
-                    `Invitación enviada a ${res.email}${res.token ? ` (dev token: ${res.token.slice(0, 12)}…)` : ""}`,
-                  );
-                  setInviteForm({ email: "", nombre: "", rol: "agente" });
-                  const d = await api.listInvites(selectedSlug);
-                  setInvites(d.invites);
-                } catch (err) {
-                  setMessage(err instanceof Error ? err.message : "Error al invitar");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              <input
-                className={inputCls}
-                placeholder="Email"
-                value={inviteForm.email}
-                onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
-                required
-              />
-              <input
-                className={inputCls}
-                placeholder="Nombre"
-                value={inviteForm.nombre}
-                onChange={(e) => setInviteForm((f) => ({ ...f, nombre: e.target.value }))}
-              />
-              <select
-                className={inputCls}
-                value={inviteForm.rol}
-                onChange={(e) => setInviteForm((f) => ({ ...f, rol: e.target.value }))}
-              >
-                <option value="agente">agente</option>
-                <option value="supervisor">supervisor</option>
-                <option value="ejecutivo">ejecutivo</option>
-                <option value="admin">admin</option>
-              </select>
-              <button
-                type="submit"
-                disabled={busy || !selectedSlug}
-                className="rounded-lg bg-cyan-500/90 text-slate-950 font-semibold text-sm px-3 py-2 disabled:opacity-50"
-              >
-                Invitar
-              </button>
-            </form>
-            <ul className="mt-3 space-y-1 text-xs font-mono text-slate-400">
-              {invites.slice(0, 8).map((i) => (
-                <li key={i.email + (i.expires_at || "")}>
-                  {i.email} · {i.rol} · {i.pendiente ? "pendiente" : "aceptada"}
-                </li>
-              ))}
-            </ul>
-          </SidebarSection>
-          <SidebarSection title="Usuarios — reset / desactivar">
-            <div className="space-y-2">
-              {users.map((u) => (
-                <div
-                  key={u.id}
-                  className="flex flex-wrap items-center gap-2 justify-between border border-slate-800 rounded-lg px-3 py-2 text-sm"
-                >
-                  <div>
-                    <span className="font-mono text-slate-200">{u.email}</span>
-                    <span className="text-slate-500 text-xs ml-2">{u.rol}</span>
-                    {!u.activo && <StatusPill label="inactivo" tone="soon" />}
-                    {u.must_change_password && <StatusPill label="must change" tone="credentials" />}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="text-xs px-2 py-1 rounded border border-slate-700 text-slate-300"
-                      onClick={async () => {
-                        try {
-                          const r = await api.resetUserPassword(u.id, selectedSlug);
-                          setMessage(
-                            `Reset ${r.email}${r.temporary_password ? ` · temp: ${r.temporary_password}` : ""}`,
-                          );
-                          await loadUsers(selectedSlug);
-                        } catch (err) {
-                          setMessage(err instanceof Error ? err.message : "Error reset");
-                        }
-                      }}
-                    >
-                      Reset clave
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-2 py-1 rounded border border-slate-700 text-slate-300"
-                      onClick={async () => {
-                        try {
-                          await api.updateAdminUser(selectedSlug, u.id, { activo: !u.activo });
-                          await loadUsers(selectedSlug);
-                        } catch (err) {
-                          setMessage(err instanceof Error ? err.message : "Error");
-                        }
-                      }}
-                    >
-                      {u.activo ? "Desactivar" : "Activar"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SidebarSection>
-          <SidebarSection title="Auditoría de login">
-            <ul className="space-y-1 text-xs font-mono text-slate-400 max-h-64 overflow-y-auto">
-              {loginEvents.map((ev, idx) => (
-                <li key={idx}>
-                  {ev.created_at?.slice(0, 19)} · {ev.ok ? "OK" : "FAIL"} · {ev.actor} · {ev.reason} · {ev.ip}
-                </li>
-              ))}
-            </ul>
-          </SidebarSection>
-        </div>
-      ) : hubTab === "config" ? (
-        <PlatformSettingsPanel onMessage={setMessage} />
-      ) : hubTab === "rbac" ? (
+      {hubTab === "config" && <PlatformSettingsPanel onMessage={setMessage} />}
+
+      {hubTab === "roles" && (
         <div className="space-y-4">
           <SidebarSection title="Roles de consola">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {rbacRoles.map((r) => (
                 <GlassCard key={r.codigo} title={r.nombre} accent="cyan" variant="secondary">
                   <p className="text-xs text-slate-400 mb-2">{r.descripcion}</p>
-                  <p className="text-[11px] font-mono text-slate-500 mb-2">{r.codigo}</p>
-                  <p className="text-[11px] text-slate-500">
-                    {r.permisos.length} permisos · ver matriz abajo
-                  </p>
+                  <p className="text-[11px] font-mono text-slate-500">{r.permisos.length} permisos</p>
                 </GlassCard>
               ))}
             </div>
           </SidebarSection>
-          <SidebarSection title="Matriz de permisos">
-            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+          <SidebarSection title="Matriz (referencia)">
+            <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-80">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-950/80 text-slate-400">
+                <thead className="bg-slate-950/80 text-slate-400 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Permiso</th>
-                    <th className="px-3 py-2 font-medium">Dominio</th>
+                    <th className="px-3 py-2">Permiso</th>
                     {rbacRoles.map((r) => (
-                      <th key={r.codigo} className="px-3 py-2 font-medium text-center">
+                      <th key={r.codigo} className="px-2 py-2 text-center">
                         {r.codigo}
                       </th>
                     ))}
@@ -436,13 +242,9 @@ export function AdminPanel() {
                 <tbody>
                   {rbacPerms.map((p) => (
                     <tr key={p.codigo} className="border-t border-slate-800/80">
-                      <td className="px-3 py-2">
-                        <span className="font-mono text-slate-200">{p.codigo}</span>
-                        <p className="text-slate-500 mt-0.5">{p.descripcion}</p>
-                      </td>
-                      <td className="px-3 py-2 text-slate-500">{p.dominio}</td>
+                      <td className="px-3 py-2 font-mono text-slate-300">{p.codigo}</td>
                       {rbacRoles.map((r) => (
-                        <td key={r.codigo} className="px-3 py-2 text-center">
+                        <td key={r.codigo} className="px-2 py-2 text-center">
                           {r.permisos.includes(p.codigo) ? (
                             <span className="text-emerald-400">Sí</span>
                           ) : (
@@ -455,38 +257,98 @@ export function AdminPanel() {
                 </tbody>
               </table>
             </div>
-            <p className="text-[11px] text-slate-500 mt-2">
-              Catálogo fijo de esta versión. Edición interactiva de la matriz queda para una
-              siguiente iteración.
-            </p>
           </SidebarSection>
         </div>
-      ) : loading ? (
-        <p className="text-slate-500">Cargando plataforma…</p>
-      ) : (
-        <>
-          <SidebarSection title="Resumen de plataforma">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <KpiCard label="Cooperativas" value={cooperativas.length} tone="cyan" />
-              <KpiCard label="Usuarios totales" value={totalUsuarios} tone="emerald" />
-              <KpiCard label="Tickets abiertos" value={totalAbiertos} tone="amber" />
-              <KpiCard label="Líneas activas" value={totalLineas} tone="violet" />
-            </div>
-          </SidebarSection>
+      )}
 
-          <SidebarSection title="Cooperativas">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <GlassCard title="Alta cooperativa" accent="emerald" variant="secondary">
+      {hubTab === "seguridad" && (
+        <SidebarSection title="Auditoría de login (consola)">
+          <ul className="space-y-1 text-xs font-mono text-slate-400 max-h-96 overflow-y-auto">
+            {loginEvents.length === 0 ? (
+              <li className="text-slate-500">Sin eventos aún.</li>
+            ) : (
+              loginEvents.map((ev, idx) => (
+                <li key={idx}>
+                  {ev.created_at?.slice(0, 19)} · {ev.ok ? "OK" : "FAIL"} · {ev.actor} · {ev.reason} ·{" "}
+                  {ev.ip}
+                </li>
+              ))
+            )}
+          </ul>
+          <div className="mt-4 border-t border-slate-800 pt-3">
+            <p className="text-xs text-slate-500 mb-2">Eventos operativos recientes</p>
+            <div className="space-y-1 max-h-48 overflow-y-auto text-xs">
+              {auditEvents.slice(0, 15).map((ev) => (
+                <div key={ev.id} className="font-mono text-slate-400">
+                  {ev.created_at?.slice(0, 16)} · {ev.accion} · {ev.recurso}
+                </div>
+              ))}
+            </div>
+          </div>
+        </SidebarSection>
+      )}
+
+      {hubTab === "cooperativas" &&
+        (loading ? (
+          <p className="text-slate-500">Cargando…</p>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <KpiCard label="Cooperativas" value={cooperativas.length} tone="cyan" />
+              <KpiCard label="Usuarios" value={totalUsuarios} tone="emerald" />
+              <KpiCard label="Tickets abiertos" value={totalAbiertos} tone="amber" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Lista */}
+              <GlassCard title="Cooperativas" accent="cyan" variant="secondary">
+                <div className="space-y-1.5 max-h-[28rem] overflow-y-auto">
+                  {cooperativas.length === 0 ? (
+                    <p className="text-xs text-slate-500">Ninguna aún. Creá la primera →</p>
+                  ) : (
+                    cooperativas.map((o) => (
+                      <button
+                        key={o.slug}
+                        type="button"
+                        onClick={() => setSelectedSlug(o.slug)}
+                        className={`w-full text-left p-2.5 rounded-xl border transition-colors ${
+                          selectedSlug === o.slug
+                            ? "border-cyan-500/40 bg-cyan-500/8"
+                            : "border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: `${o.brand_color}22`, color: o.brand_color }}
+                          >
+                            {o.logo_label}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-slate-100 truncate">{o.nombre}</p>
+                            <p className="text-[10px] font-mono text-slate-500">
+                              {o.slug} · {o.usuarios ?? 0} usr
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </GlassCard>
+
+              {/* Crear */}
+              <GlassCard title="Nueva cooperativa" accent="emerald" variant="secondary">
                 <form onSubmit={onCreateOrg} className="space-y-2.5">
                   <input
                     required
-                    placeholder="Nombre (ej. Cooperativa Lincoln)"
+                    placeholder="Nombre"
                     value={newOrg.nombre}
                     onChange={(e) => setNewOrg({ ...newOrg, nombre: e.target.value })}
                     className={inputCls}
                   />
                   <input
-                    placeholder="Slug opcional (ej. coop-lincoln)"
+                    placeholder="Slug opcional (coop-…)"
                     value={newOrg.slug}
                     onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value })}
                     className={`${inputCls} font-mono`}
@@ -509,232 +371,187 @@ export function AdminPanel() {
                   <button
                     type="submit"
                     disabled={busy}
-                    className="text-xs font-medium px-4 py-2 rounded-lg border border-emerald-500/35 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+                    className="w-full text-sm font-medium px-4 py-2 rounded-lg border border-emerald-500/35 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
                   >
-                    Crear cooperativa
+                    Crear
                   </button>
                 </form>
               </GlassCard>
 
-              <GlassCard title="Cooperativas activas" accent="cyan" variant="secondary">
-                <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {cooperativas.length === 0 ? (
-                    <p className="text-xs text-slate-500">Sin cooperativas registradas.</p>
-                  ) : (
-                    cooperativas.map((o) => (
-                      <button
-                        key={o.slug}
-                        type="button"
-                        onClick={() => setSelectedSlug(o.slug)}
-                        className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                          selectedSlug === o.slug
-                            ? "border-cyan-500/40 bg-cyan-500/8"
-                            : "border-slate-800 hover:border-slate-700"
-                        }`}
+              {/* Detalle */}
+              <GlassCard
+                title={selectedOrg ? selectedOrg.nombre : "Detalle"}
+                accent="cyan"
+                variant="secondary"
+              >
+                {!selectedOrg ? (
+                  <p className="text-xs text-slate-500">Seleccioná una cooperativa.</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <StatusPill label={selectedOrg.slug} tone="neutral" />
+                      <span className="text-[11px] text-slate-500">{users.length} usuarios</span>
+                    </div>
+
+                    {/* Invite */}
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1.5">Invitar operador</p>
+                      <form
+                        className="space-y-2"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setBusy(true);
+                          try {
+                            const res = await api.createInvite(inviteForm, selectedSlug);
+                            setMessage(
+                              `Invitación a ${res.email}${res.token ? ` · token: ${res.token.slice(0, 10)}…` : ""}`,
+                            );
+                            setInviteForm({ email: "", nombre: "", rol: "agente" });
+                            await loadInvites(selectedSlug);
+                          } catch (err) {
+                            setMessage(err instanceof Error ? err.message : "Error invite");
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
                       >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-                            style={{ backgroundColor: `${o.brand_color}22`, color: o.brand_color }}
+                        <input
+                          className={inputCls}
+                          placeholder="Email"
+                          value={inviteForm.email}
+                          onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                          required
+                        />
+                        <div className="flex gap-2">
+                          <select
+                            className={inputCls}
+                            value={inviteForm.rol}
+                            onChange={(e) => setInviteForm((f) => ({ ...f, rol: e.target.value }))}
                           >
-                            {o.logo_label}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm text-slate-100 truncate font-medium">{o.nombre}</p>
-                            <p className="text-[11px] font-mono text-slate-500">{o.slug}</p>
-                          </div>
-                          <div className="text-[11px] font-mono text-slate-500 text-right shrink-0">
-                            <div>{o.usuarios ?? 0} usr</div>
-                            <div>{o.tickets_abiertos ?? 0} abiertos</div>
-                          </div>
+                            <option value="agente">agente</option>
+                            <option value="supervisor">supervisor</option>
+                            <option value="ejecutivo">ejecutivo</option>
+                          </select>
+                          <button
+                            type="submit"
+                            disabled={busy}
+                            className="shrink-0 px-3 rounded-lg border border-cyan-500/35 text-cyan-200 text-xs disabled:opacity-50"
+                          >
+                            Invitar
+                          </button>
                         </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </GlassCard>
-            </div>
-          </SidebarSection>
-
-          {selectedOrg && (
-            <SidebarSection title={`Configuración — ${selectedOrg.nombre}`}>
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <StatusPill label={selectedOrg.slug} tone="neutral" />
-                <span className="text-[11px] text-slate-500">
-                  {users.length} usuario{users.length !== 1 ? "s" : ""} · {selectedOrg.lineas ?? 0} líneas
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <GlassCard title="Credenciales" accent="cyan" variant="secondary">
-                  <p className="text-xs text-slate-400 mb-3 leading-relaxed">
-                    Las claves se almacenan con hash bcrypt. Mínimo 6 caracteres. No se muestran en
-                    listados ni APIs.
-                  </p>
-                  <form onSubmit={onCreateUser} className="space-y-2.5">
-                    <input
-                      required
-                      placeholder="Nombre"
-                      value={newUser.nombre}
-                      onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
-                      className={inputCls}
-                    />
-                    <input
-                      required
-                      type="email"
-                      placeholder="Email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      className={inputCls}
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        placeholder="Teléfono"
-                        value={newUser.telefono}
-                        onChange={(e) => setNewUser({ ...newUser, telefono: e.target.value })}
-                        className={`flex-1 ${inputCls}`}
-                      />
-                      <input
-                        placeholder="Línea principal"
-                        value={newUser.linea_principal}
-                        onChange={(e) =>
-                          setNewUser({ ...newUser, linea_principal: e.target.value })
-                        }
-                        className={`flex-1 ${inputCls} font-mono`}
-                      />
+                      </form>
+                      {invites.filter((i) => i.pendiente).length > 0 && (
+                        <ul className="mt-2 text-[10px] font-mono text-slate-500 space-y-0.5">
+                          {invites
+                            .filter((i) => i.pendiente)
+                            .slice(0, 5)
+                            .map((i) => (
+                              <li key={i.email}>pendiente · {i.email}</li>
+                            ))}
+                        </ul>
+                      )}
                     </div>
-                    <div className="flex gap-2">
-                      <select
-                        value={newUser.rol}
-                        onChange={(e) => setNewUser({ ...newUser, rol: e.target.value })}
-                        className="bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-2 text-sm"
-                      >
-                        <option value="agente">Agente</option>
-                        <option value="supervisor">Supervisor</option>
-                        <option value="ejecutivo">Ejecutivo</option>
-                      </select>
-                      <input
-                        placeholder="Clave inicial"
-                        type="password"
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        className={`flex-1 ${inputCls} font-mono`}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={busy}
-                      className="text-xs font-medium px-4 py-2 rounded-lg border border-cyan-500/35 text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
-                    >
-                      Agregar usuario
-                    </button>
-                  </form>
 
-                  <div className="max-h-52 overflow-y-auto border-t border-slate-800 pt-3 mt-3 space-y-1">
-                    {users.length === 0 ? (
-                      <p className="text-xs text-slate-500">Sin usuarios en esta cooperativa.</p>
-                    ) : (
-                      users.map((u) => (
-                        <div
-                          key={u.id}
-                          className="flex justify-between gap-2 text-xs py-2 border-b border-slate-800/60 last:border-b-0"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-slate-200 truncate font-medium">{u.nombre}</p>
-                            <p className="font-mono text-slate-500 truncate text-[11px]">{u.email}</p>
-                            {u.must_change_password && (
-                              <p className="text-[11px] text-amber-400 mt-0.5">Debe cambiar clave</p>
-                            )}
-                            {u.activo === false && (
-                              <p className="text-[11px] text-rose-400 mt-0.5">Desactivado</p>
-                            )}
+                    {/* Users */}
+                    <div className="border-t border-slate-800 pt-3 max-h-48 overflow-y-auto space-y-1">
+                      {users.length === 0 ? (
+                        <p className="text-xs text-slate-500">Sin usuarios.</p>
+                      ) : (
+                        users.map((u) => (
+                          <div
+                            key={u.id}
+                            className="flex justify-between gap-2 text-xs py-1.5 border-b border-slate-800/50"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-slate-200 truncate">{u.nombre}</p>
+                              <p className="font-mono text-slate-500 truncate text-[10px]">{u.email}</p>
+                            </div>
+                            <div className="shrink-0 flex flex-col items-end gap-0.5">
+                              <span className="text-slate-500">{u.rol}</span>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className="text-[10px] text-cyan-300"
+                                onClick={() => void onToggleUserActive(u)}
+                              >
+                                {u.activo === false ? "Activar" : "Desactivar"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className="text-[10px] text-amber-300/90"
+                                onClick={async () => {
+                                  try {
+                                    const r = await api.resetUserPassword(u.id, selectedSlug);
+                                    setMessage(
+                                      `Reset ${r.email}${r.temporary_password ? ` · ${r.temporary_password}` : ""}`,
+                                    );
+                                  } catch (err) {
+                                    setMessage(err instanceof Error ? err.message : "Error reset");
+                                  }
+                                }}
+                              >
+                                Reset clave
+                              </button>
+                            </div>
                           </div>
-                          <div className="shrink-0 flex flex-col items-end gap-1">
-                            <span className="text-slate-500 text-[11px]">{u.rol}</span>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Delete */}
+                    <div className="border-t border-rose-900/40 pt-3">
+                      {!showDelete ? (
+                        <button
+                          type="button"
+                          className="text-xs text-rose-300/90 hover:text-rose-200"
+                          onClick={() => setShowDelete(true)}
+                        >
+                          Eliminar cooperativa…
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-[11px] text-rose-300/90 leading-relaxed">
+                            Borra usuarios, tickets, KB y datos de canal de esta coop. Escribí{" "}
+                            <span className="font-mono text-rose-200">{selectedOrg.slug}</span> para
+                            confirmar.
+                          </p>
+                          <input
+                            className={`${inputCls} font-mono border-rose-800/50`}
+                            placeholder={selectedOrg.slug}
+                            value={deleteConfirm}
+                            onChange={(e) => setDeleteConfirm(e.target.value)}
+                          />
+                          <div className="flex gap-2">
                             <button
                               type="button"
-                              disabled={busy}
-                              onClick={() => void onToggleUserActive(u)}
-                              className="text-[11px] text-cyan-300/90 hover:text-cyan-200 disabled:opacity-50"
+                              disabled={busy || deleteConfirm !== selectedOrg.slug}
+                              onClick={() => void onDeleteOrg()}
+                              className="text-xs px-3 py-1.5 rounded-lg bg-rose-600/80 text-white disabled:opacity-40"
                             >
-                              {u.activo === false ? "Reactivar" : "Desactivar"}
+                              Confirmar borrado
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs text-slate-400"
+                              onClick={() => {
+                                setShowDelete(false);
+                                setDeleteConfirm("");
+                              }}
+                            >
+                              Cancelar
                             </button>
                           </div>
                         </div>
-                      ))
-                    )}
+                      )}
+                    </div>
                   </div>
-                </GlassCard>
-
-                <GlassCard title="Importar CSV" variant="secondary">
-                  <p className="text-xs text-slate-400 mb-2 leading-relaxed">
-                    Columnas: nombre, email, telefono, rol, linea_principal (opcional abonado, plan).
-                    Clave por defecto: <span className="font-mono text-slate-300">cliente</span>
-                  </p>
-                  <pre className="text-[11px] font-mono text-slate-500 bg-slate-950/80 p-2.5 rounded-lg overflow-x-auto mb-3">
-                    {CSV_EJEMPLO}
-                  </pre>
-                  <form onSubmit={onImportCsv} className="flex flex-wrap gap-2 items-center">
-                    <input
-                      name="csvfile"
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-slate-300"
-                    />
-                    <button
-                      type="submit"
-                      disabled={busy}
-                      className="text-xs font-medium px-4 py-2 rounded-lg border border-violet-500/35 text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
-                    >
-                      Importar
-                    </button>
-                  </form>
-                  {importResult && importResult.errores.length > 0 && (
-                    <div className="text-xs text-amber-300/90 space-y-1 max-h-32 overflow-y-auto mt-3">
-                      {importResult.errores.map((err) => (
-                        <p key={err}>{err}</p>
-                      ))}
-                    </div>
-                  )}
-                </GlassCard>
-              </div>
-            </SidebarSection>
-          )}
-
-          <SidebarSection title="Auditoría operativa">
-            <div className="enterprise-panel">
-              <PanelHeader
-                title="Eventos recientes"
-                subtitle="Altas, importaciones y cambios sensibles en la plataforma"
-              />
-              {auditEvents.length === 0 ? (
-                <p className="text-xs text-slate-500">Sin eventos registrados aún.</p>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {auditEvents.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="text-xs py-2.5 px-2 rounded-lg border border-slate-800/60 bg-slate-950/30"
-                    >
-                      <div className="flex justify-between gap-2 items-start">
-                        <span className="font-mono text-cyan-300 text-[11px]">{ev.accion}</span>
-                        <span className="text-[11px] text-slate-500 shrink-0 font-mono">
-                          {ev.created_at?.slice(0, 16).replace("T", " ")}
-                        </span>
-                      </div>
-                      <p className="text-slate-300 mt-1 truncate">{ev.recurso}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        <span className="text-slate-400">{ev.actor}</span>
-                        {ev.detalle ? ` · ${ev.detalle}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+                )}
+              </GlassCard>
             </div>
-          </SidebarSection>
-        </>
-      )}
+          </div>
+        ))}
     </div>
   );
 }

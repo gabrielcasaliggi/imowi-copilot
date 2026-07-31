@@ -144,7 +144,95 @@ def update_organization(
     return org
 
 
-_ROLES_VALIDOS = {"admin", "supervisor", "ejecutivo", "agente", "cliente", "ingeniero_noc", "admin_sistema", "admin_org", "operador", "cooperativa"}
+def delete_organization(db: Session, slug: str, *, actor: str = "admin") -> dict:
+    """Elimina cooperativa y todos sus datos (cascada). No permite borrar imowi."""
+    from app.estate.models import (
+        Abonado,
+        AuditEvent,
+        CasoConversacion,
+        ConversacionCanal,
+        KnowledgeArticle,
+        KnowledgeContribution,
+        LineaJSC,
+        MensajeCanal,
+        NetworkElement,
+        PilotEvent,
+        PortalAbonadoLink,
+        PortalOtpChallenge,
+        Ticket,
+        TicketEvent,
+        TicketNotification,
+        User,
+        UserInvite,
+    )
+
+    org = get_org_by_slug(db, slug)
+    if not org:
+        raise ValueError("not_found")
+    if org.slug == "imowi":
+        raise ValueError("protected")
+
+    oid = org.id
+    org_nombre = org.nombre
+    org_slug = org.slug
+    counts = {
+        "usuarios": db.scalar(select(func.count()).select_from(User).where(User.organizacion_id == oid)) or 0,
+        "tickets": db.scalar(select(func.count()).select_from(Ticket).where(Ticket.organizacion_id == oid)) or 0,
+        "abonados": db.scalar(select(func.count()).select_from(Abonado).where(Abonado.organizacion_id == oid)) or 0,
+    }
+
+    imowi = get_org_by_slug(db, "imowi")
+    if imowi:
+        from app.estate.audit import log_audit
+
+        log_audit(
+            db,
+            org_id=imowi.id,
+            actor=actor or "admin",
+            accion="cooperativa_baja",
+            recurso=org_slug,
+            detalle=(
+                f"Eliminada {org_nombre}: usuarios={counts['usuarios']} "
+                f"tickets={counts['tickets']} abonados={counts['abonados']}"
+            ),
+        )
+
+    # Hijos primero (orden por FKs)
+    db.execute(delete(MensajeCanal).where(MensajeCanal.organizacion_id == oid))
+    db.execute(delete(ConversacionCanal).where(ConversacionCanal.organizacion_id == oid))
+    db.execute(delete(TicketNotification).where(TicketNotification.organizacion_id == oid))
+    db.execute(delete(TicketEvent).where(TicketEvent.organizacion_id == oid))
+    db.execute(delete(Ticket).where(Ticket.organizacion_id == oid))
+    db.execute(delete(CasoConversacion).where(CasoConversacion.organizacion_id == oid))
+    db.execute(delete(KnowledgeContribution).where(KnowledgeContribution.organizacion_id == oid))
+    db.execute(delete(KnowledgeArticle).where(KnowledgeArticle.organizacion_id == oid))
+    db.execute(delete(NetworkElement).where(NetworkElement.organizacion_id == oid))
+    db.execute(delete(LineaJSC).where(LineaJSC.organizacion_id == oid))
+    db.execute(delete(PortalOtpChallenge).where(PortalOtpChallenge.organizacion_id == oid))
+    db.execute(delete(PortalAbonadoLink).where(PortalAbonadoLink.organizacion_id == oid))
+    db.execute(delete(Abonado).where(Abonado.organizacion_id == oid))
+    db.execute(delete(UserInvite).where(UserInvite.organizacion_id == oid))
+    db.execute(delete(User).where(User.organizacion_id == oid))
+    db.execute(delete(PilotEvent).where(PilotEvent.organizacion_id == oid))
+    db.execute(delete(AuditEvent).where(AuditEvent.organizacion_id == oid))
+    db.delete(org)
+    db.commit()
+
+    return {"slug": org_slug, "nombre": org_nombre, **counts}
+
+
+_ROLES_VALIDOS = {
+    "admin",
+    "supervisor",
+    "ejecutivo",
+    "agente",
+    "cliente",
+    "ingeniero_noc",
+    "admin_sistema",
+    "admin_org",
+    "operador",
+    "cooperativa",
+}
 
 
 def user_is_active(user: User) -> bool:

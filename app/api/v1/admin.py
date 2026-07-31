@@ -95,6 +95,31 @@ def update_organization(
     }
 
 
+@router.delete("/admin/organizations/{slug}")
+def delete_organization(
+    slug: str,
+    confirm_slug: str = "",
+    admin: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Elimina cooperativa + usuarios y datos asociados. Requiere confirm_slug=slug."""
+    if (confirm_slug or "").strip() != slug:
+        raise HTTPException(
+            400,
+            "Confirmación inválida: pasá ?confirm_slug=<mismo-slug> para confirmar el borrado",
+        )
+    try:
+        result = repo.delete_organization(db, slug, actor=admin.usuario)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "not_found":
+            raise HTTPException(404, f"Cooperativa '{slug}' no encontrada") from exc
+        if code == "protected":
+            raise HTTPException(400, "No se puede eliminar la organización plataforma (imowi)") from exc
+        raise HTTPException(400, code) from exc
+    return {"status": "ok", "eliminada": result}
+
+
 @router.get("/admin/organizations/{slug}/users")
 def list_organization_users(
     slug: str,

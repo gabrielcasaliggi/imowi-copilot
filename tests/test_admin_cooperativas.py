@@ -76,3 +76,52 @@ def test_admin_forbidden_for_cooperativa():
     headers = {"Authorization": f"Bearer {r.json()['token']}"}
     r = client.get("/api/v1/admin/organizations", headers=headers)
     assert r.status_code == 403
+
+
+def test_admin_delete_cooperativa_cascades_users():
+    headers = _admin_headers()
+    slug = f"coop-del-{uuid.uuid4().hex[:8]}"
+    email = f"del.user.{uuid.uuid4().hex[:8]}@test.com"
+
+    r = client.post(
+        "/api/v1/admin/organizations",
+        headers=headers,
+        json={"nombre": "Coop Delete Me", "slug": slug},
+    )
+    assert r.status_code == 200
+
+    r = client.post(
+        f"/api/v1/admin/organizations/{slug}/users",
+        headers=headers,
+        json={"email": email, "nombre": "Temp", "password": "TempPass12ab", "rol": "agente"},
+    )
+    assert r.status_code == 200, r.text
+
+    users = client.get(f"/api/v1/admin/organizations/{slug}/users", headers=headers).json()["usuarios"]
+    assert any(u["email"] == email for u in users)
+
+    # sin confirm → 400
+    bad = client.delete(f"/api/v1/admin/organizations/{slug}", headers=headers)
+    assert bad.status_code == 400
+
+    ok = client.delete(
+        f"/api/v1/admin/organizations/{slug}?confirm_slug={slug}",
+        headers=headers,
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["eliminada"]["usuarios"] >= 1
+
+    gone = client.get(f"/api/v1/admin/organizations/{slug}/users", headers=headers)
+    assert gone.status_code == 404
+
+    login = client.post("/api/login", json={"usuario": email, "password": "TempPass12ab"})
+    assert login.status_code == 401
+
+
+def test_admin_cannot_delete_imowi():
+    headers = _admin_headers()
+    r = client.delete(
+        "/api/v1/admin/organizations/imowi?confirm_slug=imowi",
+        headers=headers,
+    )
+    assert r.status_code == 400

@@ -725,6 +725,21 @@ export const api = {
     );
   },
 
+  deleteOrganization(slug: string) {
+    return request<{
+      status: string;
+      eliminada: {
+        slug: string;
+        nombre: string;
+        usuarios: number;
+        tickets: number;
+        abonados: number;
+      };
+    }>(`/api/v1/admin/organizations/${encodeURIComponent(slug)}?confirm_slug=${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+    });
+  },
+
   adminUsers(slug: string) {
     return request<{ slug: string; usuarios: AdminUser[] }>(
       `/api/v1/admin/organizations/${slug}/users`,
