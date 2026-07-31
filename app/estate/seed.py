@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import os
+
 from app.estate.models import Abonado, KnowledgeArticle, LineaJSC, NetworkElement, Organization, User
-from app.estate.security import hash_password
+from app.estate.security import hash_password, valid_password
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 
 def _org(db: Session, slug: str) -> Organization | None:
     return db.scalar(select(Organization).where(Organization.slug == slug))
+
+
+def _hash_seed(*candidates: str) -> str:
+    """Hash seguro para seed: usa la primera clave con longitud válida (>= 6)."""
+    for raw in candidates:
+        plain = (raw or "").strip()
+        if valid_password(plain):
+            return hash_password(plain)
+    return hash_password("changeme")
 
 
 def seed_estate(db: Session) -> dict:
@@ -26,14 +37,59 @@ def seed_estate(db: Session) -> dict:
 
     imowi, batan, viamonte = orgs
 
+    admin_pw = os.getenv("ADMIN_PASSWORD", "").strip()
+    coop_pw = os.getenv("COOP_PASSWORD", "").strip()
+
     users = [
-        User(organizacion_id=imowi.id, email="admin@ops-hub.demo", nombre="Administración", password=hash_password("admin"), rol="admin"),
-        User(organizacion_id=imowi.id, email="noc@ops-hub.demo", nombre="Supervisor plataforma", password=hash_password("noc"), rol="admin"),
-        User(organizacion_id=batan.id, email="agente@coopbatan.com", nombre="Agente Batán", password=hash_password("batan"), rol="agente"),
-        User(organizacion_id=batan.id, email="supervisor@coopbatan.com", nombre="Supervisor Batán", password=hash_password("supervisor"), rol="supervisor"),
-        User(organizacion_id=batan.id, email="ejecutivo@coopbatan.com", nombre="Ejecutivo Batán", password=hash_password("ejecutivo"), rol="ejecutivo"),
-        User(organizacion_id=batan.id, email="noc@coopbatan.com", nombre="Supervisor Batán (legacy)", password=hash_password("noc"), rol="supervisor"),
-        User(organizacion_id=viamonte.id, email="agente@coopviamonte.com", nombre="Agente Viamonte", password=hash_password("viamonte"), rol="agente"),
+        User(
+            organizacion_id=imowi.id,
+            email="admin@ops-hub.demo",
+            nombre="Administración",
+            password=_hash_seed(admin_pw, "admin12"),
+            rol="admin",
+        ),
+        User(
+            organizacion_id=imowi.id,
+            email="noc@ops-hub.demo",
+            nombre="Supervisor plataforma",
+            password=_hash_seed("noc123"),
+            rol="admin",
+        ),
+        User(
+            organizacion_id=batan.id,
+            email="agente@coopbatan.com",
+            nombre="Agente Batán",
+            password=_hash_seed(coop_pw, "batan1"),
+            rol="agente",
+        ),
+        User(
+            organizacion_id=batan.id,
+            email="supervisor@coopbatan.com",
+            nombre="Supervisor Batán",
+            password=_hash_seed("supervisor"),
+            rol="supervisor",
+        ),
+        User(
+            organizacion_id=batan.id,
+            email="ejecutivo@coopbatan.com",
+            nombre="Ejecutivo Batán",
+            password=_hash_seed("ejecutivo"),
+            rol="ejecutivo",
+        ),
+        User(
+            organizacion_id=batan.id,
+            email="noc@coopbatan.com",
+            nombre="Supervisor Batán (legacy)",
+            password=_hash_seed("noc123"),
+            rol="supervisor",
+        ),
+        User(
+            organizacion_id=viamonte.id,
+            email="agente@coopviamonte.com",
+            nombre="Agente Viamonte",
+            password=_hash_seed("viamonte"),
+            rol="agente",
+        ),
     ]
     db.add_all(users)
 
