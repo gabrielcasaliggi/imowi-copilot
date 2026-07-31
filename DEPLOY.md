@@ -1,36 +1,58 @@
 # Despliegue — Operations Hub
 
+Ver también: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) (auth dual, backup, rotación de secretos).
+
+## Producción nativa (ibot.ecolan.com)
+
+```bash
+# 1) Backup
+sudo bash scripts/backup-estate.sh
+
+# 2) Código
+cd /ruta/al/repo && git pull
+
+# 3) Backend
+source .venv/bin/activate
+pip install -r requirements.txt
+# Migraciones aditivas al reiniciar el servicio
+sudo systemctl restart operations-hub-api
+
+# 4) Frontend
+cd frontend && npm ci && npm run build
+sudo systemctl restart operations-hub-frontend   # ajustar unit
+
+# 5) Nginx
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Plantilla env: `.env.server.example` (`DISABLE_DEMO_USERS`, `SMTP_*`, `PORTAL_AUTH_SECRET`, `BILLTRACK_LOOKUP_*`).
+
+### Checklist
+
+- [ ] Health OK
+- [ ] Demo users desactivados
+- [ ] Invite + change-password OK
+- [ ] Portal DNI+OTP OK (BillTrack RO)
+- [ ] HSTS / headers seguridad
+- [ ] Legacy `/api/listar-tickets` requiere auth
+
+---
+
 ## Qué persiste hoy
 
 | Dato | Ubicación | Notas |
 |------|-----------|--------|
-| Tickets | `data/tickets.json` | Cooperativa, línea, falla, estado, etc. |
-| Sesiones login | `data/sessions.json` | Tokens (demo) |
-| Base conocimiento | `Base_de_Conocimiento_Tickets.md` | Solo lectura en el image |
-
-**Importante:** en PaaS sin volumen (Render free, Railway sin disk), los JSON se **borran** en cada redeploy. Usá **volumen** o **VPS**.
-
-El historial del chat **no** se guarda aún; solo los campos del ticket.
+| Data Estate | PostgreSQL (`DATABASE_URL`) | tickets, users, portal links, audit |
+| BillTrack | Postgres externo RO | padrón — sin writes |
+| Base conocimiento | `Base_de_Conocimiento_Tickets.md` | solo lectura en image |
 
 ---
 
-## Opción recomendada: Docker (VPS o local)
+## Opción: Docker (VPS o local)
 
 ```bash
-# 1. Variables (copiá .env.example → .env y completá AI_API_KEY)
 cp .env.example .env
-
-# 2. Levantar
 docker compose up -d --build
-
-# 3. Abrir
-# http://TU_IP:8000
-```
-
-Los datos quedan en el volumen Docker `copilot-data`. Para backup:
-
-```bash
-docker compose exec copilot cat /app/data/tickets.json
 ```
 
 ---
@@ -41,55 +63,21 @@ docker compose exec copilot cat /app/data/tickets.json
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# editar .env
+cp .env.server.example .env   # producción
+# editar secretos
 
-mkdir -p data
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Usá **systemd** o **nginx** como reverse proxy con HTTPS (Let's Encrypt).
-
-Variables útiles:
-
-```env
-DATA_DIR=/var/lib/ops-hub/data
-AI_BASE_URL=https://api.groq.com/openai/v1
-AI_API_KEY=tu-clave
-AI_MODEL=llama-3.3-70b-versatile
-```
+Usá **systemd** + **nginx** con HTTPS (Let's Encrypt). Ver `deploy/nginx/operations-hub.conf`.
 
 ---
 
-## PaaS (Railway, Render, Fly.io)
+## Checklist seguridad (resumen)
 
-1. Conectá el repo.
-2. **Build:** `pip install -r requirements.txt`
-3. **Start:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Variables de entorno: `AI_*`, `DATA_DIR=/data` (si ofrecen disco persistente).
-5. En Render: activá **Persistent Disk** y montá en `/data`.
-6. Subí también `Base_de_Conocimiento_Tickets.md` (incluido en el repo).
-
-Sin disco persistente: sirve para **demo temporal**, no para producción con tickets reales.
-
----
-
-## Checklist antes de publicar
-
-- [ ] Cambiar contraseñas demo en `app/config.py` (o mover a env).
-- [ ] No commitear `.env` (ya está en `.gitignore`).
-- [ ] `AI_API_KEY` solo en variables del servidor.
-- [ ] HTTPS delante de la app (nginx / Caddy / proxy del PaaS).
-- [ ] Probar login coop + crear ticket + recargar página + retomar caso.
-
----
-
-## Próximo paso (producción)
-
-Para más usuarios y concurrencia:
-
-1. **SQLite** o **PostgreSQL** en lugar de JSON.
-2. Auth real (LDAP / OAuth), no tokens en archivo.
-3. Opcional: guardar historial de chat por ticket.
-
-Para una **demo interna** con Docker + volumen, lo actual alcanza.
+- [ ] `AUTH_SECRET` y `PORTAL_AUTH_SECRET` distintos y fuertes
+- [ ] `DISABLE_DEMO_USERS=true` en production
+- [ ] SMTP configurado para invites/OTP
+- [ ] BillTrack: usuario solo SELECT + `BILLTRACK_LOOKUP_SQL`
+- [ ] Backup diario Data Estate
+- [ ] UFW 22/80/443; SSH por clave

@@ -21,7 +21,7 @@ const inputCls =
   "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
 export function AdminPanel() {
-  const [hubTab, setHubTab] = useState<"cooperativas" | "config" | "rbac">("cooperativas");
+  const [hubTab, setHubTab] = useState<"cooperativas" | "config" | "rbac" | "seguridad">("cooperativas");
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedSlug, setSelectedSlug] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -30,6 +30,13 @@ export function AdminPanel() {
   const [message, setMessage] = useState("");
   const [importResult, setImportResult] = useState<ImportCsvResult | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [loginEvents, setLoginEvents] = useState<
+    { actor: string; ok: boolean; reason: string; ip: string; created_at: string | null }[]
+  >([]);
+  const [invites, setInvites] = useState<
+    { email: string; rol: string; pendiente: boolean; expires_at: string | null }[]
+  >([]);
+  const [inviteForm, setInviteForm] = useState({ email: "", nombre: "", rol: "agente" });
   const [rbacRoles, setRbacRoles] = useState<
     { codigo: string; nombre: string; descripcion: string; permisos: string[] }[]
   >([]);
@@ -47,7 +54,7 @@ export function AdminPanel() {
   const [newUser, setNewUser] = useState({
     nombre: "",
     email: "",
-    password: "cliente",
+    password: "",
     rol: "agente",
     telefono: "",
     linea_principal: "",
@@ -236,6 +243,34 @@ export function AdminPanel() {
         >
           Roles y permisos
         </button>
+        <button
+          type="button"
+          onClick={() => setHubTab("rbac")}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            hubTab === "rbac"
+              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
+          }`}
+        >
+          Roles y permisos
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setHubTab("seguridad");
+            void api.loginEvents("console", 40).then((d) => setLoginEvents(d.eventos)).catch(() => setLoginEvents([]));
+            if (selectedSlug) {
+              void api.listInvites(selectedSlug).then((d) => setInvites(d.invites)).catch(() => setInvites([]));
+            }
+          }}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+            hubTab === "seguridad"
+              ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+              : "border-slate-700/80 text-slate-400 hover:border-slate-500"
+          }`}
+        >
+          Seguridad
+        </button>
       </div>
 
       {message && (
@@ -244,7 +279,130 @@ export function AdminPanel() {
         </p>
       )}
 
-      {hubTab === "config" ? (
+      {hubTab === "seguridad" ? (
+        <div className="space-y-4">
+          <SidebarSection title="Invitar operador por email">
+            <form
+              className="grid grid-cols-1 md:grid-cols-4 gap-2"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!selectedSlug) return;
+                setBusy(true);
+                try {
+                  const res = await api.createInvite(inviteForm, selectedSlug);
+                  setMessage(
+                    `Invitación enviada a ${res.email}${res.token ? ` (dev token: ${res.token.slice(0, 12)}…)` : ""}`,
+                  );
+                  setInviteForm({ email: "", nombre: "", rol: "agente" });
+                  const d = await api.listInvites(selectedSlug);
+                  setInvites(d.invites);
+                } catch (err) {
+                  setMessage(err instanceof Error ? err.message : "Error al invitar");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <input
+                className={inputCls}
+                placeholder="Email"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                required
+              />
+              <input
+                className={inputCls}
+                placeholder="Nombre"
+                value={inviteForm.nombre}
+                onChange={(e) => setInviteForm((f) => ({ ...f, nombre: e.target.value }))}
+              />
+              <select
+                className={inputCls}
+                value={inviteForm.rol}
+                onChange={(e) => setInviteForm((f) => ({ ...f, rol: e.target.value }))}
+              >
+                <option value="agente">agente</option>
+                <option value="supervisor">supervisor</option>
+                <option value="ejecutivo">ejecutivo</option>
+                <option value="admin">admin</option>
+              </select>
+              <button
+                type="submit"
+                disabled={busy || !selectedSlug}
+                className="rounded-lg bg-cyan-500/90 text-slate-950 font-semibold text-sm px-3 py-2 disabled:opacity-50"
+              >
+                Invitar
+              </button>
+            </form>
+            <ul className="mt-3 space-y-1 text-xs font-mono text-slate-400">
+              {invites.slice(0, 8).map((i) => (
+                <li key={i.email + (i.expires_at || "")}>
+                  {i.email} · {i.rol} · {i.pendiente ? "pendiente" : "aceptada"}
+                </li>
+              ))}
+            </ul>
+          </SidebarSection>
+          <SidebarSection title="Usuarios — reset / desactivar">
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex flex-wrap items-center gap-2 justify-between border border-slate-800 rounded-lg px-3 py-2 text-sm"
+                >
+                  <div>
+                    <span className="font-mono text-slate-200">{u.email}</span>
+                    <span className="text-slate-500 text-xs ml-2">{u.rol}</span>
+                    {!u.activo && <StatusPill label="inactivo" tone="soon" />}
+                    {u.must_change_password && <StatusPill label="must change" tone="credentials" />}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded border border-slate-700 text-slate-300"
+                      onClick={async () => {
+                        try {
+                          const r = await api.resetUserPassword(u.id, selectedSlug);
+                          setMessage(
+                            `Reset ${r.email}${r.temporary_password ? ` · temp: ${r.temporary_password}` : ""}`,
+                          );
+                          await loadUsers(selectedSlug);
+                        } catch (err) {
+                          setMessage(err instanceof Error ? err.message : "Error reset");
+                        }
+                      }}
+                    >
+                      Reset clave
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded border border-slate-700 text-slate-300"
+                      onClick={async () => {
+                        try {
+                          await api.updateAdminUser(selectedSlug, u.id, { activo: !u.activo });
+                          await loadUsers(selectedSlug);
+                        } catch (err) {
+                          setMessage(err instanceof Error ? err.message : "Error");
+                        }
+                      }}
+                    >
+                      {u.activo ? "Desactivar" : "Activar"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SidebarSection>
+          <SidebarSection title="Auditoría de login">
+            <ul className="space-y-1 text-xs font-mono text-slate-400 max-h-64 overflow-y-auto">
+              {loginEvents.map((ev, idx) => (
+                <li key={idx}>
+                  {ev.created_at?.slice(0, 19)} · {ev.ok ? "OK" : "FAIL"} · {ev.actor} · {ev.reason} · {ev.ip}
+                </li>
+              ))}
+            </ul>
+          </SidebarSection>
+        </div>
+      ) : hubTab === "config" ? (
         <PlatformSettingsPanel onMessage={setMessage} />
       ) : hubTab === "rbac" ? (
         <div className="space-y-4">

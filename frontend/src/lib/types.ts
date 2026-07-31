@@ -5,6 +5,7 @@ export interface LoginResponse {
   cooperativa?: string;
   nombre: string;
   org_slug?: string;
+  must_change_password?: boolean;
   permisos?: string[];
 }
 
@@ -14,6 +15,7 @@ export interface MeResponse {
   cooperativa?: string;
   nombre: string;
   org_slug?: string;
+  must_change_password?: boolean;
   permisos?: string[];
 }
 

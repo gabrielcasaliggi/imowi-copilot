@@ -33,6 +33,8 @@ _USER_COLUMNS: dict[str, str] = {
     "activo": "VARCHAR(8) DEFAULT 'Sí'",
     "disponibilidad": "VARCHAR(24) DEFAULT 'disponible'",
     "last_login_at": "DATETIME",
+    "token_version": "INTEGER DEFAULT 0",
+    "email_verified_at": "DATETIME",
 }
 
 _SLA_COLUMNS: dict[str, str] = {
@@ -40,6 +42,15 @@ _SLA_COLUMNS: dict[str, str] = {
     "sla_due_at": "DATETIME",
     "sla_breached_at": "DATETIME",
 }
+
+_AUTH_TABLES = (
+    ("auth_login_events", "AuthLoginEvent"),
+    ("auth_lockouts", "AuthLockout"),
+    ("auth_token_denylist", "AuthTokenDenylist"),
+    ("user_invites", "UserInvite"),
+    ("portal_abonado_links", "PortalAbonadoLink"),
+    ("portal_otp_challenges", "PortalOtpChallenge"),
+)
 
 
 def _ddl_for_dialect(engine: Engine, ddl: str) -> str:
@@ -73,6 +84,8 @@ def migrate_schema(engine: Engine) -> list[str]:
         logger.info("Migración: tabla creada audit_events")
 
     if not insp.has_table("tickets_estate"):
+        # Aún crear tablas de auth/portal si faltan
+        cambios.extend(_ensure_auth_tables(engine, insp))
         return cambios
 
     existentes = {c["name"] for c in insp.get_columns("tickets_estate")}
@@ -112,6 +125,20 @@ def migrate_schema(engine: Engine) -> list[str]:
             cambios.append(tabla)
             logger.info("Migración: tabla creada %s", tabla)
 
+    insp = inspect(engine)
+    cambios.extend(_ensure_auth_tables(engine, insp))
+    return cambios
+
+
+def _ensure_auth_tables(engine: Engine, insp) -> list[str]:
+    cambios: list[str] = []
+    from app.estate import models as m
+
+    for tabla, model_name in _AUTH_TABLES:
+        if not insp.has_table(tabla):
+            getattr(m, model_name).__table__.create(bind=engine)
+            cambios.append(tabla)
+            logger.info("Migración: tabla creada %s", tabla)
     return cambios
 
 

@@ -1,4 +1,4 @@
-"""Portal web del abonado — chat con bot N1 y espera de agente (sin login de consola)."""
+"""Portal web del abonado — auth DNI+OTP/PIN + chat (JWT typ=portal)."""
 
 from __future__ import annotations
 
@@ -6,22 +6,47 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import _secret_efectivo  # noqa: PLC2701 — secret compartido JWT portal
-from app.config import WHATSAPP_DEFAULT_ORG_SLUG
+from app.config import (
+    OTP_LENGTH,
+    OTP_MAX_ATTEMPTS,
+    OTP_TTL_MINUTES,
+    PORTAL_ALLOW_GUEST,
+    PORTAL_AUTH_SECRET,
+    PORTAL_JWT_AUD,
+    PORTAL_TOKEN_HOURS,
+    WHATSAPP_DEFAULT_ORG_SLUG,
+    es_produccion,
+)
 from app.estate import canal_repo as crepo
 from app.estate import repository as repo
 from app.estate.database import get_db
-from app.estate.models import Abonado
+from app.estate.models import Abonado, PortalAbonadoLink, PortalOtpChallenge
+from app.estate.security import (
+    generate_otp,
+    hash_dni,
+    hash_pin,
+    hash_token,
+    mask_email,
+    normalizar_dni,
+    valid_dni_ar,
+    valid_pin,
+    verify_pin,
+)
+from app.services import auth_security as aseg
+from app.services import email as email_svc
+from app.services.billtrack import lookup_abonado_por_dni
 from app.services.canal_abonado import procesar_mensaje_entrante
 
 router = APIRouter(tags=["Portal"])
 
-_PORTAL_HOURS = 12
 _ALG = "HS256"
+_PORTAL_TYP = "portal"
+_GENERIC_AUTH_MSG = "No pudimos verificar los datos. Revisá DNI y cooperativa o intentá más tarde."
 
 
 class PortalSessionIn(BaseModel):
@@ -34,8 +59,52 @@ class PortalMessageIn(BaseModel):
     texto: str = Field(..., min_length=1, max_length=4000)
 
 
+class PortalAuthStartIn(BaseModel):
+    dni: str = Field(..., max_length=20)
+    org_slug: str = Field(default="")
+    linea: str = Field(default="", max_length=20)
+
+
+class PortalAuthVerifyIn(BaseModel):
+    challenge_id: str = Field(..., max_length=36)
+    otp: str = Field(..., min_length=4, max_length=8)
+    org_slug: str = Field(default="")
+
+
+class PortalPinLoginIn(BaseModel):
+    dni: str = Field(..., max_length=20)
+    pin: str = Field(..., min_length=6, max_length=8)
+    org_slug: str = Field(default="")
+
+
+class PortalSetPinIn(BaseModel):
+    pin: str = Field(..., min_length=6, max_length=8)
+
+
 def _org_slug(raw: str) -> str:
     return (raw or "").strip() or WHATSAPP_DEFAULT_ORG_SLUG or "coop-batan"
+
+
+def _portal_secret() -> str:
+    if PORTAL_AUTH_SECRET:
+        return PORTAL_AUTH_SECRET
+    if es_produccion():
+        raise HTTPException(503, "PORTAL_AUTH_SECRET no configurado")
+    # Dev fallback
+    from app.auth import _secret_efectivo
+
+    return _secret_efectivo()
+
+
+def _client_ip(request: Request | None) -> str:
+    if request is None:
+        return ""
+    forwarded = request.headers.get("x-forwarded-for") or ""
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:64]
+    if request.client:
+        return (request.client.host or "")[:64]
+    return ""
 
 
 def _crear_portal_token(
@@ -45,19 +114,27 @@ def _crear_portal_token(
     conversacion_id: str,
     telefono: str,
     abonado_id: str = "",
+    dni: str = "",
+    abonado_ref: str = "",
+    identified: bool = False,
 ) -> str:
-    exp = datetime.now(UTC) + timedelta(hours=_PORTAL_HOURS)
+    exp = datetime.now(UTC) + timedelta(hours=PORTAL_TOKEN_HOURS)
     return jwt.encode(
         {
-            "typ": "portal",
+            "typ": _PORTAL_TYP,
+            "aud": PORTAL_JWT_AUD,
             "org_id": org_id,
             "org_slug": org_slug,
             "conversacion_id": conversacion_id,
             "telefono": telefono,
             "abonado_id": abonado_id,
+            "dni": dni,
+            "abonado_ref": abonado_ref,
+            "identified": identified,
+            "jti": str(uuid.uuid4()),
             "exp": exp,
         },
-        _secret_efectivo(),
+        _portal_secret(),
         algorithm=_ALG,
     )
 
@@ -67,10 +144,26 @@ def _leer_portal_token(token: str | None) -> dict:
         raise HTTPException(401, "Sesión de portal requerida")
     raw = token[7:] if token.lower().startswith("bearer ") else token
     try:
-        payload = jwt.decode(raw, _secret_efectivo(), algorithms=[_ALG])
-    except jwt.PyJWTError as exc:
-        raise HTTPException(401, "Sesión de portal inválida o expirada") from exc
-    if payload.get("typ") != "portal":
+        payload = jwt.decode(
+            raw,
+            _portal_secret(),
+            algorithms=[_ALG],
+            audience=PORTAL_JWT_AUD,
+        )
+    except jwt.PyJWTError:
+        # Compat tokens antiguos sin aud (solo non-prod)
+        if es_produccion():
+            raise HTTPException(401, "Sesión de portal inválida o expirada") from None
+        try:
+            payload = jwt.decode(
+                raw,
+                _portal_secret(),
+                algorithms=[_ALG],
+                options={"verify_aud": False},
+            )
+        except jwt.PyJWTError as exc:
+            raise HTTPException(401, "Sesión de portal inválida o expirada") from exc
+    if payload.get("typ") != _PORTAL_TYP:
         raise HTTPException(401, "Token no es de portal")
     return payload
 
@@ -81,49 +174,376 @@ def _portal_auth(
     return _leer_portal_token(authorization)
 
 
+def _get_or_create_link(
+    db: Session,
+    *,
+    org_id: str,
+    dni_n: str,
+    abonado_ref: str,
+    email_masked: str,
+) -> PortalAbonadoLink:
+    link = db.scalar(
+        select(PortalAbonadoLink).where(
+            PortalAbonadoLink.organizacion_id == org_id,
+            PortalAbonadoLink.dni_normalized == dni_n,
+        )
+    )
+    if link:
+        if abonado_ref:
+            link.abonado_ref = abonado_ref
+        if email_masked:
+            link.contacto_email_masked = email_masked
+        link.last_login_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(link)
+        return link
+    link = PortalAbonadoLink(
+        organizacion_id=org_id,
+        dni_normalized=dni_n,
+        dni_hash=hash_dni(dni_n),
+        abonado_ref=abonado_ref,
+        contacto_email_masked=email_masked,
+        last_login_at=datetime.now(UTC),
+        activo="Sí",
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+
+def _abrir_conversacion_identificada(
+    db: Session,
+    *,
+    org,
+    dni_n: str,
+    telefono: str,
+    abonado_ref: str,
+) -> tuple:
+    abo = crepo.find_abonado_por_dni(db, org.id, dni_n)
+    tel = crepo.normalizar_telefono(telefono) if telefono else ""
+    if abo and abo.telefono_e164:
+        tel = crepo.normalizar_telefono(abo.telefono_e164)
+    if not tel:
+        tel = f"portal{dni_n}"
+    conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal="web", wa_id=tel)
+    if abo and not conv.abonado_id:
+        conv.abonado_id = abo.id
+    conv.canal = "web"
+    db.commit()
+    db.refresh(conv)
+    ctx = crepo.get_contexto(conv)
+    ctx["saludo"] = True
+    ctx["identificado"] = True
+    ctx["dni"] = dni_n
+    ctx["abonado_ref"] = abonado_ref
+    ctx.pop("invitado", None)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    return conv, abo, tel
+
+
+@router.post("/portal/auth/start")
+def portal_auth_start(
+    body: PortalAuthStartIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Inicia auth abonado: DNI → BillTrack RO → OTP email (anti-enumeración)."""
+    ip = _client_ip(request)
+    slug = _org_slug(body.org_slug)
+    dni_n = normalizar_dni(body.dni)
+    actor = f"{slug}:{dni_n or 'invalid'}"
+
+    if aseg.is_locked(db, superficie="portal", actor=actor, ip=ip):
+        aseg.record_login_event(
+            db, superficie="portal", actor=actor, ip=ip, ok=False, reason="locked", org_slug=slug
+        )
+        raise HTTPException(429, "Demasiados intentos. Probá más tarde.")
+
+    # Respuesta genérica siempre (anti-enum) salvo éxito con challenge
+    def _fail(reason: str):
+        aseg.record_login_event(
+            db, superficie="portal", actor=actor, ip=ip, ok=False, reason=reason, org_slug=slug
+        )
+        aseg.register_failure(db, superficie="portal", actor=actor, ip=ip)
+        # Misma forma de respuesta exitosa engañosa? Plan: mismo mensaje de error
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    if not valid_dni_ar(dni_n):
+        _fail("bad_dni")
+
+    org = repo.get_org_by_slug(db, slug)
+    if not org:
+        _fail("bad_org")
+
+    try:
+        hit = lookup_abonado_por_dni(dni_n, org_slug=slug, linea=body.linea, db=db)
+    except Exception:
+        _fail("billtrack_error")
+
+    if not hit or not hit.get("activo"):
+        _fail("not_found_or_inactive")
+
+    email = (hit.get("email") or "").strip()
+    if not email or "@" not in email:
+        _fail("no_contact")
+
+    otp = generate_otp(OTP_LENGTH)
+    challenge = PortalOtpChallenge(
+        organizacion_id=org.id,
+        dni_normalized=dni_n,
+        code_hash=hash_token(otp),
+        contact_masked=mask_email(email),
+        abonado_ref=str(hit.get("ref") or ""),
+        email_destino=email,
+        ip=ip,
+        expires_at=datetime.now(UTC) + timedelta(minutes=OTP_TTL_MINUTES),
+    )
+    db.add(challenge)
+    db.commit()
+    db.refresh(challenge)
+
+    sent = email_svc.send_otp_email(
+        to=email,
+        otp=otp,
+        org_nombre=org.nombre,
+        ttl_minutes=OTP_TTL_MINUTES,
+    )
+    if not sent and es_produccion():
+        _fail("email_failed")
+
+    aseg.record_login_event(
+        db, superficie="portal", actor=actor, ip=ip, ok=True, reason="otp_sent", org_slug=slug
+    )
+    out = {
+        "status": "otp_sent",
+        "challenge_id": challenge.id,
+        "contact_masked": challenge.contact_masked,
+        "expires_in_seconds": OTP_TTL_MINUTES * 60,
+        "org_slug": org.slug,
+    }
+    if not es_produccion():
+        out["debug_otp"] = otp  # solo tests/dev
+    return out
+
+
+@router.post("/portal/auth/verify")
+def portal_auth_verify(
+    body: PortalAuthVerifyIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    ip = _client_ip(request)
+    challenge = db.get(PortalOtpChallenge, body.challenge_id)
+    if not challenge or challenge.consumed_at:
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    exp = challenge.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=UTC)
+    if exp < datetime.now(UTC):
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    if challenge.attempts >= OTP_MAX_ATTEMPTS:
+        raise HTTPException(429, "Demasiados intentos. Solicitá un nuevo código.")
+
+    if hash_token(body.otp.strip()) != challenge.code_hash:
+        challenge.attempts = int(challenge.attempts or 0) + 1
+        db.commit()
+        aseg.record_login_event(
+            db,
+            superficie="portal",
+            actor=f"{challenge.dni_normalized}",
+            ip=ip,
+            ok=False,
+            reason="bad_otp",
+        )
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    challenge.consumed_at = datetime.now(UTC)
+    db.commit()
+
+    org = repo.get_org_by_id(db, challenge.organizacion_id)
+    if not org:
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    link = _get_or_create_link(
+        db,
+        org_id=org.id,
+        dni_n=challenge.dni_normalized,
+        abonado_ref=challenge.abonado_ref,
+        email_masked=challenge.contact_masked,
+    )
+    # Buscar teléfono del padrón vía mock/local
+    hit = lookup_abonado_por_dni(challenge.dni_normalized, org_slug=org.slug, db=db) or {}
+    conv, abo, tel = _abrir_conversacion_identificada(
+        db,
+        org=org,
+        dni_n=challenge.dni_normalized,
+        telefono=str(hit.get("telefono") or ""),
+        abonado_ref=challenge.abonado_ref,
+    )
+    token = _crear_portal_token(
+        org_id=org.id,
+        org_slug=org.slug,
+        conversacion_id=conv.id,
+        telefono=tel,
+        abonado_id=abo.id if abo else "",
+        dni=challenge.dni_normalized,
+        abonado_ref=challenge.abonado_ref,
+        identified=True,
+    )
+    aseg.clear_failures(
+        db, superficie="portal", actor=f"{org.slug}:{challenge.dni_normalized}", ip=ip
+    )
+    aseg.record_login_event(
+        db,
+        superficie="portal",
+        actor=challenge.dni_normalized,
+        ip=ip,
+        ok=True,
+        reason="otp_ok",
+        org_slug=org.slug,
+    )
+    mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
+    if not mensajes:
+        nombre = (abo.nombre if abo else hit.get("nombre") or "hola").split()[0]
+        saludo = (
+            f"Hola {nombre}, soy el asistente de {org.nombre}. "
+            "¿Tu consulta es por internet, móvil IMOVI, o factura/deuda?"
+        )
+        crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
+        mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
+
+    return {
+        "portal_token": token,
+        "org_slug": org.slug,
+        "abonado_identificado": True,
+        "has_pin": bool(link.pin_hash),
+        "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
+        "mensajes": mensajes,
+        "contact_masked": link.contacto_email_masked,
+    }
+
+
+@router.post("/portal/auth/login-pin")
+def portal_login_pin(
+    body: PortalPinLoginIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    ip = _client_ip(request)
+    slug = _org_slug(body.org_slug)
+    dni_n = normalizar_dni(body.dni)
+    actor = f"{slug}:{dni_n}"
+
+    if aseg.is_locked(db, superficie="portal", actor=actor, ip=ip):
+        raise HTTPException(429, "Demasiados intentos. Probá más tarde.")
+    if not valid_dni_ar(dni_n) or not valid_pin(body.pin):
+        aseg.register_failure(db, superficie="portal", actor=actor, ip=ip)
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    org = repo.get_org_by_slug(db, slug)
+    if not org:
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    link = db.scalar(
+        select(PortalAbonadoLink).where(
+            PortalAbonadoLink.organizacion_id == org.id,
+            PortalAbonadoLink.dni_normalized == dni_n,
+        )
+    )
+    if not link or not link.pin_hash or not verify_pin(body.pin, link.pin_hash):
+        aseg.record_login_event(
+            db, superficie="portal", actor=actor, ip=ip, ok=False, reason="bad_pin", org_slug=slug
+        )
+        aseg.register_failure(db, superficie="portal", actor=actor, ip=ip)
+        raise HTTPException(400, _GENERIC_AUTH_MSG)
+
+    hit = lookup_abonado_por_dni(dni_n, org_slug=slug, db=db) or {}
+    conv, abo, tel = _abrir_conversacion_identificada(
+        db,
+        org=org,
+        dni_n=dni_n,
+        telefono=str(hit.get("telefono") or ""),
+        abonado_ref=link.abonado_ref,
+    )
+    link.last_login_at = datetime.now(UTC)
+    db.commit()
+    token = _crear_portal_token(
+        org_id=org.id,
+        org_slug=org.slug,
+        conversacion_id=conv.id,
+        telefono=tel,
+        abonado_id=abo.id if abo else "",
+        dni=dni_n,
+        abonado_ref=link.abonado_ref,
+        identified=True,
+    )
+    aseg.clear_failures(db, superficie="portal", actor=actor, ip=ip)
+    return {
+        "portal_token": token,
+        "org_slug": org.slug,
+        "abonado_identificado": True,
+        "has_pin": True,
+        "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
+        "mensajes": [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)],
+    }
+
+
+@router.post("/portal/auth/set-pin")
+def portal_set_pin(
+    body: PortalSetPinIn,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    if not payload.get("identified") or not payload.get("dni"):
+        raise HTTPException(403, "Sesión identificada requerida")
+    if not valid_pin(body.pin):
+        raise HTTPException(400, "El PIN debe tener entre 6 y 8 dígitos")
+    link = db.scalar(
+        select(PortalAbonadoLink).where(
+            PortalAbonadoLink.organizacion_id == payload["org_id"],
+            PortalAbonadoLink.dni_normalized == payload["dni"],
+        )
+    )
+    if not link:
+        raise HTTPException(404, "Vínculo portal no encontrado")
+    link.pin_hash = hash_pin(body.pin)
+    link.enrolled_at = datetime.now(UTC)
+    db.commit()
+    return {"status": "ok", "has_pin": True}
+
+
 @router.post("/portal/session")
 def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
-    """Abre chat web. Si hay match de teléfono/DNI, identifica; si no, permite invitado."""
+    """Abre chat web. Guest anónimo OK; DNI solo ya NO identifica (usar /portal/auth/*)."""
     slug = _org_slug(body.org_slug)
     org = repo.get_org_by_slug(db, slug)
     if not org:
         raise HTTPException(404, f"Organización '{slug}' no encontrada")
 
-    tel = crepo.normalizar_telefono(body.telefono)
-    dni = crepo.normalizar_dni(body.dni)
+    if not PORTAL_ALLOW_GUEST and (body.dni or body.telefono):
+        raise HTTPException(
+            401,
+            "Iniciá sesión con DNI y verificación. Usá /api/v1/portal/auth/start",
+        )
 
-    abonado: Abonado | None = None
-    if tel:
-        abonado = crepo.find_abonado_por_telefono(db, org.id, tel)
-    if not abonado and dni:
-        abonado = crepo.find_abonado_por_dni(db, org.id, dni)
-        if abonado and abonado.telefono_e164:
-            tel = crepo.normalizar_telefono(abonado.telefono_e164)
-
-    # Sin padrón conectado: igual dejamos iniciar conversación (guest)
-    if not tel:
-        if dni:
-            tel = f"guest{dni}"
-        else:
-            tel = f"guest{uuid.uuid4().hex[:12]}"
-
+    # Guest anónimo — ignorar DNI/tel para identificación (anti spoofing)
+    tel = f"guest{uuid.uuid4().hex[:12]}"
     conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal="web", wa_id=tel)
-    if abonado and not conv.abonado_id:
-        conv.abonado_id = abonado.id
-    # Portal siempre opera como canal web (aunque hubiera un hilo previo)
     conv.canal = "web"
     db.commit()
     db.refresh(conv)
 
     ctx = crepo.get_contexto(conv)
     ctx["saludo"] = True
-    if abonado:
-        ctx["identificado"] = True
-        ctx.pop("invitado", None)
-    else:
-        ctx["invitado"] = True
-        if dni:
-            ctx["dni_intentado"] = dni
+    ctx["invitado"] = True
+    ctx.pop("identificado", None)
+    # No persistir dni_intentado como identidad
+    if body.dni:
+        ctx["dni_hint_ignored"] = True
     crepo.set_contexto(conv, ctx)
     db.commit()
 
@@ -132,34 +552,28 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         org_slug=org.slug,
         conversacion_id=conv.id,
         telefono=tel,
-        abonado_id=abonado.id if abonado else conv.abonado_id or "",
+        abonado_id="",
+        identified=False,
     )
-    abo = db.get(Abonado, conv.abonado_id) if conv.abonado_id else abonado
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
-
-    saludo = ""
     if not mensajes:
-        if abo:
-            saludo = (
-                f"Hola {abo.nombre.split()[0]}, soy el asistente de Cooperativa Batán. "
-                "¿Tu consulta es por internet (radio/antena o ADSL), móvil IMOVI, o factura/deuda?"
-            )
-        else:
-            saludo = (
-                "Hola, soy el asistente de Cooperativa Batán. "
-                "Todavía no te encontramos en el padrón (próximamente se conecta la base). "
-                "Igual podés consultar: ¿internet por radio/antena, ADSL, móvil IMOVI, o factura/deuda?"
-            )
+        saludo = (
+            f"Hola, soy el asistente de {org.nombre}. "
+            "Estás en modo invitado (sin datos de cuenta). "
+            "Para identificarte usá tu DNI en el acceso seguro. "
+            "¿En qué podemos ayudarte?"
+        )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
 
     return {
         "portal_token": token,
         "org_slug": org.slug,
-        "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
+        "conversacion": crepo.conversacion_to_dict(conv, abonado=None),
         "mensajes": mensajes,
-        "abonado_identificado": bool(abo),
-        "modo_invitado": not bool(abo),
+        "abonado_identificado": False,
+        "modo_invitado": True,
+        "auth_required_for_account": True,
     }
 
 

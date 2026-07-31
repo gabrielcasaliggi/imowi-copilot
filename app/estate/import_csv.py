@@ -74,7 +74,7 @@ def import_usuarios_csv(
     org: Organization,
     csv_text: str,
     *,
-    default_password: str = "cliente",
+    default_password: str = "ClienteImport1",
     default_rol: str = "cliente",
 ) -> ImportResult:
     result = ImportResult()
@@ -110,9 +110,15 @@ def import_usuarios_csv(
 
         password = row.get("password") or default_password
         if not valid_password(password):
-            result.omitidos += 1
-            result.errores.append(f"Fila {idx}: clave demasiado corta (mínimo 6 caracteres).")
-            continue
+            # Generar temporal fuerte; el usuario debe cambiarla
+            import secrets
+            import string
+
+            alphabet = string.ascii_letters + string.digits
+            password = "Tmp" + "".join(secrets.choice(alphabet) for _ in range(9)) + "1a"
+            force_must_change = True
+        else:
+            force_must_change = password == default_password
         telefono = row.get("telefono", "")
         linea = _normalize_msisdn(row.get("linea_principal", ""))
 
@@ -140,7 +146,7 @@ def import_usuarios_csv(
                     rol=rol,
                     telefono=telefono,
                     linea_principal=linea,
-                    must_change_password="Sí" if password == default_password else "No",
+                    must_change_password="Sí" if force_must_change else "No",
                 )
             )
             result.creados += 1

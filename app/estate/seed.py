@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from app.estate.models import Abonado, KnowledgeArticle, LineaJSC, NetworkElement, Organization, User
-from app.estate.security import hash_password, valid_password
+from app.estate.security import hash_password
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,17 +15,63 @@ def _org(db: Session, slug: str) -> Organization | None:
 
 
 def _hash_seed(*candidates: str) -> str:
-    """Hash seguro para seed: usa la primera clave con longitud válida (>= 6)."""
+    """Hash seguro para seed: usa la primera clave; no aplica política estricta."""
     for raw in candidates:
         plain = (raw or "").strip()
-        if valid_password(plain):
-            return hash_password(plain)
-    return hash_password("changeme")
+        if len(plain) >= 6:
+            return hash_password(plain, enforce_policy=False)
+    return hash_password("Changeme1a", enforce_policy=False)
+
+
+def _seed_production_minimal(db: Session) -> dict:
+    """Solo orgs base + admin inicial desde env (sin passwords demo)."""
+    admin_pw = os.getenv("ADMIN_PASSWORD", "").strip()
+    admin_email = (os.getenv("ADMIN_EMAIL", "") or "admin@localhost").strip().lower()
+    if not admin_pw:
+        return {
+            "seeded": False,
+            "message": "Production: definí ADMIN_PASSWORD para seed inicial o creá usuarios vía invite",
+        }
+
+    orgs = [
+        Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#22d3ee"),
+        Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#34d399"),
+    ]
+    db.add_all(orgs)
+    db.flush()
+    imowi = orgs[0]
+    must = "No" if len(admin_pw) >= 10 else "Sí"
+    # Si la clave no cumple política, hashear igual y forzar cambio
+    try:
+        pw_hash = hash_password(admin_pw)
+        must = "Sí"  # primer acceso: cambiar
+    except ValueError:
+        pw_hash = hash_password(admin_pw, enforce_policy=False)
+        must = "Sí"
+    db.add(
+        User(
+            organizacion_id=imowi.id,
+            email=admin_email,
+            nombre=os.getenv("ADMIN_NOMBRE", "Administración"),
+            password=pw_hash,
+            rol="admin",
+            must_change_password=must,
+            email_verified_at=None,
+        )
+    )
+    db.commit()
+    return {"seeded": True, "organizaciones": len(orgs), "usuarios": 1, "mode": "production_minimal"}
 
 
 def seed_estate(db: Session) -> dict:
+    from app.config import es_produccion, demo_users_disabled
+
     if db.scalar(select(Organization).limit(1)):
         return {"seeded": False, "message": "Data Estate ya inicializado"}
+
+    # En production no seedear usuarios demo débiles: solo org admin + admin inicial si hay env
+    if es_produccion() or demo_users_disabled():
+        return _seed_production_minimal(db)
 
     orgs = [
         Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#22d3ee"),
@@ -45,50 +91,57 @@ def seed_estate(db: Session) -> dict:
             organizacion_id=imowi.id,
             email="admin@ops-hub.demo",
             nombre="Administración",
-            password=_hash_seed(admin_pw, "admin12"),
+            password=_hash_seed(admin_pw, "Admin12Demo!"),
             rol="admin",
+            must_change_password="Sí" if not admin_pw else "No",
         ),
         User(
             organizacion_id=imowi.id,
             email="noc@ops-hub.demo",
             nombre="Supervisor plataforma",
-            password=_hash_seed("noc123"),
+            password=_hash_seed("Noc123Demo!"),
             rol="admin",
+            must_change_password="Sí",
         ),
         User(
             organizacion_id=batan.id,
             email="agente@coopbatan.com",
             nombre="Agente Batán",
-            password=_hash_seed(coop_pw, "batan1"),
+            password=_hash_seed(coop_pw, "Batan1Demo!"),
             rol="agente",
+            must_change_password="Sí",
         ),
         User(
             organizacion_id=batan.id,
             email="supervisor@coopbatan.com",
             nombre="Supervisor Batán",
-            password=_hash_seed("supervisor"),
+            password=_hash_seed("Supervisor1!"),
             rol="supervisor",
+            must_change_password="Sí",
         ),
         User(
             organizacion_id=batan.id,
             email="ejecutivo@coopbatan.com",
             nombre="Ejecutivo Batán",
-            password=_hash_seed("ejecutivo"),
+            password=_hash_seed("Ejecutivo1!"),
             rol="ejecutivo",
+            must_change_password="Sí",
         ),
         User(
             organizacion_id=batan.id,
             email="noc@coopbatan.com",
             nombre="Supervisor Batán (legacy)",
-            password=_hash_seed("noc123"),
+            password=_hash_seed("Noc123Demo!"),
             rol="supervisor",
+            must_change_password="Sí",
         ),
         User(
             organizacion_id=viamonte.id,
             email="agente@coopviamonte.com",
             nombre="Agente Viamonte",
-            password=_hash_seed("viamonte"),
+            password=_hash_seed("Viamonte1!"),
             rol="agente",
+            must_change_password="Sí",
         ),
     ]
     db.add_all(users)

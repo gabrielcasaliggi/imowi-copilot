@@ -57,7 +57,56 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 # Auth JWT (stateless — ideal para Render/Fly sin disco persistente)
 AUTH_SECRET = os.getenv("AUTH_SECRET", "")
-AUTH_TOKEN_HOURS = int(os.getenv("AUTH_TOKEN_HOURS", "72"))
+AUTH_TOKEN_HOURS = int(os.getenv("AUTH_TOKEN_HOURS", "12"))
+CONSOLE_JWT_AUD = os.getenv("CONSOLE_JWT_AUD", "ops-hub-console")
+PORTAL_AUTH_SECRET = os.getenv("PORTAL_AUTH_SECRET", "").strip()
+PORTAL_JWT_AUD = os.getenv("PORTAL_JWT_AUD", "ops-hub-portal")
+PORTAL_TOKEN_HOURS = float(os.getenv("PORTAL_TOKEN_HOURS", "4"))
+PORTAL_AUTH_MODE = os.getenv("PORTAL_AUTH_MODE", "dni_otp").strip().lower()
+PORTAL_ALLOW_GUEST = os.getenv("PORTAL_ALLOW_GUEST", "true").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+DISABLE_DEMO_USERS = os.getenv("DISABLE_DEMO_USERS", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+DNI_PEPPER = os.getenv("DNI_PEPPER", "").strip() or AUTH_SECRET or "dev-dni-pepper"
+
+# SMTP (invites consola + OTP portal)
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or "587")
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "").strip() or SMTP_USER
+SMTP_TLS = os.getenv("SMTP_TLS", "true").strip().lower() in ("1", "true", "yes", "on")
+SMTP_SSL = os.getenv("SMTP_SSL", "false").strip().lower() in ("1", "true", "yes", "on")
+PUBLIC_URL = os.getenv("PUBLIC_URL", os.getenv("DOMAIN", "")).strip().rstrip("/")
+if PUBLIC_URL and not PUBLIC_URL.startswith("http"):
+    PUBLIC_URL = f"https://{PUBLIC_URL}"
+
+# OTP portal
+OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6") or "6")
+OTP_TTL_MINUTES = int(os.getenv("OTP_TTL_MINUTES", "10") or "10")
+OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5") or "5")
+
+# Login rate-limit / lockout
+AUTH_LOGIN_MAX_FAILURES = int(os.getenv("AUTH_LOGIN_MAX_FAILURES", "5") or "5")
+AUTH_LOGIN_WINDOW_MINUTES = int(os.getenv("AUTH_LOGIN_WINDOW_MINUTES", "15") or "15")
+AUTH_LOCKOUT_MINUTES = int(os.getenv("AUTH_LOCKOUT_MINUTES", "30") or "30")
+
+# BillTrack lookup (SQL parametrizado, solo SELECT)
+BILLTRACK_LOOKUP_SQL = os.getenv("BILLTRACK_LOOKUP_SQL", "").strip()
+BILLTRACK_LOOKUP_READY = os.getenv("BILLTRACK_LOOKUP_READY", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 
 # RAG — búsqueda por keywords (no inyectar la KB completa al prompt)
 KNOWLEDGE_MIN_SCORE = float(os.getenv("KNOWLEDGE_MIN_SCORE", "0.15"))
@@ -167,8 +216,24 @@ def es_produccion() -> bool:
     return APP_ENV in ("production", "prod")
 
 
+def demo_users_disabled() -> bool:
+    """En production los MOCK_USERS están desactivados salvo override explícito."""
+    if DISABLE_DEMO_USERS:
+        return True
+    if es_produccion():
+        # En prod: desactivar a menos que DISABLE_DEMO_USERS=false explícito
+        raw = os.getenv("DISABLE_DEMO_USERS", "").strip().lower()
+        if raw in ("0", "false", "no", "off"):
+            return False
+        return True
+    return False
+
+
 def _usuarios_desde_env() -> dict:
     """Usuarios demo configurables por variables de entorno."""
+    if demo_users_disabled():
+        return {}
+
     raw = os.getenv("MOCK_USERS_JSON", "").strip()
     if raw:
         parsed = json.loads(raw)
@@ -215,10 +280,12 @@ def validar_config_produccion() -> list[str]:
 
     if not AUTH_SECRET or AUTH_SECRET in ("change-me", "change-me-in-production"):
         avisos.append("AUTH_SECRET no configurado o inseguro")
+    if not PORTAL_AUTH_SECRET:
+        avisos.append("PORTAL_AUTH_SECRET no configurado — usar secreto distinto de AUTH_SECRET")
     if not es_postgres():
         avisos.append(
-            "DATABASE_URL no apunta a PostgreSQL — en producción usá Supabase "
-            "(Settings → Database → Connection string URI)"
+            "DATABASE_URL no apunta a PostgreSQL — en producción usá Postgres local "
+            "o Supabase (Settings → Database → Connection string URI)"
         )
     elif not supabase_configurado():
         avisos.append(
@@ -227,11 +294,10 @@ def validar_config_produccion() -> list[str]:
     if AI_API_KEY in ("", "ollama", "tu-api-key"):
         avisos.append("AI_API_KEY no configurada")
     if CORS_ORIGINS == ["*"]:
-        avisos.append("CORS_ORIGINS=* — restringí al dominio de Netlify en producción")
-
-    for user, cred in MOCK_USERS.items():
-        pwd = cred.get("password", "")
-        if pwd in ("admin", "prueba", "password", "123456"):
-            avisos.append(f"Contraseña débil para usuario '{user}'")
+        avisos.append("CORS_ORIGINS=* — restringí al dominio público (ibot.ecolan.com)")
+    if MOCK_USERS:
+        avisos.append("MOCK_USERS activos en production — set DISABLE_DEMO_USERS=true")
+    if not SMTP_HOST:
+        avisos.append("SMTP_HOST no configurado — invites/OTP por email no funcionarán")
 
     return avisos

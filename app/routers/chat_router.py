@@ -67,14 +67,21 @@ async def crear_ticket_legacy(
 
 
 @router.get("/listar-tickets")
-async def listar_tickets_legacy(response: Response):
+async def listar_tickets_legacy(
+    response: Response,
+    usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
+):
     _legacy(response)
     tickets = tickets_store.listar_todos()
     return {"tickets": [t.model_dump() for t in tickets]}
 
 
 @router.patch("/cerrar-ticket/{ticket_id}")
-async def cerrar_ticket_legacy(ticket_id: str, response: Response):
+async def cerrar_ticket_legacy(
+    ticket_id: str,
+    response: Response,
+    usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
+):
     _legacy(response)
     ticket = tickets_store.cerrar_ticket_legacy(ticket_id)
     return {"status": "success", "ticket": ticket.model_dump()}

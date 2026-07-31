@@ -130,9 +130,14 @@ def create_organization_user(
         raise HTTPException(400, "Email y nombre son obligatorios")
     if not valid_email(body.email.strip()):
         raise HTTPException(400, "Email inválido")
-    pwd = body.password or "cliente"
-    if not valid_password(pwd):
-        raise HTTPException(400, "La clave debe tener al menos 6 caracteres")
+    pwd = (body.password or "").strip()
+    if pwd and not valid_password(pwd):
+        from app.estate.security import password_policy_errors
+
+        raise HTTPException(
+            400,
+            "La clave no cumple la política: " + ", ".join(password_policy_errors(pwd)),
+        )
     try:
         user = repo.create_user_for_org(
             db,
@@ -143,6 +148,7 @@ def create_organization_user(
             rol=rol_norm,
             telefono=body.telefono,
             linea_principal=body.linea_principal,
+            must_change_password=True,
         )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc

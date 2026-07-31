@@ -127,6 +127,165 @@ export const api = {
     });
   },
 
+  logout() {
+    return request<{ status: string }>("/api/logout", { method: "POST" }).catch(() => ({
+      status: "ok",
+    }));
+  },
+
+  changePassword(current_password: string, new_password: string) {
+    return request<{ status: string; must_change_password: boolean }>(
+      "/api/v1/auth/change-password",
+      {
+        method: "POST",
+        body: JSON.stringify({ current_password, new_password }),
+      },
+    );
+  },
+
+  createInvite(body: { email: string; nombre?: string; rol?: string }, tenantSlug?: string) {
+    return request<{
+      status: string;
+      email: string;
+      rol: string;
+      expires_at: string;
+      email_sent: boolean;
+      token?: string;
+    }>("/api/v1/auth/invites", {
+      method: "POST",
+      body: JSON.stringify(body),
+      tenantSlug,
+    });
+  },
+
+  listInvites(tenantSlug?: string) {
+    return request<{
+      invites: {
+        id: string;
+        email: string;
+        nombre: string;
+        rol: string;
+        expires_at: string | null;
+        accepted_at: string | null;
+        invited_by: string;
+        pendiente: boolean;
+      }[];
+    }>("/api/v1/auth/invites", { tenantSlug });
+  },
+
+  peekInvite(token: string) {
+    return request<{
+      email: string;
+      nombre: string;
+      rol: string;
+      org_slug: string;
+      org_nombre: string;
+      expires_at: string;
+    }>(`/api/v1/auth/invite/${encodeURIComponent(token)}`, { skipAuth: true });
+  },
+
+  acceptInvite(body: { token: string; password: string; nombre?: string }) {
+    return request<{
+      status: string;
+      email: string;
+      nombre: string;
+      rol: string;
+      org_slug: string;
+    }>("/api/v1/auth/invite/accept", {
+      method: "POST",
+      body: JSON.stringify(body),
+      skipAuth: true,
+    });
+  },
+
+  loginEvents(superficie = "console", limit = 50) {
+    return request<{
+      eventos: {
+        id: string;
+        superficie: string;
+        actor: string;
+        ip: string;
+        ok: boolean;
+        reason: string;
+        org_slug: string;
+        created_at: string | null;
+      }[];
+    }>(`/api/v1/auth/login-events?superficie=${superficie}&limit=${limit}`);
+  },
+
+  resetUserPassword(userId: string, tenantSlug?: string) {
+    return request<{ status: string; email: string; must_change_password: boolean; temporary_password?: string }>(
+      `/api/v1/org/users/${userId}/reset-password`,
+      { method: "POST", body: JSON.stringify({ must_change: true }), tenantSlug },
+    );
+  },
+
+  portalAuthStart(body: { dni: string; org_slug?: string; linea?: string }) {
+    return request<{
+      status: string;
+      challenge_id: string;
+      contact_masked: string;
+      expires_in_seconds: number;
+      org_slug: string;
+      debug_otp?: string;
+    }>("/api/v1/portal/auth/start", {
+      method: "POST",
+      body: JSON.stringify(body),
+      skipAuth: true,
+    });
+  },
+
+  portalAuthVerify(body: { challenge_id: string; otp: string; org_slug?: string }) {
+    return request<{
+      portal_token: string;
+      org_slug: string;
+      abonado_identificado: boolean;
+      has_pin: boolean;
+      conversacion: InboxConversation;
+      mensajes: InboxMessage[];
+      contact_masked?: string;
+    }>("/api/v1/portal/auth/verify", {
+      method: "POST",
+      body: JSON.stringify(body),
+      skipAuth: true,
+    });
+  },
+
+  portalLoginPin(body: { dni: string; pin: string; org_slug?: string }) {
+    return request<{
+      portal_token: string;
+      org_slug: string;
+      abonado_identificado: boolean;
+      has_pin: boolean;
+      conversacion: InboxConversation;
+      mensajes: InboxMessage[];
+    }>("/api/v1/portal/auth/login-pin", {
+      method: "POST",
+      body: JSON.stringify(body),
+      skipAuth: true,
+    });
+  },
+
+  portalSetPin(pin: string, portalToken: string) {
+    return fetch(`${API_BASE}/api/v1/portal/auth/set-pin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${portalToken}`,
+      },
+      body: JSON.stringify({ pin }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new ApiError(
+          typeof err.detail === "string" ? err.detail : res.statusText,
+          res.status,
+        );
+      }
+      return res.json() as Promise<{ status: string; has_pin: boolean }>;
+    });
+  },
+
   me() {
     return request<MeResponse>("/api/me");
   },

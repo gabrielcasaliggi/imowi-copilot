@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.estate.database import Base
@@ -57,6 +57,8 @@ class User(Base):
     activo: Mapped[str] = mapped_column(String(8), default="Sí")
     disponibilidad: Mapped[str] = mapped_column(String(24), default="disponible")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_version: Mapped[int] = mapped_column(Integer, default=0)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     organizacion: Mapped["Organization"] = relationship(back_populates="usuarios")
 
@@ -247,6 +249,104 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped["Organization"] = relationship()
+
+
+class AuthLoginEvent(Base):
+    """Auditoría de intentos de login (consola y portal)."""
+
+    __tablename__ = "auth_login_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    superficie: Mapped[str] = mapped_column(String(16), default="console", index=True)  # console|portal
+    actor: Mapped[str] = mapped_column(String(160), default="", index=True)
+    ip: Mapped[str] = mapped_column(String(64), default="", index=True)
+    ok: Mapped[str] = mapped_column(String(8), default="No")
+    reason: Mapped[str] = mapped_column(String(80), default="")
+    org_slug: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+
+class AuthLockout(Base):
+    """Bloqueo temporal por intentos fallidos (IP + actor)."""
+
+    __tablename__ = "auth_lockouts"
+    __table_args__ = (UniqueConstraint("superficie", "actor_key", name="uq_auth_lockout_actor"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    superficie: Mapped[str] = mapped_column(String(16), default="console", index=True)
+    actor_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class AuthTokenDenylist(Base):
+    """JWT jti invalidados (logout)."""
+
+    __tablename__ = "auth_token_denylist"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    exp_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class UserInvite(Base):
+    """Invitación por email a consola (alta operador/coop)."""
+
+    __tablename__ = "user_invites"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    email: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    nombre: Mapped[str] = mapped_column(String(120), default="")
+    rol: Mapped[str] = mapped_column(String(32), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    invited_by: Mapped[str] = mapped_column(String(120), default="")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    organizacion: Mapped["Organization"] = relationship()
+
+
+class PortalAbonadoLink(Base):
+    """Vínculo mínimo local abonado↔portal (sin padrón completo)."""
+
+    __tablename__ = "portal_abonado_links"
+    __table_args__ = (UniqueConstraint("organizacion_id", "dni_normalized", name="uq_portal_link_org_dni"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    dni_normalized: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    dni_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    abonado_ref: Mapped[str] = mapped_column(String(80), default="")
+    pin_hash: Mapped[str] = mapped_column(String(255), default="")
+    contacto_email_masked: Mapped[str] = mapped_column(String(120), default="")
+    enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    activo: Mapped[str] = mapped_column(String(8), default="Sí")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    organizacion: Mapped["Organization"] = relationship()
+
+
+class PortalOtpChallenge(Base):
+    """Desafío OTP email para auth portal."""
+
+    __tablename__ = "portal_otp_challenges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    dni_normalized: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    contact_masked: Mapped[str] = mapped_column(String(120), default="")
+    abonado_ref: Mapped[str] = mapped_column(String(80), default="")
+    email_destino: Mapped[str] = mapped_column(String(160), default="")
+    ip: Mapped[str] = mapped_column(String(64), default="")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class Abonado(Base):

@@ -157,19 +157,31 @@ def create_user_for_org(
     *,
     email: str,
     nombre: str,
-    password: str = "cliente",
+    password: str = "",
     rol: str = "agente",
     telefono: str = "",
     linea_principal: str = "",
     must_change_password: bool | None = None,
 ) -> User:
     from app.rbac import normalizar_rol_consola
+    import secrets
+    import string
 
     email_norm = email.strip().lower()
     if not valid_email(email_norm):
         raise ValueError("Email inválido")
-    if not valid_password(password):
-        raise ValueError("La clave debe tener al menos 6 caracteres")
+    plain = (password or "").strip()
+    if not plain:
+        alphabet = string.ascii_letters + string.digits
+        plain = "Tmp" + "".join(secrets.choice(alphabet) for _ in range(10)) + "1a"
+        if must_change_password is None:
+            must_change_password = True
+    if not valid_password(plain):
+        from app.estate.security import password_policy_errors
+
+        raise ValueError(
+            "La clave no cumple la política: " + ", ".join(password_policy_errors(plain))
+        )
     rol_raw = (rol or "agente").lower()
     if rol_raw not in _ROLES_VALIDOS:
         raise ValueError(f"Rol '{rol}' no permitido")
@@ -179,12 +191,12 @@ def create_user_for_org(
         raise ValueError(f"El email {email} ya está registrado")
     force_change = must_change_password
     if force_change is None:
-        force_change = password in ("cliente", "demo", "password")
+        force_change = True
     user = User(
         organizacion_id=org_id,
         email=email_norm,
         nombre=nombre.strip(),
-        password=hash_password(password),
+        password=hash_password(plain),
         rol=rol_norm,
         telefono=telefono,
         linea_principal=linea_principal,
@@ -223,15 +235,22 @@ def update_user_for_org(
         user.telefono = telefono
     if linea_principal is not None:
         user.linea_principal = linea_principal
-    if activo is not None:
-        user.activo = "Sí" if activo else "No"
-    if disponibilidad is not None:
-        user.disponibilidad = disponibilidad.strip().lower() or "disponible"
     if password is not None:
         if not valid_password(password):
-            raise ValueError("La clave debe tener al menos 6 caracteres")
+            from app.estate.security import password_policy_errors
+
+            raise ValueError(
+                "La clave no cumple la política: " + ", ".join(password_policy_errors(password))
+            )
         user.password = hash_password(password)
         user.must_change_password = "No"
+        user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+    if activo is not None:
+        user.activo = "Sí" if activo else "No"
+        if not activo:
+            user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+    if disponibilidad is not None:
+        user.disponibilidad = disponibilidad.strip().lower() or "disponible"
     if rol is not None:
         org = db.get(Organization, org_id)
         rol_norm = normalizar_rol_consola(rol, org.slug if org else None)

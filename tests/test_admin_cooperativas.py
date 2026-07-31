@@ -63,10 +63,11 @@ def test_admin_create_cooperativa_and_import_csv():
 
     r = client.post(
         "/api/login",
-        json={"usuario": email, "password": "cliente"},
+        json={"usuario": email, "password": "ClienteImport1"},
     )
     assert r.status_code == 200
     assert r.json()["org_slug"] == slug
+    assert r.json().get("must_change_password") is True
 
 
 def test_admin_forbidden_for_cooperativa():

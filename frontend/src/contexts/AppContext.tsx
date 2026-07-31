@@ -171,6 +171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearTraces = useCallback(() => setTraces([]), []);
 
   const logout = useCallback(() => {
+    void api.logout().catch(() => {});
     clearToken();
     clearTenantSlug();
     clearSessionId();
@@ -337,6 +338,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       newSessionId();
       setSessionIdState(getSessionId());
+      if (data.must_change_password) {
+        setReady(true);
+        router.replace("/change-password");
+        return;
+      }
       try {
         await boot(data);
       } catch (e) {

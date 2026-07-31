@@ -24,9 +24,9 @@ def _admin_headers() -> dict[str, str]:
 
 
 def test_password_hash_and_verify():
-    hashed = hash_password("secreto123")
+    hashed = hash_password("Secreto123x")
     assert is_hashed(hashed)
-    assert verify_password("secreto123", hashed)
+    assert verify_password("Secreto123x", hashed)
     assert not verify_password("otra", hashed)
     assert not valid_password("abc")
 
@@ -110,7 +110,7 @@ def test_auditoria_usuario_y_ticket(db_session: Session):
     r = client.post(
         f"/api/v1/admin/organizations/{slug}/users",
         headers=headers,
-        json={"email": email, "nombre": "Audit User", "password": "cliente123"},
+        json={"email": email, "nombre": "Audit User", "password": "ClientePass12"},
     )
     assert r.status_code == 200
 
