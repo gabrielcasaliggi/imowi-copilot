@@ -757,7 +757,7 @@ export const api = {
       linea_principal?: string;
     },
   ) {
-    return request<{ status: string; usuario: AdminUser }>(
+    return request<{ status: string; usuario: AdminUser; temporary_password?: string }>(
       `/api/v1/admin/organizations/${slug}/users`,
       { method: "POST", body: JSON.stringify(body) },
     );
@@ -779,6 +779,18 @@ export const api = {
       `/api/v1/admin/organizations/${slug}/users/${userId}`,
       { method: "PATCH", body: JSON.stringify(body) },
     );
+  },
+
+  adminResetUserPassword(slug: string, userId: string) {
+    return request<{
+      status: string;
+      email: string;
+      must_change_password: boolean;
+      temporary_password: string;
+    }>(`/api/v1/admin/organizations/${encodeURIComponent(slug)}/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
   },
 
   rbacRoles() {

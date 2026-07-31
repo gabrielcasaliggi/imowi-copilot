@@ -125,3 +125,67 @@ def test_admin_cannot_delete_imowi():
         headers=headers,
     )
     assert r.status_code == 400
+
+
+def test_admin_user_create_edit_reset_password():
+    headers = _admin_headers()
+    slug = f"coop-usr-{uuid.uuid4().hex[:8]}"
+    email = f"usr.{uuid.uuid4().hex[:8]}@test.com"
+
+    assert (
+        client.post(
+            "/api/v1/admin/organizations",
+            headers=headers,
+            json={"nombre": "Coop Users", "slug": slug},
+        ).status_code
+        == 200
+    )
+
+    # Alta sin password → temporary_password
+    created = client.post(
+        f"/api/v1/admin/organizations/{slug}/users",
+        headers=headers,
+        json={"email": email, "nombre": "Operador Uno", "rol": "agente"},
+    )
+    assert created.status_code == 200, created.text
+    body = created.json()
+    assert body["usuario"]["email"] == email
+    tmp = body.get("temporary_password")
+    assert tmp and len(tmp) >= 10
+
+    user_id = body["usuario"]["id"]
+
+    # Editar rol
+    patched = client.patch(
+        f"/api/v1/admin/organizations/{slug}/users/{user_id}",
+        headers=headers,
+        json={"rol": "supervisor", "nombre": "Operador Uno Edit"},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["usuario"]["rol"] == "supervisor"
+    assert patched.json()["usuario"]["nombre"] == "Operador Uno Edit"
+
+    # Login con temp
+    login = client.post("/api/login", json={"usuario": email, "password": tmp})
+    assert login.status_code == 200
+
+    # Reset desde admin hub
+    reset = client.post(
+        f"/api/v1/admin/organizations/{slug}/users/{user_id}/reset-password",
+        headers=headers,
+    )
+    assert reset.status_code == 200, reset.text
+    new_tmp = reset.json()["temporary_password"]
+    assert new_tmp and new_tmp != tmp
+
+    assert client.post("/api/login", json={"usuario": email, "password": tmp}).status_code == 401
+    assert client.post("/api/login", json={"usuario": email, "password": new_tmp}).status_code == 200
+
+    # Baja
+    baja = client.patch(
+        f"/api/v1/admin/organizations/{slug}/users/{user_id}",
+        headers=headers,
+        json={"activo": False},
+    )
+    assert baja.status_code == 200
+    assert baja.json()["usuario"]["activo"] is False

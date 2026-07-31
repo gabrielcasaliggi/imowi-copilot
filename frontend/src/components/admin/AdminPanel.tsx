@@ -15,6 +15,12 @@ import { PlatformSettingsPanel } from "@/components/admin/PlatformSettingsPanel"
 const inputCls =
   "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
+const COOP_ROLES = [
+  { value: "agente", label: "Agente" },
+  { value: "supervisor", label: "Supervisor" },
+  { value: "ejecutivo", label: "Ejecutivo" },
+] as const;
+
 type HubTab = "cooperativas" | "seguridad" | "config" | "roles";
 
 export function AdminPanel() {
@@ -32,7 +38,6 @@ export function AdminPanel() {
   const [invites, setInvites] = useState<
     { email: string; rol: string; pendiente: boolean; expires_at: string | null }[]
   >([]);
-  const [inviteForm, setInviteForm] = useState({ email: "", nombre: "", rol: "agente" });
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   const [rbacRoles, setRbacRoles] = useState<
@@ -41,6 +46,18 @@ export function AdminPanel() {
   const [rbacPerms, setRbacPerms] = useState<
     { codigo: string; dominio: string; descripcion: string }[]
   >([]);
+  const [selectedRoleCode, setSelectedRoleCode] = useState("agente");
+
+  const [userForm, setUserForm] = useState({
+    email: "",
+    nombre: "",
+    rol: "agente",
+  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ nombre: "", rol: "agente", telefono: "" });
+  const [revealedPassword, setRevealedPassword] = useState<{ email: string; password: string } | null>(
+    null,
+  );
 
   const [newOrg, setNewOrg] = useState({
     nombre: "",
@@ -53,6 +70,7 @@ export function AdminPanel() {
   const selectedOrg = orgs.find((o) => o.slug === selectedSlug);
   const totalUsuarios = cooperativas.reduce((a, o) => a + (o.usuarios || 0), 0);
   const totalAbiertos = cooperativas.reduce((a, o) => a + (o.tickets_abiertos || 0), 0);
+  const selectedRole = rbacRoles.find((r) => r.codigo === selectedRoleCode);
 
   const loadOrgs = useCallback(async () => {
     setLoading(true);
@@ -101,6 +119,8 @@ export function AdminPanel() {
     void loadInvites(selectedSlug);
     setShowDelete(false);
     setDeleteConfirm("");
+    setEditingId(null);
+    setRevealedPassword(null);
   }, [selectedSlug, loadUsers, loadInvites]);
 
   useEffect(() => {
@@ -112,6 +132,9 @@ export function AdminPanel() {
       void Promise.all([api.rbacRoles(), api.rbacPermissions()]).then(([roles, perms]) => {
         setRbacRoles(roles.roles);
         setRbacPerms(perms.permisos);
+        setSelectedRoleCode((prev) =>
+          roles.roles.some((r) => r.codigo === prev) ? prev : roles.roles[0]?.codigo || "agente",
+        );
       });
     }
     if (hubTab === "seguridad") {
@@ -179,14 +202,106 @@ export function AdminPanel() {
     }
   };
 
+  const onCreateUser = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedSlug) return;
+    setBusy(true);
+    setMessage("");
+    setRevealedPassword(null);
+    try {
+      const res = await api.createAdminUser(selectedSlug, {
+        email: userForm.email.trim(),
+        nombre: userForm.nombre.trim() || userForm.email.split("@")[0],
+        rol: userForm.rol,
+      });
+      setUserForm({ email: "", nombre: "", rol: "agente" });
+      if (res.temporary_password) {
+        setRevealedPassword({ email: res.usuario.email, password: res.temporary_password });
+        setMessage(`Usuario creado: ${res.usuario.email}. Guardá la clave temporal.`);
+      } else {
+        setMessage(`Usuario creado: ${res.usuario.email}`);
+      }
+      await loadUsers(selectedSlug);
+      await loadOrgs();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Error al crear usuario");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startEdit = (u: AdminUser) => {
+    setEditingId(u.id);
+    setEditForm({
+      nombre: u.nombre || "",
+      rol: u.rol || "agente",
+      telefono: u.telefono || "",
+    });
+  };
+
+  const onSaveEdit = async () => {
+    if (!selectedSlug || !editingId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.updateAdminUser(selectedSlug, editingId, {
+        nombre: editForm.nombre.trim(),
+        rol: editForm.rol,
+        telefono: editForm.telefono.trim(),
+      });
+      setMessage("Usuario actualizado");
+      setEditingId(null);
+      await loadUsers(selectedSlug);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Error al editar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onChangeRole = async (user: AdminUser, rol: string) => {
+    if (!selectedSlug || user.rol === rol) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.updateAdminUser(selectedSlug, user.id, { rol });
+      setMessage(`Rol de ${user.email} → ${rol}`);
+      await loadUsers(selectedSlug);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Error al cambiar rol");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onToggleUserActive = async (user: AdminUser) => {
     if (!selectedSlug) return;
     setBusy(true);
+    setMessage("");
     try {
-      await api.updateAdminUser(selectedSlug, user.id, { activo: !(user.activo !== false) });
+      const next = user.activo === false;
+      await api.updateAdminUser(selectedSlug, user.id, { activo: next });
+      setMessage(next ? `Reactivado ${user.email}` : `Baja de ${user.email}`);
       await loadUsers(selectedSlug);
+      await loadOrgs();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al actualizar usuario");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onResetPassword = async (user: AdminUser) => {
+    if (!selectedSlug) return;
+    setBusy(true);
+    setMessage("");
+    setRevealedPassword(null);
+    try {
+      const r = await api.adminResetUserPassword(selectedSlug, user.id);
+      setRevealedPassword({ email: r.email, password: r.temporary_password });
+      setMessage(`Clave reseteada para ${r.email}. Debe cambiarla al ingresar.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Error al resetear clave");
     } finally {
       setBusy(false);
     }
@@ -212,21 +327,140 @@ export function AdminPanel() {
         </p>
       )}
 
+      {revealedPassword && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 space-y-2">
+          <p className="text-sm text-amber-100">
+            Clave temporal para <span className="font-mono">{revealedPassword.email}</span>
+          </p>
+          <p className="font-mono text-lg text-amber-50 tracking-wide select-all">
+            {revealedPassword.password}
+          </p>
+          <p className="text-[11px] text-amber-200/80">
+            Copiála ahora: no se vuelve a mostrar. El usuario deberá cambiarla al entrar.
+          </p>
+          <button
+            type="button"
+            className="text-xs text-amber-200 underline"
+            onClick={() => setRevealedPassword(null)}
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
       {hubTab === "config" && <PlatformSettingsPanel onMessage={setMessage} />}
 
       {hubTab === "roles" && (
         <div className="space-y-4">
-          <SidebarSection title="Roles de consola">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {rbacRoles.map((r) => (
-                <GlassCard key={r.codigo} title={r.nombre} accent="cyan" variant="secondary">
-                  <p className="text-xs text-slate-400 mb-2">{r.descripcion}</p>
-                  <p className="text-[11px] font-mono text-slate-500">{r.permisos.length} permisos</p>
-                </GlassCard>
-              ))}
-            </div>
-          </SidebarSection>
-          <SidebarSection title="Matriz (referencia)">
+          <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
+            Los permisos de cada rol son fijos en el sistema. Para{" "}
+            <strong className="text-slate-200 font-medium">asignar o cambiar el rol</strong> de un
+            operador, usá la pestaña Cooperativas → detalle de la coop → selector de rol / Editar.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <GlassCard title="Roles" accent="cyan" variant="secondary">
+              <div className="space-y-1.5">
+                {rbacRoles
+                  .filter((r) => r.codigo !== "admin")
+                  .map((r) => (
+                    <button
+                      key={r.codigo}
+                      type="button"
+                      onClick={() => setSelectedRoleCode(r.codigo)}
+                      className={`w-full text-left p-2.5 rounded-xl border transition-colors ${
+                        selectedRoleCode === r.codigo
+                          ? "border-cyan-500/40 bg-cyan-500/8"
+                          : "border-slate-800 hover:border-slate-700"
+                      }`}
+                    >
+                      <p className="text-sm text-slate-100">{r.nombre}</p>
+                      <p className="text-[10px] font-mono text-slate-500">{r.codigo}</p>
+                    </button>
+                  ))}
+              </div>
+            </GlassCard>
+
+            <GlassCard
+              title={selectedRole?.nombre || "Detalle del rol"}
+              accent="emerald"
+              variant="secondary"
+              className="lg:col-span-2"
+            >
+              {selectedRole ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-400">{selectedRole.descripcion}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {selectedRole.permisos.length} permisos
+                  </p>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-64 overflow-y-auto">
+                    {selectedRole.permisos.map((p) => {
+                      const meta = rbacPerms.find((x) => x.codigo === p);
+                      return (
+                        <li
+                          key={p}
+                          className="text-[11px] font-mono text-slate-300 border border-slate-800 rounded-lg px-2 py-1.5"
+                        >
+                          <span className="text-cyan-200/90">{p}</span>
+                          {meta?.descripcion ? (
+                            <span className="block font-sans text-slate-500 normal-case mt-0.5">
+                              {meta.descripcion}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {selectedOrg && (
+                    <div className="border-t border-slate-800 pt-3 space-y-2">
+                      <p className="text-xs text-slate-400">
+                        Usuarios en <span className="font-mono text-slate-300">{selectedOrg.slug}</span>{" "}
+                        con este rol
+                      </p>
+                      {users.filter((u) => u.rol === selectedRole.codigo).length === 0 ? (
+                        <p className="text-[11px] text-slate-500">Ninguno.</p>
+                      ) : (
+                        users
+                          .filter((u) => u.rol === selectedRole.codigo)
+                          .map((u) => (
+                            <div
+                              key={u.id}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="truncate text-slate-300">{u.email}</span>
+                              <select
+                                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px]"
+                                value={u.rol}
+                                disabled={busy}
+                                onChange={(e) => void onChangeRole(u, e.target.value)}
+                              >
+                                {COOP_ROLES.map((r) => (
+                                  <option key={r.value} value={r.value}>
+                                    {r.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))
+                      )}
+                      <button
+                        type="button"
+                        className="text-[11px] text-cyan-300"
+                        onClick={() => setHubTab("cooperativas")}
+                      >
+                        Ir a gestión completa de usuarios →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">Seleccioná un rol.</p>
+              )}
+            </GlassCard>
+          </div>
+
+          <SidebarSection title="Matriz de permisos (referencia)">
             <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-80">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-950/80 text-slate-400 sticky top-0">
@@ -300,7 +534,6 @@ export function AdminPanel() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Lista */}
               <GlassCard title="Cooperativas" accent="cyan" variant="secondary">
                 <div className="space-y-1.5 max-h-[28rem] overflow-y-auto">
                   {cooperativas.length === 0 ? (
@@ -337,7 +570,6 @@ export function AdminPanel() {
                 </div>
               </GlassCard>
 
-              {/* Crear */}
               <GlassCard title="Nueva cooperativa" accent="emerald" variant="secondary">
                 <form onSubmit={onCreateOrg} className="space-y-2.5">
                   <input
@@ -378,7 +610,6 @@ export function AdminPanel() {
                 </form>
               </GlassCard>
 
-              {/* Detalle */}
               <GlassCard
                 title={selectedOrg ? selectedOrg.nombre : "Detalle"}
                 accent="cyan"
@@ -393,114 +624,178 @@ export function AdminPanel() {
                       <span className="text-[11px] text-slate-500">{users.length} usuarios</span>
                     </div>
 
-                    {/* Invite */}
                     <div>
-                      <p className="text-xs text-slate-400 mb-1.5">Invitar operador</p>
-                      <form
-                        className="space-y-2"
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          setBusy(true);
-                          try {
-                            const res = await api.createInvite(inviteForm, selectedSlug);
-                            setMessage(
-                              `Invitación a ${res.email}${res.token ? ` · token: ${res.token.slice(0, 10)}…` : ""}`,
-                            );
-                            setInviteForm({ email: "", nombre: "", rol: "agente" });
-                            await loadInvites(selectedSlug);
-                          } catch (err) {
-                            setMessage(err instanceof Error ? err.message : "Error invite");
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                      >
+                      <p className="text-xs text-slate-400 mb-1.5">Alta de usuario</p>
+                      <form className="space-y-2" onSubmit={onCreateUser}>
                         <input
                           className={inputCls}
+                          placeholder="Nombre"
+                          value={userForm.nombre}
+                          onChange={(e) => setUserForm((f) => ({ ...f, nombre: e.target.value }))}
+                        />
+                        <input
+                          className={inputCls}
+                          type="email"
                           placeholder="Email"
-                          value={inviteForm.email}
-                          onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                          value={userForm.email}
+                          onChange={(e) => setUserForm((f) => ({ ...f, email: e.target.value }))}
                           required
                         />
                         <div className="flex gap-2">
                           <select
                             className={inputCls}
-                            value={inviteForm.rol}
-                            onChange={(e) => setInviteForm((f) => ({ ...f, rol: e.target.value }))}
+                            value={userForm.rol}
+                            onChange={(e) => setUserForm((f) => ({ ...f, rol: e.target.value }))}
                           >
-                            <option value="agente">agente</option>
-                            <option value="supervisor">supervisor</option>
-                            <option value="ejecutivo">ejecutivo</option>
+                            {COOP_ROLES.map((r) => (
+                              <option key={r.value} value={r.value}>
+                                {r.label}
+                              </option>
+                            ))}
                           </select>
                           <button
                             type="submit"
                             disabled={busy}
-                            className="shrink-0 px-3 rounded-lg border border-cyan-500/35 text-cyan-200 text-xs disabled:opacity-50"
+                            className="shrink-0 px-3 rounded-lg border border-emerald-500/35 text-emerald-200 text-xs disabled:opacity-50"
                           >
-                            Invitar
+                            Crear
                           </button>
                         </div>
                       </form>
+                      <p className="text-[10px] text-slate-500 mt-1.5">
+                        Se genera una clave temporal (mostrada arriba). También podés invitar por
+                        email si hay SMTP.
+                      </p>
                       {invites.filter((i) => i.pendiente).length > 0 && (
                         <ul className="mt-2 text-[10px] font-mono text-slate-500 space-y-0.5">
                           {invites
                             .filter((i) => i.pendiente)
                             .slice(0, 5)
                             .map((i) => (
-                              <li key={i.email}>pendiente · {i.email}</li>
+                              <li key={i.email}>invite pendiente · {i.email}</li>
                             ))}
                         </ul>
                       )}
                     </div>
 
-                    {/* Users */}
-                    <div className="border-t border-slate-800 pt-3 max-h-48 overflow-y-auto space-y-1">
+                    <div className="border-t border-slate-800 pt-3 max-h-72 overflow-y-auto space-y-2">
                       {users.length === 0 ? (
                         <p className="text-xs text-slate-500">Sin usuarios.</p>
                       ) : (
                         users.map((u) => (
                           <div
                             key={u.id}
-                            className="flex justify-between gap-2 text-xs py-1.5 border-b border-slate-800/50"
+                            className={`rounded-xl border px-2.5 py-2 space-y-1.5 ${
+                              u.activo === false
+                                ? "border-slate-800/60 opacity-60"
+                                : "border-slate-800"
+                            }`}
                           >
-                            <div className="min-w-0">
-                              <p className="text-slate-200 truncate">{u.nombre}</p>
-                              <p className="font-mono text-slate-500 truncate text-[10px]">{u.email}</p>
-                            </div>
-                            <div className="shrink-0 flex flex-col items-end gap-0.5">
-                              <span className="text-slate-500">{u.rol}</span>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                className="text-[10px] text-cyan-300"
-                                onClick={() => void onToggleUserActive(u)}
-                              >
-                                {u.activo === false ? "Activar" : "Desactivar"}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                className="text-[10px] text-amber-300/90"
-                                onClick={async () => {
-                                  try {
-                                    const r = await api.resetUserPassword(u.id, selectedSlug);
-                                    setMessage(
-                                      `Reset ${r.email}${r.temporary_password ? ` · ${r.temporary_password}` : ""}`,
-                                    );
-                                  } catch (err) {
-                                    setMessage(err instanceof Error ? err.message : "Error reset");
+                            {editingId === u.id ? (
+                              <div className="space-y-2">
+                                <input
+                                  className={inputCls}
+                                  value={editForm.nombre}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({ ...f, nombre: e.target.value }))
                                   }
-                                }}
-                              >
-                                Reset clave
-                              </button>
-                            </div>
+                                  placeholder="Nombre"
+                                />
+                                <input
+                                  className={inputCls}
+                                  value={editForm.telefono}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({ ...f, telefono: e.target.value }))
+                                  }
+                                  placeholder="Teléfono"
+                                />
+                                <select
+                                  className={inputCls}
+                                  value={editForm.rol}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({ ...f, rol: e.target.value }))
+                                  }
+                                >
+                                  {COOP_ROLES.map((r) => (
+                                    <option key={r.value} value={r.value}>
+                                      {r.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void onSaveEdit()}
+                                    className="text-[11px] px-2 py-1 rounded-lg border border-cyan-500/35 text-cyan-200"
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-[11px] text-slate-400"
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-xs text-slate-200 truncate">{u.nombre}</p>
+                                    <p className="font-mono text-slate-500 truncate text-[10px]">
+                                      {u.email}
+                                    </p>
+                                  </div>
+                                  <select
+                                    className="shrink-0 bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-0.5 text-[10px] text-slate-300"
+                                    value={u.rol}
+                                    disabled={busy}
+                                    onChange={(e) => void onChangeRole(u, e.target.value)}
+                                    title="Cambiar rol"
+                                  >
+                                    {COOP_ROLES.map((r) => (
+                                      <option key={r.value} value={r.value}>
+                                        {r.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    className="text-[10px] text-cyan-300"
+                                    onClick={() => startEdit(u)}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    className="text-[10px] text-slate-300"
+                                    onClick={() => void onToggleUserActive(u)}
+                                  >
+                                    {u.activo === false ? "Reactivar" : "Dar de baja"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    className="text-[10px] text-amber-300/90"
+                                    onClick={() => void onResetPassword(u)}
+                                  >
+                                    Reset clave
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         ))
                       )}
                     </div>
 
-                    {/* Delete */}
                     <div className="border-t border-rose-900/40 pt-3">
                       {!showDelete ? (
                         <button

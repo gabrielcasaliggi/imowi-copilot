@@ -155,8 +155,16 @@ def create_organization_user(
         raise HTTPException(400, "Email y nombre son obligatorios")
     if not valid_email(body.email.strip()):
         raise HTTPException(400, "Email inválido")
+    import secrets
+    import string
+
     pwd = (body.password or "").strip()
-    if pwd and not valid_password(pwd):
+    generated = False
+    if not pwd:
+        alphabet = string.ascii_letters + string.digits
+        pwd = "Tmp" + "".join(secrets.choice(alphabet) for _ in range(10)) + "1a"
+        generated = True
+    if not valid_password(pwd):
         from app.estate.security import password_policy_errors
 
         raise HTTPException(
@@ -185,7 +193,10 @@ def create_organization_user(
         recurso=user.email,
         detalle=f"Usuario {user.nombre} ({user.rol}) en {slug}",
     )
-    return {"status": "ok", "usuario": repo.user_to_dict(user)}
+    out: dict = {"status": "ok", "usuario": repo.user_to_dict(user)}
+    if generated:
+        out["temporary_password"] = pwd
+    return out
 
 
 @router.patch("/admin/organizations/{slug}/users/{user_id}")
@@ -224,6 +235,44 @@ def update_organization_user(
         detalle=f"activo={repo.user_is_active(user)} rol={user.rol}",
     )
     return {"status": "ok", "usuario": repo.user_to_dict(user)}
+
+
+@router.post("/admin/organizations/{slug}/users/{user_id}/reset-password")
+def admin_reset_user_password(
+    slug: str,
+    user_id: str,
+    admin: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Reset de clave desde Admin Hub. Siempre devuelve temporary_password al admin."""
+    import secrets
+    import string
+
+    org = _org_or_404(db, slug)
+    user = repo.get_user_by_id(db, org.id, user_id)
+    if not user:
+        raise HTTPException(404, "Usuario no encontrado")
+    new_pw = "Tmp" + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10)) + "1a"
+    from app.estate.security import hash_password
+
+    user.password = hash_password(new_pw)
+    user.must_change_password = "Sí"
+    user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+    db.commit()
+    log_audit(
+        db,
+        org_id=org.id,
+        actor=admin.usuario,
+        accion="auth.reset_password",
+        recurso=user.email,
+        detalle="admin_hub",
+    )
+    return {
+        "status": "ok",
+        "email": user.email,
+        "must_change_password": True,
+        "temporary_password": new_pw,
+    }
 
 
 @router.post("/admin/organizations/{slug}/import-csv")

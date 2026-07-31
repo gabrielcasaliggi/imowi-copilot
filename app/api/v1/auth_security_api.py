@@ -369,9 +369,10 @@ def reset_user_password(
         recurso=user.email,
         detalle="must_change=" + str(body.must_change),
     )
-    out = {"status": "ok", "email": user.email, "must_change_password": body.must_change}
-    from app.config import es_produccion
-
-    if not es_produccion():
-        out["temporary_password"] = new_pw
-    return out
+    # El admin/supervisor que resetea necesita la clave para entregarla al operador.
+    return {
+        "status": "ok",
+        "email": user.email,
+        "must_change_password": body.must_change,
+        "temporary_password": new_pw,
+    }

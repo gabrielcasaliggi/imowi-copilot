@@ -127,7 +127,7 @@ class OrganizationUpdate(BaseModel):
 class UserCreate(BaseModel):
     email: str
     nombre: str
-    password: str = "cliente"
+    password: str = ""  # vacío → se genera temporal
     rol: str = "agente"
     telefono: str = ""
     linea_principal: str = ""
