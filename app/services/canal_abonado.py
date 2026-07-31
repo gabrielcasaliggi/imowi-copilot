@@ -75,13 +75,13 @@ def _redactar_con_llama(
     org_id: str = "",
     consulta: str = "",
 ) -> str:
-    """Reescribe el paso del playbook con la IA admin, usando KB si hay match."""
+    """Reescribe el paso del playbook con la IA admin, estilo agente humano breve."""
     try:
         from app.llm import chat_completion
 
-        kb_ctx = _kb_fragmento(db, org_id, consulta or contexto)
+        kb_ctx = _kb_fragmento(db, org_id, consulta or contexto, max_chars=600)
         kb_block = (
-            f"\n\nBase de conocimiento relevante (usá solo si aporta; no inventes):\n{kb_ctx}"
+            f"\n\nDato de KB (opcional, máximo una frase si aporta):\n{kb_ctx}"
             if kb_ctx
             else ""
         )
@@ -90,28 +90,34 @@ def _redactar_con_llama(
                 {
                     "role": "system",
                     "content": (
-                        "Sos el Asistente Virtual Oficial de Cooperativa Batán y Ecolan Tecnologías. "
-                        "Resolvé N1 de forma autónoma: internet FTTH/Wireless/ADSL, móvil IMOVI, "
-                        "telefonía fija, facturación/QR Fiserv y, con tono formal, Ecolan B2B. "
-                        "Residencial: amable y claro. Corporativo Ecolan: técnico y orientado a SLA. "
-                        "No inventes potencias OLT, saldos ni turnos reales si no están en el contexto. "
-                        "Conservá la pregunta/instrucción del playbook; pedí el dato que falta. "
-                        "No derives a humano antes de agotar el diagnóstico N1, salvo pedido explícito."
+                        "Sos un agente de soporte humano de Cooperativa Batán / Ecolan. "
+                        "Escribí como en un chat de WhatsApp: natural, breve y empático. "
+                        "REGLAS ESTRICTAS:\n"
+                        "- Máximo 2 oraciones cortas.\n"
+                        "- UNA sola pregunta por mensaje. Nunca combines varias preguntas.\n"
+                        "- No uses listas largas, viñetas ni catálogos de servicios.\n"
+                        "- No inventes datos (OLT, saldos, turnos, potencias).\n"
+                        "- Conservá la intención del borrador; no agregues pasos extra.\n"
+                        "- Español argentino cotidiano (vos)."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Contexto operativo:\n{contexto}"
-                        f"{kb_block}\n\n"
-                        f"Mensaje del abonado:\n{(consulta or '').strip() or '(n/a)'}\n\n"
-                        f"Borrador del playbook a reescribir:\n{borrador}"
+                        f"Contexto: {contexto}"
+                        f"{kb_block}\n"
+                        f"Cliente dijo: {(consulta or '').strip() or '(n/a)'}\n"
+                        f"Borrador (reescribilo breve, una pregunta):\n{borrador}"
                     ),
                 },
             ],
-            temperature=0.3,
+            temperature=0.2,
         )
-        return (out or borrador).strip() or borrador
+        texto = (out or "").strip() or borrador
+        # Si el modelo se va de mambo, volver al playbook corto
+        if len(texto) > 320 or texto.count("?") > 1:
+            return borrador.strip()
+        return texto
     except Exception:
         return borrador
 

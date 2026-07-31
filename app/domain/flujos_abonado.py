@@ -54,434 +54,162 @@ TAG_POR_INTENCION: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
-    # ---- FACTURACIÓN / DEUDA / QR FISERV ----
     "corte_deuda": [
         PasoPlaybook(
             "confirmar_deuda",
-            "Tu cuenta puede tener saldo pendiente y el servicio limitado. "
-            "Para consultas de factura/saldo necesito tu DNI o N.º de socio/cuenta. "
-            "¿Me lo compartís? Si ya lo dimos, ¿querés que te indique cómo pagar?",
+            "Puede haber saldo pendiente. ¿Me pasás el DNI o N.º de socio para ayudarte con el pago?",
         ),
         PasoPlaybook(
             "medios_pago_qr",
-            "Podés abonar con el código QR interoperable Fiserv impreso en la factura/cupón: "
-            "escanealo desde Mercado Pago, Cuenta DNI, BNA+, MODO u otra billetera, "
-            "o subí la foto de la factura desde la galería del teléfono. "
-            "También podés pagar en Rapipago, Pago Fácil, transferencia o en oficina comercial. "
-            "Cuando se acredita el pago por QR, el servicio (fibra, radio, ADSL o telefonía) "
-            "se reactiva automáticamente, sin operador. ¿Necesitás algo más?",
+            "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+            "Al acreditarse, el servicio se reactiva solo. ¿Pudiste pagar?",
         ),
         PasoPlaybook(
             "derivar_pagos",
-            "Si el pago no aparece acreditado o no podés generar/usar el QR, "
-            "¿querés que te derive con un agente de facturación?",
+            "Si el pago no figura, ¿querés que te derive con facturación?",
         ),
     ],
     "facturacion": [
         PasoPlaybook(
             "pedir_dni_factura",
-            "Para consultar saldo, deuda o enviarte el comprobante, necesito el DNI del "
-            "titular o el N.º de socio/cuenta. ¿Me lo pasás?",
+            "Para ver saldo o factura necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
         ),
         PasoPlaybook(
             "tipo_consulta_factura",
-            "¿Tu consulta es sobre: 1) saldo/monto vencido, 2) copia del resumen, "
-            "3) pago con QR Fiserv, 4) cambiar medio de pago, o 5) otra cosa?",
+            "¿Es por saldo, copia de factura, pago con QR, u otra consulta?",
         ),
         PasoPlaybook(
             "medios_pago_qr_factura",
-            "Para pagar: usá el QR Fiserv de la factura con cualquier billetera "
-            "(Mercado Pago, Cuenta DNI, MODO, etc.). La acreditación reactiva el servicio "
-            "en automático. ¿Pudiste pagar o necesitás que un agente revise la cuenta?",
+            "Para pagar usá el QR Fiserv de la factura con cualquier billetera. ¿Te sirvió?",
         ),
         PasoPlaybook(
             "derivar_factura",
-            "Para gestiones de cuenta corriente que requieren sistema interno, "
-            "¿querés que te pase con un agente de facturación?",
+            "Si hace falta revisar la cuenta adentro, ¿querés que te derive?",
         ),
     ],
-
-    # ---- INTERNET FTTH (fibra óptica / OLT Huawei) ----
     "internet_ftth": [
-        PasoPlaybook(
-            "energia_ont",
-            "Internet por fibra (FTTH / ONT): primero chequeamos energía. "
-            "¿La cajita blanca (ONT) tiene luces encendidas y el transformador "
-            "bien enchufado a la corriente? Si está apagada del todo, puede ser falta "
-            "de energía en el domicilio (Dying Gasp). ¿Tiene alimentación?",
-        ),
-        PasoPlaybook(
-            "luces_los",
-            "En la ONT: ¿la luz PON/LINK está verde fija y la luz LOS apagada? "
-            "Si LOS está en rojo o hay Loss of Signal, suele ser corte o interrupción "
-            "de la fibra hacia el domicilio. Contame qué luces ves.",
-        ),
+        PasoPlaybook("energia_ont", "Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?"),
+        PasoPlaybook("luces_los", "¿La luz PON está verde fija y la LOS apagada, o ves alguna en rojo?"),
         PasoPlaybook(
             "reinicio_ont",
-            "Si hay señal pero no navega (a veces por potencia atenuada, p. ej. peor "
-            "que -27 dBm), hagamos reinicio físico: desenchufá ONT y router 30 segundos; "
-            "encendé primero la ONT, esperá 2–3 minutos a que PON quede verde fijo, "
-            "después el router. ¿Volvió la conexión?",
+            "Desenchufá ONT y router 30 segundos; prendé primero la ONT y después el router. ¿Volvió?",
         ),
-        PasoPlaybook(
-            "cable_fibra",
-            "¿El cable de fibra amarillo está bien enchufado en la ONT (sin dobleces "
-            "pronunciados ni daño visible)? Revisá también la caja NAP si está accesible.",
-        ),
-        PasoPlaybook(
-            "wifi_vs_cable_ftth",
-            "¿El problema es solo WiFi o también falla una PC por cable directo al router? "
-            "Si es solo WiFi, la fibra puede estar bien y revisamos la red inalámbrica.",
-        ),
+        PasoPlaybook("cable_fibra", "¿El cable amarillo está bien enchufado, sin dobleces fuertes?"),
+        PasoPlaybook("wifi_vs_cable_ftth", "¿Falla también por cable al router, o solo el WiFi?"),
         PasoPlaybook(
             "turno_campo_ftth",
-            "Si sigue sin servicio, hace falta revisión de cuadrilla (evidencia en OLT/NAP "
-            "vía app JSAT). Debe haber una persona mayor de edad en el domicilio. "
-            "¿Querés que abra un ticket para agendar turno de campo?",
+            "Con esto ya no lo resolvemos a distancia. ¿Querés que abra un ticket para visita técnica?",
         ),
     ],
-
-    # ---- INTERNET WIRELESS / RADIO ----
     "internet_radio": [
-        PasoPlaybook(
-            "poe_antena",
-            "Internet por radio/antena (Wireless): ¿la fuente PoE de la antena exterior "
-            "tiene luz encendida? Si el PoE está apagado, la antena no alimenta y no hay enlace.",
-        ),
+        PasoPlaybook("poe_antena", "Ok, por antena. ¿La fuente PoE tiene la lucecita prendida?"),
         PasoPlaybook(
             "reinicio_cpe",
-            "Reiniciá: apagá el equipo de radio (CPE) y el router Wi-Fi interno 30 segundos. "
-            "Encendé primero el CPE/radio, esperá ~1 minuto a que enganche, después el router. "
-            "¿Volvió la conexión?",
+            "Reiniciá antena y router 30 segundos; prendé primero la antena. ¿Volvió?",
         ),
-        PasoPlaybook(
-            "led_enlace",
-            "¿El LED de enlace/señal del CPE está fijo (sin alarma o apagado)? "
-            "Si parpadea rápido o está rojo, puede haber caída de enlace o del nodo/torre.",
-        ),
-        PasoPlaybook(
-            "linea_vista",
-            "¿La antena tiene línea de vista libre hacia la torre (sin árboles o "
-            "construcciones nuevas)? ¿El cable PoE está firme en antena e inyector?",
-        ),
-        PasoPlaybook(
-            "zona_vecinos",
-            "¿Solo te pasa a vos o también a vecinos de la misma zona/torre? "
-            "Si es zonal, puede ser el nodo de distribución. Si es solo tu casa, "
-            "seguimos con revisión puntual.",
-        ),
+        PasoPlaybook("led_enlace", "¿El LED de enlace está fijo o parpadea/rojo?"),
+        PasoPlaybook("linea_vista", "¿La antena sigue con vista libre a la torre?"),
+        PasoPlaybook("zona_vecinos", "¿Les pasa también a vecinos, o solo en tu casa?"),
         PasoPlaybook(
             "turno_campo_radio",
-            "Si no se resolvió en N1, coordinamos cuadrilla (evidencia JSAT). "
-            "¿Querés que abra ticket para turno de campo?",
+            "Si sigue igual, hace falta técnico. ¿Abro el ticket para una visita?",
         ),
     ],
-
-    # ---- INTERNET ADSL ----
     "internet_adsl": [
-        PasoPlaybook(
-            "tono_linea",
-            "Internet ADSL (par de cobre): ¿el teléfono fijo tiene tono de marcación? "
-            "Si no hay tono, el problema puede ser de la línea telefónica antes que del módem.",
-        ),
-        PasoPlaybook(
-            "filtro_splitter",
-            "Verificá el microfiltro/splitter: debe estar antes del módem y del teléfono. "
-            "Ningún teléfono, alarma u otro aparato debería ir a la línea sin filtro.",
-        ),
+        PasoPlaybook("tono_linea", "Vamos con ADSL. ¿El teléfono fijo tiene tono?"),
+        PasoPlaybook("filtro_splitter", "¿El microfiltro/splitter está bien colocado?"),
         PasoPlaybook(
             "reinicio_modem_adsl",
-            "Apagá el módem ADSL 30 segundos, encendelo y esperá ~2 minutos hasta que "
-            "sincronice (luz DSL/Sync fija). ¿Volvió?",
+            "Apagá el módem 30 segundos, prendelo y esperá un rato. ¿Volvió?",
         ),
-        PasoPlaybook(
-            "luces_adsl",
-            "¿La luz DSL/Sync quedó fija (verde/azul)? Si parpadea siempre, no sincroniza "
-            "con la central. Contame qué ves.",
-        ),
-        PasoPlaybook(
-            "cable_telefono",
-            "¿Probaste el módem en la primera toma telefónica (entrada de calle), "
-            "sin extensiones internas?",
-        ),
-        PasoPlaybook(
-            "persistencia_adsl",
-            "Si sigue fallando, puede ser el par de cobre o la central. "
-            "¿Querés que abra ticket para revisión técnica / turno?",
-        ),
+        PasoPlaybook("luces_adsl", "¿La luz DSL/Sync quedó fija o sigue parpadeando?"),
+        PasoPlaybook("cable_telefono", "¿Probaste el módem en la toma principal de la calle?"),
+        PasoPlaybook("persistencia_adsl", "Si no vuelve, ¿querés que te derive con un técnico?"),
     ],
-
-    # ---- INTERNET GENÉRICO ----
     "internet": [
         PasoPlaybook(
             "sintoma_internet",
-            "Contame: ¿no tenés internet en absoluto, anda lento, se corta, "
-            "o el problema es solo el WiFi?",
+            "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
         ),
-        PasoPlaybook(
-            "alcance_internet",
-            "¿Te pasa en todos los dispositivos o solo en uno? "
-            "¿En toda la casa o en alguna habitación?",
-        ),
+        PasoPlaybook("alcance_internet", "¿Te pasa en todos los dispositivos o solo en uno?"),
         PasoPlaybook(
             "tipo_acceso",
-            "¿Qué tecnología tenés?\n"
-            "• Fibra óptica (FTTH: cable amarillo + cajita blanca/ONT)\n"
-            "• Radio / antena Wireless (techo o pared exterior + PoE)\n"
-            "• ADSL por línea telefónica (módem + cable de teléfono)\n"
-            "Respondé: fibra, radio o ADSL.",
+            "¿Tenés fibra (cajita blanca), antena en el techo, o internet por teléfono (ADSL)?",
         ),
     ],
-
-    # ---- INTERNET LENTO ----
     "internet_lento": [
-        PasoPlaybook(
-            "cuantos_dispositivos",
-            "¿Cuántos dispositivos hay en el WiFi? Probá con uno solo por cable al router "
-            "y contame si mejora.",
-        ),
-        PasoPlaybook(
-            "horario_lento",
-            "¿Es todo el día o más a la tarde/noche (horario pico)?",
-        ),
-        PasoPlaybook(
-            "test_velocidad",
-            "Hacé un test por cable (fast.com o speedtest.net) y decime la bajada que te da.",
-        ),
-        PasoPlaybook(
-            "reinicio_lento",
-            "Reiniciá módem/ONT y router 30 segundos y repetí el test por cable. ¿Mejoró?",
-        ),
-        PasoPlaybook(
-            "comparar_plan",
-            "Si por cable sigue bajo el ~70% del plan, hay que revisar línea/OLT. "
-            "¿Querés que derive a un agente técnico?",
-        ),
+        PasoPlaybook("cuantos_dispositivos", "¿Cuántos equipos hay conectados al WiFi ahora?"),
+        PasoPlaybook("horario_lento", "¿Es lento todo el día o más a la tarde/noche?"),
+        PasoPlaybook("test_velocidad", "Si podés, hacé un test por cable en fast.com y decime cuánto da."),
+        PasoPlaybook("reinicio_lento", "Reiniciá módem/router 30 segundos y probá de nuevo. ¿Mejoró?"),
+        PasoPlaybook("comparar_plan", "Si sigue bajo, ¿querés que te pase con un agente?"),
     ],
-
-    # ---- WIFI ----
     "wifi": [
-        PasoPlaybook(
-            "zona_wifi",
-            "¿El WiFi falla en toda la casa o solo lejos del router?",
-        ),
-        PasoPlaybook(
-            "otros_dispositivos_wifi",
-            "¿Les pasa a todos los equipos o solo a uno? Si es uno, olvidá la red y reconectá.",
-        ),
-        PasoPlaybook(
-            "reinicio_router_wifi",
-            "Reiniciá el router 30 segundos. ¿Mejoró?",
-        ),
-        PasoPlaybook(
-            "banda_wifi",
-            "Si hay 2.4 GHz y 5 GHz, ¿probaste la otra banda? "
-            "5 GHz es más rápida y de menos alcance; 2.4 GHz llega más lejos.",
-        ),
-        PasoPlaybook(
-            "canal_interferencia",
-            "Alejá el router de microondas/cordless y ubicarlo más alto y central ayuda. "
-            "¿Pudiste probar otro lugar?",
-        ),
-        PasoPlaybook(
-            "derivar_wifi",
-            "Si sigue mal, puede hacer falta extensor/AP o revisión. "
-            "¿Querés que te pase con un agente?",
-        ),
+        PasoPlaybook("zona_wifi", "¿El WiFi falla en toda la casa o solo lejos del router?"),
+        PasoPlaybook("otros_dispositivos_wifi", "¿Les pasa a todos los equipos o solo a uno?"),
+        PasoPlaybook("reinicio_router_wifi", "¿Reiniciaste el router 30 segundos? ¿Mejoró?"),
+        PasoPlaybook("banda_wifi", "Si tenés 2.4 y 5 GHz, ¿probaste la otra red?"),
+        PasoPlaybook("canal_interferencia", "¿Podés alejar el router de microondas u otros equipos?"),
+        PasoPlaybook("derivar_wifi", "Si sigue mal, ¿querés que te derive?"),
     ],
-
-    # ---- MÓVIL IMOVI ----
     "movil": [
-        PasoPlaybook(
-            "sintoma_movil",
-            "¿Qué pasa con el móvil IMOVI?: ¿sin señal, sin datos, no llamás/recibís, "
-            "o se cortan las llamadas?",
-        ),
-        PasoPlaybook(
-            "datos_roaming_check",
-            "Confirmá que datos móviles (y roaming si estás fuera de zona) estén activos, "
-            "y que no estés en modo avión. ¿Están bien?",
-        ),
-        PasoPlaybook(
-            "reinicio_imovi",
-            "Reiniciá el teléfono. ¿Mejoró?",
-        ),
-        PasoPlaybook(
-            "modo_avion",
-            "Modo avión 15 segundos y desactivá. ¿Volvió la señal/servicio?",
-        ),
-        PasoPlaybook(
-            "apn_imovi",
-            "APN: Ajustes > Redes móviles > APN → internet.coopbatan.ar "
-            "(MCC 722, MNC 310). Si no está, crealo y reiniciá. ¿Mejoró?",
-        ),
-        PasoPlaybook(
-            "otra_sim_o_tel",
-            "Si podés: misma SIM en otro teléfono u otra SIM en el tuyo. "
-            "Así vemos si es línea o equipo.",
-        ),
-        PasoPlaybook(
-            "otra_ubicacion",
-            "¿Es en una sola zona o en varios lugares? Si sigue en todos lados, "
-            "¿querés que derive a un agente para revisar la línea?",
-        ),
+        PasoPlaybook("sintoma_movil", "¿Qué te pasa con el móvil: sin señal, sin datos, o no podés llamar?"),
+        PasoPlaybook("datos_roaming_check", "¿Datos móviles activos y modo avión apagado?"),
+        PasoPlaybook("reinicio_imovi", "¿Probaste reiniciar el teléfono?"),
+        PasoPlaybook("modo_avion", "Modo avión 15 segundos y desactivalo. ¿Volvió?"),
+        PasoPlaybook("apn_imovi", "El APN debería ser internet.coopbatan.ar. ¿Está así?"),
+        PasoPlaybook("otra_sim_o_tel", "Si podés, ¿probaste esa SIM en otro teléfono?"),
+        PasoPlaybook("otra_ubicacion", "¿Te pasa solo en un lugar o en varios? ¿Querés que te derive?"),
     ],
-
     "movil_datos": [
-        PasoPlaybook(
-            "datos_activados",
-            "¿Datos móviles activos y sin modo avión?",
-        ),
-        PasoPlaybook(
-            "consumo_paquete",
-            "¿Te queda saldo/paquete de datos del abono?",
-        ),
-        PasoPlaybook(
-            "apn_datos",
-            "APN debe ser internet.coopbatan.ar. Corregilo, reiniciá y probá. ¿Anda?",
-        ),
-        PasoPlaybook(
-            "roaming_datos",
-            "¿Estás en zona habitual o de viaje? Fuera de cobertura IMOVI hace falta "
-            "roaming de datos habilitado.",
-        ),
-        PasoPlaybook(
-            "prueba_wifi_off",
-            "Apagá el WiFi del teléfono y probá solo con datos. ¿Navega?",
-        ),
-        PasoPlaybook(
-            "derivar_datos",
-            "Si sigue sin datos, hay que revisar la línea en sistema. "
-            "¿Querés que te derive con un agente?",
-        ),
+        PasoPlaybook("datos_activados", "¿Datos móviles prendidos y sin modo avión?"),
+        PasoPlaybook("consumo_paquete", "¿Te quedan datos del abono?"),
+        PasoPlaybook("apn_datos", "Revisá el APN: internet.coopbatan.ar. ¿Quedó bien?"),
+        PasoPlaybook("roaming_datos", "¿Estás en tu zona habitual o de viaje?"),
+        PasoPlaybook("prueba_wifi_off", "Apagá el WiFi del celular y probá solo datos. ¿Navega?"),
+        PasoPlaybook("derivar_datos", "Si sigue, ¿querés que te derive?"),
     ],
-
     "movil_llamadas": [
-        PasoPlaybook(
-            "tipo_problema_llamada",
-            "¿No podés hacer llamadas, no las recibís, se cortan, y/o falla el SMS?",
-        ),
-        PasoPlaybook(
-            "reinicio_llamadas",
-            "Reiniciá y probá una llamada de prueba (*99# u otro número). ¿Funciona?",
-        ),
-        PasoPlaybook(
-            "modo_avion_llamadas",
-            "Modo avión 15 s y volvé. ¿Podés llamar o recibir?",
-        ),
-        PasoPlaybook(
-            "otra_ubicacion_llamadas",
-            "¿Te pasa en una zona o en varios lugares?",
-        ),
-        PasoPlaybook(
-            "derivar_llamadas",
-            "Si persiste, revisamos en red/HLR. ¿Querés que te derive con un agente?",
-        ),
+        PasoPlaybook("tipo_problema_llamada", "¿No podés llamar, no te entran, o se cortan?"),
+        PasoPlaybook("reinicio_llamadas", "Reiniciá y probá una llamada. ¿Anduvo?"),
+        PasoPlaybook("modo_avion_llamadas", "Modo avión 15 segundos y volvé a probar. ¿Mejoró?"),
+        PasoPlaybook("otra_ubicacion_llamadas", "¿Te pasa en una sola zona o en varios lados?"),
+        PasoPlaybook("derivar_llamadas", "Si sigue, ¿querés que te derive?"),
     ],
-
-    # ---- TELEFONÍA FIJA ----
     "telefono_fija": [
-        PasoPlaybook(
-            "tono_fija",
-            "Telefonía fija: ¿hay tono de marcación al levantar el auricular?",
-        ),
-        PasoPlaybook(
-            "cableado_fija",
-            "Revisá que el cable esté bien en la toma y que no haya desvíos o equipos "
-            "intermedios defectuosos. ¿Sigue sin tono o sin llamadas?",
-        ),
-        PasoPlaybook(
-            "derivar_fija",
-            "Si no hay tono o no entran/salen llamadas, abrimos revisión de línea fija. "
-            "¿Querés que te derive con un agente?",
-        ),
+        PasoPlaybook("tono_fija", "¿Al descolgar el fijo hay tono?"),
+        PasoPlaybook("cableado_fija", "¿El cable está bien en la toma?"),
+        PasoPlaybook("derivar_fija", "Si no hay tono, ¿querés que te derive?"),
     ],
-
-    # ---- ECOLAN B2B / DATA CENTER ----
     "ecolan_b2b": [
         PasoPlaybook(
             "tipo_ecolan",
-            "Soy el asistente de Cooperativa Batán / Ecolan Tecnologías. "
-            "¿Tu consulta es por Central Telefónica Virtual (PBX), Cloud/VM, "
-            "Housing/Hosting, o enlace dedicado (fibra + backup Starlink / IP fija / VPN)?",
+            "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting o enlace dedicado?",
         ),
-        PasoPlaybook(
-            "impacto_sla",
-            "Para priorizar: ¿hay servicio caído ahora, degradación, o es una cotización/"
-            "proyecto nuevo? Indicá disponibilidad o SLA si aplica.",
-        ),
-        PasoPlaybook(
-            "derivar_ecolan",
-            "Los casos Ecolan B2B (Data Center, enlaces con SLA, cotizaciones) los atiende "
-            "un especialista. ¿Querés que te derive ahora con el resumen al panel?",
-        ),
+        PasoPlaybook("impacto_sla", "¿Hay un servicio caído ahora o es una consulta/cotización?"),
+        PasoPlaybook("derivar_ecolan", "Estos casos los toma un especialista. ¿Te derivo?"),
     ],
-
-    # ---- ALTA / PLAN ----
     "alta_plan": [
-        PasoPlaybook(
-            "tipo_alta",
-            "¿Alta nueva o cambio de plan? ¿Internet (fibra/radio/ADSL), móvil IMOVI, "
-            "telefonía fija, o servicio Ecolan empresa?",
-        ),
-        PasoPlaybook(
-            "zona_comercial",
-            "¿Zona o dirección aproximada (barrio/localidad) para chequear cobertura?",
-        ),
-        PasoPlaybook(
-            "derivar_comercial",
-            "Te conecto con comercial para opciones y precios vigentes. ¿Querés que te derive?",
-        ),
+        PasoPlaybook("tipo_alta", "¿Alta nueva o cambio de plan? ¿Internet, móvil u otro?"),
+        PasoPlaybook("zona_comercial", "¿En qué barrio o localidad lo necesitás?"),
+        PasoPlaybook("derivar_comercial", "Te paso con comercial. ¿Te derivo?"),
     ],
-
-    # ---- TRÁMITES DIGITALES ----
     "portal_tramites": [
-        PasoPlaybook(
-            "info_batan_coop",
-            "Para trámites digitales, facturación electrónica y solicitudes de servicios "
-            "también podés usar el portal batan.coop. ¿Qué trámite necesitás hacer?",
-        ),
-        PasoPlaybook(
-            "derivar_tramites",
-            "Si el trámite requiere operador, ¿querés que te derive con un agente?",
-        ),
+        PasoPlaybook("info_batan_coop", "También está batan.coop. ¿Qué trámite necesitás?"),
+        PasoPlaybook("derivar_tramites", "Si hace falta operador, ¿querés que te derive?"),
     ],
-
-    # ---- TURNO DE CAMPO (post N1) ----
     "turno_campo": [
-        PasoPlaybook(
-            "confirmar_turno",
-            "Para la visita técnica: debe haber una persona mayor de edad en el domicilio. "
-            "El operario registra fotos de evidencia (NAP, potencia, etc.) en la app JSAT "
-            "antes de cerrar. ¿Confirmás que pueden recibir la visita?",
-        ),
-        PasoPlaybook(
-            "derivar_agenda",
-            "Un agente te va a ofrecer franjas horarias según cupos de cuadrilla "
-            "(la agenda automática se integra en una etapa siguiente). "
-            "¿Querés que abra el ticket de turno ahora?",
-        ),
+        PasoPlaybook("confirmar_turno", "Para la visita hace falta un mayor de edad. ¿Pueden recibirla?"),
+        PasoPlaybook("derivar_agenda", "Un agente te ofrece horarios. ¿Abro el ticket de turno?"),
     ],
-
-    # ---- MENÚ GENERAL ----
     "general": [
         PasoPlaybook(
             "menu_servicio",
-            "Hola, soy el Asistente Virtual de Cooperativa Batán y Ecolan Tecnologías. "
-            "Te puedo ayudar con:\n"
-            "• Internet (fibra FTTH, radio/Wireless o ADSL)\n"
-            "• Móvil IMOVI y telefonía fija\n"
-            "• Facturación, saldo y pago con QR Fiserv\n"
-            "• Alta o cambio de plan\n"
-            "• Ecolan (Data Center, VMs, enlaces dedicados)\n"
-            "• Trámites en batan.coop\n"
-            "¿Con qué necesitás ayuda?",
+            "Hola, soy el asistente de Cooperativa Batán. ¿En qué te ayudo: internet, móvil, factura o algo más?",
         ),
         PasoPlaybook(
             "detalle_problema",
-            "Contame con más detalle qué está pasando (servicio y síntoma). "
-            "Te guío en diagnóstico N1 antes de derivar a un agente. "
-            "Para gestiones de cuenta, voy a pedirte DNI o N.º de socio.",
+            "Contame un poco más qué te está pasando y lo vemos paso a paso.",
         ),
     ],
 }
