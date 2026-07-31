@@ -69,6 +69,7 @@ export function AdminPanel() {
     link?: string;
     emailSent: boolean;
     kind: "invite" | "reset";
+    error?: string;
   } | null>(null);
 
   const [newOrg, setNewOrg] = useState({
@@ -234,11 +235,12 @@ export function AdminPanel() {
         link: res.invite_link,
         emailSent: res.email_sent,
         kind: "invite",
+        error: res.email_error,
       });
       setMessage(
         res.email_sent
           ? `Invitación enviada a ${res.email}. El operador definirá su clave al aceptar el mail.`
-          : `Invitación creada para ${res.email}, pero el email no se envió (revisá SMTP). Compartí el link abajo.`,
+          : `Invitación creada para ${res.email}, pero el email no se envió. ${res.email_error || "Revisá SMTP y reiniciá la API."}`,
       );
       await loadInvites(selectedSlug);
     } catch (err) {
@@ -322,11 +324,12 @@ export function AdminPanel() {
         link: r.invite_link,
         emailSent: Boolean(r.email_sent),
         kind: "reset",
+        error: r.email_error,
       });
       setMessage(
         r.email_sent
           ? `Reset enviado a ${r.email}. Debe abrir el mail y definir una nueva clave.`
-          : `Reset preparado para ${r.email}, pero el email no se envió. Compartí el link abajo.`,
+          : `Reset preparado para ${r.email}, pero el email no se envió. ${r.email_error || "Revisá SMTP."}`,
       );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al resetear clave");
@@ -383,6 +386,9 @@ export function AdminPanel() {
             <span className="font-mono">{inviteShare.email}</span>
             {inviteShare.emailSent ? " · mail enviado" : " · mail no enviado"}
           </p>
+          {inviteShare.error && (
+            <p className="text-xs text-rose-300 font-mono break-all">{inviteShare.error}</p>
+          )}
           {inviteShare.link ? (
             <>
               <p className="text-[11px] text-emerald-200/80">

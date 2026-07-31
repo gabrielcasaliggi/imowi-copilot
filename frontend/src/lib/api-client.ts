@@ -177,6 +177,7 @@ export const api = {
       rol: string;
       expires_at: string;
       email_sent: boolean;
+      email_error?: string;
       purpose?: string;
       token?: string;
       invite_link?: string;
@@ -811,6 +812,7 @@ export const api = {
       must_change_password: boolean;
       via_email?: boolean;
       email_sent?: boolean;
+      email_error?: string;
       temporary_password?: string;
       token?: string;
       invite_link?: string;

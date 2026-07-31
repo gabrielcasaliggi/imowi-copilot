@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from app.config import (
@@ -22,10 +23,26 @@ logger = logging.getLogger("operations_hub.email")
 
 # Bandeja en memoria para tests / dev sin SMTP
 _OUTBOX: list[dict] = []
+_LAST_ERROR: str = ""
 
 
 def smtp_configured() -> bool:
     return bool(SMTP_HOST and SMTP_FROM)
+
+
+def smtp_status() -> dict:
+    """Diagnóstico liviano de config SMTP (sin secretos)."""
+    return {
+        "configured": smtp_configured(),
+        "host": SMTP_HOST or "",
+        "port": SMTP_PORT,
+        "user": SMTP_USER or "",
+        "from": SMTP_FROM or "",
+        "tls": SMTP_TLS,
+        "ssl": SMTP_SSL,
+        "public_url": PUBLIC_URL or "",
+        "last_error": _LAST_ERROR or None,
+    }
 
 
 def clear_outbox() -> None:
@@ -36,10 +53,21 @@ def get_outbox() -> list[dict]:
     return list(_OUTBOX)
 
 
+def get_last_error() -> str:
+    return _LAST_ERROR
+
+
+def _set_error(msg: str) -> None:
+    global _LAST_ERROR
+    _LAST_ERROR = (msg or "").strip()
+
+
 def send_email(*, to: str, subject: str, body_text: str, html: str | None = None) -> bool:
     """Envía email. Sin SMTP en non-prod: guarda en outbox y loguea. En prod sin SMTP: False."""
+    global _LAST_ERROR
     to_addr = (to or "").strip()
     if not to_addr:
+        _set_error("Destinatario vacío")
         return False
 
     record = {"to": to_addr, "subject": subject, "body": body_text, "html": html or ""}
@@ -52,7 +80,12 @@ def send_email(*, to: str, subject: str, body_text: str, html: str | None = None
             subject,
         )
         if es_produccion():
+            _set_error(
+                "SMTP no configurado en el proceso API (SMTP_HOST/SMTP_FROM). "
+                "Verificá /opt/operations-hub/.env y reiniciá operations-hub-api"
+            )
             return False
+        _set_error("")
         return True
 
     msg = EmailMessage()
@@ -64,21 +97,26 @@ def send_email(*, to: str, subject: str, body_text: str, html: str | None = None
         msg.add_alternative(html, subtype="html")
 
     try:
+        ctx = ssl.create_default_context()
         if SMTP_SSL:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20, context=ctx) as server:
                 if SMTP_USER:
                     server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
         else:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+                server.ehlo()
                 if SMTP_TLS:
-                    server.starttls()
+                    server.starttls(context=ctx)
+                    server.ehlo()
                 if SMTP_USER:
                     server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
         logger.info("Email enviado to=%s subject=%s", to_addr, subject)
+        _set_error("")
         return True
     except Exception as exc:
+        _set_error(f"{type(exc).__name__}: {exc}")
         logger.exception("Error enviando email: %s", exc)
         return False
 

@@ -59,6 +59,8 @@ def _invite_link_payload(raw_token: str, email_sent: bool) -> dict:
     from app.config import es_produccion
 
     out: dict = {"email_sent": email_sent}
+    if not email_sent:
+        out["email_error"] = email_svc.get_last_error() or "No se pudo enviar el email"
     # Si el mail no salió, el admin necesita el link para compartirlo.
     # En non-prod siempre devolvemos token para tests.
     if not email_sent or not es_produccion():

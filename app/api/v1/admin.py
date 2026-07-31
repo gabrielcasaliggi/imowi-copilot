@@ -310,6 +310,8 @@ def admin_reset_user_password(
         "email_sent": sent,
         "must_change_password": True,
     }
+    if not sent:
+        out["email_error"] = email_svc.get_last_error() or "No se pudo enviar el email"
     if not sent or not es_produccion():
         out["token"] = raw
         out["invite_link"] = email_svc.invite_public_link(raw)
@@ -393,6 +395,8 @@ def admin_create_invite(
         "expires_at": invite.expires_at.isoformat(),
         "email_sent": sent,
     }
+    if not sent:
+        out["email_error"] = email_svc.get_last_error() or "No se pudo enviar el email"
     if not sent or not es_produccion():
         out["token"] = raw
         out["invite_link"] = email_svc.invite_public_link(raw)
@@ -554,6 +558,42 @@ def test_database_connection(
     result["scope"] = "data_estate"
     result["nota"] = "Conexión del sistema (tickets/config). No es el padrón BillTrack de clientes."
     return result
+
+
+@router.post("/admin/settings/test-smtp")
+def test_smtp_connection(
+    body: dict = Body(default={}),
+    _: UsuarioSesion = Depends(requiere_admin),
+):
+    """Prueba SMTP: login + envío opcional a `to` (default SMTP_FROM)."""
+    from app.config import SMTP_FROM
+    from app.services import email as email_svc
+
+    status = email_svc.smtp_status()
+    if not status["configured"]:
+        return {
+            "ok": False,
+            "smtp": status,
+            "error": status.get("last_error")
+            or "SMTP_HOST/SMTP_FROM vacíos en el proceso. Editá .env y reiniciá la API.",
+        }
+
+    to = str((body or {}).get("to") or SMTP_FROM or "").strip()
+    ok = email_svc.send_email(
+        to=to,
+        subject="Operations Hub — prueba SMTP",
+        body_text=(
+            "Este es un email de prueba desde Operations Hub.\n"
+            "Si lo recibiste, SMTP está funcionando.\n"
+        ),
+        html="<p>Este es un email de prueba desde <strong>Operations Hub</strong>.</p>",
+    )
+    return {
+        "ok": ok,
+        "to": to,
+        "smtp": email_svc.smtp_status(),
+        "error": None if ok else (email_svc.get_last_error() or "Fallo al enviar"),
+    }
 
 
 @router.post("/admin/settings/test-billtrack")
