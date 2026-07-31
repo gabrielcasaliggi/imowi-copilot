@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api-client";
+import { useToast } from "@/components/ui/Toast";
 
 const OPTIONS = [
   { value: "disponible", label: "Disponible", tone: "border-emerald-500/40 text-emerald-200" },
@@ -12,6 +13,7 @@ const OPTIONS = [
 
 export function AvailabilityControl() {
   const { can } = useApp();
+  const { push: toast } = useToast();
   const [value, setValue] = useState("disponible");
   const [busy, setBusy] = useState(false);
 
@@ -23,13 +25,20 @@ export function AvailabilityControl() {
   if (!can("agent.availability")) return null;
 
   const onChange = async (next: string) => {
+    const prev = value;
+    setValue(next);
     setBusy(true);
     try {
       const res = await api.setAvailability(next);
-      setValue(res.disponibilidad || next);
-      window.sessionStorage.setItem("ops_hub_disponibilidad", res.disponibilidad || next);
-    } catch {
-      /* ignore — el select vuelve al valor previo en siguiente render si falla */
+      const resolved = res.disponibilidad || next;
+      setValue(resolved);
+      window.sessionStorage.setItem("ops_hub_disponibilidad", resolved);
+    } catch (err) {
+      setValue(prev);
+      toast(
+        err instanceof Error ? err.message : "No se pudo actualizar la disponibilidad",
+        "danger",
+      );
     } finally {
       setBusy(false);
     }
@@ -42,7 +51,7 @@ export function AvailabilityControl() {
       value={value}
       disabled={busy}
       onChange={(e) => void onChange(e.target.value)}
-      className={`bg-slate-950 border rounded-lg px-2 py-1.5 text-[11px] font-mono outline-none disabled:opacity-50 ${tone}`}
+      className={`bg-slate-950 border rounded-lg px-2 py-1.5 text-[11px] font-mono disabled:opacity-50 ${tone}`}
       title="Estado de disponibilidad"
       aria-label="Disponibilidad"
     >

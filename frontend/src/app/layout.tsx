@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import { Providers } from "@/components/layout/Providers";
 import "./globals.css";
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono-loaded",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Soporte Batán",
@@ -13,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full antialiased">
+    <html lang="es" className={`h-full antialiased ${jetbrainsMono.variable}`}>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-slate-200">
         <Providers>{children}</Providers>
       </body>

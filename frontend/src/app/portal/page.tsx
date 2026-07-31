@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { api, type InboxConversation, type InboxMessage } from "@/lib/api-client";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const PORTAL_KEY = "ops_hub_portal_session";
 const showDemo =
@@ -30,6 +30,21 @@ function saveStored(s: PortalStored | null) {
   else sessionStorage.setItem(PORTAL_KEY, JSON.stringify(s));
 }
 
+function canalEstadoLabel(estado: string): string {
+  switch (estado) {
+    case "bot":
+      return "Bot N1";
+    case "espera_agente":
+      return "Espera agente";
+    case "con_agente":
+      return "Con agente";
+    case "cerrado":
+      return "Cerrada";
+    default:
+      return estado;
+  }
+}
+
 export default function PortalPage() {
   const [step, setStep] = useState<Step>("auth");
   const [mode, setMode] = useState<"dni" | "pin" | "guest">("dni");
@@ -47,6 +62,7 @@ export default function PortalPage() {
   const [error, setError] = useState("");
   const [modoInvitado, setModoInvitado] = useState(false);
   const [newPin, setNewPin] = useState("");
+  const [otpInfo, setOtpInfo] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const applyPayload = useCallback(
@@ -108,9 +124,32 @@ export default function PortalPage() {
       setChallengeId(res.challenge_id);
       setContactMasked(res.contact_masked);
       if (res.debug_otp) setOtp(res.debug_otp);
+      setOtpInfo("");
       setStep("otp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onResendOtp = async () => {
+    if (!dni.trim()) return;
+    setBusy(true);
+    setError("");
+    setOtpInfo("");
+    try {
+      const res = await api.portalAuthStart({
+        dni: dni.trim(),
+        org_slug: "coop-batan",
+      });
+      setChallengeId(res.challenge_id);
+      setContactMasked(res.contact_masked);
+      if (res.debug_otp) setOtp(res.debug_otp);
+      else setOtp("");
+      setOtpInfo("Te enviamos un código nuevo.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reenviar el código");
     } finally {
       setBusy(false);
     }
@@ -187,7 +226,6 @@ export default function PortalPage() {
     setError("");
     const outgoing = texto.trim();
     setTexto("");
-    // Mostrar el mensaje del cliente al instante mientras el bot arma la respuesta
     setMensajes((prev) => [
       ...prev,
       {
@@ -222,25 +260,28 @@ export default function PortalPage() {
     setStep("auth");
     setOtp("");
     setChallengeId("");
+    setOtpInfo("");
   };
+
+  const esperaAgente = conv?.estado === "espera_agente";
+  const conAgente = conv?.estado === "con_agente";
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <header className="border-b border-slate-800 px-4 py-3 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Portal abonado · Cooperativa Batán</p>
-          <p className="text-[10px] font-mono text-slate-500">Ecolan + IMOVI · soporte</p>
+          <p className="text-[10px] font-mono text-slate-400">Ecolan + IMOVI · soporte</p>
         </div>
-        <div className="flex gap-3 items-center">
-          {token && (
-            <button type="button" onClick={onExit} className="text-xs text-slate-400 hover:text-slate-200">
-              Salir
-            </button>
-          )}
-          <Link href="/login" className="text-xs text-cyan-400/80 hover:text-cyan-300">
-            Consola operadores
-          </Link>
-        </div>
+        {token && (
+          <button
+            type="button"
+            onClick={onExit}
+            className="text-xs text-slate-400 hover:text-slate-200"
+          >
+            Salir
+          </button>
+        )}
       </header>
 
       <main className="flex-1 flex flex-col max-w-lg mx-auto w-full p-4 gap-4">
@@ -250,17 +291,21 @@ export default function PortalPage() {
             <p className="text-xs text-slate-400">
               Validamos tu DNI contra el padrón y te enviamos un código al email registrado.
             </p>
-            <div className="flex gap-2 text-xs">
+            <div className="flex gap-2 text-xs" role="tablist" aria-label="Modo de ingreso">
               <button
                 type="button"
-                className={`px-3 py-1 rounded-lg ${mode === "dni" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-500"}`}
+                role="tab"
+                aria-selected={mode === "dni"}
+                className={`px-3 py-1 rounded-lg ${mode === "dni" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-400"}`}
                 onClick={() => setMode("dni")}
               >
                 DNI + OTP
               </button>
               <button
                 type="button"
-                className={`px-3 py-1 rounded-lg ${mode === "pin" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-500"}`}
+                role="tab"
+                aria-selected={mode === "pin"}
+                className={`px-3 py-1 rounded-lg ${mode === "pin" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-400"}`}
                 onClick={() => setMode("pin")}
               >
                 DNI + PIN
@@ -269,13 +314,20 @@ export default function PortalPage() {
 
             {mode === "dni" ? (
               <form onSubmit={onStartDni} className="space-y-3">
-                <input
-                  value={dni}
-                  onChange={(e) => setDni(e.target.value)}
-                  placeholder="DNI (solo números)"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
-                  required
-                />
+                <div>
+                  <label htmlFor="portal-dni" className="text-xs font-mono text-slate-400 block mb-1">
+                    DNI
+                  </label>
+                  <input
+                    id="portal-dni"
+                    value={dni}
+                    onChange={(e) => setDni(e.target.value)}
+                    placeholder="Solo números"
+                    inputMode="numeric"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                    required
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={busy}
@@ -286,22 +338,35 @@ export default function PortalPage() {
               </form>
             ) : (
               <form onSubmit={onPinLogin} className="space-y-3">
-                <input
-                  value={dni}
-                  onChange={(e) => setDni(e.target.value)}
-                  placeholder="DNI"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
-                  required
-                />
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="PIN (6–8 dígitos)"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
-                  required
-                />
+                <div>
+                  <label htmlFor="portal-dni-pin" className="text-xs font-mono text-slate-400 block mb-1">
+                    DNI
+                  </label>
+                  <input
+                    id="portal-dni-pin"
+                    value={dni}
+                    onChange={(e) => setDni(e.target.value)}
+                    placeholder="Solo números"
+                    inputMode="numeric"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="portal-pin" className="text-xs font-mono text-slate-400 block mb-1">
+                    PIN
+                  </label>
+                  <input
+                    id="portal-pin"
+                    type="password"
+                    inputMode="numeric"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="6–8 dígitos"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                    required
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={busy}
@@ -316,13 +381,15 @@ export default function PortalPage() {
               type="button"
               onClick={() => void onGuest()}
               disabled={busy}
-              className="w-full text-xs text-slate-500 hover:text-slate-300 py-2"
+              className="w-full text-xs text-slate-400 hover:text-slate-300 py-2"
             >
               Continuar como invitado (sin datos de cuenta)
             </button>
 
             {showDemo && (
-              <p className="text-[10px] font-mono text-slate-600">Dev: DNI demo 30111222 (OTP en respuesta debug)</p>
+              <p className="text-[10px] font-mono text-slate-500">
+                Dev: DNI demo 30111222 (OTP en respuesta debug)
+              </p>
             )}
           </div>
         )}
@@ -333,13 +400,26 @@ export default function PortalPage() {
             <p className="text-xs text-slate-400">
               Enviamos un código a <span className="font-mono text-slate-300">{contactMasked}</span>
             </p>
-            <input
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              placeholder="Código OTP"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest"
-              required
-            />
+            <div>
+              <label htmlFor="portal-otp" className="text-xs font-mono text-slate-400 block mb-1">
+                Código OTP
+              </label>
+              <input
+                id="portal-otp"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="Ingresá el código"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest"
+                required
+              />
+            </div>
+            {otpInfo && (
+              <p className="text-xs text-emerald-300" role="status">
+                {otpInfo}
+              </p>
+            )}
             <button
               type="submit"
               disabled={busy}
@@ -347,9 +427,23 @@ export default function PortalPage() {
             >
               {busy ? "Validando…" : "Verificar"}
             </button>
-            <button type="button" className="text-xs text-slate-500" onClick={() => setStep("auth")}>
-              Volver
-            </button>
+            <div className="flex justify-between gap-3">
+              <button
+                type="button"
+                className="text-xs text-slate-400 hover:text-slate-200"
+                onClick={() => setStep("auth")}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                className="text-xs text-emerald-400/90 hover:text-emerald-300 disabled:opacity-50"
+                onClick={() => void onResendOtp()}
+              >
+                Reenviar código
+              </button>
+            </div>
           </form>
         )}
 
@@ -357,17 +451,23 @@ export default function PortalPage() {
           <form onSubmit={onSetPin} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
             <h1 className="text-lg font-semibold">Creá un PIN (opcional)</h1>
             <p className="text-xs text-slate-400">Para próximos ingresos sin OTP. 6 a 8 dígitos.</p>
-            <input
-              type="password"
-              inputMode="numeric"
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-              placeholder="PIN"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
-              minLength={6}
-              maxLength={8}
-              required
-            />
+            <div>
+              <label htmlFor="portal-new-pin" className="text-xs font-mono text-slate-400 block mb-1">
+                Nuevo PIN
+              </label>
+              <input
+                id="portal-new-pin"
+                type="password"
+                inputMode="numeric"
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value)}
+                placeholder="6–8 dígitos"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                minLength={6}
+                maxLength={8}
+                required
+              />
+            </div>
             <button
               type="submit"
               disabled={busy}
@@ -375,7 +475,7 @@ export default function PortalPage() {
             >
               Guardar PIN
             </button>
-            <button type="button" className="text-xs text-slate-500" onClick={() => setStep("chat")}>
+            <button type="button" className="text-xs text-slate-400" onClick={() => setStep("chat")}>
               Omitir por ahora
             </button>
           </form>
@@ -383,11 +483,38 @@ export default function PortalPage() {
 
         {(step === "chat" || step === "pin-setup") && conv && (
           <>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge value={canalEstadoLabel(conv.estado)} />
+              {conv.ticket_id && (
+                <span className="text-[10px] font-mono text-slate-400">Caso {conv.ticket_id}</span>
+              )}
+            </div>
+
             {modoInvitado && (
-              <p className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                 Modo invitado: no vemos tu cuenta. Identificate con DNI para consultas personalizadas.
               </p>
             )}
+
+            {esperaAgente && (
+              <p
+                className="text-xs text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2"
+                role="status"
+              >
+                Te estamos conectando con un agente. Podés seguir escribiendo; te responderán en este
+                mismo chat.
+              </p>
+            )}
+
+            {conAgente && (
+              <p
+                className="text-xs text-emerald-200 bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-3 py-2"
+                role="status"
+              >
+                Un agente se unió a la conversación. Las respuestas aparecerán acá.
+              </p>
+            )}
+
             <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/40 p-3 overflow-y-auto min-h-[320px] max-h-[55vh] space-y-2">
               {mensajes.map((m) => (
                 <div
@@ -398,7 +525,9 @@ export default function PortalPage() {
                       : "mr-auto bg-slate-800 text-slate-200"
                   }`}
                 >
-                  <p className="text-[10px] font-mono text-slate-500 mb-0.5">{m.autor}</p>
+                  <p className="text-[10px] font-mono text-slate-500 mb-0.5">
+                    {m.autor === "cliente" ? "vos" : m.autor === "agente" ? "agente" : m.autor}
+                  </p>
                   {m.texto}
                 </div>
               ))}
@@ -408,7 +537,7 @@ export default function PortalPage() {
                   aria-live="polite"
                   aria-label="El asistente está escribiendo"
                 >
-                  <p className="text-[10px] font-mono text-slate-500 mb-1">bot</p>
+                  <p className="text-[10px] font-mono text-slate-500 mb-1">asistente</p>
                   <div className="flex items-center gap-1.5 py-0.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:0ms]" />
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:150ms]" />
@@ -427,7 +556,11 @@ export default function PortalPage() {
               {botTyping ? "Recibido · el asistente está armando la respuesta…" : "·"}
             </p>
             <form onSubmit={onSend} className="flex gap-2">
+              <label className="sr-only" htmlFor="portal-mensaje">
+                Tu mensaje
+              </label>
               <input
+                id="portal-mensaje"
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
                 placeholder={botTyping ? "Esperá la respuesta…" : "Escribí tu consulta…"}
@@ -439,13 +572,17 @@ export default function PortalPage() {
                 disabled={botTyping || !texto.trim()}
                 className="px-4 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
               >
-                {botTyping ? "…" : "Enviar"}
+                {botTyping ? "Enviando…" : "Enviar"}
               </button>
             </form>
           </>
         )}
 
-        {error && <p className="text-sm text-red-400 font-mono">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-400" role="alert">
+            {error}
+          </p>
+        )}
       </main>
     </div>
   );

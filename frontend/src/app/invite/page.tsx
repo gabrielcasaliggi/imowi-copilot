@@ -69,43 +69,57 @@ function InviteForm() {
         <form onSubmit={onSubmit} className="space-y-4">
           {!isReset && (
             <div>
-              <label className="text-xs font-mono text-slate-500 block mb-1">Nombre</label>
+              <label htmlFor="invite-nombre" className="text-xs font-mono text-slate-400 block mb-1">
+                Nombre
+              </label>
               <input
+                id="invite-nombre"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm"
                 required
+                autoComplete="name"
               />
             </div>
           )}
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">
+            <label htmlFor="invite-password" className="text-xs font-mono text-slate-400 block mb-1">
               {isReset ? "Nueva contraseña" : "Contraseña"}
             </label>
             <input
+              id="invite-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
               required
               minLength={10}
+              autoComplete="new-password"
             />
-            <p className="text-[10px] text-slate-600 mt-1">
+            <p className="text-[10px] text-slate-500 mt-1">
               Mín. 10 caracteres, mayúscula, minúscula y dígito
             </p>
           </div>
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">Confirmar</label>
+            <label htmlFor="invite-confirm" className="text-xs font-mono text-slate-400 block mb-1">
+              Confirmar
+            </label>
             <input
+              id="invite-confirm"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
               required
               minLength={10}
+              autoComplete="new-password"
             />
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-400" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={loading}

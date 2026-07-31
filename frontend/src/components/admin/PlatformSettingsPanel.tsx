@@ -4,9 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import type { PlatformSettingsResponse } from "@/lib/types";
 import { GlassCard, StatusPill } from "@/components/ui/GlassCard";
-
-const inputCls =
-  "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
+import { inputCls } from "@/components/ui/forms";
 
 const labelCls = "block text-xs text-slate-400 mb-1";
 

@@ -46,37 +46,53 @@ export default function ChangePasswordPage() {
         </p>
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">Actual (si la sabés)</label>
+            <label htmlFor="pwd-current" className="text-xs font-mono text-slate-400 block mb-1">
+              Actual (si la sabés)
+            </label>
             <input
+              id="pwd-current"
               type="password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+              autoComplete="current-password"
             />
           </div>
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">Nueva</label>
+            <label htmlFor="pwd-new" className="text-xs font-mono text-slate-400 block mb-1">
+              Nueva
+            </label>
             <input
+              id="pwd-new"
               type="password"
               value={next}
               onChange={(e) => setNext(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
               required
               minLength={10}
+              autoComplete="new-password"
             />
           </div>
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">Confirmar</label>
+            <label htmlFor="pwd-confirm" className="text-xs font-mono text-slate-400 block mb-1">
+              Confirmar
+            </label>
             <input
+              id="pwd-confirm"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
               required
               minLength={10}
+              autoComplete="new-password"
             />
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-400" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={loading}

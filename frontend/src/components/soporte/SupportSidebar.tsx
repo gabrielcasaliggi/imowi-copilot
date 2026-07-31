@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { DataRow, GlassCard, SidebarSection, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { inputClsCompact } from "@/components/ui/forms";
+import { useToast } from "@/components/ui/Toast";
 import { useApp } from "@/contexts/AppContext";
 import { FlujoOperativoPanel } from "@/components/soporte/FlujoOperativoPanel";
 import { EstadoOperativoPanel } from "@/components/soporte/EstadoOperativoPanel";
@@ -20,7 +22,7 @@ function CasoActivoCard({
   if (!caso && !ticketExistente) {
     return (
       <GlassCard title="Caso activo" accent="cyan" variant="secondary">
-        <p className="text-slate-500 text-xs">Sin caso en curso. Iniciá un reclamo.</p>
+        <p className="text-slate-400 text-xs">Sin caso en curso. Iniciá un reclamo.</p>
       </GlassCard>
     );
   }
@@ -255,8 +257,7 @@ function PublicarKbButton({
     }
   };
 
-  const inputCls =
-    "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
+  const inputCls = inputClsCompact;
 
   if (!open) {
     return (
@@ -269,7 +270,7 @@ function PublicarKbButton({
         >
           {loading ? "Preparando…" : "Proponer mejora a KB"}
         </button>
-        <p className="text-[10px] text-slate-500 leading-relaxed">
+        <p className="text-[10px] text-slate-400 leading-relaxed">
           Envía el caso a la bandeja del admin. No se publica hasta aprobación.
         </p>
         {feedback && <p className="text-[10px] text-amber-300">{feedback}</p>}
@@ -574,20 +575,26 @@ export function SupportSidebar() {
   } = useApp();
 
   const isSupervisor = can("tickets.reassign");
+  const { push: toast } = useToast();
 
-  const onPickPlantilla = (contenido: string, nombre: string) => {
-    navigator.clipboard?.writeText(contenido).catch(() => {});
-    appendTrace([`📋 Plantilla «${nombre}» copiada al portapapeles`]);
+  const onPickPlantilla = async (contenido: string, nombre: string) => {
+    try {
+      await navigator.clipboard?.writeText(contenido);
+      toast(`Plantilla «${nombre}» copiada`, "success");
+      appendTrace([`Plantilla «${nombre}» copiada al portapapeles`]);
+    } catch {
+      toast("No se pudo copiar la plantilla", "danger");
+    }
   };
 
   const TimelineBlock = () => (
     <GlassCard title="Historial del ticket" variant="secondary">
       {!ticketFormacion ? (
-        <p className="text-slate-500 text-xs font-mono">
+        <p className="text-slate-400 text-xs font-mono">
           Seleccioná un ticket para ver avances.
         </p>
       ) : !ticketTimeline.length ? (
-        <p className="text-slate-500 text-xs font-mono">Sin eventos todavía.</p>
+        <p className="text-slate-400 text-xs font-mono">Sin eventos todavía.</p>
       ) : (
         <div className="space-y-3">
           {ticketTimeline.map((ev) => (
@@ -632,7 +639,7 @@ export function SupportSidebar() {
   if (!isAdmin && !isSupervisor) {
     return (
       <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
-        <SidebarSection title="Caso que estás atendiendo">
+        <SidebarSection title="Caso que estás atendiendo" sticky defaultOpen>
           <TicketFormacionCard />
           {ticketFormacion && (
             <GlassCard title="Notas internas" variant="secondary">
@@ -656,7 +663,7 @@ export function SupportSidebar() {
                     className="text-xs border-b border-slate-800/60 pb-2.5 last:border-0"
                   >
                     <p className="text-slate-200 font-medium">{k.titulo}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{k.categoria}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{k.categoria}</p>
                     <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                       {k.fragmento}
                     </p>
@@ -667,7 +674,7 @@ export function SupportSidebar() {
           )}
         </SidebarSection>
 
-        <SidebarSection title="Historial del ticket">
+        <SidebarSection title="Historial del ticket" defaultOpen={false}>
           <TimelineBlock />
         </SidebarSection>
       </div>
@@ -678,7 +685,7 @@ export function SupportSidebar() {
   if (!isAdmin && isSupervisor) {
     return (
       <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
-        <SidebarSection title="Seguimiento supervisor">
+        <SidebarSection title="Seguimiento supervisor" sticky defaultOpen>
           <TicketFormacionCard />
           {ticketFormacion && (
             <GlassCard title="Notas internas" variant="secondary">
@@ -686,7 +693,7 @@ export function SupportSidebar() {
             </GlassCard>
           )}
         </SidebarSection>
-        <SidebarSection title="Trazabilidad N2">
+        <SidebarSection title="Trazabilidad N2" defaultOpen={false}>
           <TimelineBlock />
           {ticketLearning?.postmortem && (
             <GlassCard title="Aprendizaje operativo" accent="emerald" variant="secondary">
@@ -702,13 +709,13 @@ export function SupportSidebar() {
 
   return (
     <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
-      <SidebarSection title="Resumen operativo">
+      <SidebarSection title="Resumen operativo" sticky defaultOpen>
         <CasoActivoCard caso={casoActivo} ticketExistente={ticketExistente} />
         <FlujoOperativoPanel flujo={flujoOperativo} />
         <EstadoOperativoPanel />
       </SidebarSection>
 
-      <SidebarSection title="Contexto del abonado">
+      <SidebarSection title="Contexto del abonado" defaultOpen>
         <FichaAbonadoCard />
         <TicketFormacionCard />
         <PlantillasRespuesta
@@ -735,7 +742,7 @@ export function SupportSidebar() {
               {ticketKbSuggestions.map((k) => (
                 <div key={k.id} className="text-xs border-b border-slate-800/60 pb-2.5 last:border-0">
                   <p className="text-slate-200 font-medium">{k.titulo}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{k.categoria}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{k.categoria}</p>
                   <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                     {k.fragmento}
                   </p>
@@ -746,7 +753,7 @@ export function SupportSidebar() {
         )}
       </SidebarSection>
 
-      <SidebarSection title="Evidencia e historial">
+      <SidebarSection title="Evidencia e historial" defaultOpen={false}>
         {ticketLearning?.postmortem && (
           <GlassCard title="Aprendizaje operativo" accent="emerald" variant="secondary">
             <pre className="text-[11px] text-slate-400 whitespace-pre-wrap leading-relaxed">
@@ -759,11 +766,11 @@ export function SupportSidebar() {
 
         <GlassCard title="Historial del ticket" variant="secondary">
           {!ticketFormacion ? (
-            <p className="text-slate-500 text-xs font-mono">
+            <p className="text-slate-400 text-xs font-mono">
               Seleccioná un ticket para ver avances.
             </p>
           ) : !ticketTimeline.length ? (
-            <p className="text-slate-500 text-xs font-mono">Sin eventos todavía.</p>
+            <p className="text-slate-400 text-xs font-mono">Sin eventos todavía.</p>
           ) : (
             <div className="space-y-3">
               {ticketTimeline.map((ev) => (
@@ -786,7 +793,7 @@ export function SupportSidebar() {
                       {ev.nivel && <StatusBadge value={ev.nivel} />}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">
                     {ev.estado}
                     {ev.actor ? ` · ${ev.actor}` : ""}
                   </p>
@@ -801,7 +808,7 @@ export function SupportSidebar() {
 
         <GlassCard title="Notificaciones" accent="amber" variant="secondary">
           {!notifications.length ? (
-            <p className="text-slate-500 text-xs font-mono">Sin novedades.</p>
+            <p className="text-slate-400 text-xs font-mono">Sin novedades.</p>
           ) : (
             <div className="space-y-2">
               {notifications.slice(0, 5).map((n) => (
@@ -815,7 +822,7 @@ export function SupportSidebar() {
                 >
                   <div className="flex justify-between gap-2">
                     <p className="text-xs text-slate-200 font-medium">{n.titulo}</p>
-                    <span className="text-[11px] font-mono text-slate-500">{n.leida}</span>
+                    <span className="text-[11px] font-mono text-slate-400">{n.leida}</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">{n.mensaje}</p>
                 </div>
@@ -847,7 +854,7 @@ export function SupportSidebar() {
         ) : (
           <GlassCard title="Mis tickets recientes" variant="secondary" className="min-h-[120px]">
             {!tickets.length ? (
-              <p className="text-slate-500 text-xs">Sin tickets.</p>
+              <p className="text-slate-400 text-xs">Sin tickets.</p>
             ) : (
               <div className="space-y-2">
                 {tickets.slice(0, 6).map((t) => (
@@ -864,7 +871,7 @@ export function SupportSidebar() {
                         <StatusBadge value={t.estado} />
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
                       {t.linea}
                       {t.asignado_a ? ` · ${t.asignado_a}` : ""}
                     </p>

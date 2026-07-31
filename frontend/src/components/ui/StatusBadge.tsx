@@ -7,12 +7,19 @@ const COLORS: Record<string, string> = {
   "Anomalía Predictiva": "bg-amber-500/20 text-amber-300 border-amber-500/40",
   Abierto: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
   "En Revisión": "bg-violet-500/20 text-violet-300 border-violet-500/40",
+  Escalado: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+  "Pendiente Cliente": "bg-sky-500/20 text-sky-300 border-sky-500/40",
   Cerrado: "bg-slate-500/20 text-slate-400 border-slate-500/40",
+  Cerrada: "bg-slate-500/20 text-slate-400 border-slate-500/40",
   N1: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
   N2: "bg-violet-500/20 text-violet-300 border-violet-500/40",
   Proveedor: "bg-amber-500/20 text-amber-300 border-amber-500/40",
   "Autónomo Predictivo": "bg-violet-500/20 text-violet-300 border-violet-500/40",
   "Reporte Cliente": "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
+  // Inbox / canal
+  "Bot N1": "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+  "Espera agente": "bg-amber-500/20 text-amber-300 border-amber-500/40",
+  "Con agente": "bg-violet-500/20 text-violet-300 border-violet-500/40",
 };
 
 export function StatusBadge({ value }: { value: string }) {

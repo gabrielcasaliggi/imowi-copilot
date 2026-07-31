@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import {
   api,
@@ -9,6 +10,8 @@ import {
   type InboxMessage,
 } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
@@ -34,6 +37,8 @@ function estadoLabel(estado: string): string {
 
 export function InboxPanel() {
   const { tenantSlug, isAdmin, can, selectTicket } = useApp();
+  const router = useRouter();
+  const { push: toast } = useToast();
   const slug = isAdmin ? tenantSlug : undefined;
   const [convs, setConvs] = useState<InboxConversation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -45,7 +50,7 @@ export function InboxPanel() {
   const [injectTel, setInjectTel] = useState("");
   const [injectText, setInjectText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [hint, setHint] = useState("");
+  const [confirmClose, setConfirmClose] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const detailSeq = useRef(0);
   const claimingRef = useRef(false);
@@ -63,7 +68,6 @@ export function InboxPanel() {
       const seq = ++detailSeq.current;
       setSelected(id);
       const res = await api.inboxConversation(id, slug);
-      // Evitar que un poll viejo pise un claim reciente
       if (seq !== detailSeq.current) return;
       setDetail(res.conversacion);
       setMensajes(res.mensajes || []);
@@ -71,11 +75,16 @@ export function InboxPanel() {
     [slug],
   );
 
+  const closeDetail = () => {
+    setSelected(null);
+    setDetail(null);
+    setMensajes([]);
+  };
+
   useEffect(() => {
     refreshList().catch(() => setConvs([]));
   }, [refreshList]);
 
-  // Sincroniza hilo abierto + cola (mensajes del portal en vivo)
   useEffect(() => {
     const tick = () => {
       if (claimingRef.current) return;
@@ -96,35 +105,51 @@ export function InboxPanel() {
     e.preventDefault();
     if (!isAdmin) return;
     setBusy(true);
-    setHint("");
     try {
       const res = await api.inboxSimulate(
         { telefono: injectTel, texto: injectText, usar_llama: false },
         slug,
       );
-      setHint(res.respuesta || `Estado: ${res.estado}`);
+      toast(res.respuesta || `Estado: ${res.estado}`, "info");
       await refreshList();
       if (res.conversacion_id) await openConv(res.conversacion_id);
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "Error");
+      toast(err instanceof Error ? err.message : "Error", "danger");
     } finally {
       setBusy(false);
     }
   };
 
-  const onClaim = async () => {
+  const onClaimChannel = async () => {
     if (!selected) return;
     setBusy(true);
     claimingRef.current = true;
-    setHint("");
     try {
       const res = await api.inboxClaim(selected, slug);
       detailSeq.current += 1;
       if (res.conversacion) setDetail(res.conversacion);
       await openConv(selected);
       await refreshList();
+      toast("Caso tomado en el canal", "success");
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "No se pudo tomar el caso");
+      toast(err instanceof Error ? err.message : "No se pudo tomar el caso", "danger");
+    } finally {
+      claimingRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const onClaimAndOpenConsole = async () => {
+    if (!detail?.ticket_id) return;
+    setBusy(true);
+    claimingRef.current = true;
+    try {
+      const res = await api.claimTicket(detail.ticket_id, slug);
+      await selectTicket(res.ticket.id);
+      toast("Ticket tomado · abriendo Consola", "success");
+      router.push(`/soporte?ticket=${encodeURIComponent(res.ticket.id)}`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo tomar el ticket", "danger");
     } finally {
       claimingRef.current = false;
       setBusy(false);
@@ -145,8 +170,9 @@ export function InboxPanel() {
       if (res.conversacion) setDetail(res.conversacion);
       await openConv(selected);
       await refreshList();
+      toast("Conversación reasignada", "success");
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "No se pudo reasignar");
+      toast(err instanceof Error ? err.message : "No se pudo reasignar", "danger");
     } finally {
       claimingRef.current = false;
       setBusy(false);
@@ -158,9 +184,7 @@ export function InboxPanel() {
     if (!selected || !reply.trim()) return;
     setBusy(true);
     claimingRef.current = true;
-    setHint("");
     try {
-      // Si sigue en bot / cola, tomar al enviar
       if (detail?.estado === "bot" || detail?.estado === "espera_agente") {
         try {
           const claimed = await api.inboxClaim(selected, slug);
@@ -174,23 +198,34 @@ export function InboxPanel() {
       await openConv(selected);
       await refreshList();
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "Error al enviar");
+      toast(err instanceof Error ? err.message : "Error al enviar", "danger");
     } finally {
       claimingRef.current = false;
       setBusy(false);
     }
   };
 
-  const onClose = async () => {
+  const onCloseConfirmed = async () => {
     if (!selected) return;
-    await api.inboxClose(selected, slug);
-    await openConv(selected);
-    await refreshList();
+    setBusy(true);
+    try {
+      await api.inboxClose(selected, slug);
+      await openConv(selected);
+      await refreshList();
+      toast("Conversación cerrada", "success");
+      setConfirmClose(false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo cerrar", "danger");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const openConvs = convs.filter((c) => c.estado !== "cerrado");
   const visible = filtro ? convs : openConvs;
   const puedeEscribir = Boolean(detail && detail.estado !== "cerrado");
+  const showList = !selected;
+  const showDetail = Boolean(selected);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">
@@ -205,11 +240,15 @@ export function InboxPanel() {
               ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
               : can("tickets.reassign")
                 ? "Canal en vivo: monitoreá bot y abonados. La asignación de trabajo N2 se hace en Cola."
-                : "Canal en vivo (WhatsApp / portal): ves lo que entra y lo que hace el bot. Para tomar trabajo humano usá la Cola."}
+                : "Canal en vivo: ves lo que entra. Si hay ticket N2, podés tomarlo y abrir Consola desde acá."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <label className="sr-only" htmlFor="inbox-filtro">
+            Filtrar conversaciones
+          </label>
           <select
+            id="inbox-filtro"
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
             className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
@@ -237,17 +276,25 @@ export function InboxPanel() {
           onSubmit={onInject}
           className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2"
         >
-          <p className="md:col-span-3 text-[11px] text-slate-500">
+          <p className="md:col-span-3 text-[11px] text-slate-400">
             Inyectar mensaje entrante (solo administración · pruebas internas).
           </p>
+          <label className="sr-only" htmlFor="inject-tel">
+            Teléfono
+          </label>
           <input
+            id="inject-tel"
             value={injectTel}
             onChange={(e) => setInjectTel(e.target.value)}
             placeholder="Teléfono E.164"
             className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono"
             required
           />
+          <label className="sr-only" htmlFor="inject-text">
+            Texto del mensaje
+          </label>
           <input
+            id="inject-text"
             value={injectText}
             onChange={(e) => setInjectText(e.target.value)}
             placeholder="Texto del mensaje entrante…"
@@ -261,16 +308,17 @@ export function InboxPanel() {
           >
             Inyectar entrada
           </button>
-          {hint && (
-            <p className="md:col-span-3 text-[11px] text-slate-400 font-mono">{hint}</p>
-          )}
         </form>
       )}
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-3 overflow-hidden">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/40 overflow-y-auto p-2 space-y-1.5">
+        <div
+          className={`rounded-xl border border-slate-800 bg-slate-950/40 overflow-y-auto p-2 space-y-1.5 ${
+            showDetail ? "hidden lg:block" : ""
+          } ${showList ? "block" : ""}`}
+        >
           {!visible.length ? (
-            <p className="text-xs text-slate-500 p-2">
+            <p className="text-xs text-slate-400 p-2">
               No hay conversaciones abiertas. Los mensajes entrantes aparecerán aquí.
             </p>
           ) : (
@@ -278,7 +326,7 @@ export function InboxPanel() {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => openConv(c.id)}
+                onClick={() => void openConv(c.id)}
                 className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
                   selected === c.id
                     ? "border-cyan-500/40 bg-cyan-500/10"
@@ -300,33 +348,57 @@ export function InboxPanel() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col min-h-0 overflow-hidden">
+        <div
+          className={`rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col min-h-0 overflow-hidden ${
+            showDetail ? "flex" : "hidden lg:flex"
+          }`}
+        >
           {!detail ? (
-            <p className="text-sm text-slate-500 p-4">
+            <p className="text-sm text-slate-400 p-4">
               Seleccioná una conversación del canal para ver el hilo en vivo.
             </p>
           ) : (
             <>
               <div className="p-3 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-100">
-                    {detail.abonado?.nombre || "Cliente"} · {detail.telefono}
-                  </p>
-                  <p className="text-[11px] text-slate-500 font-mono">
-                    {estadoLabel(detail.estado)} · {canalLabel(detail)}
-                    {detail.agente_id ? ` · ${detail.agente_id}` : ""}
-                    {detail.abonado
-                      ? ` · ${detail.abonado.servicio} · ${detail.abonado.estado} · deuda $${detail.abonado.deuda_monto}`
-                      : ""}
-                  </p>
+                <div className="flex items-start gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={closeDetail}
+                    className="lg:hidden shrink-0 text-[11px] px-2 py-1 rounded border border-slate-600 text-slate-300"
+                  >
+                    Volver
+                  </button>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-100 truncate">
+                      {detail.abonado?.nombre || "Cliente"} · {detail.telefono}
+                    </p>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      {estadoLabel(detail.estado)} · {canalLabel(detail)}
+                      {detail.agente_id ? ` · ${detail.agente_id}` : ""}
+                      {detail.abonado
+                        ? ` · ${detail.abonado.servicio} · ${detail.abonado.estado} · deuda $${detail.abonado.deuda_monto}`
+                        : ""}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                  {!isAdmin && detail.ticket_id && detail.estado !== "cerrado" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void onClaimAndOpenConsole()}
+                      className="text-[11px] px-2.5 py-1 rounded border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+                    >
+                      Tomar y abrir Consola
+                    </button>
+                  )}
                   {isAdmin &&
                     (detail.estado === "espera_agente" || detail.estado === "bot") && (
                       <button
                         type="button"
-                        onClick={onClaim}
-                        className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
+                        disabled={busy}
+                        onClick={() => void onClaimChannel()}
+                        className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300 disabled:opacity-50"
                       >
                         Tomar
                       </button>
@@ -334,8 +406,9 @@ export function InboxPanel() {
                   {isAdmin && detail.estado !== "cerrado" && (
                     <button
                       type="button"
-                      onClick={onAssignSelf}
-                      className="text-[11px] px-2 py-1 rounded border border-violet-500/30 text-violet-300"
+                      disabled={busy}
+                      onClick={() => void onAssignSelf()}
+                      className="text-[11px] px-2 py-1 rounded border border-violet-500/30 text-violet-300 disabled:opacity-50"
                     >
                       Reasignar (admin)
                     </button>
@@ -343,7 +416,7 @@ export function InboxPanel() {
                   {isAdmin && detail.estado !== "cerrado" && (
                     <button
                       type="button"
-                      onClick={onClose}
+                      onClick={() => setConfirmClose(true)}
                       className="text-[11px] px-2 py-1 rounded border border-slate-600 text-slate-300"
                     >
                       Cerrar
@@ -357,7 +430,7 @@ export function InboxPanel() {
                           : `/tickets`
                       }
                       onClick={() => {
-                        if (isAdmin) selectTicket(detail.ticket_id);
+                        if (isAdmin) void selectTicket(detail.ticket_id);
                       }}
                       className="text-[11px] px-2 py-1 rounded border border-amber-500/30 text-amber-300"
                     >
@@ -400,7 +473,11 @@ export function InboxPanel() {
               </div>
               {isAdmin && detail.estado !== "cerrado" && (
                 <form onSubmit={onSend} className="p-3 border-t border-slate-800 flex gap-2">
+                  <label className="sr-only" htmlFor="inbox-reply">
+                    Respuesta al abonado
+                  </label>
                   <input
+                    id="inbox-reply"
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Escribí la respuesta al abonado…"
@@ -418,19 +495,22 @@ export function InboxPanel() {
                 </form>
               )}
               {!isAdmin && (
-                <p className="px-3 py-2.5 text-[11px] text-slate-500 border-t border-slate-800">
-                  Solo monitoreo. Para atender al abonado: tomá el ticket N2 en{" "}
-                  <Link href="/tickets" className="text-cyan-400 hover:text-cyan-300">
-                    Cola
-                  </Link>{" "}
-                  y trabajalo en Consola.
+                <p className="px-3 py-2.5 text-[11px] text-slate-400 border-t border-slate-800">
+                  {detail.ticket_id
+                    ? "Monitoreo del canal. Usá “Tomar y abrir Consola” para atender al abonado."
+                    : (
+                      <>
+                        Solo monitoreo. Cuando el bot arme el ticket N2, podés tomarlo acá o en{" "}
+                        <Link href="/tickets" className="text-cyan-400 hover:text-cyan-300">
+                          Cola
+                        </Link>
+                        .
+                      </>
+                    )}
                 </p>
               )}
-              {hint && (
-                <p className="px-3 pb-2 text-[11px] text-amber-400/90 font-mono">{hint}</p>
-              )}
               {isAdmin && detail.estado === "bot" && (
-                <p className="px-3 pb-3 text-[11px] text-slate-500">
+                <p className="px-3 pb-3 text-[11px] text-slate-400">
                   El bot N1 está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
                 </p>
               )}
@@ -438,6 +518,17 @@ export function InboxPanel() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmClose}
+        title="¿Cerrar conversación?"
+        description="El abonado no podrá seguir escribiendo en este hilo. Esta acción no se puede deshacer desde la bandeja."
+        confirmLabel="Cerrar conversación"
+        danger
+        busy={busy}
+        onCancel={() => setConfirmClose(false)}
+        onConfirm={() => void onCloseConfirmed()}
+      />
     </div>
   );
 }

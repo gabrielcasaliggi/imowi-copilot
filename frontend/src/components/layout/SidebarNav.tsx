@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
-import { api } from "@/lib/api-client";
+import { useKbPendingCount } from "@/hooks/useKbPendingCount";
 
 type NavItem = {
   href: string;
@@ -39,7 +38,6 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Gestión",
     items: [
-      // Solo quien publica/revisa ve el centro completo. Proponer KB = desde consola/ticket.
       {
         href: "/conocimiento",
         label: "Conocimiento",
@@ -67,8 +65,9 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { isAdmin, can, tenantSlug } = useApp();
-  const [kbPendingCount, setKbPendingCount] = useState(0);
+  const { can, tenantSlug } = useApp();
+  const canKb = can("kb.publish");
+  const { count: kbPendingCount } = useKbPendingCount(canKb, tenantSlug);
 
   const canSee = (permission: string | null) => {
     if (!permission) return true;
@@ -78,32 +77,18 @@ export function SidebarNav() {
     return can(permission);
   };
 
-  const loadKbPending = useCallback(async () => {
-    if (!can("kb.publish")) {
-      setKbPendingCount(0);
-      return;
-    }
-    try {
-      const res = await api.kbContributions({ estado: "pendiente" }, tenantSlug);
-      setKbPendingCount((res.contribuciones || []).length);
-    } catch {
-      setKbPendingCount(0);
-    }
-  }, [can, tenantSlug]);
-
-  useEffect(() => {
-    void loadKbPending();
-    if (!can("kb.publish")) return;
-    const id = window.setInterval(() => void loadKbPending(), 45_000);
-    return () => window.clearInterval(id);
-  }, [can, loadKbPending]);
-
   const linkClass = (active: boolean) =>
     `block text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
       active
-        ? "bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 shadow-[inset_0_1px_0_rgba(34,211,238,0.08)]"
+        ? "border shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
         : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
     }`;
+
+  const activeStyle = {
+    background: "color-mix(in srgb, var(--brand) 12%, transparent)",
+    color: "var(--brand)",
+    borderColor: "color-mix(in srgb, var(--brand) 30%, transparent)",
+  } as const;
 
   const flatItems = NAV_GROUPS.flatMap((g) => g.items.filter((n) => canSee(n.permission)));
 
@@ -114,7 +99,12 @@ export function SidebarNav() {
           const active = pathname.startsWith(item.href);
           const showKbBadge = item.id === "kb" && kbPendingCount > 0;
           return (
-            <Link key={item.href} href={item.href} className={linkClass(active)}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={linkClass(active)}
+              style={active ? activeStyle : undefined}
+            >
               <span className="inline-flex items-center gap-1.5">
                 {item.shortLabel}
                 {showKbBadge && (
@@ -128,7 +118,7 @@ export function SidebarNav() {
         })}
       </nav>
       <aside className="w-60 shrink-0 border-r border-slate-800/80 p-3 hidden lg:block">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600 px-2 mb-3">
+        <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 px-2 mb-3">
           Navegación
         </p>
         <nav className="space-y-4">
@@ -137,7 +127,7 @@ export function SidebarNav() {
             if (!items.length) return null;
             return (
               <div key={group.title}>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-600 px-2 mb-1.5">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 px-2 mb-1.5">
                   {group.title}
                 </p>
                 <div className="space-y-1">
@@ -145,7 +135,12 @@ export function SidebarNav() {
                     const active = pathname.startsWith(item.href);
                     const showKbBadge = item.id === "kb" && kbPendingCount > 0;
                     return (
-                      <Link key={item.href} href={item.href} className={linkClass(active)}>
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={linkClass(active)}
+                        style={active ? activeStyle : undefined}
+                      >
                         <span className="flex items-center justify-between gap-2">
                           <span>{item.label}</span>
                           {showKbBadge && (

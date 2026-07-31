@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 
 type Accent = "cyan" | "amber" | "emerald" | "default";
 type Variant = "default" | "primary" | "secondary" | "technical";
@@ -63,18 +65,36 @@ export function SidebarSection({
   title,
   children,
   className = "",
+  defaultOpen = true,
+  sticky = false,
 }: {
   title: string;
   children: ReactNode;
   className?: string;
+  /** Si false, arranca colapsada (útil en sidebars densos). */
+  defaultOpen?: boolean;
+  /** Fija el encabezado al hacer scroll del sidebar. */
+  sticky?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+
   return (
     <section className={`sidebar-section ${className}`}>
-      <div className="sidebar-section-header">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`sidebar-section-header w-full text-left cursor-pointer hover:opacity-90 ${
+          sticky ? "sticky top-0 z-[5] bg-slate-950/90 backdrop-blur-sm py-1 -mx-0.5 px-0.5" : ""
+        }`}
+      >
         <h2 className="sidebar-section-title">{title}</h2>
         <div className="sidebar-section-line" aria-hidden />
-      </div>
-      <div className="sidebar-section-body">{children}</div>
+        <span className="text-[10px] font-mono text-slate-400 tabular-nums w-4 text-center" aria-hidden>
+          {open ? "−" : "+"}
+        </span>
+      </button>
+      {open && <div className="sidebar-section-body">{children}</div>}
     </section>
   );
 }
@@ -116,11 +136,11 @@ export function KpiCard({
               : "text-slate-100";
   return (
     <div className={`rounded-xl border p-3 shadow-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-wider font-mono text-slate-500">
+      <p className="text-[11px] uppercase tracking-wider font-mono text-slate-400">
         {label}
       </p>
       <p className={`text-2xl font-semibold mt-1 tabular-nums ${valueClass}`}>{value}</p>
-      {helper && <p className="text-[11px] text-slate-500 mt-1">{helper}</p>}
+      {helper && <p className="text-[11px] text-slate-400 mt-1">{helper}</p>}
     </div>
   );
 }
@@ -147,7 +167,7 @@ export function PanelHeader({ title, subtitle }: { title: string; subtitle?: str
   return (
     <div className="mb-3">
       <h3 className="enterprise-panel-header !mb-0">{title}</h3>
-      {subtitle && <p className="text-[11px] text-slate-500 mt-1">{subtitle}</p>}
+      {subtitle && <p className="text-[11px] text-slate-400 mt-1">{subtitle}</p>}
     </div>
   );
 }
@@ -163,7 +183,7 @@ export function DataRow({
 }) {
   return (
     <div className="flex justify-between gap-3 items-start text-xs">
-      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className="text-slate-400 shrink-0">{label}</span>
       <span className={`text-slate-200 text-right ${mono ? "font-mono" : ""}`}>{children}</span>
     </div>
   );
@@ -205,7 +225,7 @@ export function SectionHeader({
       <div>
         <h2 className="text-lg font-semibold text-slate-50 tracking-tight">{title}</h2>
         {subtitle && (
-          <p className="text-[11px] font-mono text-slate-500 mt-1 leading-relaxed">{subtitle}</p>
+          <p className="text-[11px] font-mono text-slate-400 mt-1 leading-relaxed">{subtitle}</p>
         )}
       </div>
       {action}

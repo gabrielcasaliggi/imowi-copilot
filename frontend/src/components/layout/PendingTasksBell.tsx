@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api-client";
+import { setKbPendingCount } from "@/hooks/useKbPendingCount";
 
 export type PendingTaskKind = "kb_review" | "ticket_notif" | "inbox";
 
@@ -60,7 +61,9 @@ export function PendingTasksBell() {
     try {
       if (isAdmin) {
         const kb = await api.kbContributions({ estado: "pendiente" }, tenantSlug);
-        for (const c of kb.contribuciones || []) {
+        const contribs = kb.contribuciones || [];
+        setKbPendingCount(contribs.length);
+        for (const c of contribs) {
           next.push({
             id: `kb-${c.id}`,
             kind: "kb_review",
@@ -154,7 +157,7 @@ export function PendingTasksBell() {
           <div className="px-3 py-2.5 border-b border-slate-800 flex items-center justify-between gap-2">
             <div>
               <p className="text-xs font-semibold text-slate-100">Pendientes</p>
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-slate-400">
                 {isAdmin
                   ? "Revisiones KB y novedades de tickets"
                   : "Novedades operativas de tus tickets"}
@@ -171,7 +174,7 @@ export function PendingTasksBell() {
 
           <div className="max-h-80 overflow-y-auto">
             {!tasks.length ? (
-              <p className="px-3 py-6 text-center text-xs text-slate-500">
+              <p className="px-3 py-6 text-center text-xs text-slate-400">
                 No tenés pendientes por ahora.
               </p>
             ) : (
@@ -192,7 +195,7 @@ export function PendingTasksBell() {
                         </span>
                       </div>
                       {t.detail && (
-                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
                           {t.detail}
                         </p>
                       )}

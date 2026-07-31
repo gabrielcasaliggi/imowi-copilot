@@ -9,6 +9,7 @@ import {
   SidebarSection,
 } from "@/components/ui/GlassCard";
 import { KbReviewTray } from "@/components/kb/KbReviewTray";
+import { inputCls } from "@/components/ui/forms";
 
 const SUGGESTED_CATEGORIES = [
   "Internet Ecolan",
@@ -105,9 +106,6 @@ export function KnowledgeBasePanel() {
       setSaving(false);
     }
   };
-
-  const inputCls =
-    "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
   return (
     <div className="p-4 space-y-6 overflow-y-auto min-h-0">

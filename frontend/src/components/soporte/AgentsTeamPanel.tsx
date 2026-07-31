@@ -3,12 +3,10 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { GlassCard, SidebarSection } from "@/components/ui/GlassCard";
+import { inputCls } from "@/components/ui/forms";
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api-client";
 import type { AgentPerformanceRow, AdminUser } from "@/lib/types";
-
-const inputCls =
-  "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
 
 /** Equipo: carga/disponibilidad. CRUD de agentes solo para supervisor (admin usa /admin). */
 export function AgentsTeamPanel() {

@@ -54,28 +54,36 @@ export default function LoginPage() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">Usuario</label>
+            <label htmlFor="login-usuario" className="text-xs font-mono text-slate-400 block mb-1">
+              Usuario
+            </label>
             <input
+              id="login-usuario"
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-[var(--brand)]"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-[var(--brand)]"
               autoComplete="username"
               required
             />
           </div>
           <div>
-            <label className="text-xs font-mono text-slate-500 block mb-1">Contraseña</label>
+            <label htmlFor="login-password" className="text-xs font-mono text-slate-400 block mb-1">
+              Contraseña
+            </label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-[var(--brand)]"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-[var(--brand)]"
               autoComplete="current-password"
               required
             />
           </div>
           {error && (
-            <p className="text-sm text-red-400 font-mono">{error}</p>
+            <p className="text-sm text-red-400" role="alert">
+              {error}
+            </p>
           )}
           <button
             type="submit"

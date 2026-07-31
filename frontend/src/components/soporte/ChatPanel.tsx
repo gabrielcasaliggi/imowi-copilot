@@ -9,6 +9,8 @@ import {
   type InboxMessage,
 } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 /**
  * Consola del agente: mesa de trabajo sobre el ticket tomado.
@@ -16,18 +18,19 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
  */
 export function ChatPanel() {
   const { isAdmin, ticketFormacion, tenantSlug, updateTicket } = useApp();
+  const { push: toast } = useToast();
   const slug = isAdmin ? tenantSlug : undefined;
 
   const [conv, setConv] = useState<InboxConversation | null>(null);
   const [mensajes, setMensajes] = useState<InboxMessage[]>([]);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
-  const [hint, setHint] = useState("");
   const [loadingConv, setLoadingConv] = useState(false);
+  const [confirmResolve, setConfirmResolve] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const seq = useRef(0);
 
-  const loadCanal = useCallback(async () => {
+  const loadCanal = useCallback(async (opts?: { silent?: boolean }) => {
     const tid = ticketFormacion?.id;
     if (!tid) {
       setConv(null);
@@ -35,7 +38,7 @@ export function ChatPanel() {
       return;
     }
     const n = ++seq.current;
-    setLoadingConv(true);
+    if (!opts?.silent) setLoadingConv(true);
     try {
       const res = await api.ticketConversation(tid, slug);
       if (n !== seq.current) return;
@@ -43,13 +46,15 @@ export function ChatPanel() {
       setMensajes(res.mensajes || []);
     } catch (err) {
       if (n !== seq.current) return;
-      setHint(err instanceof Error ? err.message : "No se pudo cargar el chat del canal");
-      setConv(null);
-      setMensajes([]);
+      if (!opts?.silent) {
+        toast(err instanceof Error ? err.message : "No se pudo cargar el chat del canal", "danger");
+        setConv(null);
+        setMensajes([]);
+      }
     } finally {
-      if (n === seq.current) setLoadingConv(false);
+      if (n === seq.current && !opts?.silent) setLoadingConv(false);
     }
-  }, [ticketFormacion?.id, slug]);
+  }, [ticketFormacion?.id, slug, toast]);
 
   useEffect(() => {
     void loadCanal();
@@ -58,7 +63,7 @@ export function ChatPanel() {
   useEffect(() => {
     if (!ticketFormacion?.id || !conv?.id) return;
     const id = window.setInterval(() => {
-      void loadCanal();
+      void loadCanal({ silent: true });
     }, 3000);
     return () => window.clearInterval(id);
   }, [ticketFormacion?.id, conv?.id, loadCanal]);
@@ -77,16 +82,25 @@ export function ChatPanel() {
           <p className="text-sm text-slate-400 leading-relaxed">
             Mesa de trabajo con el cliente: chat del canal + contexto del caso que tomaste.
           </p>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Todavía no hay un ticket activo. Tomá uno libre en la Cola.
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Todavía no hay un ticket activo. Tomá uno libre en la Cola o desde Bandeja con
+            “Tomar y abrir Consola”.
           </p>
         </div>
-        <Link
-          href="/tickets"
-          className="text-sm font-medium px-4 py-2.5 rounded-xl border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/12"
-        >
-          Ir a la Cola
-        </Link>
+        <div className="flex flex-wrap gap-2 justify-center">
+          <Link
+            href="/tickets"
+            className="text-sm font-medium px-4 py-2.5 rounded-xl border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/12"
+          >
+            Ir a la Cola
+          </Link>
+          <Link
+            href="/inbox"
+            className="text-sm font-medium px-4 py-2.5 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800/50"
+          >
+            Ir a Bandeja
+          </Link>
+        </div>
       </div>
     );
   }
@@ -95,7 +109,6 @@ export function ChatPanel() {
     e.preventDefault();
     if (!conv?.id || !reply.trim()) return;
     setBusy(true);
-    setHint("");
     try {
       if (conv.estado === "bot" || conv.estado === "espera_agente") {
         try {
@@ -108,7 +121,7 @@ export function ChatPanel() {
       setReply("");
       await loadCanal();
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "Error al enviar");
+      toast(err instanceof Error ? err.message : "Error al enviar", "danger");
     } finally {
       setBusy(false);
     }
@@ -116,15 +129,15 @@ export function ChatPanel() {
 
   const onMarcarResuelto = async () => {
     setBusy(true);
-    setHint("");
     try {
       await updateTicket({
         estado: "Cerrado",
         resolucion_tecnica: "Resuelto en consola N2",
       });
-      setHint("Ticket cerrado. Si aplica, proponé una mejora a la KB en el panel derecho.");
+      toast("Ticket cerrado. Si aplica, proponé una mejora a la KB en el panel derecho.", "success");
+      setConfirmResolve(false);
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "No se pudo cerrar");
+      toast(err instanceof Error ? err.message : "No se pudo cerrar", "danger");
     } finally {
       setBusy(false);
     }
@@ -146,7 +159,7 @@ export function ChatPanel() {
             {ticketFormacion.nivel && <StatusBadge value={ticketFormacion.nivel} />}
             <StatusBadge value={ticketFormacion.estado} />
             {conv && (
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] font-mono text-slate-400">
                 Canal · {conv.abonado?.nombre || conv.telefono || "abonado"}
               </span>
             )}
@@ -157,7 +170,7 @@ export function ChatPanel() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => void onMarcarResuelto()}
+              onClick={() => setConfirmResolve(true)}
               className="text-xs font-medium px-3.5 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/12 disabled:opacity-50"
             >
               Resolver ticket
@@ -174,19 +187,19 @@ export function ChatPanel() {
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
         {loadingConv && !mensajes.length ? (
-          <p className="text-sm text-slate-500">Cargando chat del canal…</p>
+          <p className="text-sm text-slate-400">Cargando chat del canal…</p>
         ) : !conv ? (
           <div className="space-y-2 max-w-lg">
             <p className="text-sm text-slate-400 leading-relaxed">
               Este ticket no tiene conversación de canal ligada (WhatsApp / portal).
             </p>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-xs text-slate-400 leading-relaxed">
               Usá el panel derecho para notas, seguimiento y proponer a KB. El chat en vivo
               aparece cuando el bot armó el ticket desde el canal.
             </p>
           </div>
         ) : !mensajes.length ? (
-          <p className="text-sm text-slate-500">Sin mensajes todavía en este hilo.</p>
+          <p className="text-sm text-slate-400">Sin mensajes todavía en este hilo.</p>
         ) : (
           mensajes.map((m) => (
             <div
@@ -214,7 +227,11 @@ export function ChatPanel() {
           onSubmit={onSend}
           className="px-4 py-3 border-t border-slate-800/80 flex gap-2 shrink-0"
         >
+          <label className="sr-only" htmlFor="console-reply">
+            Responder al abonado
+          </label>
           <input
+            id="console-reply"
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             placeholder="Responder al abonado…"
@@ -231,9 +248,16 @@ export function ChatPanel() {
           </button>
         </form>
       )}
-      {hint && (
-        <p className="px-4 pb-3 text-[11px] text-amber-400/90 font-mono">{hint}</p>
-      )}
+
+      <ConfirmDialog
+        open={confirmResolve}
+        title="¿Resolver y cerrar el ticket?"
+        description="El ticket pasará a Cerrado. Podés proponer una mejora a la KB después desde el panel de contexto."
+        confirmLabel="Resolver ticket"
+        busy={busy}
+        onCancel={() => setConfirmResolve(false)}
+        onConfirm={() => void onMarcarResuelto()}
+      />
     </div>
   );
 }

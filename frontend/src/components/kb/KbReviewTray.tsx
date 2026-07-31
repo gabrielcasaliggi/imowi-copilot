@@ -5,9 +5,7 @@ import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api-client";
 import type { KBContribution } from "@/lib/types";
 import { GlassCard, KpiCard } from "@/components/ui/GlassCard";
-
-const inputCls =
-  "w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/40";
+import { inputCls } from "@/components/ui/forms";
 
 function formatDate(iso?: string): string {
   if (!iso) return "—";
