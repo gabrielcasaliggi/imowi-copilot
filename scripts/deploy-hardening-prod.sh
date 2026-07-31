@@ -94,15 +94,14 @@ mkdir -p "$BACKUP_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_FILE="$BACKUP_DIR/ops_hub_estate_${STAMP}.dump"
 
-# shellcheck disable=SC1090
-set -a
-# shellcheck disable=SC1091
-source "$ENV_FILE"
-set +a
-
-DB_URL="${DATABASE_URL:-}"
-if [[ -z "$DB_URL" && -n "${POSTGRES_USER:-}" && -n "${POSTGRES_DB:-}" ]]; then
-  DB_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}"
+# NO hacer "source .env": valores con espacios sin comillas rompen el script
+# (ej. COOP_NOMBRE=Operador Prueba → bash intenta ejecutar "Prueba").
+DB_URL="$(env_get DATABASE_URL)"
+PG_USER="$(env_get POSTGRES_USER)"
+PG_PASS="$(env_get POSTGRES_PASSWORD)"
+PG_DB="$(env_get POSTGRES_DB)"
+if [[ -z "$DB_URL" && -n "$PG_USER" && -n "$PG_DB" ]]; then
+  DB_URL="postgresql://${PG_USER}:${PG_PASS}@127.0.0.1:5432/${PG_DB}"
 fi
 if [[ -z "$DB_URL" ]]; then
   red "No hay DATABASE_URL ni POSTGRES_* en .env"
