@@ -41,6 +41,7 @@ from app.services import auth_security as aseg
 from app.services import email as email_svc
 from app.services.billtrack import lookup_abonado_por_dni
 from app.services.canal_abonado import procesar_mensaje_entrante
+from app.services.platform_settings import resolve_canal_usar_llama
 
 router = APIRouter(tags=["Portal"])
 
@@ -591,7 +592,7 @@ def portal_enviar_mensaje(
         telefono=telefono,
         texto=body.texto,
         canal="web",
-        usar_llama=False,
+        usar_llama=resolve_canal_usar_llama(db),
     )
     conv_id = result.get("conversacion_id") or payload["conversacion_id"]
     c = crepo.get_conversacion(db, org_id, conv_id)

@@ -38,24 +38,67 @@ def _deuda_positiva(abonado: Abonado) -> bool:
         return abonado.estado in ("corte", "suspendido")
 
 
-def _redactar_con_llama(borrador: str, contexto: str) -> str:
-    """Intenta suavizar el texto con Llama; si falla, usa el borrador."""
+def _kb_fragmento(
+    db: Session | None,
+    org_id: str,
+    consulta: str,
+    *,
+    max_chars: int = 1200,
+) -> str:
+    """Fragmento de conocimiento (tenant + RAG) para enriquecer la respuesta N1."""
+    if db is None or not org_id or not (consulta or "").strip():
+        return ""
+    try:
+        from app.services import knowledge_unified
+
+        kb = knowledge_unified.buscar_unificado(db, org_id, consulta, limit_tenant=3)
+        ctx = (kb.get("kb_contexto") or "").strip()
+        if not ctx:
+            return ""
+        return ctx[:max_chars]
+    except Exception:
+        logger.debug("KB no disponible para redacción N1", exc_info=True)
+        return ""
+
+
+def _redactar_con_llama(
+    borrador: str,
+    contexto: str,
+    *,
+    db: Session | None = None,
+    org_id: str = "",
+    consulta: str = "",
+) -> str:
+    """Reescribe el paso del playbook con la IA admin, usando KB si hay match."""
     try:
         from app.llm import chat_completion
 
+        kb_ctx = _kb_fragmento(db, org_id, consulta or contexto)
+        kb_block = (
+            f"\n\nBase de conocimiento relevante (usá solo si aporta; no inventes):\n{kb_ctx}"
+            if kb_ctx
+            else ""
+        )
         out = chat_completion(
             [
                 {
                     "role": "system",
                     "content": (
-                        "Sos el asistente de soporte N1 de una cooperativa (internet Ecolan y móvil). "
-                        "Respondé en español argentino, breve (máx 3 oraciones), sin inventar datos. "
-                        "Conservá la pregunta o instrucción del borrador."
+                        "Sos el asistente de soporte N1 de una cooperativa (internet Ecolan y móvil IMOVI). "
+                        "Respondé en español argentino, breve (máx 4 oraciones), sin inventar datos ni precios. "
+                        "El borrador es el paso obligatorio del playbook: conservá su pregunta o instrucción. "
+                        "Si hay base de conocimiento, podés aclarar con un detalle concreto del artículo, "
+                        "sin desviarte del playbook ni saltar pasos."
                     ),
                 },
                 {
                     "role": "user",
-                    "content": f"Contexto:\n{contexto}\n\nBorrador a reescribir:\n{borrador}",
+                    "content": (
+                        f"Contexto operativo:\n{contexto}"
+                        f"{kb_block}\n\n"
+                        f"Mensaje del abonado:\n{(consulta or '').strip() or '(n/a)'}\n\n"
+                        f"Borrador del playbook a reescribir:\n{borrador}"
+                    ),
                 },
             ],
             temperature=0.3,
@@ -216,7 +259,13 @@ def procesar_mensaje_entrante(
                     "Si preferís, escribí *agente*."
                 )
                 if usar_llama:
-                    resp = _redactar_con_llama(resp, f"tel={conv.telefono}")
+                    resp = _redactar_con_llama(
+                        resp,
+                        f"tel={conv.telefono}",
+                        db=db,
+                        org_id=org_id,
+                        consulta=texto,
+                    )
                 _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
                 return {
                     "ok": True,
@@ -266,6 +315,9 @@ def procesar_mensaje_entrante(
                 saludo = _redactar_con_llama(
                     saludo,
                     f"abonado={abonado.nombre} estado={abonado.estado} deuda={abonado.deuda_monto}",
+                    db=db,
+                    org_id=org_id,
+                    consulta=texto,
                 )
             _enviar_respuesta(db, org_id, conv, saludo, enviar_wa=(canal == "whatsapp"))
             return {
@@ -303,7 +355,13 @@ def procesar_mensaje_entrante(
                 f"y saldo pendiente ${abonado.deuda_monto}. {pregunta}"
             )
         if usar_llama:
-            pregunta = _redactar_con_llama(pregunta, f"intencion={intencion}")
+            pregunta = _redactar_con_llama(
+                pregunta,
+                f"intencion={intencion}",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
         return {
             "ok": True,
@@ -327,6 +385,14 @@ def procesar_mensaje_entrante(
             pb = _playbooks(db)
             pasos = pb.get(intencion) or pb["general"]
             pregunta = pasos[0].pregunta
+            if usar_llama:
+                pregunta = _redactar_con_llama(
+                    pregunta,
+                    f"intencion={intencion}",
+                    db=db,
+                    org_id=org_id,
+                    consulta=texto,
+                )
             _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
             return {
                 "ok": True,
@@ -349,6 +415,14 @@ def procesar_mensaje_entrante(
             pb = _playbooks(db)
             pasos = pb.get(intencion) or pb["general"]
             pregunta = pasos[0].pregunta
+            if usar_llama:
+                pregunta = _redactar_con_llama(
+                    pregunta,
+                    f"intencion={intencion}",
+                    db=db,
+                    org_id=org_id,
+                    consulta=texto,
+                )
             _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
             return {
                 "ok": True,
@@ -386,7 +460,13 @@ def procesar_mensaje_entrante(
             }
         pregunta = pasos[paso_idx].pregunta
         if usar_llama:
-            pregunta = _redactar_con_llama(pregunta, f"paso={paso_idx} intencion={intencion}")
+            pregunta = _redactar_con_llama(
+                pregunta,
+                f"paso={paso_idx} intencion={intencion}",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
         return {
             "ok": True,
@@ -421,6 +501,14 @@ def procesar_mensaje_entrante(
     # Respuesta ambigua: repetir paso
     pregunta = pasos[min(paso_idx, len(pasos) - 1)].pregunta
     resp = f"No te entendí del todo. {pregunta}"
+    if usar_llama:
+        resp = _redactar_con_llama(
+            resp,
+            f"paso={paso_idx} intencion={intencion} ambiguo=1",
+            db=db,
+            org_id=org_id,
+            consulta=texto,
+        )
     _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
     return {
         "ok": True,
