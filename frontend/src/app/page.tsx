@@ -1,19 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { getToken } from "@/lib/storage";
-
+/** Redirect de servidor: no depende de hidratar JS (evita pantalla "Cargando…" si fallan chunks). */
 export default function HomePage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace(getToken() ? "/inbox" : "/login");
-  }, [router]);
-
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <p className="text-slate-500 font-mono text-sm">Cargando…</p>
-    </div>
-  );
+  redirect("/login");
 }

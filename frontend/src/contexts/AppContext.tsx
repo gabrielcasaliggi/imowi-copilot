@@ -192,10 +192,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTicketsSimilares([]);
     setTicketExistente(null);
     setIntencionPendiente(null);
-    // Sin esto AuthGuard se queda en "Cargando sesión…" tras fallo de boot
     setReady(true);
-    router.replace("/login");
-  }, [router]);
+    window.location.replace("/login");
+  }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(() => logout());
@@ -267,7 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Con must_change el backend bloquea el resto de APIs (403) → no cargar datos
       if (me.must_change_password) {
         setReady(true);
-        router.replace("/change-password");
+        window.location.replace("/change-password");
         return;
       }
 
@@ -329,7 +328,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setReady(true);
     },
-    [appendTrace, router],
+    [appendTrace],
   );
 
   // Bootstrap de sesión al recargar — patrón client-only intencional
@@ -353,7 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSessionIdState(getSessionId());
       if (data.must_change_password) {
         setReady(true);
-        router.replace("/change-password");
+        window.location.replace("/change-password");
         return;
       }
       try {
@@ -365,9 +364,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           `⚠️ Login OK, carga incompleta: ${e instanceof Error ? e.message : "Error"}`,
         ]);
       }
-      router.replace("/inbox");
+      window.location.replace("/inbox");
     },
-    [boot, router, appendTrace],
+    [boot, appendTrace],
   );
 
   const setTenant = useCallback(

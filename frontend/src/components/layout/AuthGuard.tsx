@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import { getToken } from "@/lib/storage";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const { ready, user } = useApp();
 
   useEffect(() => {
     if (!ready) return;
-    if (!getToken() || !user) router.replace("/login");
-  }, [ready, user, router]);
+    if (!getToken() || !user) window.location.replace("/login");
+  }, [ready, user]);
 
   if (!ready) {
     return (

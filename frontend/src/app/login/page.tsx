@@ -1,12 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import { getToken } from "@/lib/storage";
 
 export default function LoginPage() {
-  const router = useRouter();
   const { login, ready } = useApp();
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
@@ -17,8 +15,11 @@ export default function LoginPage() {
     process.env.NEXT_PUBLIC_APP_ENV !== "production";
 
   useEffect(() => {
-    if (ready && getToken()) router.replace("/inbox");
-  }, [ready, router]);
+    if (ready && getToken()) {
+      // Hard nav: más fiable si el App Router quedó con chunks stale tras un deploy
+      window.location.replace("/inbox");
+    }
+  }, [ready]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
