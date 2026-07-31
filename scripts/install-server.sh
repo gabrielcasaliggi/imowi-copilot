@@ -6,22 +6,28 @@
 #   - Python venv + FastAPI (systemd)
 #   - Node.js + Next.js (systemd)
 #   - Nginx (reverse proxy :80)
+#   - Opcional: HTTPS con Let's Encrypt (ibot.ecolan.com)
 #
 # El LLM vive en otro servidor — configurá AI_* en .env o en Admin Hub.
 #
 # Uso (repo completo en el servidor, con sudo):
-#   cd /opt/operations-hub   # o la ruta donde esté el repo
-#   sudo bash scripts/install-server.sh --public-url http://TU_IP
+#   cd /opt/operations-hub
+#   sudo bash scripts/install-server.sh --domain ibot.ecolan.com --email admin@ecolan.com
+#
+# Si el DNS aún no apunta, instalá sin HTTPS y después:
+#   sudo bash scripts/enable-https.sh --email admin@ecolan.com
 #
 # Opciones:
-#   --public-url URL     URL pública (http://IP o https://dominio)
-#   --app-user USER      Usuario del sistema que corre API/frontend (default: SUDO_USER o opshub)
-#   --migrate            Ejecutar migrate-data.sh al final
-#   --skip-node          No instalar Node (si ya está)
+#   --domain NAME        Dominio (default: ibot.ecolan.com)
+#   --email EMAIL        Email Let's Encrypt (activa HTTPS al final)
+#   --public-url URL     Sobrescribe URL pública (default https://DOMINIO)
+#   --app-user USER      Usuario de servicios (default: SUDO_USER o opshub)
+#   --migrate            Migrar datos al final
+#   --skip-https         No emitir certificado (solo HTTP)
+#   --skip-node          No instalar Node
 #   --skip-firewall      No tocar UFW
 #
-# Variante Docker (no recomendada en servidor dedicado):
-#   bash scripts/install-server-docker.sh
+# Variante Docker: bash scripts/install-server-docker.sh
 
 set -euo pipefail
 
@@ -58,7 +64,7 @@ Necesitás la raíz del repo (archivos main.py y requirements.txt).
 
   git clone <url> /opt/operations-hub
   cd /opt/operations-hub
-  sudo bash scripts/install-server.sh --public-url http://TU_IP
+  sudo bash scripts/install-server.sh --domain ibot.ecolan.com --email admin@ecolan.com
 
 Rutas buscadas desde: $SCRIPT_DIR (cwd: $PWD)
 EOF
@@ -74,25 +80,31 @@ UNIT_API_SRC="$ROOT/deploy/systemd/operations-hub-api.service"
 UNIT_FE_SRC="$ROOT/deploy/systemd/operations-hub-frontend.service"
 
 PUBLIC_URL=""
+DOMAIN="ibot.ecolan.com"
+LETSENCRYPT_EMAIL=""
 APP_USER=""
 DO_MIGRATE=0
 SKIP_NODE=0
 SKIP_FIREWALL=0
+SKIP_HTTPS=0
 HTTP_PORT="80"
 
 usage() {
-  sed -n '2,28p' "$0" | sed 's/^# \?//'
+  sed -n '2,32p' "$0" | sed 's/^# \?//'
   exit 0
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --public-url) PUBLIC_URL="${2:?}"; shift 2 ;;
+    --domain) DOMAIN="${2:?}"; shift 2 ;;
+    --email) LETSENCRYPT_EMAIL="${2:?}"; shift 2 ;;
     --app-user) APP_USER="${2:?}"; shift 2 ;;
     --http-port) HTTP_PORT="${2:?}"; shift 2 ;;
     --migrate) DO_MIGRATE=1; shift ;;
     --skip-node) SKIP_NODE=1; shift ;;
     --skip-firewall) SKIP_FIREWALL=1; shift ;;
+    --skip-https) SKIP_HTTPS=1; shift ;;
     -h|--help) usage ;;
     *) echo "Opción desconocida: $1" >&2; usage ;;
   esac
@@ -102,7 +114,7 @@ log() { printf '\n==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 need_root() {
-  [[ "${EUID}" -eq 0 ]] || die "Ejecutá con sudo: sudo bash scripts/install-server.sh --public-url http://TU_IP"
+  [[ "${EUID}" -eq 0 ]] || die "Ejecutá con sudo: sudo bash scripts/install-server.sh --domain ibot.ecolan.com --email admin@ecolan.com"
 }
 
 detect_public_ip() {
@@ -164,9 +176,10 @@ install_nodejs() {
 
 configure_firewall() {
   [[ "$SKIP_FIREWALL" -eq 1 ]] && return 0
-  log "Configurando UFW (SSH + HTTP ${HTTP_PORT})"
+  log "Configurando UFW (SSH + HTTP ${HTTP_PORT} + HTTPS 443)"
   ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null 2>&1 || true
   ufw allow "${HTTP_PORT}/tcp" >/dev/null 2>&1 || true
+  ufw allow 443/tcp >/dev/null 2>&1 || true
   if ufw status 2>/dev/null | grep -qi "Status: inactive"; then
     echo "y" | ufw enable || true
   fi
@@ -182,19 +195,26 @@ ensure_env() {
     log "Usando .env existente"
   fi
 
+  DOMAIN="${DOMAIN:-ibot.ecolan.com}"
+
   if [[ -z "$PUBLIC_URL" ]]; then
     PUBLIC_URL="$(grep -E '^PUBLIC_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
     PUBLIC_URL="${PUBLIC_URL//$'\r'/}"
   fi
 
-  if [[ -z "$PUBLIC_URL" || "$PUBLIC_URL" == *"TU_IP_PUBLICA"* ]]; then
-    local ip
-    ip="$(detect_public_ip)"
-    [[ -n "$ip" ]] || die "No pude detectar la IP. Pasá --public-url http://TU_IP"
-    PUBLIC_URL="http://${ip}"
-    log "IP pública detectada: $PUBLIC_URL"
+  # Preferir HTTPS + dominio salvo que el usuario pase --public-url explícito
+  if [[ -z "$PUBLIC_URL" || "$PUBLIC_URL" == *"TU_IP_PUBLICA"* || "$PUBLIC_URL" == *"ibot.ecolan.com"* ]]; then
+    if [[ "$SKIP_HTTPS" -eq 1 ]]; then
+      PUBLIC_URL="http://${DOMAIN}"
+    else
+      PUBLIC_URL="https://${DOMAIN}"
+    fi
   fi
   PUBLIC_URL="${PUBLIC_URL%/}"
+
+  if [[ -z "$LETSENCRYPT_EMAIL" ]]; then
+    LETSENCRYPT_EMAIL="$(grep -E '^LETSENCRYPT_EMAIL=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+  fi
 
   if ! grep -qE '^AUTH_SECRET=.+' "$ENV_FILE" || grep -qE '^AUTH_SECRET=$' "$ENV_FILE"; then
     local secret
@@ -223,7 +243,6 @@ ensure_env() {
     log "ADMIN_PASSWORD temporal: admin-cambiar"
   fi
 
-  # Leer credenciales Postgres del .env
   local pg_user pg_pass pg_db
   pg_user="$(grep -E '^POSTGRES_USER=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
   pg_pass="$(grep -E '^POSTGRES_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
@@ -242,6 +261,7 @@ ensure_env() {
     fi
   }
 
+  set_env_key "DOMAIN" "$DOMAIN"
   set_env_key "PUBLIC_URL" "$PUBLIC_URL"
   set_env_key "CORS_ORIGINS" "$PUBLIC_URL"
   set_env_key "HTTP_PORT" "$HTTP_PORT"
@@ -251,9 +271,13 @@ ensure_env() {
   set_env_key "HOST" "127.0.0.1"
   set_env_key "PORT" "8000"
   set_env_key "DATA_DIR" "${ROOT}/data"
+  if [[ -n "$LETSENCRYPT_EMAIL" ]]; then
+    set_env_key "LETSENCRYPT_EMAIL" "$LETSENCRYPT_EMAIL"
+  fi
 
   chown "$APP_USER:$APP_USER" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
+  log "PUBLIC_URL=${PUBLIC_URL}  DOMAIN=${DOMAIN}"
 }
 
 setup_postgres() {
@@ -340,18 +364,18 @@ install_systemd_units() {
 }
 
 setup_nginx() {
-  log "Configurando Nginx"
+  log "Configurando Nginx (server_name ${DOMAIN})"
   [[ -f "$NGINX_SRC" ]] || die "Falta $NGINX_SRC"
 
-  cp "$NGINX_SRC" /etc/nginx/sites-available/operations-hub
+  mkdir -p /var/www/html
+  sed "s/server_name .*/server_name ${DOMAIN};/" "$NGINX_SRC" \
+    > /etc/nginx/sites-available/operations-hub
   ln -sfn /etc/nginx/sites-available/operations-hub /etc/nginx/sites-enabled/operations-hub
 
-  # Evitar conflicto con default de Ubuntu
   if [[ -f /etc/nginx/sites-enabled/default ]]; then
     rm -f /etc/nginx/sites-enabled/default
   fi
 
-  # Si HTTP_PORT != 80, ajustar listen (simple: solo documentamos 80 por ahora)
   if [[ "$HTTP_PORT" != "80" ]]; then
     sed -i "s/listen 80/listen ${HTTP_PORT}/g; s/listen \[::\]:80/listen [::]:${HTTP_PORT}/g" \
       /etc/nginx/sites-available/operations-hub
@@ -360,6 +384,30 @@ setup_nginx() {
   nginx -t
   systemctl enable --now nginx
   systemctl reload nginx
+}
+
+maybe_enable_https() {
+  if [[ "$SKIP_HTTPS" -eq 1 ]]; then
+    log "HTTPS omitido (--skip-https). Cuando el DNS esté listo:"
+    echo "  sudo bash scripts/enable-https.sh --domain ${DOMAIN} --email TU_EMAIL"
+    return 0
+  fi
+  if [[ -z "$LETSENCRYPT_EMAIL" ]]; then
+    log "Sin --email: se deja HTTP. Para HTTPS después:"
+    echo "  sudo bash scripts/enable-https.sh --domain ${DOMAIN} --email admin@ecolan.com"
+    return 0
+  fi
+
+  log "Activando HTTPS para ${DOMAIN}"
+  if ! bash "$ROOT/scripts/enable-https.sh" \
+      --domain "$DOMAIN" \
+      --email "$LETSENCRYPT_EMAIL" \
+      --rebuild-frontend; then
+    log "HTTPS no se pudo emitir ahora (¿DNS aún no apunta?). El stack HTTP quedó OK."
+    echo "  Reintentá: sudo bash scripts/enable-https.sh --domain ${DOMAIN} --email ${LETSENCRYPT_EMAIL}"
+  else
+    PUBLIC_URL="https://${DOMAIN}"
+  fi
 }
 
 wait_health() {
@@ -386,9 +434,10 @@ print_summary() {
   cat <<EOF
 
 ════════════════════════════════════════════════════════════
-  Operations Hub instalado (nativo, sin Docker)
+  Operations Hub instalado (nativo)
 ════════════════════════════════════════════════════════════
 
+  Dominio:         ${DOMAIN}
   URL pública:     ${PUBLIC_URL}
   Health:          ${PUBLIC_URL}/health
   API docs:        ${PUBLIC_URL}/docs
@@ -397,19 +446,20 @@ print_summary() {
   Usuario app:     ${APP_USER}
   Repo:            ${ROOT}
   Admin seed:      ver ADMIN_USER / ADMIN_PASSWORD en .env
-                   (si aún no migraste datos: admin / admin-cambiar)
 
-  LLM: editá AI_BASE_URL / AI_API_KEY / AI_MODEL en .env
-       o Admin Hub → Configuración plataforma, luego:
+  LLM: editá AI_* en .env o Admin Hub, luego:
        sudo systemctl restart operations-hub-api
 
-  Servicios:
-    sudo systemctl status operations-hub-api
-    sudo systemctl status operations-hub-frontend
-    sudo systemctl status nginx postgresql
-    sudo journalctl -u operations-hub-api -f
+  DNS (si aún no):
+       A  ibot.ecolan.com  →  IP de este servidor
 
-  Migrar datos desde Supabase:
+  HTTPS (si faltó):
+       sudo bash scripts/enable-https.sh --domain ${DOMAIN} --email admin@ecolan.com
+
+  Servicios:
+    sudo systemctl status operations-hub-api operations-hub-frontend nginx postgresql
+
+  Migrar datos:
     export SUPABASE_DATABASE_URL='postgresql://...@db.xxx.supabase.co:5432/postgres'
     sudo bash scripts/migrate-data.sh --yes
 
@@ -423,6 +473,7 @@ main() {
 
   log "Operations Hub — instalación NATIVA Ubuntu"
   echo "Repo: $ROOT"
+  echo "Dominio: $DOMAIN"
 
   install_system_packages
   install_nodejs
@@ -435,6 +486,7 @@ main() {
   install_systemd_units
   setup_nginx
   wait_health
+  maybe_enable_https
 
   if [[ "$DO_MIGRATE" -eq 1 ]]; then
     log "Migrando datos"
