@@ -27,7 +27,7 @@
   --color-ecolan-dark: #0D1B2A;
   --color-ecolan-light: #F4F7F6;
   --font-sans: ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono-loaded), ui-monospace, monospace;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
 }
 
 body {
