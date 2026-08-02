@@ -12,6 +12,11 @@ import {
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import {
+  ChatMessageBubble,
+  MessagesEmptyIcon,
+  SendIcon,
+} from "@/components/ui/ChatMessageBubble";
 
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
@@ -228,14 +233,14 @@ export function InboxPanel() {
   const showDetail = Boolean(selected);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">
-      <div className="flex flex-wrap justify-between gap-2 items-end">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
+    <div className="flex-1 min-h-0 flex flex-col p-4 gap-4 overflow-hidden">
+      <div className="flex flex-wrap justify-between gap-3 items-end">
+        <div className="space-y-1">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand">
             Canal abonado
           </p>
-          <h2 className="text-xl font-semibold text-slate-50">Bandeja</h2>
-          <p className="text-sm text-slate-400">
+          <h2 className="text-xl font-semibold text-slate-50 tracking-tight">Bandeja</h2>
+          <p className="text-sm text-slate-400 max-w-xl">
             {isAdmin
               ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
               : can("tickets.reassign")
@@ -251,7 +256,7 @@ export function InboxPanel() {
             id="inbox-filtro"
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
-            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
+            className="bg-slate-950 border border-slate-600/80 rounded-lg px-3 py-2 text-xs transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
           >
             <option value="">Abiertas</option>
             <option value="bot">Bot N1</option>
@@ -263,7 +268,7 @@ export function InboxPanel() {
             <button
               type="button"
               onClick={() => setInjectOpen((v) => !v)}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:border-slate-500"
+              className="text-[11px] px-3 py-2 rounded-lg border border-slate-600/80 text-slate-400 hover:border-slate-500 hover:bg-slate-800/40 transition-all duration-200 ease-in-out"
             >
               {injectOpen ? "Ocultar herramientas" : "Herramientas de canal"}
             </button>
@@ -274,7 +279,7 @@ export function InboxPanel() {
       {isAdmin && injectOpen && (
         <form
           onSubmit={onInject}
-          className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2"
+          className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2.5 shadow-sm"
         >
           <p className="md:col-span-3 text-[11px] text-slate-400">
             Inyectar mensaje entrante (solo administración · pruebas internas).
@@ -287,7 +292,7 @@ export function InboxPanel() {
             value={injectTel}
             onChange={(e) => setInjectTel(e.target.value)}
             placeholder="Teléfono E.164"
-            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono"
+            className="bg-slate-950 border border-slate-600/80 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent transition-all duration-200 ease-in-out"
             required
           />
           <label className="sr-only" htmlFor="inject-text">
@@ -298,13 +303,13 @@ export function InboxPanel() {
             value={injectText}
             onChange={(e) => setInjectText(e.target.value)}
             placeholder="Texto del mensaje entrante…"
-            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
+            className="bg-slate-950 border border-slate-600/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent transition-all duration-200 ease-in-out"
             required
           />
           <button
             type="submit"
             disabled={busy}
-            className="text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200"
+            className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50 transition-all duration-200 ease-in-out"
           >
             Inyectar entrada
           </button>
@@ -313,35 +318,40 @@ export function InboxPanel() {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-3 overflow-hidden">
         <div
-          className={`rounded-xl border border-slate-800 bg-slate-950/40 overflow-y-auto p-2 space-y-1.5 ${
+          className={`rounded-xl border border-slate-700/80 bg-slate-950/40 overflow-y-auto p-2 space-y-1 shadow-sm ${
             showDetail ? "hidden lg:block" : ""
           } ${showList ? "block" : ""}`}
         >
           {!visible.length ? (
-            <p className="text-xs text-slate-400 p-2">
-              No hay conversaciones abiertas. Los mensajes entrantes aparecerán aquí.
-            </p>
+            <div className="flex flex-col items-center gap-2 p-6 text-center">
+              <MessagesEmptyIcon className="h-8 w-8 text-slate-600" />
+              <p className="text-xs text-slate-400">
+                No hay conversaciones abiertas. Los mensajes entrantes aparecerán aquí.
+              </p>
+            </div>
           ) : (
             visible.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 onClick={() => void openConv(c.id)}
-                className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
+                className={`w-full text-left px-3 py-3.5 rounded-lg border transition-all duration-200 ease-in-out ${
                   selected === c.id
-                    ? "border-cyan-500/40 bg-cyan-500/10"
-                    : "border-slate-800 hover:border-slate-600"
+                    ? "border-ecolan-brand/45 bg-ecolan-brand/10 shadow-sm"
+                    : "border-transparent hover:bg-slate-50/5 hover:border-slate-700/60"
                 }`}
               >
-                <div className="flex justify-between gap-1">
-                  <span className="font-mono text-[11px] text-cyan-300">{c.telefono}</span>
+                <div className="flex justify-between gap-2 items-center">
+                  <span className="font-mono text-[11px] font-medium text-ecolan-brand">
+                    {c.telefono}
+                  </span>
                   <StatusBadge value={estadoLabel(c.estado)} />
                 </div>
-                <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                <p className="text-[11px] text-slate-400 truncate mt-1">
                   {c.abonado?.nombre || "Sin identificar"} · {canalLabel(c)}
                 </p>
                 {c.ticket_id && (
-                  <p className="text-[10px] text-amber-400/90 mt-0.5">{c.ticket_id}</p>
+                  <p className="text-[10px] font-mono text-amber-400/90 mt-1">{c.ticket_id}</p>
                 )}
               </button>
             ))
@@ -349,36 +359,48 @@ export function InboxPanel() {
         </div>
 
         <div
-          className={`rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col min-h-0 overflow-hidden ${
+          className={`rounded-xl border border-slate-700/80 bg-slate-950/40 flex flex-col min-h-0 overflow-hidden shadow-sm ${
             showDetail ? "flex" : "hidden lg:flex"
           }`}
         >
           {!detail ? (
-            <p className="text-sm text-slate-400 p-4">
-              Seleccioná una conversación del canal para ver el hilo en vivo.
-            </p>
+            <div className="flex flex-col items-center justify-center gap-3 flex-1 p-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ecolan-dark border border-ecolan-brand/20 text-ecolan-brand/60">
+                <MessagesEmptyIcon className="h-6 w-6" />
+              </div>
+              <p className="text-sm font-medium text-slate-300">Seleccioná una conversación</p>
+              <p className="text-xs text-slate-500 max-w-xs">
+                El hilo en vivo del canal aparecerá aquí.
+              </p>
+            </div>
           ) : (
             <>
-              <div className="p-3 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">
-                <div className="flex items-start gap-2 min-w-0">
+              <div className="chat-action-bar px-4 py-3.5 flex flex-wrap gap-3 items-center justify-between">
+                <div className="flex items-start gap-2.5 min-w-0">
                   <button
                     type="button"
                     onClick={closeDetail}
-                    className="lg:hidden shrink-0 text-[11px] px-2 py-1 rounded border border-slate-600 text-slate-300"
+                    className="lg:hidden shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 transition-all duration-200 ease-in-out"
                   >
                     Volver
                   </button>
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-100 truncate">
+                  <div className="min-w-0 space-y-1.5">
+                    <p className="text-sm font-semibold text-slate-50 truncate tracking-tight">
                       {detail.abonado?.nombre || "Cliente"} · {detail.telefono}
                     </p>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      {estadoLabel(detail.estado)} · {canalLabel(detail)}
-                      {detail.agente_id ? ` · ${detail.agente_id}` : ""}
-                      {detail.abonado
-                        ? ` · ${detail.abonado.servicio} · ${detail.abonado.estado} · deuda $${detail.abonado.deuda_monto}`
-                        : ""}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <StatusBadge value={estadoLabel(detail.estado)} />
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {canalLabel(detail)}
+                        {detail.agente_id ? ` · ${detail.agente_id}` : ""}
+                      </span>
+                    </div>
+                    {detail.abonado && (
+                      <p className="text-[11px] text-slate-500">
+                        {detail.abonado.servicio} · {detail.abonado.estado} · deuda $
+                        {detail.abonado.deuda_monto}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -387,7 +409,7 @@ export function InboxPanel() {
                       type="button"
                       disabled={busy}
                       onClick={() => void onClaimAndOpenConsole()}
-                      className="text-[11px] px-2.5 py-1 rounded border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50 transition-all duration-200 ease-in-out"
                     >
                       Tomar y abrir Consola
                     </button>
@@ -398,7 +420,7 @@ export function InboxPanel() {
                         type="button"
                         disabled={busy}
                         onClick={() => void onClaimChannel()}
-                        className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300 disabled:opacity-50"
+                        className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50 transition-all duration-200 ease-in-out"
                       >
                         Tomar
                       </button>
@@ -408,7 +430,7 @@ export function InboxPanel() {
                       type="button"
                       disabled={busy}
                       onClick={() => void onAssignSelf()}
-                      className="text-[11px] px-2 py-1 rounded border border-violet-500/30 text-violet-300 disabled:opacity-50"
+                      className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 disabled:opacity-50 transition-all duration-200 ease-in-out"
                     >
                       Reasignar (admin)
                     </button>
@@ -417,7 +439,7 @@ export function InboxPanel() {
                     <button
                       type="button"
                       onClick={() => setConfirmClose(true)}
-                      className="text-[11px] px-2 py-1 rounded border border-slate-600 text-slate-300"
+                      className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 transition-all duration-200 ease-in-out"
                     >
                       Cerrar
                     </button>
@@ -432,7 +454,7 @@ export function InboxPanel() {
                       onClick={() => {
                         if (isAdmin) void selectTicket(detail.ticket_id);
                       }}
-                      className="text-[11px] px-2 py-1 rounded border border-amber-500/30 text-amber-300"
+                      className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-amber-500/35 text-amber-200 hover:bg-amber-500/10 transition-all duration-200 ease-in-out"
                     >
                       {isAdmin
                         ? `Ticket ${detail.ticket_id}`
@@ -444,35 +466,23 @@ export function InboxPanel() {
                     detail.estado === "espera_agente" && (
                       <Link
                         href="/tickets"
-                        className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300"
+                        className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-ecolan-brand/40 text-ecolan-brand hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
                       >
                         Ir a Cola
                       </Link>
                     )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {mensajes.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
-                      m.autor === "cliente"
-                        ? "ml-auto bg-cyan-500/15 text-slate-100"
-                        : m.autor === "bot"
-                          ? "bg-slate-800/80 text-slate-300"
-                          : "bg-violet-500/15 text-slate-100"
-                    }`}
-                  >
-                    <p className="text-[9px] font-mono uppercase text-slate-500 mb-0.5">
-                      {m.autor === "cliente" ? "abonado" : m.autor}
-                    </p>
-                    <p className="whitespace-pre-wrap">{m.texto}</p>
-                  </div>
-                ))}
+              <div className="chat-thread flex-1 overflow-y-auto p-4 space-y-3">
+                {!mensajes.length ? (
+                  <p className="text-sm text-slate-500 text-center py-8">Sin mensajes en este hilo.</p>
+                ) : (
+                  mensajes.map((m) => <ChatMessageBubble key={m.id} message={m} />)
+                )}
                 <div ref={messagesEndRef} />
               </div>
               {isAdmin && detail.estado !== "cerrado" && (
-                <form onSubmit={onSend} className="p-3 border-t border-slate-800 flex gap-2">
+                <form onSubmit={onSend} className="chat-composer px-4 py-3.5 flex gap-2.5">
                   <label className="sr-only" htmlFor="inbox-reply">
                     Respuesta al abonado
                   </label>
@@ -481,27 +491,27 @@ export function InboxPanel() {
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Escribí la respuesta al abonado…"
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                    className="flex-1 bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 disabled:opacity-50 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     disabled={busy || !puedeEscribir}
                   />
                   <button
                     type="submit"
                     disabled={busy || !reply.trim() || !puedeEscribir}
-                    className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-950 disabled:opacity-40"
-                    style={{ background: "var(--brand)" }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-40 shadow-sm transition-all duration-200 ease-in-out"
                   >
+                    <SendIcon className="h-4 w-4" />
                     Enviar
                   </button>
                 </form>
               )}
               {!isAdmin && (
-                <p className="px-3 py-2.5 text-[11px] text-slate-400 border-t border-slate-800">
+                <p className="px-4 py-3 text-[11px] text-slate-400 border-t border-slate-800/80">
                   {detail.ticket_id
                     ? "Monitoreo del canal. Usá “Tomar y abrir Consola” para atender al abonado."
                     : (
                       <>
                         Solo monitoreo. Cuando el bot arme el ticket N2, podés tomarlo acá o en{" "}
-                        <Link href="/tickets" className="text-cyan-400 hover:text-cyan-300">
+                        <Link href="/tickets" className="text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200">
                           Cola
                         </Link>
                         .
@@ -510,7 +520,7 @@ export function InboxPanel() {
                 </p>
               )}
               {isAdmin && detail.estado === "bot" && (
-                <p className="px-3 pb-3 text-[11px] text-slate-400">
+                <p className="px-4 pb-3 text-[11px] text-slate-500">
                   El bot N1 está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
                 </p>
               )}

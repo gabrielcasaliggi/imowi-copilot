@@ -62,10 +62,10 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className={`text-xs px-3 py-2 rounded-lg font-medium disabled:opacity-50 ${
+            className={`text-xs px-3.5 py-2 rounded-lg font-semibold disabled:opacity-50 transition-all duration-200 ease-in-out ${
               danger
-                ? "border border-red-500/40 text-red-200 hover:bg-red-500/15"
-                : "border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/15"
+                ? "border border-rose-500/40 text-rose-200 hover:bg-rose-500/15"
+                : "bg-ecolan-brand text-white hover:bg-ecolan-brand-dark shadow-sm"
             }`}
           >
             {busy ? "…" : confirmLabel}

@@ -106,7 +106,7 @@ def create_organization(
     nombre: str,
     slug: str | None = None,
     logo_label: str = "C",
-    brand_color: str = "#34d399",
+    brand_color: str = "#2298A6",
 ) -> Organization:
     base_slug = slug or slugify_org_name(nombre)
     final_slug = _slug_disponible(db, base_slug)
@@ -114,7 +114,7 @@ def create_organization(
         nombre=nombre,
         slug=final_slug,
         logo_label=(logo_label or "C")[:8],
-        brand_color=brand_color or "#34d399",
+        brand_color=brand_color or "#2298A6",
     )
     db.add(org)
     db.commit()

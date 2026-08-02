@@ -19,7 +19,7 @@ export function AgentConsole() {
             Trazabilidad operativa
           </h3>
           {traces.length > 0 && (
-            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400/90 border border-slate-700">
+            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-ecolan-brand/90 border border-slate-700">
               {traces.length}
             </span>
           )}

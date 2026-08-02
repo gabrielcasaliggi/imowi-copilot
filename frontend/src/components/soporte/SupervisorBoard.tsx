@@ -183,7 +183,7 @@ export function SupervisorBoard() {
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between gap-3 items-end">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand/80">
             Supervisión N2
           </p>
           <h2 className="text-xl font-semibold text-slate-50">Operación en vivo</h2>
@@ -228,7 +228,7 @@ export function SupervisorBoard() {
           onClick={() => setTab("asignado")}
           className={`px-3 py-1.5 rounded-lg border ${
             tab === "asignado"
-              ? "border-violet-500/40 bg-violet-500/15 text-violet-100"
+              ? "border-ecolan-brand/40 bg-ecolan-brand/15 text-slate-100"
               : "border-slate-700 text-slate-400 hover:border-slate-500"
           }`}
         >
@@ -242,7 +242,7 @@ export function SupervisorBoard() {
           }}
           className={`px-3 py-1.5 rounded-lg border ${
             tab === ""
-              ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-100"
+              ? "border-ecolan-brand/40 bg-ecolan-brand/15 text-slate-100"
               : "border-slate-700 text-slate-400 hover:border-slate-500"
           }`}
         >
@@ -276,7 +276,7 @@ export function SupervisorBoard() {
                   }}
                   className={`text-left px-2.5 py-1.5 rounded-lg border text-xs transition-colors ${
                     active
-                      ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+                      ? "border-ecolan-brand/50 bg-ecolan-brand/15 text-slate-100"
                       : "border-slate-700/80 text-slate-300 hover:border-slate-500"
                   }`}
                 >
@@ -312,7 +312,7 @@ export function SupervisorBoard() {
                   key={t.id}
                   className={`rounded-xl border p-3 transition-colors ${
                     active
-                      ? "border-cyan-500/40 bg-cyan-500/10"
+                      ? "border-ecolan-brand/40 bg-ecolan-brand/10"
                       : "border-slate-800 bg-slate-950/60 hover:border-slate-600"
                   }`}
                 >
@@ -322,7 +322,7 @@ export function SupervisorBoard() {
                     className="w-full text-left"
                   >
                     <div className="flex justify-between gap-2 items-start">
-                      <span className="font-mono text-cyan-300 text-xs">{t.id}</span>
+                      <span className="font-mono text-ecolan-brand text-xs">{t.id}</span>
                       <SlaBadge
                         label={t.sla_label}
                         estado={t.estado_sla || t.intelligence?.sla?.estado_sla}
@@ -336,7 +336,7 @@ export function SupervisorBoard() {
                           Pendiente
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded border border-violet-500/40 text-violet-200 bg-violet-500/10">
+                        <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded border border-ecolan-brand/40 text-slate-200 bg-ecolan-brand/10">
                           Asignado
                         </span>
                       )}
@@ -374,7 +374,7 @@ export function SupervisorBoard() {
                     <button
                       type="button"
                       onClick={() => void onOpenConsole(t.id)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/10"
+                      className="text-[11px] px-2.5 py-1 rounded-lg border border-ecolan-brand/40 text-ecolan-brand hover:bg-ecolan-brand/10"
                     >
                       Abrir
                     </button>
@@ -398,7 +398,7 @@ export function SupervisorBoard() {
             <div className="space-y-3">
               <div className="flex justify-between gap-2 items-start">
                 <div>
-                  <p className="font-mono text-cyan-300 text-sm">{selected.id}</p>
+                  <p className="font-mono text-ecolan-brand text-sm">{selected.id}</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {selected.linea || "—"} · {selected.categoria || "General"}
                   </p>
@@ -410,13 +410,13 @@ export function SupervisorBoard() {
                 <button
                   type="button"
                   onClick={() => void onOpenConsole(selected.id)}
-                  className="text-[11px] px-2.5 py-1 rounded-lg border border-cyan-500/40 text-cyan-200 shrink-0"
+                  className="text-[11px] px-2.5 py-1 rounded-lg border border-ecolan-brand/40 text-ecolan-brand shrink-0"
                 >
                   Consola
                 </button>
               </div>
               {selected.asignado_a ? (
-                <p className="text-xs text-violet-200">
+                <p className="text-xs text-slate-200">
                   Asignado a <span className="font-mono">{selected.asignado_a}</span>
                 </p>
               ) : (
@@ -442,14 +442,14 @@ export function SupervisorBoard() {
                         key={ev.id}
                         className={`pl-3 border-l ${
                           ev.visible_cliente === "No"
-                            ? "border-violet-500/40"
-                            : "border-cyan-500/30"
+                            ? "border-ecolan-brand/40"
+                            : "border-ecolan-brand/30"
                         }`}
                       >
                         <div className="flex justify-between gap-2">
                           <p className="text-xs text-slate-200 font-medium">{ev.titulo}</p>
                           {ev.visible_cliente === "No" && (
-                            <span className="text-[9px] font-mono text-violet-400 uppercase shrink-0">
+                            <span className="text-[9px] font-mono text-ecolan-brand uppercase shrink-0">
                               interno
                             </span>
                           )}

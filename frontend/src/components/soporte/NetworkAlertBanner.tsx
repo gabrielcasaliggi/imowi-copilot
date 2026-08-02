@@ -32,8 +32,8 @@ export function LineaCambiadaBanner() {
   if (!lineaCambiada) return null;
 
   return (
-    <div className="mx-4 mt-3 px-4 py-3 rounded-xl border border-violet-500/40 bg-violet-500/10 text-violet-200 text-sm">
-      <p className="font-medium text-violet-300 text-xs font-mono uppercase tracking-wider mb-1">
+    <div className="mx-4 mt-3 px-4 py-3 rounded-xl border border-ecolan-brand/40 bg-ecolan-brand/10 text-slate-200 text-sm">
+      <p className="font-medium text-ecolan-brand text-xs font-mono uppercase tracking-wider mb-1">
         Otra línea detectada
       </p>
       <p className="mb-2">
@@ -44,7 +44,7 @@ export function LineaCambiadaBanner() {
         type="button"
         onClick={() => confirmarNuevoReclamoLinea()}
         disabled={sending}
-        className="text-xs font-mono px-3 py-1.5 rounded-lg border border-violet-400/50 text-violet-200 hover:bg-violet-500/10"
+        className="text-xs font-mono px-3 py-1.5 rounded-lg border border-ecolan-brand/50 text-slate-200 hover:bg-ecolan-brand/10"
       >
         Nuevo reclamo para {lineaCambiada.nueva}
       </button>
@@ -59,14 +59,14 @@ export function EstadoCasoBadge() {
   return (
     <div className="flex flex-wrap items-center gap-2 mt-1">
       {estadoConversacion && (
-        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase rounded border bg-cyan-500/10 text-cyan-300 border-cyan-500/30">
+        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase rounded border bg-ecolan-brand/10 text-ecolan-brand border-ecolan-brand/30">
           {ESTADO_CASO_LABELS[estadoConversacion] || estadoConversacion}
         </span>
       )}
       {(lineaDetectada || casoActivo?.linea_msisdn) && (
         <span className="text-[10px] font-mono text-slate-500">
           Línea:{" "}
-          <span className="text-cyan-300">{lineaDetectada || casoActivo?.linea_msisdn}</span>
+          <span className="text-ecolan-brand">{lineaDetectada || casoActivo?.linea_msisdn}</span>
         </span>
       )}
       {casoActivo?.ticket_id && (

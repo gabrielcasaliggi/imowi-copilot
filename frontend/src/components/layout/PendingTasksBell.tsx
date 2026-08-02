@@ -166,7 +166,7 @@ export function PendingTasksBell() {
             <button
               type="button"
               onClick={() => void load()}
-              className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300"
+              className="text-[10px] font-mono text-ecolan-brand hover:text-ecolan-brand"
             >
               {loading ? "…" : "Actualizar"}
             </button>

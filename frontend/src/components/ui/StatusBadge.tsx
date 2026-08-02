@@ -1,33 +1,33 @@
 const COLORS: Record<string, string> = {
-  Normal: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  Activa: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  Suspendida: "bg-red-500/20 text-red-300 border-red-500/40",
-  "Al día": "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  Deuda: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  "Anomalía Predictiva": "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  Abierto: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
-  "En Revisión": "bg-violet-500/20 text-violet-300 border-violet-500/40",
-  Escalado: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  "Pendiente Cliente": "bg-sky-500/20 text-sky-300 border-sky-500/40",
-  Cerrado: "bg-slate-500/20 text-slate-400 border-slate-500/40",
-  Cerrada: "bg-slate-500/20 text-slate-400 border-slate-500/40",
-  N1: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  N2: "bg-violet-500/20 text-violet-300 border-violet-500/40",
-  Proveedor: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  "Autónomo Predictivo": "bg-violet-500/20 text-violet-300 border-violet-500/40",
-  "Reporte Cliente": "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
+  Normal: "bg-emerald-50/10 text-emerald-300 border-emerald-500/35",
+  Activa: "bg-emerald-50/10 text-emerald-300 border-emerald-500/35",
+  Suspendida: "bg-rose-50/10 text-rose-300 border-rose-500/35",
+  "Al día": "bg-emerald-50/10 text-emerald-300 border-emerald-500/35",
+  Deuda: "bg-amber-50/10 text-amber-300 border-amber-500/35",
+  "Anomalía Predictiva": "bg-amber-50/10 text-amber-300 border-amber-500/35",
+  Abierto: "bg-ecolan-brand/15 text-ecolan-brand border-ecolan-brand/40",
+  "En Revisión": "bg-slate-500/15 text-slate-300 border-slate-500/35",
+  Escalado: "bg-amber-50/10 text-amber-300 border-amber-500/35",
+  "Pendiente Cliente": "bg-sky-50/10 text-sky-300 border-sky-500/35",
+  Cerrado: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+  Cerrada: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+  N1: "bg-emerald-50/10 text-emerald-300 border-emerald-500/35",
+  N2: "bg-ecolan-brand/15 text-ecolan-brand border-ecolan-brand/40",
+  Proveedor: "bg-amber-50/10 text-amber-300 border-amber-500/35",
+  "Autónomo Predictivo": "bg-ecolan-brand/15 text-ecolan-brand border-ecolan-brand/40",
+  "Reporte Cliente": "bg-ecolan-brand/15 text-ecolan-brand border-ecolan-brand/40",
   // Inbox / canal
-  "Bot N1": "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  "Espera agente": "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  "Con agente": "bg-violet-500/20 text-violet-300 border-violet-500/40",
+  "Bot N1": "bg-emerald-50/10 text-emerald-300 border-emerald-500/35",
+  "Espera agente": "bg-amber-50/10 text-amber-300 border-amber-500/35",
+  "Con agente": "bg-ecolan-brand/15 text-ecolan-brand border-ecolan-brand/40",
 };
 
 export function StatusBadge({ value }: { value: string }) {
   const cls =
-    COLORS[value] || "bg-slate-600/30 text-slate-300 border-slate-500/30";
+    COLORS[value] || "bg-slate-600/20 text-slate-300 border-slate-500/30";
   return (
     <span
-      className={`px-2 py-0.5 text-[10px] font-mono uppercase rounded border ${cls}`}
+      className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-mono font-medium uppercase tracking-wide rounded-full border transition-all duration-200 ease-in-out ${cls}`}
     >
       {value}
     </span>

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { getToken } from "@/lib/storage";
+import { inputCls } from "@/components/ui/forms";
 
 export default function LoginPage() {
   const { login, ready } = useApp();
@@ -35,17 +36,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/60 p-8 glass">
+    <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-b from-ecolan-dark/40 to-transparent">
+      <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/60 p-8 glass shadow-sm">
         <div className="flex items-center gap-3 mb-8">
           <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-slate-950"
-            style={{ background: "linear-gradient(135deg, var(--brand), #34d399)" }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-ecolan-brand/20"
+            style={{ background: "linear-gradient(135deg, #2298A6, #1A7985)" }}
           >
             B
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-100">Cooperativa Batán</h1>
+            <h1 className="text-xl font-semibold text-slate-50 tracking-tight">Cooperativa Batán</h1>
             <p className="text-xs font-mono text-slate-500">
               Soporte abonados · Ecolan + móvil · WhatsApp
             </p>
@@ -54,20 +55,20 @@ export default function LoginPage() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label htmlFor="login-usuario" className="text-xs font-mono text-slate-400 block mb-1">
+            <label htmlFor="login-usuario" className="text-xs font-medium text-slate-400 block mb-1.5">
               Usuario
             </label>
             <input
               id="login-usuario"
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-[var(--brand)]"
+              className={`${inputCls} rounded-xl px-4 py-2.5 font-mono`}
               autoComplete="username"
               required
             />
           </div>
           <div>
-            <label htmlFor="login-password" className="text-xs font-mono text-slate-400 block mb-1">
+            <label htmlFor="login-password" className="text-xs font-medium text-slate-400 block mb-1.5">
               Contraseña
             </label>
             <input
@@ -75,21 +76,20 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-[var(--brand)]"
+              className={`${inputCls} rounded-xl px-4 py-2.5 font-mono`}
               autoComplete="current-password"
               required
             />
           </div>
           {error && (
-            <p className="text-sm text-red-400" role="alert">
+            <p className="text-sm text-rose-400" role="alert">
               {error}
             </p>
           )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-semibold text-slate-950 disabled:opacity-50"
-            style={{ background: "var(--brand)" }}
+            className="w-full py-3 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
           >
             {loading ? "Ingresando…" : "Ingresar"}
           </button>
@@ -104,7 +104,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-xs text-slate-500">
           ¿Sos abonado?{" "}
-          <a href="/portal" className="text-emerald-400/90 hover:text-emerald-300">
+          <a href="/portal" className="text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200">
             Ir al portal de soporte
           </a>
         </p>

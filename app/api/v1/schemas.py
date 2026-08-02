@@ -115,7 +115,7 @@ class OrganizationCreate(BaseModel):
     nombre: str
     slug: str | None = None
     logo_label: str = "C"
-    brand_color: str = "#34d399"
+    brand_color: str = "#2298A6"
 
 
 class OrganizationUpdate(BaseModel):

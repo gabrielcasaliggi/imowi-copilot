@@ -11,6 +11,11 @@ import {
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import {
+  ChatMessageBubble,
+  MessagesEmptyIcon,
+  SendIcon,
+} from "@/components/ui/ChatMessageBubble";
 
 /**
  * Consola del agente: mesa de trabajo sobre el ticket tomado.
@@ -76,13 +81,16 @@ export function ChatPanel() {
 
   if (!ticketFormacion) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 items-center justify-center p-8 text-center gap-4">
+      <div className="flex flex-col flex-1 min-h-0 items-center justify-center p-8 text-center gap-5">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ecolan-dark border border-ecolan-brand/25 text-ecolan-brand shadow-sm">
+          <MessagesEmptyIcon className="h-7 w-7" />
+        </div>
         <div className="max-w-md space-y-2">
-          <h2 className="font-semibold text-slate-50 text-lg">Consola</h2>
+          <h2 className="font-semibold text-slate-50 text-lg tracking-tight">Consola</h2>
           <p className="text-sm text-slate-400 leading-relaxed">
             Mesa de trabajo con el cliente: chat del canal + contexto del caso que tomaste.
           </p>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-500 leading-relaxed">
             Todavía no hay un ticket activo. Tomá uno libre en la Cola o desde Bandeja con
             “Tomar y abrir Consola”.
           </p>
@@ -90,13 +98,13 @@ export function ChatPanel() {
         <div className="flex flex-wrap gap-2 justify-center">
           <Link
             href="/tickets"
-            className="text-sm font-medium px-4 py-2.5 rounded-xl border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/12"
+            className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl bg-ecolan-brand text-white hover:bg-ecolan-brand-dark shadow-sm transition-all duration-200 ease-in-out"
           >
             Ir a la Cola
           </Link>
           <Link
             href="/inbox"
-            className="text-sm font-medium px-4 py-2.5 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800/50"
+            className="text-sm font-medium px-4 py-2.5 rounded-xl border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 hover:border-slate-500 transition-all duration-200 ease-in-out"
           >
             Ir a Bandeja
           </Link>
@@ -147,19 +155,25 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="chat-action-bar px-4 py-3 flex justify-between items-start flex-wrap gap-3">
-        <div>
-          <h2 className="font-semibold text-slate-50 text-base">Consola</h2>
-          <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-            Ticket {ticketFormacion.id}
+      {/* Header dark Ecolan */}
+      <div className="chat-action-bar px-5 py-4 flex justify-between items-start flex-wrap gap-3">
+        <div className="min-w-0 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand animate-pulse" aria-hidden />
+            <h2 className="font-semibold text-slate-50 text-base tracking-tight">Consola</h2>
+          </div>
+          <p className="text-[11px] font-mono text-slate-400">
+            Ticket{" "}
+            <span className="text-ecolan-brand font-semibold">{ticketFormacion.id}</span>
             {ticketFormacion.linea ? ` · ${ticketFormacion.linea}` : ""}
             {ticketFormacion.categoria ? ` · ${ticketFormacion.categoria}` : ""}
           </p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {ticketFormacion.nivel && <StatusBadge value={ticketFormacion.nivel} />}
             <StatusBadge value={ticketFormacion.estado} />
             {conv && (
-              <span className="text-[10px] font-mono text-slate-400">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-400 px-2.5 py-0.5 rounded-full border border-slate-600/60 bg-slate-900/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80" aria-hidden />
                 Canal · {conv.abonado?.nombre || conv.telefono || "abonado"}
               </span>
             )}
@@ -171,62 +185,68 @@ export function ChatPanel() {
               type="button"
               disabled={busy}
               onClick={() => setConfirmResolve(true)}
-              className="text-xs font-medium px-3.5 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/12 disabled:opacity-50"
+              className="text-xs font-medium px-3.5 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/12 disabled:opacity-50 transition-all duration-200 ease-in-out"
             >
               Resolver ticket
             </button>
           )}
           <Link
             href="/tickets"
-            className="text-xs font-medium px-3.5 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800/50"
+            className="text-xs font-medium px-3.5 py-2 rounded-lg border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 hover:border-slate-500 transition-all duration-200 ease-in-out"
           >
             Volver a Cola
           </Link>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
+      {/* Thread */}
+      <div className="chat-thread flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
         {loadingConv && !mensajes.length ? (
-          <p className="text-sm text-slate-400">Cargando chat del canal…</p>
+          <div className="space-y-3 animate-pulse" aria-busy="true" aria-label="Cargando chat">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`h-16 rounded-xl bg-slate-800/60 border border-slate-700/40 ${
+                  i % 2 === 0 ? "ml-auto w-3/5" : "mr-auto w-2/3"
+                }`}
+              />
+            ))}
+          </div>
         ) : !conv ? (
-          <div className="space-y-2 max-w-lg">
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Este ticket no tiene conversación de canal ligada (WhatsApp / portal).
-            </p>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Usá el panel derecho para notas, seguimiento y proponer a KB. El chat en vivo
-              aparece cuando el bot armó el ticket desde el canal.
-            </p>
+          <div className="flex flex-col items-start gap-3 max-w-lg py-6">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800/80 border border-slate-700/60 text-slate-400">
+              <MessagesEmptyIcon className="h-5 w-5" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-200">Sin conversación de canal</p>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Este ticket no tiene conversación ligada (WhatsApp / portal).
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Usá el panel derecho para notas, seguimiento y proponer a KB. El chat en vivo
+                aparece cuando el bot armó el ticket desde el canal.
+              </p>
+            </div>
           </div>
         ) : !mensajes.length ? (
-          <p className="text-sm text-slate-400">Sin mensajes todavía en este hilo.</p>
-        ) : (
-          mensajes.map((m) => (
-            <div
-              key={m.id}
-              className={`max-w-[90%] px-3 py-2 rounded-xl text-sm whitespace-pre-wrap ${
-                m.autor === "cliente"
-                  ? "ml-auto bg-cyan-500/15 text-slate-100"
-                  : m.autor === "bot"
-                    ? "bg-slate-800/80 text-slate-300"
-                    : "bg-violet-500/15 text-slate-100"
-              }`}
-            >
-              <p className="text-[9px] font-mono uppercase text-slate-500 mb-0.5">
-                {m.autor === "cliente" ? "abonado" : m.autor}
-              </p>
-              {m.texto}
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ecolan-dark border border-ecolan-brand/20 text-ecolan-brand/70">
+              <MessagesEmptyIcon className="h-6 w-6" />
             </div>
-          ))
+            <p className="text-sm font-medium text-slate-300">Sin mensajes todavía</p>
+            <p className="text-xs text-slate-500 max-w-xs">
+              El hilo del canal aparecerá acá en cuanto haya actividad.
+            </p>
+          </div>
+        ) : (
+          mensajes.map((m) => <ChatMessageBubble key={m.id} message={m} />)
         )}
         <div ref={bottomRef} />
       </div>
 
+      {/* Composer */}
       {conv && conv.estado !== "cerrado" && (
-        <form
-          onSubmit={onSend}
-          className="px-4 py-3 border-t border-slate-800/80 flex gap-2 shrink-0"
-        >
+        <form onSubmit={onSend} className="chat-composer px-5 py-4 flex gap-2.5 shrink-0">
           <label className="sr-only" htmlFor="console-reply">
             Responder al abonado
           </label>
@@ -236,14 +256,14 @@ export function ChatPanel() {
             onChange={(e) => setReply(e.target.value)}
             placeholder="Responder al abonado…"
             disabled={busy || !puedeEscribir}
-            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+            className="flex-1 bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 disabled:opacity-50 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
           />
           <button
             type="submit"
             disabled={busy || !reply.trim() || !puedeEscribir}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-950 disabled:opacity-40"
-            style={{ background: "var(--brand)" }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-40 shadow-sm transition-all duration-200 ease-in-out"
           >
+            <SendIcon className="h-4 w-4" />
             Enviar
           </button>
         </form>

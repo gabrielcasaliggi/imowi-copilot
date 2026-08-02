@@ -47,10 +47,10 @@ function TicketRow({
 }) {
   const intel = t.intelligence;
   return (
-    <div className="w-full text-left p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-cyan-500/40 transition-colors">
+    <div className="w-full text-left py-3.5 px-4 rounded-xl border border-slate-700/80 bg-slate-950/60 hover:bg-slate-50/5 hover:border-ecolan-brand/35 shadow-sm transition-all duration-200 ease-in-out">
       <button type="button" onClick={() => onOpen(t.id)} className="w-full text-left">
         <div className="flex justify-between items-start gap-2">
-          <span className="font-mono text-cyan-300 text-xs">{t.id}</span>
+          <span className="font-mono text-ecolan-brand text-xs">{t.id}</span>
           <span className="text-[10px] font-mono text-amber-400">
             {intel?.priority_score ?? 0}
           </span>
@@ -59,12 +59,12 @@ function TicketRow({
           {t.nivel && <StatusBadge value={t.nivel} />}
           <StatusBadge value={t.estado} />
           {mine && (
-            <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded border border-violet-500/40 text-violet-200 bg-violet-500/10">
+            <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-full border border-ecolan-brand/40 text-slate-200 bg-ecolan-brand/10">
               Mío
             </span>
           )}
           {free && t.estado !== "Cerrado" && (
-            <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded border border-emerald-500/40 text-emerald-200 bg-emerald-500/10">
+            <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-full border border-emerald-500/40 text-emerald-200 bg-emerald-500/10">
               Libre
             </span>
           )}
@@ -78,7 +78,7 @@ function TicketRow({
           <p className="text-[10px] text-slate-500 mt-1 truncate">Asignado: {t.asignado_a}</p>
         )}
         {intel?.next_best_action && (
-          <p className="text-[10px] text-cyan-500/80 mt-1 line-clamp-1">
+          <p className="text-[10px] text-ecolan-brand/80 mt-1 line-clamp-1">
             → {intel.next_best_action}
           </p>
         )}
@@ -89,7 +89,7 @@ function TicketRow({
             type="button"
             disabled={claiming === t.id}
             onClick={() => onClaim(t.id)}
-            className="text-[11px] px-2.5 py-1 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50 transition-all duration-200 ease-in-out"
           >
             {claiming === t.id ? "Tomando…" : "Tomar"}
           </button>
@@ -98,7 +98,7 @@ function TicketRow({
           <button
             type="button"
             onClick={() => onOpen(t.id)}
-            className="text-[11px] px-2.5 py-1 rounded-lg border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/10"
+            className="text-[11px] px-2.5 py-1 rounded-lg border border-ecolan-brand/40 text-ecolan-brand hover:bg-ecolan-brand/10"
           >
             Abrir en Consola
           </button>
@@ -255,7 +255,7 @@ export function TicketQueuePanel() {
     <div className="space-y-4 min-h-0">
       <div className="flex flex-wrap justify-between gap-3 items-end">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand/80">
             Cola N2
           </p>
           <h2 className="text-xl font-semibold text-slate-50">Cola</h2>
@@ -266,7 +266,7 @@ export function TicketQueuePanel() {
         </div>
         <Link
           href="/soporte"
-          className="text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/10"
+          className="text-xs px-3 py-1.5 rounded-lg border border-ecolan-brand/30 text-ecolan-brand hover:bg-ecolan-brand/10"
         >
           Ir a Consola
         </Link>
@@ -354,7 +354,7 @@ export function TicketQueuePanel() {
         </label>
         <button
           type="submit"
-          className="col-span-2 md:col-span-1 text-xs py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-200"
+          className="col-span-2 md:col-span-1 text-xs py-1.5 rounded-lg border border-ecolan-brand/30 bg-ecolan-brand/10 text-ecolan-brand"
         >
           Aplicar
         </button>

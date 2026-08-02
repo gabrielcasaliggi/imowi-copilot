@@ -28,14 +28,14 @@ export default function SoportePage() {
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">
       {showSidebar && (
-        <div className="xl:hidden flex gap-1 p-1 rounded-xl border border-slate-800 bg-slate-950/50 shrink-0">
+        <div className="xl:hidden flex gap-1 p-1 rounded-xl border border-slate-700/80 bg-slate-950/50 shrink-0 shadow-sm">
           <button
             type="button"
             onClick={() => setMobileTab("chat")}
-            className={`flex-1 text-xs font-medium py-2 rounded-lg transition-colors ${
+            className={`flex-1 text-xs font-medium py-2 rounded-lg transition-all duration-200 ease-in-out ${
               mobileTab === "chat"
-                ? "bg-cyan-500/15 text-cyan-200 border border-cyan-500/30"
-                : "text-slate-400 border border-transparent"
+                ? "bg-ecolan-brand/15 text-ecolan-brand border border-ecolan-brand/30"
+                : "text-slate-400 border border-transparent hover:text-slate-200"
             }`}
           >
             Chat
@@ -43,10 +43,10 @@ export default function SoportePage() {
           <button
             type="button"
             onClick={() => setMobileTab("contexto")}
-            className={`flex-1 text-xs font-medium py-2 rounded-lg transition-colors ${
+            className={`flex-1 text-xs font-medium py-2 rounded-lg transition-all duration-200 ease-in-out ${
               mobileTab === "contexto"
-                ? "bg-cyan-500/15 text-cyan-200 border border-cyan-500/30"
-                : "text-slate-400 border border-transparent"
+                ? "bg-ecolan-brand/15 text-ecolan-brand border border-ecolan-brand/30"
+                : "text-slate-400 border border-transparent hover:text-slate-200"
             }`}
           >
             Contexto
@@ -56,7 +56,7 @@ export default function SoportePage() {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)] gap-4">
         <div
-          className={`workbench-main flex flex-col min-h-0 rounded-2xl border border-slate-800/80 overflow-hidden ${
+          className={`workbench-main flex flex-col min-h-0 rounded-2xl border border-slate-700/80 overflow-hidden shadow-sm ${
             showSidebar && mobileTab === "contexto" ? "hidden xl:flex" : "flex"
           }`}
         >

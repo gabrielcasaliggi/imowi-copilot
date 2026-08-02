@@ -136,7 +136,7 @@ export function KnowledgeBasePanel() {
           <ul className="space-y-2">
             {INTELLIGENCE_USES.map((line) => (
               <li key={line} className="text-xs text-slate-300 flex gap-2 leading-relaxed">
-                <span className="text-emerald-400 shrink-0">→</span>
+                <span className="text-ecolan-brand shrink-0">→</span>
                 <span>{line}</span>
               </li>
             ))}
@@ -177,11 +177,11 @@ export function KnowledgeBasePanel() {
                 {filtered.map((a) => (
                   <article
                     key={a.id}
-                    className="p-4 rounded-xl border border-slate-800/80 bg-slate-900/50 hover:border-cyan-500/20 transition-colors"
+                    className="p-4 rounded-xl border border-slate-800/80 bg-slate-900/50 hover:border-ecolan-brand/20 transition-colors"
                   >
                     <div className="flex justify-between gap-3 mb-2">
                       <h4 className="text-sm font-semibold text-slate-100">{a.titulo}</h4>
-                      <span className="text-[11px] font-mono text-cyan-300 shrink-0">
+                      <span className="text-[11px] font-mono text-ecolan-brand shrink-0">
                         {a.categoria}
                       </span>
                     </div>
@@ -246,8 +246,7 @@ export function KnowledgeBasePanel() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-2.5 rounded-xl font-semibold text-slate-950 text-sm disabled:opacity-50"
-              style={{ background: "var(--brand)" }}
+              className="w-full py-2.5 rounded-xl font-semibold text-white text-sm bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
             >
               {saving
                 ? isAdmin
@@ -258,7 +257,7 @@ export function KnowledgeBasePanel() {
                   : "Enviar a revisión"}
             </button>
             {feedback && (
-              <p className="text-[11px] text-cyan-300/90 text-center">{feedback}</p>
+              <p className="text-[11px] text-ecolan-brand/90 text-center">{feedback}</p>
             )}
           </form>
 

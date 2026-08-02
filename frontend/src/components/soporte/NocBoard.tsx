@@ -35,10 +35,10 @@ function PriorityTicketRow({
     <button
       type="button"
       onClick={() => onSelect(t.id)}
-      className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-900/70 hover:border-cyan-500/40"
+      className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-900/70 hover:border-ecolan-brand/40"
     >
       <div className="flex justify-between items-start gap-2">
-        <span className="font-mono text-cyan-300 text-xs">{t.id}</span>
+        <span className="font-mono text-ecolan-brand text-xs">{t.id}</span>
         <RiskBadge level={intel?.risk_level} score={intel?.priority_score} />
       </div>
       <div className="flex gap-1 mt-1 flex-wrap">
@@ -50,12 +50,12 @@ function PriorityTicketRow({
         {t.organizacion || ""} · {t.linea || ""} · {t.categoria || "General"}
       </p>
       {intel?.probable_cause && (
-        <p className="text-[10px] text-violet-300/90 mt-1 truncate">
+        <p className="text-[10px] text-ecolan-brand/90 mt-1 truncate">
           Causa probable: {intel.probable_cause}
         </p>
       )}
       {intel?.next_best_action && (
-        <p className="text-[10px] text-cyan-400/80 mt-1 line-clamp-2">
+        <p className="text-[10px] text-ecolan-brand/80 mt-1 line-clamp-2">
           → {intel.next_best_action}
         </p>
       )}
@@ -110,7 +110,7 @@ export function NocBoard() {
           )}
           <Link
             href="/tickets"
-            className="text-[10px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+            className="text-[10px] font-mono px-2.5 py-1 rounded border border-ecolan-brand/30 text-ecolan-brand hover:bg-ecolan-brand/10"
           >
             Cola filtrable →
           </Link>

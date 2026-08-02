@@ -78,7 +78,7 @@ export function SidebarNav() {
   };
 
   const linkClass = (active: boolean) =>
-    `block text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
+    `block text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ease-in-out whitespace-nowrap ${
       active
         ? "border shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
         : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
@@ -117,7 +117,7 @@ export function SidebarNav() {
           );
         })}
       </nav>
-      <aside className="w-60 shrink-0 border-r border-slate-800/80 p-3 hidden lg:block">
+      <aside className="w-60 shrink-0 border-r border-slate-800/80 p-3 bg-ecolan-dark/30 hidden lg:block">
         <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 px-2 mb-3">
           Navegación
         </p>

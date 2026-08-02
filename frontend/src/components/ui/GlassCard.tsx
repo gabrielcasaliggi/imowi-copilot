@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-type Accent = "cyan" | "amber" | "emerald" | "default";
+type Accent = "brand" | "cyan" | "amber" | "emerald" | "default";
 type Variant = "default" | "primary" | "secondary" | "technical";
 
 export function GlassCard({
@@ -20,26 +20,27 @@ export function GlassCard({
   className?: string;
   titleExtra?: ReactNode;
 }) {
+  const isBrand = accent === "brand" || accent === "cyan";
   const border =
     variant === "primary"
-      ? "border-emerald-500/25 bg-emerald-500/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      ? "border-ecolan-brand/25 bg-ecolan-brand/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
       : variant === "secondary"
         ? "border-slate-700/60 bg-slate-900/35"
         : variant === "technical"
           ? "border-slate-700/50 bg-slate-950/50"
-          : accent === "cyan"
-            ? "border-cyan-500/20 bg-cyan-500/5"
+          : isBrand
+            ? "border-ecolan-brand/20 bg-ecolan-brand/5"
             : accent === "amber"
               ? "border-amber-500/20 bg-amber-500/5"
               : accent === "emerald"
                 ? "border-emerald-500/20 bg-emerald-500/5"
-                : "border-slate-800 bg-slate-900/40";
+                : "border-slate-800/80 bg-slate-900/40 shadow-sm";
 
   const titleColor =
     variant === "primary"
-      ? "text-emerald-300/95"
-      : accent === "cyan"
-        ? "text-cyan-400/90"
+      ? "text-ecolan-brand"
+      : isBrand
+        ? "text-ecolan-brand/90"
         : accent === "amber"
           ? "text-amber-300/90"
           : accent === "emerald"
@@ -47,10 +48,10 @@ export function GlassCard({
             : "text-slate-400";
 
   return (
-    <div className={`rounded-2xl border p-4 ${border} ${className}`}>
+    <div className={`rounded-2xl border p-4 transition-all duration-200 ease-in-out ${border} ${className}`}>
       {title && (
         <div className="flex items-center justify-between gap-2 mb-2.5">
-          <h3 className={`text-xs font-mono uppercase tracking-wider ${titleColor}`}>
+          <h3 className={`text-xs font-mono uppercase tracking-wider font-medium ${titleColor}`}>
             {title}
           </h3>
           {titleExtra}
@@ -84,8 +85,8 @@ export function SidebarSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`sidebar-section-header w-full text-left cursor-pointer hover:opacity-90 ${
-          sticky ? "sticky top-0 z-[5] bg-slate-950/90 backdrop-blur-sm py-1 -mx-0.5 px-0.5" : ""
+        className={`sidebar-section-header w-full text-left cursor-pointer hover:opacity-90 transition-opacity duration-200 ${
+          sticky ? "sticky top-0 z-[5] bg-ecolan-dark/95 backdrop-blur-sm py-1 -mx-0.5 px-0.5" : ""
         }`}
       >
         <h2 className="sidebar-section-title">{title}</h2>
@@ -107,40 +108,37 @@ export function KpiCard({
 }: {
   label: string;
   value: string | number;
-  tone?: "default" | "cyan" | "emerald" | "amber" | "red" | "violet";
+  tone?: "default" | "brand" | "cyan" | "emerald" | "amber" | "red" | "violet";
   helper?: string;
 }) {
+  const isBrand = tone === "brand" || tone === "cyan" || tone === "violet";
   const toneClass =
-    tone === "cyan"
-      ? "border-cyan-500/25 bg-cyan-500/10 shadow-cyan-500/5"
+    isBrand
+      ? "border-ecolan-brand/25 bg-ecolan-brand/10 shadow-ecolan-brand/5"
       : tone === "emerald"
         ? "border-emerald-500/25 bg-emerald-500/10 shadow-emerald-500/5"
         : tone === "amber"
           ? "border-amber-500/25 bg-amber-500/10 shadow-amber-500/5"
           : tone === "red"
-            ? "border-red-500/25 bg-red-500/10 shadow-red-500/5"
-            : tone === "violet"
-              ? "border-violet-500/25 bg-violet-500/10 shadow-violet-500/5"
-              : "border-slate-800 bg-slate-900/60 shadow-slate-950/20";
+            ? "border-rose-500/25 bg-rose-500/10 shadow-rose-500/5"
+            : "border-slate-800/80 bg-slate-900/60 shadow-sm";
   const valueClass =
-    tone === "cyan"
-      ? "text-cyan-100"
+    isBrand
+      ? "text-slate-50"
       : tone === "emerald"
         ? "text-emerald-100"
         : tone === "amber"
           ? "text-amber-100"
           : tone === "red"
-            ? "text-red-100"
-            : tone === "violet"
-              ? "text-violet-100"
-              : "text-slate-100";
+            ? "text-rose-100"
+            : "text-slate-100";
   return (
-    <div className={`rounded-xl border p-3 shadow-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${toneClass}`}>
+    <div className={`rounded-xl border p-3.5 shadow-sm transition-all duration-200 ease-in-out ${toneClass}`}>
       <p className="text-[11px] uppercase tracking-wider font-mono text-slate-400">
         {label}
       </p>
-      <p className={`text-2xl font-semibold mt-1 tabular-nums ${valueClass}`}>{value}</p>
-      {helper && <p className="text-[11px] text-slate-400 mt-1">{helper}</p>}
+      <p className={`text-2xl font-semibold mt-1 tabular-nums tracking-tight ${valueClass}`}>{value}</p>
+      {helper && <p className="text-[11px] text-slate-500 mt-1">{helper}</p>}
     </div>
   );
 }
@@ -183,7 +181,7 @@ export function DataRow({
 }) {
   return (
     <div className="flex justify-between gap-3 items-start text-xs">
-      <span className="text-slate-400 shrink-0">{label}</span>
+      <span className="text-slate-500 shrink-0">{label}</span>
       <span className={`text-slate-200 text-right ${mono ? "font-mono" : ""}`}>{children}</span>
     </div>
   );
@@ -249,9 +247,9 @@ export function CapabilityCard({
   footer?: ReactNode;
 }) {
   return (
-    <div className="capability-card rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 flex flex-col h-full">
+    <div className="capability-card rounded-2xl border border-slate-700/80 bg-slate-900/40 p-4 flex flex-col h-full shadow-sm transition-all duration-200 ease-in-out hover:border-slate-600/80">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-100 tracking-tight">{title}</h3>
         {status && <StatusPill label={status} tone={statusTone} />}
       </div>
       <p className="text-xs text-slate-400 leading-relaxed mb-3">{description}</p>
@@ -259,7 +257,7 @@ export function CapabilityCard({
         <ul className="space-y-1.5 flex-1">
           {items.map((item) => (
             <li key={item} className="text-[11px] text-slate-300 flex gap-2">
-              <span className="text-cyan-500/70 shrink-0">·</span>
+              <span className="text-ecolan-brand/70 shrink-0">·</span>
               <span>{item}</span>
             </li>
           ))}

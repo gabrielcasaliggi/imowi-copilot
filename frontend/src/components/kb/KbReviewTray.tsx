@@ -148,7 +148,7 @@ export function KbReviewTray() {
               onClick={() => setFiltro(f)}
               className={`px-2.5 py-1 text-[10px] font-mono uppercase rounded border ${
                 filtro === f
-                  ? "border-cyan-500/40 text-cyan-300 bg-cyan-500/10"
+                  ? "border-ecolan-brand/40 text-ecolan-brand bg-ecolan-brand/10"
                   : "border-slate-700 text-slate-500 hover:text-slate-300"
               }`}
             >
@@ -189,7 +189,7 @@ export function KbReviewTray() {
                 onClick={() => openReview(c)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors ${
                   selected?.id === c.id
-                    ? "border-cyan-500/40 bg-cyan-500/5"
+                    ? "border-ecolan-brand/40 bg-ecolan-brand/5"
                     : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
                 }`}
               >
@@ -257,8 +257,7 @@ export function KbReviewTray() {
                       type="button"
                       disabled={busy}
                       onClick={onApprove}
-                      className="flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold text-slate-950 disabled:opacity-50"
-                      style={{ background: "var(--brand)" }}
+                      className="flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
                     >
                       {busy ? "…" : "Aprobar → KB"}
                     </button>
@@ -291,7 +290,7 @@ export function KbReviewTray() {
                 </div>
               )}
               {message && (
-                <p className="text-[11px] text-cyan-300/90">{message}</p>
+                <p className="text-[11px] text-ecolan-brand/90">{message}</p>
               )}
             </div>
           )}

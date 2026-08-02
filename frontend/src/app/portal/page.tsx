@@ -3,6 +3,11 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, type InboxConversation, type InboxMessage } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import {
+  ChatMessageBubble,
+  ChatTypingIndicator,
+  SendIcon,
+} from "@/components/ui/ChatMessageBubble";
 
 const PORTAL_KEY = "ops_hub_portal_session";
 const showDemo =
@@ -286,7 +291,7 @@ export default function PortalPage() {
 
       <main className="flex-1 flex flex-col max-w-lg mx-auto w-full p-4 gap-4">
         {step === "auth" && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/50 p-6 space-y-4 shadow-sm">
             <h1 className="text-lg font-semibold">Ingresá al portal</h1>
             <p className="text-xs text-slate-400">
               Validamos tu DNI contra el padrón y te enviamos un código al email registrado.
@@ -296,7 +301,7 @@ export default function PortalPage() {
                 type="button"
                 role="tab"
                 aria-selected={mode === "dni"}
-                className={`px-3 py-1 rounded-lg ${mode === "dni" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-400"}`}
+                className={`px-3 py-1.5 rounded-lg transition-all duration-200 ease-in-out ${mode === "dni" ? "bg-ecolan-brand/15 text-ecolan-brand font-medium" : "text-slate-400 hover:text-slate-200"}`}
                 onClick={() => setMode("dni")}
               >
                 DNI + OTP
@@ -305,7 +310,7 @@ export default function PortalPage() {
                 type="button"
                 role="tab"
                 aria-selected={mode === "pin"}
-                className={`px-3 py-1 rounded-lg ${mode === "pin" ? "bg-emerald-500/20 text-emerald-300" : "text-slate-400"}`}
+                className={`px-3 py-1.5 rounded-lg transition-all duration-200 ease-in-out ${mode === "pin" ? "bg-ecolan-brand/15 text-ecolan-brand font-medium" : "text-slate-400 hover:text-slate-200"}`}
                 onClick={() => setMode("pin")}
               >
                 DNI + PIN
@@ -324,14 +329,14 @@ export default function PortalPage() {
                     onChange={(e) => setDni(e.target.value)}
                     placeholder="Solo números"
                     inputMode="numeric"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={busy}
-                  className="w-full py-2.5 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
+                  className="w-full py-2.5 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
                 >
                   {busy ? "Verificando…" : "Continuar"}
                 </button>
@@ -348,7 +353,7 @@ export default function PortalPage() {
                     onChange={(e) => setDni(e.target.value)}
                     placeholder="Solo números"
                     inputMode="numeric"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     required
                   />
                 </div>
@@ -363,14 +368,14 @@ export default function PortalPage() {
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
                     placeholder="6–8 dígitos"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={busy}
-                  className="w-full py-2.5 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
+                  className="w-full py-2.5 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
                 >
                   {busy ? "Ingresando…" : "Ingresar"}
                 </button>
@@ -395,7 +400,7 @@ export default function PortalPage() {
         )}
 
         {step === "otp" && (
-          <form onSubmit={onVerifyOtp} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+          <form onSubmit={onVerifyOtp} className="rounded-2xl border border-slate-700/80 bg-slate-900/50 p-6 space-y-4 shadow-sm">
             <h1 className="text-lg font-semibold">Código de verificación</h1>
             <p className="text-xs text-slate-400">
               Enviamos un código a <span className="font-mono text-slate-300">{contactMasked}</span>
@@ -416,14 +421,14 @@ export default function PortalPage() {
               />
             </div>
             {otpInfo && (
-              <p className="text-xs text-emerald-300" role="status">
+              <p className="text-xs text-ecolan-brand" role="status">
                 {otpInfo}
               </p>
             )}
             <button
               type="submit"
               disabled={busy}
-              className="w-full py-2.5 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
+              className="w-full py-2.5 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
             >
               {busy ? "Validando…" : "Verificar"}
             </button>
@@ -438,7 +443,7 @@ export default function PortalPage() {
               <button
                 type="button"
                 disabled={busy}
-                className="text-xs text-emerald-400/90 hover:text-emerald-300 disabled:opacity-50"
+                className="text-xs text-emerald-400/90 hover:text-ecolan-brand disabled:opacity-50"
                 onClick={() => void onResendOtp()}
               >
                 Reenviar código
@@ -448,7 +453,7 @@ export default function PortalPage() {
         )}
 
         {step === "pin-setup" && (
-          <form onSubmit={onSetPin} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+          <form onSubmit={onSetPin} className="rounded-2xl border border-slate-700/80 bg-slate-900/50 p-6 space-y-4 shadow-sm">
             <h1 className="text-lg font-semibold">Creá un PIN (opcional)</h1>
             <p className="text-xs text-slate-400">Para próximos ingresos sin OTP. 6 a 8 dígitos.</p>
             <div>
@@ -462,7 +467,7 @@ export default function PortalPage() {
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
                 placeholder="6–8 dígitos"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+                className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                 minLength={6}
                 maxLength={8}
                 required
@@ -471,7 +476,7 @@ export default function PortalPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full py-2.5 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
+              className="w-full py-2.5 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
             >
               Guardar PIN
             </button>
@@ -508,54 +513,29 @@ export default function PortalPage() {
 
             {conAgente && (
               <p
-                className="text-xs text-emerald-200 bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-3 py-2"
+                className="text-xs text-ecolan-brand bg-ecolan-brand/10 border border-ecolan-brand/25 rounded-lg px-3 py-2"
                 role="status"
               >
                 Un agente se unió a la conversación. Las respuestas aparecerán acá.
               </p>
             )}
 
-            <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/40 p-3 overflow-y-auto min-h-[320px] max-h-[55vh] space-y-2">
+            <div className="chat-thread flex-1 rounded-2xl border border-slate-700/80 bg-slate-900/40 p-4 overflow-y-auto min-h-[320px] max-h-[55vh] space-y-3 shadow-sm">
               {mensajes.map((m) => (
-                <div
-                  key={m.id}
-                  className={`text-sm rounded-xl px-3 py-2 max-w-[90%] ${
-                    m.autor === "cliente"
-                      ? "ml-auto bg-emerald-500/20 text-emerald-100"
-                      : "mr-auto bg-slate-800 text-slate-200"
-                  }`}
-                >
-                  <p className="text-[10px] font-mono text-slate-500 mb-0.5">
-                    {m.autor === "cliente" ? "vos" : m.autor === "agente" ? "agente" : m.autor}
-                  </p>
-                  {m.texto}
-                </div>
+                <ChatMessageBubble key={m.id} message={m} portal />
               ))}
-              {botTyping && (
-                <div
-                  className="mr-auto bg-slate-800 text-slate-200 text-sm rounded-xl px-3 py-2 max-w-[90%]"
-                  aria-live="polite"
-                  aria-label="El asistente está escribiendo"
-                >
-                  <p className="text-[10px] font-mono text-slate-500 mb-1">asistente</p>
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:0ms]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:150ms]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-bounce [animation-delay:300ms]" />
-                  </div>
-                </div>
-              )}
+              {botTyping && <ChatTypingIndicator />}
               <div ref={bottomRef} />
             </div>
             <p
               className={`text-[11px] font-mono min-h-[1rem] ${
-                botTyping ? "text-emerald-400/90" : "text-transparent"
+                botTyping ? "text-ecolan-brand" : "text-transparent"
               }`}
               aria-live="polite"
             >
               {botTyping ? "Recibido · el asistente está armando la respuesta…" : "·"}
             </p>
-            <form onSubmit={onSend} className="flex gap-2">
+            <form onSubmit={onSend} className="flex gap-2.5">
               <label className="sr-only" htmlFor="portal-mensaje">
                 Tu mensaje
               </label>
@@ -565,13 +545,14 @@ export default function PortalPage() {
                 onChange={(e) => setTexto(e.target.value)}
                 placeholder={botTyping ? "Esperá la respuesta…" : "Escribí tu consulta…"}
                 disabled={botTyping}
-                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60"
+                className="flex-1 bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
               />
               <button
                 type="submit"
                 disabled={botTyping || !texto.trim()}
-                className="px-4 rounded-xl font-semibold text-slate-950 bg-emerald-400 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
               >
+                <SendIcon className="h-4 w-4" />
                 {botTyping ? "Enviando…" : "Enviar"}
               </button>
             </form>

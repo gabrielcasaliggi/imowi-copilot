@@ -57,7 +57,7 @@ function InviteForm() {
   const isReset = purpose === "password_reset";
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/60 p-8">
+    <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/60 shadow-sm p-8">
       <h1 className="text-xl font-semibold text-slate-100 mb-2">
         {isReset ? "Nueva contraseña" : "Activar cuenta"}
       </h1>
@@ -76,7 +76,7 @@ function InviteForm() {
                 id="invite-nombre"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm"
+                className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                 required
                 autoComplete="name"
               />
@@ -91,7 +91,7 @@ function InviteForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+              className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent font-mono"
               required
               minLength={10}
               autoComplete="new-password"
@@ -109,22 +109,21 @@ function InviteForm() {
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+              className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent font-mono"
               required
               minLength={10}
               autoComplete="new-password"
             />
           </div>
           {error && (
-            <p className="text-sm text-red-400" role="alert">
+            <p className="text-sm text-rose-400" role="alert">
               {error}
             </p>
           )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-semibold text-slate-950 disabled:opacity-50"
-            style={{ background: "var(--brand)" }}
+            className="w-full py-3 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
           >
             {loading ? "Guardando…" : isReset ? "Guardar contraseña" : "Crear contraseña e ingresar"}
           </button>
@@ -133,7 +132,7 @@ function InviteForm() {
         <p className="text-sm text-slate-400">{error || "Cargando invitación…"}</p>
       )}
       <p className="mt-6 text-center text-xs">
-        <Link href="/login" className="text-cyan-400/80">
+        <Link href="/login" className="text-ecolan-brand/80">
           Volver al login
         </Link>
       </p>

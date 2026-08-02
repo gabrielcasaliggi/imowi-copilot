@@ -55,7 +55,7 @@ export function AutomationPanel() {
 
       <div className="demo-banner rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-violet-200">Modo demo / roadmap</p>
+          <p className="text-sm font-medium text-slate-200">Modo demo / roadmap</p>
           <p className="text-[11px] text-slate-400 mt-0.5 max-w-2xl leading-relaxed">
             Esta sección muestra capacidades futuras de automatización. Ninguna acción se ejecuta
             contra JSC, CRM o red en esta versión.
@@ -113,7 +113,7 @@ export function AutomationPanel() {
                 </div>
                 <div>
                   <p className="text-slate-500 uppercase tracking-wide font-mono mb-0.5">Acción</p>
-                  <p className="text-cyan-300/90">{rule.action}</p>
+                  <p className="text-ecolan-brand/90">{rule.action}</p>
                 </div>
               </div>
             </GlassCard>

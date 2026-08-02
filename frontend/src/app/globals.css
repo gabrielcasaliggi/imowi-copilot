@@ -3,20 +3,29 @@
 :root {
   --background: #020617;
   --foreground: #e2e8f0;
-  --brand: #22d3ee;
+  /* Ecolan / Cooperativa Batán */
+  --brand: #2298A6;
+  --brand-dark: #1A7985;
+  --ecolan-dark: #0D1B2A;
+  --ecolan-light: #F4F7F6;
   --surface: rgba(15, 23, 42, 0.88);
   --surface-elevated: rgba(30, 41, 59, 0.65);
   --surface-workbench: rgba(15, 23, 42, 0.72);
   --border-subtle: rgba(51, 65, 85, 0.55);
-  --border-accent: rgba(34, 211, 238, 0.22);
+  --border-accent: rgba(34, 152, 166, 0.28);
   --text-muted: #94a3b8;
   --text-dim: #64748b;
   --text-readable: #cbd5e1;
+  --text-header: #1E293B;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ecolan-brand: #2298A6;
+  --color-ecolan-brand-dark: #1A7985;
+  --color-ecolan-dark: #0D1B2A;
+  --color-ecolan-light: #F4F7F6;
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-loaded), ui-monospace, monospace;
 }
@@ -101,7 +110,7 @@ button:focus-visible {
 }
 
 .workbench-sidebar {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.5) 0%, rgba(2, 6, 23, 0.35) 100%);
+  background: linear-gradient(180deg, rgba(13, 27, 42, 0.65) 0%, rgba(2, 6, 23, 0.4) 100%);
 }
 
 .sidebar-section {
@@ -138,27 +147,72 @@ button:focus-visible {
   gap: 0.75rem;
 }
 
-/* Chat */
+/* Chat — consola B2B Ecolan */
+.chat-bubble-cliente {
+  background: linear-gradient(135deg, rgba(34, 152, 166, 0.22), rgba(34, 152, 166, 0.1));
+  border: 1px solid rgba(34, 152, 166, 0.35);
+  color: #e2e8f0;
+}
+
+.chat-bubble-bot {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(71, 85, 105, 0.55);
+  color: #cbd5e1;
+}
+
+.chat-bubble-agente {
+  background: linear-gradient(135deg, rgba(13, 27, 42, 0.95), rgba(30, 41, 59, 0.85));
+  border: 1px solid rgba(34, 152, 166, 0.22);
+  color: #e2e8f0;
+}
+
 .chat-bubble-user {
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(34, 211, 238, 0.06));
-  border: 1px solid rgba(34, 211, 238, 0.28);
-  color: #e0f2fe;
+  background: linear-gradient(135deg, rgba(34, 152, 166, 0.22), rgba(34, 152, 166, 0.1));
+  border: 1px solid rgba(34, 152, 166, 0.35);
+  color: #e2e8f0;
 }
 
 .chat-bubble-assistant {
-  background: rgba(30, 41, 59, 0.85);
+  background: rgba(30, 41, 59, 0.9);
   border: 1px solid rgba(71, 85, 105, 0.55);
   color: var(--text-readable);
 }
 
 .chat-action-bar {
-  background: rgba(15, 23, 42, 0.6);
-  border-bottom: 1px solid var(--border-subtle);
+  background: var(--ecolan-dark);
+  border-bottom: 1px solid rgba(34, 152, 166, 0.2);
+}
+
+.chat-composer {
+  background: rgba(13, 27, 42, 0.72);
+  border-top: 1px solid rgba(51, 65, 85, 0.55);
+}
+
+.chat-origin-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.625rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.chat-origin-label-accent {
+  color: #2298A6;
 }
 
 .chat-pending-actions {
-  background: rgba(16, 185, 129, 0.06);
-  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+  background: rgba(34, 152, 166, 0.06);
+  border-bottom: 1px solid rgba(34, 152, 166, 0.2);
+}
+
+.chat-thread {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 152, 166, 0.06), transparent),
+    rgba(2, 6, 23, 0.35);
 }
 
 /* Guía operativa */
@@ -230,8 +284,8 @@ button:focus-visible {
 }
 
 .trace-line:hover {
-  border-left-color: rgba(34, 211, 238, 0.35);
-  background: rgba(34, 211, 238, 0.04);
+  border-left-color: rgba(34, 152, 166, 0.4);
+  background: rgba(34, 152, 166, 0.05);
 }
 
 /* Admin / plataforma */
@@ -259,9 +313,9 @@ button:focus-visible {
 }
 
 .status-pill-demo {
-  color: #67e8f9;
-  border-color: rgba(34, 211, 238, 0.35);
-  background: rgba(34, 211, 238, 0.1);
+  color: #5eead4;
+  border-color: rgba(34, 152, 166, 0.4);
+  background: rgba(34, 152, 166, 0.12);
 }
 
 .status-pill-credentials {
@@ -271,9 +325,9 @@ button:focus-visible {
 }
 
 .status-pill-soon {
-  color: #c4b5fd;
-  border-color: rgba(139, 92, 246, 0.35);
-  background: rgba(139, 92, 246, 0.1);
+  color: #94a3b8;
+  border-color: rgba(100, 116, 139, 0.4);
+  background: rgba(30, 41, 59, 0.6);
 }
 
 .status-pill-neutral {
@@ -300,14 +354,14 @@ button:focus-visible {
 
 .kb-category-chip:hover,
 .kb-category-chip-active {
-  border-color: rgba(34, 211, 238, 0.4);
-  background: rgba(34, 211, 238, 0.08);
-  color: #e0f2fe;
+  border-color: rgba(34, 152, 166, 0.45);
+  background: rgba(34, 152, 166, 0.1);
+  color: #e2e8f0;
 }
 
 .demo-banner {
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0.12), rgba(34, 211, 238, 0.06));
+  border: 1px solid rgba(34, 152, 166, 0.35);
+  background: linear-gradient(90deg, rgba(34, 152, 166, 0.12), rgba(13, 27, 42, 0.4));
 }
 
 body::before {
@@ -315,8 +369,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(34, 211, 238, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(34, 152, 166, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 152, 166, 0.03) 1px, transparent 1px);
   background-size: 56px 56px;
   pointer-events: none;
   z-index: -1;

@@ -10,7 +10,7 @@ function BrandSync({ children }: { children: React.ReactNode }) {
   const { tenantContext } = useApp();
 
   useEffect(() => {
-    const color = tenantContext?.brand_color || "#22d3ee";
+    const color = tenantContext?.brand_color || "#2298A6";
     document.documentElement.style.setProperty("--brand", color);
   }, [tenantContext?.brand_color]);
 

@@ -229,7 +229,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
             onClick={() => setSection(t.id)}
             className={`px-3 py-1.5 rounded-lg text-sm border transition ${
               section === t.id
-                ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+                ? "border-ecolan-brand/50 bg-ecolan-brand/15 text-slate-100"
                 : "border-slate-700/80 text-slate-400 hover:border-slate-500"
             }`}
           >
@@ -307,7 +307,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 type="button"
                 disabled={busy}
                 onClick={() => void testAi()}
-                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-cyan-500/40"
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
               >
                 Probar conexión IA
               </button>
@@ -367,7 +367,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 type="button"
                 disabled={busy}
                 onClick={() => void testWa()}
-                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-cyan-500/40"
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
               >
                 Validar configuración WhatsApp
               </button>
@@ -528,7 +528,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 type="button"
                 disabled={busy}
                 onClick={() => void testEstateDb()}
-                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-cyan-500/40"
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
               >
                 Probar Data Estate activo
               </button>
@@ -594,7 +594,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         <button
           type="submit"
           disabled={busy}
-          className="px-4 py-2 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-sm text-white disabled:opacity-50"
+          className="px-4 py-2 rounded-lg bg-ecolan-brand hover:bg-ecolan-brand-dark text-sm font-semibold text-white disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
         >
           Guardar configuración
         </button>

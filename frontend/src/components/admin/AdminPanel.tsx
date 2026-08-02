@@ -74,7 +74,7 @@ export function AdminPanel() {
     nombre: "",
     slug: "",
     logo_label: "C",
-    brand_color: "#34d399",
+    brand_color: "#2298A6",
   });
 
   const cooperativas = orgs.filter((o) => !o.es_plataforma && o.slug !== "imowi");
@@ -164,7 +164,7 @@ export function AdminPanel() {
       onClick={() => setHubTab(id)}
       className={`px-3 py-1.5 rounded-lg text-sm border transition ${
         hubTab === id
-          ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+          ? "border-ecolan-brand/50 bg-ecolan-brand/15 text-slate-100"
           : "border-slate-700/80 text-slate-400 hover:border-slate-500"
       }`}
     >
@@ -183,7 +183,7 @@ export function AdminPanel() {
         logo_label: newOrg.logo_label,
         brand_color: newOrg.brand_color,
       });
-      setNewOrg({ nombre: "", slug: "", logo_label: "C", brand_color: "#34d399" });
+      setNewOrg({ nombre: "", slug: "", logo_label: "C", brand_color: "#2298A6" });
       setSelectedSlug(created.organizacion.slug);
       setMessage(`Cooperativa creada: ${created.organizacion.nombre}`);
       await loadOrgs();
@@ -351,7 +351,7 @@ export function AdminPanel() {
       </div>
 
       {message && (
-        <p className="text-sm text-cyan-200 border border-cyan-500/25 rounded-xl px-4 py-2.5 bg-cyan-500/8">
+        <p className="text-sm text-ecolan-brand border border-ecolan-brand/25 rounded-xl px-4 py-2.5 bg-ecolan-brand/8">
           {message}
         </p>
       )}
@@ -431,7 +431,7 @@ export function AdminPanel() {
                       onClick={() => setSelectedRoleCode(r.codigo)}
                       className={`w-full text-left p-2.5 rounded-xl border transition-colors ${
                         selectedRoleCode === r.codigo
-                          ? "border-cyan-500/40 bg-cyan-500/8"
+                          ? "border-ecolan-brand/40 bg-ecolan-brand/8"
                           : "border-slate-800 hover:border-slate-700"
                       }`}
                     >
@@ -462,7 +462,7 @@ export function AdminPanel() {
                           key={p}
                           className="text-[11px] font-mono text-slate-300 border border-slate-800 rounded-lg px-2 py-1.5"
                         >
-                          <span className="text-cyan-200/90">{p}</span>
+                          <span className="text-ecolan-brand/90">{p}</span>
                           {meta?.descripcion ? (
                             <span className="block font-sans text-slate-500 normal-case mt-0.5">
                               {meta.descripcion}
@@ -507,7 +507,7 @@ export function AdminPanel() {
                       )}
                       <button
                         type="button"
-                        className="text-[11px] text-cyan-300"
+                        className="text-[11px] text-ecolan-brand"
                         onClick={() => setHubTab("cooperativas")}
                       >
                         Ir a gestión completa de usuarios →
@@ -607,7 +607,7 @@ export function AdminPanel() {
                         onClick={() => setSelectedSlug(o.slug)}
                         className={`w-full text-left p-2.5 rounded-xl border transition-colors ${
                           selectedSlug === o.slug
-                            ? "border-cyan-500/40 bg-cyan-500/8"
+                            ? "border-ecolan-brand/40 bg-ecolan-brand/8"
                             : "border-slate-800 hover:border-slate-700"
                         }`}
                       >
@@ -791,7 +791,7 @@ export function AdminPanel() {
                                     type="button"
                                     disabled={busy}
                                     onClick={() => void onSaveEdit()}
-                                    className="text-[11px] px-2 py-1 rounded-lg border border-cyan-500/35 text-cyan-200"
+                                    className="text-[11px] px-2 py-1 rounded-lg border border-ecolan-brand/35 text-ecolan-brand"
                                   >
                                     Guardar
                                   </button>
@@ -831,7 +831,7 @@ export function AdminPanel() {
                                   <button
                                     type="button"
                                     disabled={busy}
-                                    className="text-[10px] text-cyan-300"
+                                    className="text-[10px] text-ecolan-brand"
                                     onClick={() => startEdit(u)}
                                   >
                                     Editar

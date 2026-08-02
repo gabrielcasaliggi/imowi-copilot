@@ -31,7 +31,7 @@ function CasoActivoCard({
       <div className="space-y-2">
         {caso?.linea_msisdn && (
           <DataRow label="Línea" mono>
-            <span className="text-cyan-300">{caso.linea_msisdn}</span>
+            <span className="text-ecolan-brand">{caso.linea_msisdn}</span>
           </DataRow>
         )}
         {caso?.estado && (
@@ -75,10 +75,10 @@ function ReclamosSimilares({
             key={t.id}
             type="button"
             onClick={() => onSelect(t.id)}
-            className="w-full text-left p-2.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:border-cyan-500/30 transition-colors"
+            className="w-full text-left p-2.5 rounded-lg border border-slate-700/80 bg-slate-900/60 hover:border-ecolan-brand/35 hover:bg-slate-50/5 shadow-sm transition-all duration-200 ease-in-out"
           >
             <div className="flex justify-between gap-1">
-              <span className="font-mono text-cyan-300 text-[11px]">{t.id}</span>
+              <span className="font-mono text-ecolan-brand text-[11px]">{t.id}</span>
               <StatusBadge value={t.estado} />
             </div>
             <p className="text-[11px] text-slate-500 truncate mt-0.5">{t.categoria}</p>
@@ -103,7 +103,7 @@ function FichaAbonadoCard() {
         {linea ? (
           <div className="space-y-2">
             <DataRow label="Línea / teléfono" mono>
-              <span className="text-cyan-300">{linea}</span>
+              <span className="text-ecolan-brand">{linea}</span>
             </DataRow>
             <p className="text-[11px] text-amber-300/90 leading-relaxed">
               Sin ficha completa aún. El triaje continúa; al identificar al abonado verás plan,
@@ -122,7 +122,7 @@ function FichaAbonadoCard() {
     <GlassCard title="Ficha abonado" accent="cyan" variant="secondary">
       <div className="space-y-2">
         <DataRow label="Teléfono" mono>
-          <span className="text-cyan-300">{fichaJsc.msisdn}</span>
+          <span className="text-ecolan-brand">{fichaJsc.msisdn}</span>
         </DataRow>
         <DataRow label="Abonado">{fichaJsc.abonado}</DataRow>
         <DataRow label="Plan">{fichaJsc.plan}</DataRow>
@@ -211,7 +211,7 @@ function PlantillasRespuesta({
             key={p.id}
             type="button"
             onClick={() => onPick(p.contenido, p.nombre)}
-            className="w-full text-left p-2 rounded border border-slate-800 hover:border-cyan-500/30 text-[11px]"
+            className="w-full text-left p-2 rounded-lg border border-slate-700/80 hover:border-ecolan-brand/35 hover:bg-slate-50/5 text-[11px] transition-all duration-200 ease-in-out"
           >
             <span className="text-slate-200">{p.nombre}</span>
             <span className="text-slate-600 ml-1">· {p.categoria}</span>
@@ -332,7 +332,7 @@ function PublicarKbButton({
           Cancelar
         </button>
       </div>
-      {feedback && <p className="text-[10px] text-cyan-300/90">{feedback}</p>}
+      {feedback && <p className="text-[10px] text-ecolan-brand/90">{feedback}</p>}
     </div>
   );
 }
@@ -407,14 +407,14 @@ function TicketAdminForm({
       />
       <button
         type="submit"
-        className="w-full py-1.5 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
       >
         Actualizar seguimiento
       </button>
       <button
         type="button"
         onClick={onExplainClick}
-        className="w-full py-1.5 rounded border border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-[11px]"
+        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out text-[11px]"
       >
         Explicar escalamiento
       </button>
@@ -466,7 +466,7 @@ function TicketAgentForm({
       />
       <button
         type="submit"
-        className="w-full py-1.5 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
       >
         Guardar seguimiento
       </button>
@@ -486,7 +486,7 @@ function TicketFormacionCard() {
       <GlassCard title="Ticket activo" variant="secondary">
         <p className="text-slate-500 text-xs leading-relaxed">
           Todavía no hay un ticket en esta consola. Tomá uno desde la{" "}
-          <a href="/tickets" className="text-cyan-300 hover:text-cyan-200">
+          <a href="/tickets" className="text-ecolan-brand hover:text-ecolan-brand">
             Cola
           </a>
           .
@@ -502,23 +502,23 @@ function TicketFormacionCard() {
     <GlassCard title="Ticket activo" variant="secondary">
       <div className="space-y-2 text-xs">
         <DataRow label="ID" mono>
-          <span className="text-cyan-300">{t.id}</span>
+          <span className="text-ecolan-brand">{t.id}</span>
         </DataRow>
         {t.asignado_a && (
           <DataRow label="Asignado">
-            <span className="text-violet-300 truncate">{t.asignado_a}</span>
+            <span className="text-ecolan-brand truncate">{t.asignado_a}</span>
           </DataRow>
         )}
         {intel && intel.priority_score > 0 && (
-          <div className="p-2.5 rounded-lg border border-violet-500/20 bg-violet-500/5 space-y-1.5">
+          <div className="p-2.5 rounded-lg border border-ecolan-brand/20 bg-ecolan-brand/5 space-y-1.5">
             <div className="flex justify-between">
-              <span className="text-violet-300">Score IA</span>
+              <span className="text-ecolan-brand">Score IA</span>
               <span>
                 {intel.priority_score}/100 · {intel.risk_level}
               </span>
             </div>
             <p className="text-[11px] text-slate-400">Causa: {intel.probable_cause}</p>
-            <p className="text-[11px] text-cyan-400/90">→ {intel.next_best_action}</p>
+            <p className="text-[11px] text-ecolan-brand/90">→ {intel.next_best_action}</p>
             {(t.sla_label || intel.sla?.label) && (
               <div className="pt-1">
                 <SlaBadge
@@ -602,15 +602,15 @@ export function SupportSidebar() {
               key={ev.id}
               className={`pl-3 border-l ${
                 ev.visible_cliente === "No"
-                  ? "border-violet-500/40"
-                  : "border-cyan-500/30"
+                  ? "border-ecolan-brand/40"
+                  : "border-ecolan-brand/30"
               }`}
             >
               <div className="flex justify-between gap-2">
                 <p className="text-xs text-slate-200 font-medium">{ev.titulo}</p>
                 <span className="flex gap-1 items-center">
                   {ev.visible_cliente === "No" && (
-                    <span className="text-[9px] font-mono text-violet-400 uppercase">
+                    <span className="text-[9px] font-mono text-ecolan-brand uppercase">
                       interno
                     </span>
                   )}
@@ -778,15 +778,15 @@ export function SupportSidebar() {
                   key={ev.id}
                   className={`pl-3 border-l ${
                     ev.visible_cliente === "No"
-                      ? "border-violet-500/40"
-                      : "border-cyan-500/30"
+                      ? "border-ecolan-brand/40"
+                      : "border-ecolan-brand/30"
                   }`}
                 >
                   <div className="flex justify-between gap-2">
                     <p className="text-xs text-slate-200 font-medium">{ev.titulo}</p>
                     <span className="flex gap-1 items-center">
                       {ev.visible_cliente === "No" && (
-                        <span className="text-[9px] font-mono text-violet-400 uppercase">
+                        <span className="text-[9px] font-mono text-ecolan-brand uppercase">
                           interno
                         </span>
                       )}
@@ -839,7 +839,7 @@ export function SupportSidebar() {
             <div className="flex flex-wrap gap-2">
               <a
                 href="/tickets"
-                className="text-[11px] font-mono px-2.5 py-1 rounded border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+                className="text-[11px] font-mono px-2.5 py-1.5 rounded-lg border border-ecolan-brand/40 text-ecolan-brand hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
               >
                 Cola filtrable →
               </a>
@@ -862,10 +862,10 @@ export function SupportSidebar() {
                     key={t.id}
                     type="button"
                     onClick={() => selectTicket(t.id)}
-                    className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 transition-colors"
+                    className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-ecolan-brand/30 transition-colors"
                   >
                     <div className="flex justify-between items-center gap-1">
-                      <span className="font-mono text-cyan-300 text-[11px]">{t.id}</span>
+                      <span className="font-mono text-ecolan-brand text-[11px]">{t.id}</span>
                       <span className="flex gap-1 items-center">
                         {t.nivel && <StatusBadge value={t.nivel} />}
                         <StatusBadge value={t.estado} />

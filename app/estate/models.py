@@ -26,7 +26,7 @@ class Organization(Base):
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
     slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
     logo_label: Mapped[str] = mapped_column(String(8), default="i")
-    brand_color: Mapped[str] = mapped_column(String(16), default="#22d3ee")
+    brand_color: Mapped[str] = mapped_column(String(16), default="#2298A6")
 
     usuarios: Mapped[list["User"]] = relationship(back_populates="organizacion")
     articulos_kb: Mapped[list["KnowledgeArticle"]] = relationship(back_populates="organizacion")

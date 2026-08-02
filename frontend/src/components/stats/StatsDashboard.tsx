@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
 import type { ExecutiveAnalytics } from "@/lib/types";
 
-const PALETTE = ["#22d3ee", "#8b5cf6", "#34d399", "#f59e0b", "#f43f5e", "#60a5fa"];
+const PALETTE = ["#2298A6", "#1A7985", "#34d399", "#f59e0b", "#f43f5e", "#64748b"];
 
 function EmptyState({ label }: { label: string }) {
   return (
@@ -21,7 +21,7 @@ function EmptyState({ label }: { label: string }) {
 function ColumnChart({
   data,
   compactLabels,
-  color = "#22d3ee",
+  color = "#2298A6",
 }: {
   data: { label: string; count: number }[];
   compactLabels?: boolean;
@@ -64,7 +64,7 @@ function ColumnChart({
 function BarList({
   data,
   unit,
-  color = "#8b5cf6",
+  color = "#2298A6",
 }: {
   data: { label: string; count: number }[];
   unit: string;
@@ -148,7 +148,7 @@ function CoopKpiList({
   return (
     <div className="space-y-3">
       {data.map((x) => (
-        <div key={x.label} className="p-3 rounded-xl border border-slate-800 bg-slate-950/50 hover:border-cyan-500/25 transition-colors">
+        <div key={x.label} className="p-3 rounded-xl border border-slate-800 bg-slate-950/50 hover:border-ecolan-brand/25 transition-colors">
           <div className="flex justify-between text-xs mb-1">
             <span className="text-slate-300 truncate">{x.label}</span>
             <span className="font-mono text-slate-500">{x.count} tickets</span>
@@ -240,17 +240,17 @@ function ExecutivePanel({ data }: { data: ExecutiveAnalytics | null }) {
   const criticalAlerts = data.alertas.filter((a) => a.severidad !== "info").slice(0, 3);
 
   return (
-    <div className="rounded-2xl border border-cyan-500/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),rgba(15,23,42,0.55)_45%,rgba(2,6,23,0.45))] p-5 shadow-2xl shadow-cyan-950/20">
+    <div className="rounded-2xl border border-ecolan-brand/20 bg-[radial-gradient(circle_at_top_left,rgba(34,152,166,0.16),rgba(15,23,42,0.55)_45%,rgba(2,6,23,0.45))] p-5 shadow-2xl shadow-ecolan-dark/40">
       <div className="flex flex-wrap justify-between gap-4">
         <div className="max-w-3xl">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-300/80">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand/80">
             Resumen ejecutivo
           </p>
           <h3 className="mt-2 text-xl font-semibold text-slate-50 leading-snug">
             {data.resumen_ejecutivo}
           </h3>
           <div className="mt-4 flex flex-wrap gap-2">
-            <span className="chip border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
+            <span className="chip border-ecolan-brand/30 bg-ecolan-brand/10 text-ecolan-brand">
               {data.ahorro_operativo.horas_ahorradas_estimadas} hs ahorradas estimadas
             </span>
             <span className="chip border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
@@ -398,7 +398,7 @@ export function StatsDashboard() {
       <div className="rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(8,47,73,0.32))] p-5">
         <div className="flex flex-wrap justify-between gap-3 items-end">
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/80">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand/80">
               Tablero de gestión
             </p>
             <h2 className="mt-1 text-2xl font-semibold text-slate-50">Estadísticas</h2>
@@ -421,17 +421,17 @@ export function StatsDashboard() {
                 type="date"
                 value={desde}
                 onChange={(e) => setDesde(e.target.value)}
-                className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:border-cyan-500/40 outline-none"
+                className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-ecolan-brand focus:border-transparent outline-none"
               />
               <input
                 type="date"
                 value={hasta}
                 onChange={(e) => setHasta(e.target.value)}
-                className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:border-cyan-500/40 outline-none"
+                className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-ecolan-brand focus:border-transparent outline-none"
               />
               <button
                 type="submit"
-                className="text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15"
+                className="text-xs px-3 py-1.5 rounded-lg border border-ecolan-brand/30 bg-ecolan-brand/10 text-ecolan-brand hover:bg-ecolan-brand/15"
               >
                 Filtrar
               </button>
@@ -461,7 +461,7 @@ export function StatsDashboard() {
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
                 Evolución diaria
               </h3>
-              <ColumnChart data={(stats.series?.diaria || []).slice(-30)} compactLabels color="#22d3ee" />
+              <ColumnChart data={(stats.series?.diaria || []).slice(-30)} compactLabels color="#2298A6" />
             </div>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-xl shadow-slate-950/20">
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
@@ -476,13 +476,13 @@ export function StatsDashboard() {
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
                 Por categoría
               </h3>
-              <BarList data={stats.distribuciones?.categoria || []} unit="reclamos" color="#8b5cf6" />
+              <BarList data={stats.distribuciones?.categoria || []} unit="reclamos" color="#1A7985" />
             </div>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
                 Por nivel
               </h3>
-              <BarList data={stats.distribuciones?.nivel || []} unit="tickets" color="#34d399" />
+              <BarList data={stats.distribuciones?.nivel || []} unit="tickets" color="#2298A6" />
             </div>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
@@ -524,7 +524,7 @@ export function StatsDashboard() {
               </div>
               <Link
                 href="/tickets"
-                className="text-[11px] font-mono text-cyan-300 hover:text-cyan-200 shrink-0"
+                className="text-[11px] font-mono text-ecolan-brand hover:text-ecolan-brand shrink-0"
               >
                 Ir a cola →
               </Link>
@@ -538,10 +538,10 @@ export function StatsDashboard() {
                     key={t.id}
                     href={`/soporte?ticket=${encodeURIComponent(t.id)}`}
                     onClick={() => selectTicket(t.id)}
-                    className="block p-3 rounded-xl border border-slate-800 bg-slate-950/55 hover:border-cyan-500/40 hover:bg-slate-950/80 transition-colors"
+                    className="block p-3 rounded-xl border border-slate-800 bg-slate-950/55 hover:border-ecolan-brand/40 hover:bg-slate-950/80 transition-colors"
                   >
                     <div className="flex justify-between items-center gap-2">
-                      <span className="font-mono text-cyan-300 text-[11px]">{t.id}</span>
+                      <span className="font-mono text-ecolan-brand text-[11px]">{t.id}</span>
                       <span className="text-[10px] font-mono text-slate-400">
                         {t.priority_score != null ? `${t.priority_score} pts` : `${t.horas_abierto} hs`}
                       </span>

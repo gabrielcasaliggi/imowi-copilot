@@ -34,8 +34,8 @@ def _seed_production_minimal(db: Session) -> dict:
         }
 
     orgs = [
-        Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#22d3ee"),
-        Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#34d399"),
+        Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#2298A6"),
+        Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#2298A6"),
     ]
     db.add_all(orgs)
     db.flush()
@@ -74,9 +74,9 @@ def seed_estate(db: Session) -> dict:
         return _seed_production_minimal(db)
 
     orgs = [
-        Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#22d3ee"),
-        Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#34d399"),
-        Organization(nombre="Cooperativa Viamonte", slug="coop-viamonte", logo_label="V", brand_color="#818cf8"),
+        Organization(nombre="Administración", slug="imowi", logo_label="A", brand_color="#2298A6"),
+        Organization(nombre="Cooperativa Batán", slug="coop-batan", logo_label="B", brand_color="#2298A6"),
+        Organization(nombre="Cooperativa Viamonte", slug="coop-viamonte", logo_label="V", brand_color="#1A7985"),
     ]
     db.add_all(orgs)
     db.flush()

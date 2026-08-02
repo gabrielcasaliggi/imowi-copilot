@@ -67,7 +67,7 @@ export function AgentSelfPanel() {
           </div>
           <div>
             <p className="text-[10px] font-mono uppercase text-slate-500">Asignados</p>
-            <p className="text-lg font-mono text-violet-300 mt-0.5">{mine.asignados}</p>
+            <p className="text-lg font-mono text-ecolan-brand mt-0.5">{mine.asignados}</p>
           </div>
           <div>
             <p className="text-[10px] font-mono uppercase text-slate-500">SLA riesgo</p>

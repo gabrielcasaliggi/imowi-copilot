@@ -104,7 +104,7 @@ export function AgentsTeamPanel() {
           {isAdmin && (
             <>
               {" · "}
-              <Link href="/admin" className="text-cyan-300 hover:text-cyan-200">
+              <Link href="/admin" className="text-ecolan-brand hover:text-ecolan-brand">
                 Gestionar usuarios en Admin
               </Link>
             </>
@@ -113,7 +113,7 @@ export function AgentsTeamPanel() {
       </div>
 
       {message && (
-        <p className="text-xs text-cyan-200 mb-2 border border-cyan-500/20 rounded-lg px-3 py-2 bg-cyan-500/8">
+        <p className="text-xs text-ecolan-brand mb-2 border border-ecolan-brand/20 rounded-lg px-3 py-2 bg-ecolan-brand/8">
           {message}
         </p>
       )}
@@ -146,7 +146,7 @@ export function AgentsTeamPanel() {
                         type="button"
                         disabled={busy}
                         onClick={() => void onToggle(a)}
-                        className="text-[11px] text-cyan-300 hover:text-cyan-200 disabled:opacity-50"
+                        className="text-[11px] text-ecolan-brand hover:text-ecolan-brand disabled:opacity-50"
                       >
                         {a.activo === false ? "Reactivar" : "Desactivar"}
                       </button>

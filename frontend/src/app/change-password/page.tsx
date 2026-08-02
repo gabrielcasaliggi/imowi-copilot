@@ -39,7 +39,7 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="flex-1 flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/60 p-8">
+      <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/60 shadow-sm p-8">
         <h1 className="text-xl font-semibold mb-2">Cambiar contraseña</h1>
         <p className="text-xs text-slate-500 mb-6">
           Debés definir una contraseña segura antes de continuar.
@@ -54,7 +54,7 @@ export default function ChangePasswordPage() {
               type="password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+              className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent font-mono"
               autoComplete="current-password"
             />
           </div>
@@ -67,7 +67,7 @@ export default function ChangePasswordPage() {
               type="password"
               value={next}
               onChange={(e) => setNext(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+              className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent font-mono"
               required
               minLength={10}
               autoComplete="new-password"
@@ -82,22 +82,21 @@ export default function ChangePasswordPage() {
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono"
+              className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent font-mono"
               required
               minLength={10}
               autoComplete="new-password"
             />
           </div>
           {error && (
-            <p className="text-sm text-red-400" role="alert">
+            <p className="text-sm text-rose-400" role="alert">
               {error}
             </p>
           )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-semibold text-slate-950 disabled:opacity-50"
-            style={{ background: "var(--brand)" }}
+            className="w-full py-3 rounded-xl font-semibold text-white bg-ecolan-brand hover:bg-ecolan-brand-dark disabled:opacity-50 shadow-sm transition-all duration-200 ease-in-out"
           >
             {loading ? "Guardando…" : "Guardar y continuar"}
           </button>
