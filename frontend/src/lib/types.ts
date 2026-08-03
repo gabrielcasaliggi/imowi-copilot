@@ -374,6 +374,9 @@ export interface KBContribution {
   revisado_por: string;
   motivo_revision: string;
   articulo_id: string;
+  organizacion_id?: string;
+  organizacion_slug?: string;
+  organizacion_nombre?: string;
   created_at?: string;
   updated_at?: string;
 }

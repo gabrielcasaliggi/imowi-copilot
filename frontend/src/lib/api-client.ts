@@ -636,7 +636,14 @@ export const api = {
     return request<{
       status: string;
       contribucion: KBContribution;
-      articulo: { id: string; titulo: string; categoria: string };
+      articulo: {
+        id: string;
+        titulo: string;
+        categoria: string;
+        organizacion_id?: string;
+        organizacion_slug?: string;
+        organizacion_nombre?: string;
+      };
     }>(`/api/v1/kb/contributions/${id}/approve`, {
       method: "POST",
       body: JSON.stringify(body || {}),

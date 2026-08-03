@@ -16,7 +16,14 @@ from app.estate.learning_loop import crear_propuesta_kb_desde_ticket
 router = APIRouter(tags=["Knowledge Estate"])
 
 
-def _contrib_out(c) -> dict:
+def _contrib_out(c, db: Session | None = None) -> dict:
+    org_slug = ""
+    org_nombre = ""
+    if db is not None and getattr(c, "organizacion_id", None):
+        org = repo.get_org_by_id(db, c.organizacion_id)
+        if org:
+            org_slug = org.slug or ""
+            org_nombre = org.nombre or ""
     return {
         "id": c.id,
         "ticket_id": c.ticket_id,
@@ -30,6 +37,9 @@ def _contrib_out(c) -> dict:
         "revisado_por": c.revisado_por,
         "motivo_revision": c.motivo_revision,
         "articulo_id": c.articulo_id,
+        "organizacion_id": getattr(c, "organizacion_id", "") or "",
+        "organizacion_slug": org_slug,
+        "organizacion_nombre": org_nombre,
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
@@ -127,7 +137,7 @@ def list_kb_contributions(
     return {
         "tenant": ctx.organizacion_slug,
         "estado": estado,
-        "contribuciones": [_contrib_out(c) for c in items],
+        "contribuciones": [_contrib_out(c, db) for c in items],
     }
 
 
@@ -201,7 +211,7 @@ def create_kb_contribution(
         recurso=contrib.id,
         detalle=f"{contrib.titulo} origen={contrib.origen}",
     )
-    return {"status": "ok", "contribucion": _contrib_out(contrib)}
+    return {"status": "ok", "contribucion": _contrib_out(contrib, db)}
 
 
 @router.get("/kb/contributions/{contrib_id}")
@@ -216,7 +226,7 @@ def get_kb_contribution(
     c = repo.get_kb_contribution(db, ctx.organizacion_id, contrib_id, admin_global=admin_global)
     if not c:
         raise HTTPException(404, f"Contribución {contrib_id} no encontrada")
-    return {"tenant": ctx.organizacion_slug, "contribucion": _contrib_out(c)}
+    return {"tenant": ctx.organizacion_slug, "contribucion": _contrib_out(c, db)}
 
 
 @router.post("/kb/contributions/{contrib_id}/approve")
@@ -263,10 +273,18 @@ def approve_kb_contribution(
         recurso=contrib.id,
         detalle=f"articulo={art.id} {art.titulo}",
     )
+    org = repo.get_org_by_id(db, contrib.organizacion_id)
     return {
         "status": "ok",
-        "contribucion": _contrib_out(contrib),
-        "articulo": {"id": art.id, "titulo": art.titulo, "categoria": art.categoria},
+        "contribucion": _contrib_out(contrib, db),
+        "articulo": {
+            "id": art.id,
+            "titulo": art.titulo,
+            "categoria": art.categoria,
+            "organizacion_id": contrib.organizacion_id,
+            "organizacion_slug": org.slug if org else "",
+            "organizacion_nombre": org.nombre if org else "",
+        },
     }
 
 
@@ -311,4 +329,4 @@ def reject_kb_contribution(
         recurso=contrib.id,
         detalle=contrib.motivo_revision[:500],
     )
-    return {"status": "ok", "contribucion": _contrib_out(contrib)}
+    return {"status": "ok", "contribucion": _contrib_out(contrib, db)}

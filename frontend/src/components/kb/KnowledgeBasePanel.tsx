@@ -53,7 +53,15 @@ function formatDate(iso?: string): string {
 }
 
 export function KnowledgeBasePanel() {
-  const { kb, createKbArticle, proposeKbArticle, deleteKbArticle, isAdmin } = useApp();
+  const {
+    kb,
+    createKbArticle,
+    proposeKbArticle,
+    deleteKbArticle,
+    isAdmin,
+    tenantSlug,
+    tenantContext,
+  } = useApp();
   const botName = getBranding().botDisplayName;
   const uses = intelligenceUses(botName);
   const [titulo, setTitulo] = useState("");
@@ -63,6 +71,11 @@ export function KnowledgeBasePanel() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+
+  const tenantLabel =
+    tenantContext?.organizacion_nombre ||
+    tenantSlug ||
+    "cooperativa activa";
 
   const categorias = useMemo(() => {
     const set = new Set(kb.map((a) => a.categoria).filter(Boolean));
@@ -133,8 +146,16 @@ export function KnowledgeBasePanel() {
     <div className="p-4 space-y-6 overflow-y-auto min-h-0">
       <SectionHeader
         title="Intelligence Knowledge Center"
-        subtitle={`Memoria operativa Batán · cada artículo mejora a ${botName} (N1/N2)`}
+        subtitle={`Memoria operativa · ${tenantLabel} · cada artículo mejora a ${botName} (N1/N2)`}
       />
+
+      {isAdmin && (
+        <p className="text-[11px] text-slate-500 -mt-3 mb-1">
+          La biblioteca muestra solo la KB de la cooperativa seleccionada arriba
+          {tenantSlug ? ` (${tenantSlug})` : ""}. Si aprobás una propuesta de otra
+          coop, el sistema cambia el tenant automáticamente.
+        </p>
+      )}
 
       {isAdmin && (
         <SidebarSection title="Revisión de aportes">

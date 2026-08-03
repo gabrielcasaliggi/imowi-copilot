@@ -39,7 +39,7 @@ function EstadoPill({ estado }: { estado: string }) {
 }
 
 export function KbReviewTray() {
-  const { isAdmin, tenantSlug, refreshData, appendTrace } = useApp();
+  const { isAdmin, tenantSlug, setTenant, refreshData, appendTrace } = useApp();
   const [items, setItems] = useState<KBContribution[]>([]);
   const [filtro, setFiltro] = useState<"pendiente" | "todas" | "aprobada" | "rechazada">(
     "pendiente",
@@ -84,6 +84,9 @@ export function KbReviewTray() {
     setBusy(true);
     setMessage("");
     try {
+      const targetSlug =
+        selected.organizacion_slug ||
+        undefined;
       const res = await api.approveKbContribution(
         selected.id,
         {
@@ -94,11 +97,25 @@ export function KbReviewTray() {
         },
         tenantSlug,
       );
-      appendTrace([`✅ KB aprobada: ${res.articulo.titulo}`]);
-      setMessage("Aprobada e incorporada a la base de conocimiento.");
+      const pubSlug =
+        res.articulo.organizacion_slug || targetSlug || tenantSlug;
+      const pubName =
+        res.articulo.organizacion_nombre ||
+        selected.organizacion_nombre ||
+        pubSlug ||
+        "la cooperativa";
+      appendTrace([`✅ KB aprobada: ${res.articulo.titulo} → ${pubName}`]);
+      // La biblioteca se filtra por tenant: cambiar a la org donde quedó el artículo
+      if (pubSlug && pubSlug !== tenantSlug) {
+        await setTenant(pubSlug);
+      } else {
+        await refreshData();
+      }
+      setMessage(
+        `Aprobada e incorporada a la KB de ${pubName}. Ya debería verse en la biblioteca abajo.`,
+      );
       setSelected(null);
       await load();
-      await refreshData();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "No se pudo aprobar");
     } finally {
@@ -198,6 +215,9 @@ export function KbReviewTray() {
                   <EstadoPill estado={c.estado} />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
+                  {c.organizacion_nombre || c.organizacion_slug
+                    ? `${c.organizacion_nombre || c.organizacion_slug} · `
+                    : ""}
                   {c.categoria}
                   {c.nivel_ticket ? ` · ${c.nivel_ticket}` : ""}
                   {c.ticket_id ? ` · ${c.ticket_id}` : ""}

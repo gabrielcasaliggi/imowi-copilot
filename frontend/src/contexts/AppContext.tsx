@@ -82,7 +82,7 @@ interface AppContextValue {
   login: (usuario: string, password: string) => Promise<void>;
   logout: () => void;
   setTenant: (slug: string) => Promise<void>;
-  refreshData: () => Promise<void>;
+  refreshData: (slugOverride?: string) => Promise<void>;
   sendMessage: (
     text: string,
     forzar?: boolean,
@@ -201,11 +201,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(() => logout());
   }, [logout]);
 
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (slugOverride?: string) => {
     const admin = user?.rol === "admin";
     const perms = user?.permisos ?? [];
     const has = (c: string) => admin || perms.includes(c);
-    const slug = admin ? tenantSlug || getTenantSlug() || "imowi" : undefined;
+    const slug = admin
+      ? slugOverride || tenantSlug || getTenantSlug() || "imowi"
+      : undefined;
     const ctx = await api.sessionContext(slug);
     setTenantContext(ctx);
 
@@ -382,7 +384,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFichaJsc(null);
       setLineaDetectada("");
       setNetworkAlert(null);
-      await refreshData();
+      await refreshData(slug);
       appendTrace([`🔀 Vista NOC → ${slug}`]);
     },
     [refreshData, appendTrace],
