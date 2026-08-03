@@ -212,6 +212,8 @@ def _recortar_system_prompt(system_content: str, max_tokens: int) -> str:
 
 
 def _construir_system_prompt(data: ChatInput, resultado_rag, consulta: str) -> str:
+    from app.services.prompt_safety import with_anti_injection
+
     partes = [SYSTEM_PROMPT_BASE]
 
     if resultado_rag.encontrado:
@@ -223,7 +225,7 @@ def _construir_system_prompt(data: ChatInput, resultado_rag, consulta: str) -> s
 
     partes.append(_bloque_fase_conversacion(data))
     partes.append(_bloque_contexto_ticket(data))
-    return _recortar_system_prompt("\n".join(partes), KNOWLEDGE_MAX_SYSTEM_TOKENS)
+    return _recortar_system_prompt(with_anti_injection("\n".join(partes)), KNOWLEDGE_MAX_SYSTEM_TOKENS)
 
 
 def _construir_mensajes(data: ChatInput, system_content: str) -> list[dict]:

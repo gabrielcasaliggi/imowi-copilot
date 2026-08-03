@@ -139,13 +139,37 @@ def diagnosticar_turno(
             "motivo": "pedido_humano",
         }
 
-    historial = _historial_texto(historial_mensajes)
-    checklist_txt = _checklist_texto(checklist, pasos_cubiertos)
-    kb = (kb_fragmento or "").strip()[:800]
-    kb_block = f"\nConocimiento útil (opcional):\n{kb}\n" if kb else ""
-    turnos = max(0, int(turnos_diagnostico or 0))
+    from app.services.prompt_safety import (
+        format_historial_seguro,
+        looks_like_jailbreak,
+        sanitize_user_text,
+        strip_instruction_phrases,
+        with_anti_injection,
+        wrap_untrusted,
+    )
 
-    system = (
+    # Inyección / jailbreak: no dejar que el LLM elija escalate/resolved
+    if looks_like_jailbreak(mensaje_cliente):
+        fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+        return {**fb, "motivo": "bloqueado_prompt_injection"}
+
+    historial = format_historial_seguro(
+        [
+            {
+                "rol": getattr(m, "rol", None) or (m.get("rol") if isinstance(m, dict) else "usuario"),
+                "contenido": getattr(m, "contenido", None)
+                or (m.get("contenido") if isinstance(m, dict) else str(m)),
+            }
+            for m in (historial_mensajes or [])
+        ]
+    )
+    checklist_txt = _checklist_texto(checklist, pasos_cubiertos)
+    kb = strip_instruction_phrases((kb_fragmento or "").strip()[:800])
+    kb_block = f"\nConocimiento útil (opcional):\n{wrap_untrusted('KB', kb, max_chars=800)}\n" if kb else ""
+    turnos = max(0, int(turnos_diagnostico or 0))
+    msg_safe = sanitize_user_text(mensaje_cliente)
+
+    system = with_anti_injection(
         f"Sos {BOT_DISPLAY_NAME}, técnico N1 de {PRODUCT_DISPLAY_NAME} "
         "(Cooperativa Batán / Ecolan + móvil IMOWI). "
         "Diagnosticás como un profesional de soporte: escuchás, pedís un dato útil, "
@@ -167,13 +191,13 @@ def diagnosticar_turno(
     )
 
     user = (
-        f"Intención: {intencion}\n"
+        f"Intención: {sanitize_user_text(intencion, max_chars=80)}\n"
         f"Turnos de diagnóstico ya hechos: {turnos}\n"
         f"Pasos ya cubiertos: {', '.join(pasos_cubiertos) or '(ninguno)'}\n"
         f"Checklist guía:\n{checklist_txt}\n"
         f"{kb_block}"
-        f"Historial:\n{historial}\n\n"
-        f"Último mensaje del cliente: {mensaje_cliente}\n"
+        f"{wrap_untrusted('HISTORIAL', historial, max_chars=6000)}\n\n"
+        f"{wrap_untrusted('ULTIMO_MENSAJE_CLIENTE', msg_safe)}\n"
         "Decidí el próximo acto."
     )
 
@@ -214,6 +238,23 @@ def diagnosticar_turno(
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]
                 paso = fb.get("paso_cubierto") or paso
+
+        # Escalate por IA solo si el checklist está casi agotado (evita inyección → ticket)
+        if accion == "escalate" and not forzar_agente:
+            ids = []
+            for p in checklist or []:
+                pid = p.get("id") if isinstance(p, dict) else getattr(p, "id", "")
+                if pid:
+                    ids.append(str(pid))
+            cubiertos = {str(x) for x in (pasos_cubiertos or [])}
+            restantes = [i for i in ids if i not in cubiertos]
+            if len(restantes) > 1 and turnos < max(MIN_TURNOS_ANTES_ESCALAR + 2, 5):
+                accion = "ask"
+                motivo = "bloqueado_escalate_sin_agotamiento"
+                if not mensaje or "?" not in mensaje:
+                    fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+                    mensaje = fb["mensaje"]
+                    paso = fb.get("paso_cubierto") or paso
 
         if accion == "resolved":
             t = (mensaje_cliente or "").lower()

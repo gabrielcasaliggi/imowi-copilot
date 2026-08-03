@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.estate import repository as repo
 from app.knowledge import buscar_contexto, formatear_contexto_para_prompt
+from app.services.prompt_safety import strip_instruction_phrases
 
 
 def buscar_unificado(
@@ -59,7 +60,11 @@ def buscar_unificado(
     ctx_partes = []
     if tenant_hits:
         ctx_partes.append(
-            "\n".join(f"- [Tenant] {a.titulo} ({a.categoria}): {a.contenido[:300]}" for a in tenant_hits)
+            "\n".join(
+                f"- [Tenant] {a.titulo} ({a.categoria}): "
+                f"{strip_instruction_phrases(a.contenido[:300])}"
+                for a in tenant_hits
+            )
         )
     if rag_encontrado:
         ctx_partes.append(formatear_contexto_para_prompt(rag))

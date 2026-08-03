@@ -150,15 +150,24 @@ async def generar_respuesta_chat(
         "si es pedir_datos, pedí solo lo que falta; si generó ticket N1 o N2, informá con claridad. "
         "Podés mejorar la redacción de la respuesta sugerida, pero no contradigas sus decisiones."
     )
+    from app.services.prompt_safety import (
+        format_historial_seguro,
+        sanitize_user_text,
+        strip_instruction_phrases,
+        with_anti_injection,
+        wrap_untrusted,
+    )
+
+    sys = with_anti_injection(sys)
     user = (
-        f"HISTORIAL:\n{_fmt_hist(historial)}\n\n"
-        f"RESPUESTA SUGERIDA POR REGLAS:\n{respuesta_sugerida or ''}\n\n"
+        f"{wrap_untrusted('HISTORIAL', format_historial_seguro(historial))}\n\n"
+        f"RESPUESTA SUGERIDA POR REGLAS:\n{sanitize_user_text(respuesta_sugerida or '', max_chars=1200)}\n\n"
         f"CASO ACTIVO:\n{caso_conversacion or {}}\n\n"
         f"TICKET ACTIVO O CREADO:\n{ticket or {}}\n\n"
         f"TICKET EXISTENTE:\n{ticket_existente or {}}\n\n"
         f"TICKETS SIMILARES:\n{(tickets_similares or [])[:5]}\n\n"
-        f"KB DOCUMENTAL / RAG:\n{contexto_kb[:2200]}\n\n"
-        f"BASE OPERATIVA DE ANOMALÍAS:\n{contexto_red[:1200]}\n\n"
+        f"{wrap_untrusted('KB_DOCUMENTAL', strip_instruction_phrases(contexto_kb[:2200]), max_chars=2200)}\n\n"
+        f"BASE OPERATIVA DE ANOMALÍAS:\n{sanitize_user_text(contexto_red[:1200], max_chars=1200)}\n\n"
         f"DIAGNÓSTICO AGENTE 2:\n{informe_agente2}\n\n"
         f"CLASIFICACIÓN:\n{clasificacion or {}}\n\n"
         f"ACCIONES AGENTE 3:\n{acciones_agente3}\n\n"

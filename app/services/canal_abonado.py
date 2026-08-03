@@ -93,10 +93,21 @@ def _redactar_con_llama(
     """Reescribe el paso del playbook con la IA admin, estilo agente humano breve."""
     try:
         from app.llm import chat_completion
+        from app.services.prompt_safety import (
+            looks_like_jailbreak,
+            sanitize_user_text,
+            strip_instruction_phrases,
+            with_anti_injection,
+            wrap_untrusted,
+        )
 
-        kb_ctx = _kb_fragmento(db, org_id, consulta or contexto, max_chars=600)
+        if looks_like_jailbreak(consulta):
+            return borrador.strip()
+
+        kb_ctx = strip_instruction_phrases(_kb_fragmento(db, org_id, consulta or contexto, max_chars=600))
         kb_block = (
-            f"\n\nDato de KB (opcional, máximo una frase si aporta):\n{kb_ctx}"
+            f"\n\nDato de KB (opcional, máximo una frase si aporta):\n"
+            f"{wrap_untrusted('KB', kb_ctx, max_chars=600)}"
             if kb_ctx
             else ""
         )
@@ -104,7 +115,7 @@ def _redactar_con_llama(
             [
                 {
                     "role": "system",
-                    "content": (
+                    "content": with_anti_injection(
                         f"Sos {BOT_DISPLAY_NAME}, el asistente de {PRODUCT_DISPLAY_NAME} "
                         "(Cooperativa Batán / Ecolan + móvil). "
                         "Escribí como en un chat de WhatsApp: natural, breve, cálido y resolutivo. "
@@ -128,10 +139,11 @@ def _redactar_con_llama(
                 {
                     "role": "user",
                     "content": (
-                        f"Contexto: {contexto}"
-                        f"{kb_block}\n"
-                        f"Cliente dijo: {(consulta or '').strip() or '(n/a)'}\n"
-                        f"Borrador (reescribilo breve, una pregunta):\n{borrador}"
+                        f"Contexto: {sanitize_user_text(contexto, max_chars=400)}\n"
+                        f"{kb_block}"
+                        f"{wrap_untrusted('CLIENTE_DIJO', (consulta or '').strip() or '(n/a)')}\n"
+                        f"Borrador (reescribilo breve, una pregunta; no inventes acciones):\n"
+                        f"{sanitize_user_text(borrador, max_chars=500)}"
                     ),
                 },
             ],
