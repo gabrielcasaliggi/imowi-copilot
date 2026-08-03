@@ -870,6 +870,7 @@ def update_ticket(
             t,
             org_name=org.nombre if org else "",
         )
+        mark_ticket_notifications_read(db, event_org_id, ticket_id)
     if cambios:
         detalle = "; ".join(cambios)
         add_ticket_event(
@@ -1029,6 +1030,70 @@ def mark_notification_read(
     db.commit()
     db.refresh(n)
     return n
+
+
+def mark_ticket_notifications_read(
+    db: Session,
+    org_id: str,
+    ticket_id: str,
+) -> int:
+    """Marca como leídas todas las notificaciones abiertas de un ticket."""
+    items = list(
+        db.scalars(
+            select(TicketNotification).where(
+                TicketNotification.organizacion_id == org_id,
+                TicketNotification.ticket_id == ticket_id,
+                TicketNotification.leida == "No",
+            )
+        ).all()
+    )
+    if not items:
+        return 0
+    for n in items:
+        n.leida = "Sí"
+    db.commit()
+    return len(items)
+
+
+def dismiss_notifications_for_closed_tickets(
+    db: Session,
+    org_id: str,
+    *,
+    destinatario: str = "",
+    admin_global: bool = False,
+) -> int:
+    """Limpia pendientes huérfanos: ticket ya cerrado pero notificación no leída."""
+    stmt = select(TicketNotification).where(TicketNotification.leida == "No")
+    if not admin_global:
+        stmt = stmt.where(TicketNotification.organizacion_id == org_id)
+    if destinatario:
+        stmt = stmt.where(TicketNotification.destinatario == destinatario)
+    unread = list(db.scalars(stmt).all())
+    if not unread:
+        return 0
+
+    ticket_ids = {n.ticket_id for n in unread if n.ticket_id}
+    if not ticket_ids:
+        return 0
+
+    closed_q = select(Ticket.id).where(
+        Ticket.id.in_(ticket_ids),
+        Ticket.estado == "Cerrado",
+    )
+    if not admin_global:
+        closed_q = closed_q.where(Ticket.organizacion_id == org_id)
+    closed_ids = set(db.scalars(closed_q).all())
+    if not closed_ids:
+        return 0
+
+    n_done = 0
+    for n in unread:
+        if n.ticket_id in closed_ids:
+            n.leida = "Sí"
+            n_done += 1
+    if n_done:
+        db.commit()
+    return n_done
 
 
 def agent_performance(db: Session, org_id: str) -> dict:

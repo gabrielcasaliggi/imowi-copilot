@@ -179,12 +179,20 @@ def list_notifications(
     db: Session = Depends(get_db),
 ):
     destinatario = "" if ctx.es_admin_imowi else ctx.usuario_email
+    admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
+    # Descarta alertas de tickets ya cerrados (p. ej. asignación vieja)
+    repo.dismiss_notifications_for_closed_tickets(
+        db,
+        ctx.organizacion_id,
+        destinatario=destinatario,
+        admin_global=admin_global,
+    )
     items = repo.list_ticket_notifications(
         db,
         ctx.organizacion_id,
         destinatario=destinatario,
         solo_no_leidas=unread,
-        admin_global=ctx.es_admin_imowi and ctx.organizacion_slug == "imowi",
+        admin_global=admin_global,
     )
     return {"tenant": ctx.organizacion_slug, "notificaciones": [_notification_out(n) for n in items]}
 

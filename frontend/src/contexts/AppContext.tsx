@@ -94,6 +94,7 @@ interface AppContextValue {
   confirmarNuevoReclamoLinea: () => Promise<void>;
   selectTicket: (id: string) => Promise<void>;
   updateTicket: (body: Record<string, string>) => Promise<void>;
+  markNotificationRead: (notificationId: string) => Promise<void>;
   loadStats: (desde?: string, hasta?: string) => Promise<void>;
   simulateFailure: (elemento: string) => Promise<void>;
   createKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
@@ -654,6 +655,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [ticketFormacion, isAdmin, tenantSlug, selectTicket, appendTrace],
   );
 
+  const markNotificationRead = useCallback(
+    async (notificationId: string) => {
+      const hdr = isAdmin ? tenantSlug : undefined;
+      try {
+        await api.markNotificationRead(notificationId, hdr);
+      } catch {
+        // si falla, igual refrescamos por si el backend ya la limpió
+      }
+      const notif = await api.notifications(hdr);
+      setNotifications(notif.notificaciones || []);
+    },
+    [isAdmin, tenantSlug],
+  );
+
   const loadStats = useCallback(
     async (desde?: string, hasta?: string) => {
       const data = await api.stats({ desde, hasta }, tenantSlug);
@@ -761,6 +776,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       confirmarNuevoReclamoLinea,
       selectTicket,
       updateTicket,
+      markNotificationRead,
       loadStats,
       simulateFailure,
       createKbArticle,
@@ -814,6 +830,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       confirmarNuevoReclamoLinea,
       selectTicket,
       updateTicket,
+      markNotificationRead,
       loadStats,
       simulateFailure,
       createKbArticle,

@@ -15,6 +15,8 @@ export interface PendingTask {
   detail: string;
   href: string;
   createdAt?: string;
+  /** ID real de TicketNotification (solo kind=ticket_notif) */
+  notificationId?: string;
 }
 
 const POLL_MS = 45_000;
@@ -45,7 +47,7 @@ function kindLabel(kind: PendingTaskKind): string {
 }
 
 export function PendingTasksBell() {
-  const { isAdmin, tenantSlug, notifications, user } = useApp();
+  const { isAdmin, tenantSlug, notifications, user, markNotificationRead } = useApp();
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<PendingTask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,6 +94,7 @@ export function PendingTasksBell() {
             ? `/soporte?ticket=${encodeURIComponent(n.ticket_id)}`
             : "/soporte",
           createdAt: n.created_at,
+          notificationId: n.id,
         });
       }
     } catch {
@@ -183,7 +186,12 @@ export function PendingTasksBell() {
                   <li key={t.id}>
                     <Link
                       href={t.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => {
+                        setOpen(false);
+                        if (t.kind === "ticket_notif" && t.notificationId) {
+                          void markNotificationRead(t.notificationId);
+                        }
+                      }}
                       className="block px-3 py-2.5 hover:bg-slate-900/80 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2">

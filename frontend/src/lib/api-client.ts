@@ -550,6 +550,13 @@ export const api = {
     );
   },
 
+  markNotificationRead(notificationId: string, tenantSlug?: string) {
+    return request<{ status: string; notificacion: TicketNotification }>(
+      `/api/v1/tickets/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: "PUT", tenantSlug },
+    );
+  },
+
   telemetry(tenantSlug?: string) {
     return request<{ tenant: string; elementos: TelemetryElement[] }>(
       "/api/v1/telemetry",
