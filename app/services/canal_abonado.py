@@ -536,10 +536,11 @@ def procesar_mensaje_entrante(
             "intencion": intencion,
         }
 
-    # Consulta nueva a mitad de otro flujo: reclasificar si cambia la intención
-    if parece_consulta_nueva(texto) and intencion:
+    # Consulta nueva a mitad de flujo: solo saltar a OTRO dominio específico.
+    # Nunca degradar a "general" (eso reinicia con el saludo del menú).
+    if parece_consulta_nueva(texto) and intencion and intencion != "general":
         nueva = clasificar_intencion(texto, servicio_abo)
-        if nueva and nueva != intencion:
+        if nueva and nueva != intencion and nueva != "general":
             intencion = nueva
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0

@@ -80,15 +80,15 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "tipo_consulta_factura",
-            "¿Es por saldo, copia de factura, pago con QR, u otra consulta?",
+            "¿Es por un importe que no entendés, saldo pendiente, copia de factura, o un pago?",
         ),
         PasoPlaybook(
-            "medios_pago_qr_factura",
-            "Para pagar usá el QR Fiserv de la factura con cualquier billetera. ¿Te sirvió?",
+            "detalle_importe",
+            "Contame qué ves distinto (monto, mes, o un cobro puntual) y lo vemos. ¿Me pasás ese detalle?",
         ),
         PasoPlaybook(
             "derivar_factura",
-            "Si hace falta revisar la cuenta adentro, ¿querés que te derive?",
+            "Si hace falta revisar la cuenta adentro, ¿querés que te derive con facturación?",
         ),
     ],
     "internet_ftth": [
@@ -409,19 +409,33 @@ def es_saludo_corto(texto: str) -> bool:
 
 
 def parece_consulta_nueva(texto: str) -> bool:
-    """Mensaje que inicia un reclamo/consulta, no un sí/no de diagnóstico."""
+    """Apertura clara de un tema nuevo (no una respuesta a mitad de flujo)."""
     t = (texto or "").lower().strip()
-    if len(t) < 12:
+    if len(t) < 14:
         return False
-    return any(
-        k in t
-        for k in (
-            "quisiera", "quería", "queria", "quiero", "necesito", "consultar",
-            "consulta", "me podes", "me podés", "podes ayud", "podés ayud",
-            "tengo un problema", "no me anda", "no funciona", "estado de",
-            "cuánto pago", "cuanto pago", "dar de baja", "reclamo",
-        )
+    aperturas = (
+        "quisiera consultar",
+        "quería consultar",
+        "queria consultar",
+        "quiero consultar",
+        "necesito consultar",
+        "necesito ayuda con",
+        "tengo un problema",
+        "tengo un reclamo",
+        "quiero hacer un reclamo",
+        "me podes ayudar",
+        "me podés ayudar",
+        "estado de mi cuenta",
+        "estado de cuenta",
+        "consultar el estado",
+        "dar de baja",
+        "cambiar de plan",
+        "otro tema",
+        "otra consulta",
+        "en realidad es por",
+        "ahora es por",
     )
+    return any(k in t for k in aperturas)
 
 
 def respuesta_paso_ok(texto: str) -> bool | None:
@@ -430,6 +444,13 @@ def respuesta_paso_ok(texto: str) -> bool | None:
         return None
     # Saludos y consultas nuevas no son sí/no de un paso de playbook
     if es_saludo_corto(t) or parece_consulta_nueva(t):
+        return None
+    # Respuestas informativas con "aún no / no lo pagué" ≠ fallo de diagnóstico
+    if re.search(r"\b(aun|aún|todavia|todavía)\s+no\b", t):
+        return None
+    if re.search(r"\bno\s+lo\s+(pague|pagué|pago)\b", t):
+        return None
+    if re.search(r"\bporque\s+quiero\b", t) or "motivo del" in t or "motivo de" in t:
         return None
     palabras_ok = (
         "si", "sí", "ok", "dale", "listo", "hecho", "verificado", "ya",
@@ -440,14 +461,17 @@ def respuesta_paso_ok(texto: str) -> bool | None:
         "no", "sigue", "persiste", "igual", "nada", "falla", "mal",
         "sigue sin", "tampoco", "peor", "no funciona", "no anda",
     )
-    if any(_token_en_texto(t, p) if len(p) <= 4 else p in t for p in palabras_fail):
-        # "no funciona" etc. ya cubiertos; evitar 'no' dentro de otras palabras
-        if any(p in t for p in ("no funciona", "no anda", "sigue sin", "tampoco", "peor")):
-            return False
-        if _token_en_texto(t, "no") or any(
-            _token_en_texto(t, p) for p in ("sigue", "persiste", "igual", "nada", "falla", "mal")
+    if any(p in t for p in ("no funciona", "no anda", "sigue sin", "tampoco", "peor")):
+        return False
+    if _token_en_texto(t, "no") or any(
+        _token_en_texto(t, p) for p in ("sigue", "persiste", "igual", "nada", "falla", "mal")
+    ):
+        # "no" suelto en frases largas informativas → no forzar fallo
+        if len(t.split()) >= 6 and not any(
+            p in t for p in ("no funciona", "no anda", "sigue sin", "sigue igual", "tampoco")
         ):
-            return False
+            return None
+        return False
     if any(_token_en_texto(t, p) if len(p) <= 4 else p in t for p in palabras_ok):
         return True
     return None
