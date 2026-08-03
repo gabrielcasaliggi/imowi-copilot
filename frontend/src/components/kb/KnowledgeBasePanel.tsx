@@ -21,7 +21,7 @@ const SUGGESTED_CATEGORIES = [
 ] as const;
 
 const INTELLIGENCE_USES = [
-  "Mejora respuestas del asistente en la consola",
+  "Mejora respuestas de Eco en la consola",
   "Refuerza clasificación de síntomas (internet, móvil, deuda)",
   "Alimenta recomendaciones de próximo paso y escalamiento N2",
   "Reduce repreguntas cuando el agente usa lenguaje libre",
@@ -111,7 +111,7 @@ export function KnowledgeBasePanel() {
     <div className="p-4 space-y-6 overflow-y-auto min-h-0">
       <SectionHeader
         title="Intelligence Knowledge Center"
-        subtitle="Memoria operativa Batán · cada artículo mejora al asistente N1/N2"
+        subtitle="Memoria operativa Batán · cada artículo mejora a Eco (N1/N2)"
       />
 
       {isAdmin && (

@@ -9,6 +9,7 @@ import {
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { botEstadoLabel, getBranding } from "@/lib/brand";
 
 const PORTAL_KEY = "ops_hub_portal_session";
 const showDemo =
@@ -39,7 +40,7 @@ function saveStored(s: PortalStored | null) {
 function canalEstadoLabel(estado: string): string {
   switch (estado) {
     case "bot":
-      return "Bot N1";
+      return botEstadoLabel();
     case "espera_agente":
       return "Espera agente";
     case "con_agente":
@@ -537,7 +538,9 @@ export default function PortalPage() {
               }`}
               aria-live="polite"
             >
-              {botTyping ? "Recibido · el asistente está armando la respuesta…" : "·"}
+              {botTyping
+                ? `Recibido · ${getBranding().botDisplayName} está armando la respuesta…`
+                : "·"}
             </p>
             <form onSubmit={onSend} className="flex gap-2.5">
               <label className="sr-only" htmlFor="portal-mensaje">

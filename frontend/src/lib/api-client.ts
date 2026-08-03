@@ -119,6 +119,14 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 }
 
 export const api = {
+  publicBranding() {
+    return request<{
+      bot_display_name: string;
+      bot_display_name_short: string;
+      org_hint: string;
+    }>("/api/v1/public/branding", { skipAuth: true, timeoutMs: 8_000 });
+  },
+
   login(usuario: string, password: string) {
     return request<LoginResponse>("/api/login", {
       method: "POST",

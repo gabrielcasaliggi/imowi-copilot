@@ -4,6 +4,7 @@ from app.api.v1 import (
     admin,
     analytics,
     auth_security_api,
+    branding,
     chat,
     demo,
     inbox,
@@ -19,6 +20,7 @@ from app.api.v1 import (
 )
 
 api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(branding.router)
 api_v1.include_router(chat.router)
 api_v1.include_router(demo.router)
 api_v1.include_router(jsc.router)

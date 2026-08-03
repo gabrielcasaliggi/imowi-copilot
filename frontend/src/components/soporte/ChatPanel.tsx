@@ -224,7 +224,7 @@ export function ChatPanel() {
               </p>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Usá el panel derecho para notas, seguimiento y proponer a KB. El chat en vivo
-                aparece cuando el bot armó el ticket desde el canal.
+                aparece cuando Eco armó el ticket desde el canal.
               </p>
             </div>
           </div>

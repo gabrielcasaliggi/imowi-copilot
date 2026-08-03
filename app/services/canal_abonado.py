@@ -24,6 +24,7 @@ from app.estate.models import Abonado, ConversacionCanal
 from app.services import ticket_bridge
 from app.services.platform_settings import playbooks_as_pasos
 from app.services.whatsapp_client import enviar_texto
+from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT
 
 logger = logging.getLogger("operations_hub")
 
@@ -148,7 +149,7 @@ def _crear_ticket_n2(
         paso_idx=paso_idx,
     )
     descripcion = (
-        f"[ORIGEN: BOT] {tag} Escalamiento N2 canal abonado ({nombre}): {motivo}. {handoff}"
+        f"[ORIGEN: {BOT_DISPLAY_NAME_SHORT}] {tag} Escalamiento N2 canal abonado ({nombre}): {motivo}. {handoff}"
     )
     t = ticket_bridge.crear_ticket(
         db,
@@ -321,7 +322,7 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = (
-                    "Hola, soy el Asistente Virtual de Cooperativa Batán y Ecolan. "
+                    f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de Cooperativa Batán y Ecolan. "
                     "Para identificarte (facturas, diagnóstico de cuenta o visitas), "
                     "enviame tu DNI o N.º de socio. Si preferís, escribí *agente*."
                 )

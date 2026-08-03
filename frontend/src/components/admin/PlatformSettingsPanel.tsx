@@ -380,7 +380,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         <GlassCard title="BillTrack — padrón de clientes (solo lectura)" accent="amber" variant="secondary">
           <div className="grid gap-3 md:grid-cols-2">
             <p className="md:col-span-2 text-xs text-amber-200/90">
-              Conexión externa para que el bot consulte datos de clientes y valide acciones. No es la
+              Conexión externa para que Eco consulte datos de clientes y valide acciones. No es la
               base del sistema. Este servidor on-prem no habla SSL: dejá <code>disable</code>.
             </p>
             <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
@@ -390,7 +390,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 onChange={(e) => setBilltrack({ ...billtrack, enabled: e.target.checked })}
                 className="rounded border-slate-600"
               />
-              Habilitar consultas BillTrack para el bot
+              Habilitar consultas BillTrack para Eco
             </label>
             <div>
               <label className={labelCls}>Host / IP</label>

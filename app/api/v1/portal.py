@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import (
+    BOT_DISPLAY_NAME,
     OTP_LENGTH,
     OTP_MAX_ATTEMPTS,
     OTP_TTL_MINUTES,
@@ -411,7 +412,7 @@ def portal_auth_verify(
     if not mensajes:
         nombre = (abo.nombre if abo else hit.get("nombre") or "hola").split()[0]
         saludo = (
-            f"Hola {nombre}, soy el asistente de {org.nombre}. "
+            f"Hola {nombre}, soy {BOT_DISPLAY_NAME}, el asistente de {org.nombre}. "
             "¿Tu consulta es por internet, móvil IMOVI, o factura/deuda?"
         )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
@@ -559,7 +560,7 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
     if not mensajes:
         saludo = (
-            f"Hola, soy el asistente de {org.nombre}. "
+            f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de {org.nombre}. "
             "Estás en modo invitado (sin datos de cuenta). "
             "Para identificarte usá tu DNI en el acceso seguro. "
             "¿En qué podemos ayudarte?"

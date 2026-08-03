@@ -1,12 +1,13 @@
 "use client";
 
 import type { InboxMessage } from "@/lib/api-client";
+import { getBranding } from "@/lib/brand";
 
 type AutorKind = "cliente" | "bot" | "agente" | string;
 
 function originLabel(autor: AutorKind, portal?: boolean): string {
   if (autor === "cliente") return portal ? "VOS" : "ABONADO";
-  if (autor === "bot") return "BOT";
+  if (autor === "bot") return getBranding().botDisplayNameShort;
   if (autor === "agente") return "AGENTE";
   return String(autor || "SISTEMA").toUpperCase();
 }
@@ -63,15 +64,16 @@ export function ChatMessageBubble({
 }
 
 export function ChatTypingIndicator() {
+  const { botDisplayName, botDisplayNameShort } = getBranding();
   return (
     <div
       className="chat-bubble-bot mr-auto max-w-[min(90%,28rem)] px-3.5 py-2.5 rounded-xl text-sm shadow-sm"
       aria-live="polite"
-      aria-label="El asistente está escribiendo"
+      aria-label={`${botDisplayName} está escribiendo`}
     >
       <span className="chat-origin-label chat-origin-label-accent mb-1.5 block">
         <span className="opacity-60">[ORIGEN:</span>
-        <span className="text-ecolan-brand">BOT</span>
+        <span className="text-ecolan-brand">{botDisplayNameShort}</span>
         <span className="opacity-60">]</span>
       </span>
       <div className="flex items-center gap-1.5 py-0.5">

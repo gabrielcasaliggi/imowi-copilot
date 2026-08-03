@@ -17,6 +17,7 @@ import {
   MessagesEmptyIcon,
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
+import { botEstadoLabel, getBranding } from "@/lib/brand";
 
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
@@ -28,7 +29,7 @@ function canalLabel(c: InboxConversation): string {
 function estadoLabel(estado: string): string {
   switch (estado) {
     case "bot":
-      return "Bot N1";
+      return botEstadoLabel();
     case "espera_agente":
       return "Espera agente";
     case "con_agente":
@@ -244,7 +245,7 @@ export function InboxPanel() {
             {isAdmin
               ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
               : can("tickets.reassign")
-                ? "Canal en vivo: monitoreá bot y abonados. La asignación de trabajo N2 se hace en Cola."
+                ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} y abonados. La asignación de trabajo N2 se hace en Cola.`
                 : "Canal en vivo: ves lo que entra. Si hay ticket N2, podés tomarlo y abrir Consola desde acá."}
           </p>
         </div>
@@ -259,7 +260,7 @@ export function InboxPanel() {
             className="bg-slate-950 border border-slate-600/80 rounded-lg px-3 py-2 text-xs transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
           >
             <option value="">Abiertas</option>
-            <option value="bot">Bot N1</option>
+            <option value="bot">{botEstadoLabel()}</option>
             <option value="espera_agente">Espera agente</option>
             <option value="con_agente">Con agente</option>
             <option value="cerrado">Cerradas</option>
@@ -510,7 +511,7 @@ export function InboxPanel() {
                     ? "Monitoreo del canal. Usá “Tomar y abrir Consola” para atender al abonado."
                     : (
                       <>
-                        Solo monitoreo. Cuando el bot arme el ticket N2, podés tomarlo acá o en{" "}
+                        Solo monitoreo. Cuando {getBranding().botDisplayName} arme el ticket N2, podés tomarlo acá o en{" "}
                         <Link href="/tickets" className="text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200">
                           Cola
                         </Link>
@@ -521,7 +522,7 @@ export function InboxPanel() {
               )}
               {isAdmin && detail.estado === "bot" && (
                 <p className="px-4 pb-3 text-[11px] text-slate-500">
-                  El bot N1 está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
+                  {getBranding().botDisplayName} (N1) está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
                 </p>
               )}
             </>

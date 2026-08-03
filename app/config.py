@@ -89,6 +89,12 @@ PUBLIC_URL = os.getenv("PUBLIC_URL", os.getenv("DOMAIN", "")).strip().rstrip("/"
 if PUBLIC_URL and not PUBLIC_URL.startswith("http"):
     PUBLIC_URL = f"https://{PUBLIC_URL}"
 
+# Branding — asistente abonado (N1 canal). No confundir con Copilot NOC.
+BOT_DISPLAY_NAME = (os.getenv("BOT_DISPLAY_NAME", "Eco") or "Eco").strip() or "Eco"
+BOT_DISPLAY_NAME_SHORT = (
+    os.getenv("BOT_DISPLAY_NAME_SHORT", "") or BOT_DISPLAY_NAME
+).strip().upper() or "ECO"
+
 # OTP portal
 OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6") or "6")
 OTP_TTL_MINUTES = int(os.getenv("OTP_TTL_MINUTES", "10") or "10")
