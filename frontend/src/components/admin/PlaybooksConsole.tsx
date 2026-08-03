@@ -117,6 +117,11 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
       let info = keys.length
         ? `${keys.length} flujo(s) listos. Marcá cuáles aplicar y pulsá «Aplicar seleccionados».`
         : "La conversión no devolvió flujos aplicables.";
+      if (res.aviso) {
+        info = `${res.aviso} ${info}`;
+      } else if (res.fuente === "fallback") {
+        info = `Borrador automático (sin IA). ${info}`;
+      }
       if (descartados.length) {
         info += ` Claves ignoradas: ${descartados.join(", ")}.`;
       }

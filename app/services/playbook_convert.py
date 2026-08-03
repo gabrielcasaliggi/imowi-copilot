@@ -160,34 +160,225 @@ def normalize_playbooks_payload(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def convert_document_to_playbooks(db: Session | None, texto: str) -> dict[str, Any]:
-    """Llama a la IA de plataforma y normaliza el resultado."""
+    """Llama a la IA de plataforma y normaliza el resultado.
+
+    Si la IA falla o hace timeout, usa un fallback heurístico para no dejar
+    al admin sin flujos seleccionables.
+    """
     texto = (texto or "").strip()
     if len(texto) < 40:
         raise ValueError("El texto es demasiado corto para convertir")
     if len(texto) > 80_000:
         raise ValueError("El texto supera el límite (80.000 caracteres)")
 
+    # Acotar input: documentos largos ralentizan mucho modelos locales/remotos
+    texto_ia = texto if len(texto) <= 10_000 else texto[:10_000] + "\n\n[…truncado…]"
+
     from app.services.platform_settings import resolve_ai
 
     cfg = resolve_ai(db)
     from openai import OpenAI
 
-    client = OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"] or "ollama")
-    resp = client.chat.completions.create(
-        model=cfg["model"],
-        messages=[
-            {"role": "system", "content": _SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    "Convertí este documento de soporte a playbooks N1:\n\n"
-                    f"{texto}"
-                ),
-            },
-        ],
-        temperature=0.2,
-        max_tokens=4096,
+    try:
+        client = OpenAI(
+            base_url=cfg["base_url"],
+            api_key=cfg["api_key"] or "ollama",
+            timeout=90.0,
+        )
+        resp = client.chat.completions.create(
+            model=cfg["model"],
+            messages=[
+                {"role": "system", "content": _SYSTEM},
+                {
+                    "role": "user",
+                    "content": (
+                        "Convertí este documento de soporte a playbooks N1. "
+                        "Priorizá pocas preguntas cortas al abonado.\n\n"
+                        f"{texto_ia}"
+                    ),
+                },
+            ],
+            temperature=0.2,
+            max_tokens=2048,
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        parsed = _extract_json(content)
+        result = normalize_playbooks_payload(parsed)
+        result["fuente"] = "ia"
+        return result
+    except Exception as e:
+        # Timeout / red / JSON inválido / modelo caído → fallback usable
+        try:
+            fb = fallback_convert_from_text(texto)
+        except ValueError:
+            if isinstance(e, ValueError):
+                raise e
+            raise ValueError(
+                f"La IA falló ({str(e)[:160]}) y el fallback tampoco pudo armar flujos."
+            ) from e
+        fb["fuente"] = "fallback"
+        fb["aviso"] = (
+            f"La IA no pudo completar la conversión ({str(e)[:120]}). "
+            "Se generó un borrador automático; revisalo antes de guardar."
+        )
+        return fb
+
+
+def _extract_questions(texto: str, limit: int = 8) -> list[str]:
+    found: list[str] = []
+    for m in re.finditer(r"¿[^?\n]{8,160}\?", texto):
+        q = re.sub(r"\s+", " ", m.group(0)).strip()
+        if q and q not in found:
+            found.append(q)
+        if len(found) >= limit:
+            break
+    return found
+
+
+def fallback_convert_from_text(texto: str) -> dict[str, Any]:
+    """Conversión sin IA: detecta tipo de documento y arma pasos lineales."""
+    t = (texto or "").lower()
+    questions = _extract_questions(texto)
+
+    def pasos_from_questions(
+        qs: list[str],
+        defaults: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        if not qs:
+            return defaults
+        out: list[dict[str, str]] = []
+        for i, q in enumerate(qs[:6]):
+            out.append({"id": f"paso_{i + 1}", "pregunta": q})
+        # Asegurar cierre de derivación
+        last = (out[-1]["pregunta"] if out else "").lower()
+        if "deriv" not in last and "ticket" not in last:
+            out.append(defaults[-1])
+        return out
+
+    out: dict[str, list[dict[str, str]]] = {}
+
+    no_tec = any(
+        k in t
+        for k in (
+            "no es técnico",
+            "no es tecnico",
+            "ticket genérico",
+            "ticket generico",
+            "tema comercial",
+            "tema administrativo",
+            "reclamo formal",
+            "consulta general",
+            "otro / no",
+        )
     )
-    content = (resp.choices[0].message.content or "").strip()
-    parsed = _extract_json(content)
-    return normalize_playbooks_payload(parsed)
+    lento = any(k in t for k in ("anda lento", "internet lento", "velocidad", "speedtest"))
+    fibra = "fibra" in t or "ftth" in t or "ont" in t
+    adsl = "adsl" in t
+    radio = "radioenlace" in t or "inalámbrico" in t or "inalambrico" in t or "antena" in t
+
+    if no_tec:
+        defaults = [
+            {
+                "id": "ampliar_reclamo",
+                "pregunta": "Dale, contame un poco más para ayudarte o derivarte al área correcta.",
+            },
+            {
+                "id": "tipo_reclamo",
+                "pregunta": "¿Es por factura o pago, plan/alta/baja, un reclamo formal, o otra consulta?",
+            },
+            {
+                "id": "dato_cliente",
+                "pregunta": "¿Me pasás DNI o N.º de socio para ubicar tu cuenta?",
+            },
+            {
+                "id": "derivar_area",
+                "pregunta": "Con eso te derivo al área que corresponde. ¿Querés que abra el ticket?",
+            },
+        ]
+        out["no_tecnico"] = pasos_from_questions(questions, defaults)
+
+    if lento or fibra or adsl or radio:
+        if fibra or (lento and "fibra" in t):
+            out["internet_ftth"] = [
+                {
+                    "id": "reinicio_ont",
+                    "pregunta": "¿Reiniciaste la ONT y el router 30 segundos?",
+                },
+                {
+                    "id": "dispositivos",
+                    "pregunta": "¿Hay muchos equipos conectados al WiFi ahora?",
+                },
+                {
+                    "id": "test_cable",
+                    "pregunta": "Si podés, hacé un test por cable en fast.com y decime cuánto da.",
+                },
+                {
+                    "id": "derivar_ftth",
+                    "pregunta": "Si sigue bajo, ¿querés que te derive con un técnico?",
+                },
+            ]
+        if adsl:
+            out["internet_adsl"] = [
+                {
+                    "id": "ruido_linea",
+                    "pregunta": "¿Hay ruido o cortes en la línea telefónica?",
+                },
+                {
+                    "id": "reinicio_adsl",
+                    "pregunta": "¿Mejoró al reiniciar el módem 30 segundos?",
+                },
+                {
+                    "id": "derivar_adsl",
+                    "pregunta": "Si no vuelve, ¿querés que te derive con un técnico?",
+                },
+            ]
+        if radio:
+            out["internet_radio"] = [
+                {
+                    "id": "antena",
+                    "pregunta": "¿La antena externa se ve bien alineada, sin obstáculos?",
+                },
+                {
+                    "id": "horario",
+                    "pregunta": "¿La velocidad es baja todo el día o solo en ciertos momentos?",
+                },
+                {
+                    "id": "derivar_radio",
+                    "pregunta": "Si sigue igual, ¿abramos un ticket para revisión técnica?",
+                },
+            ]
+        if lento:
+            out["internet_lento"] = [
+                {
+                    "id": "tipo_acceso",
+                    "pregunta": "¿Tenés fibra, antena en el techo, o internet por teléfono (ADSL)?",
+                },
+                {
+                    "id": "test_velocidad",
+                    "pregunta": "Si podés, hacé un test por cable en fast.com y decime cuánto da.",
+                },
+                {
+                    "id": "reinicio_lento",
+                    "pregunta": "Reiniciá módem/router 30 segundos y probá de nuevo. ¿Mejoró?",
+                },
+                {
+                    "id": "derivar_lento",
+                    "pregunta": "Si sigue bajo, ¿querés que te pase con un agente?",
+                },
+            ]
+
+    if not out:
+        # Genérico: menú general + preguntas extraídas
+        defaults = [
+            {
+                "id": "detalle",
+                "pregunta": "Contame un poco más qué te está pasando y lo vemos.",
+            },
+            {
+                "id": "derivar",
+                "pregunta": "Si hace falta, ¿querés que te derive con un agente?",
+            },
+        ]
+        out["general"] = pasos_from_questions(questions, defaults)
+
+    return normalize_playbooks_payload({"playbooks": out, "sugeridos": list(out.keys())})

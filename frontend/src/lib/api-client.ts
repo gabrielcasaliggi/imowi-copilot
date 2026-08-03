@@ -911,9 +911,12 @@ export const api = {
       sugeridos: string[];
       descartados?: string[];
       claves_validas?: string[];
+      fuente?: string;
+      aviso?: string;
     }>("/api/v1/admin/playbooks/convert", {
       method: "POST",
       body: JSON.stringify({ texto }),
+      timeoutMs: 120_000,
     });
   },
 
