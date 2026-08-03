@@ -591,8 +591,35 @@ def pide_humano(texto: str) -> bool:
             "representante",
             "quiero hablar",
             "pasar con alguien",
+            "venir un tecnico",
+            "venir un técnico",
+            "mande un tecnico",
+            "mande un técnico",
+            "manda un tecnico",
+            "manda un técnico",
+            "envie un tecnico",
+            "envíe un técnico",
+            "que venga",
+            "visita tecnica",
+            "visita técnica",
+            "deberia venir",
+            "debería venir",
+            "tienen que venir",
+            "tiene que venir",
         )
     )
+
+
+def pide_humano_en_flujo_activo(texto: str, ctx: dict) -> bool:
+    """True si pide persona/técnico estando ya en un diagnóstico N1."""
+    if not pide_humano(texto):
+        return False
+    intent = str(ctx.get("intencion") or "").strip()
+    if not intent or intent == "general":
+        return False
+    turnos = int(ctx.get("diag_turnos") or 0)
+    paso = int(ctx.get("paso_idx") or 0)
+    return turnos >= 1 or paso >= 1
 
 
 def es_escape_agente(texto: str) -> bool:

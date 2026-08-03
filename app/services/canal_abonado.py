@@ -18,6 +18,7 @@ from app.domain.flujos_abonado import (
     misma_queja,
     parece_consulta_nueva,
     pide_humano,
+    pide_humano_en_flujo_activo,
     refinar_intencion_internet,
     registrar_queja,
     resumen_handoff,
@@ -250,7 +251,11 @@ def _aplicar_diagnostico_ia(
     turnos = int(ctx.get("diag_turnos") or 0)
     cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     kb = _kb_fragmento(db, org_id, texto)
-    forzar = bool(es_escape_agente(texto))
+    forzar = bool(
+        es_escape_agente(texto)
+        or pide_humano_en_flujo_activo(texto, ctx)
+        or pide_humano(texto)
+    )
 
     result = diagnosticar_turno(
         intencion=intencion,
@@ -467,13 +472,17 @@ def procesar_mensaje_entrante(
             "intencion": intent or None,
         }
 
-    # Escape hatch *agente* o 2ª insistencia sin síntoma → ticket.
-    # Pedido de humano CON síntoma → sigue N1 (no cortar acá).
-    # Primer pedido sin síntoma → menú + CTA *agente*.
-    if es_escape_agente(texto) or (
-        pide_humano(texto)
-        and not contiene_sintoma_canal(texto)
-        and int(ctx.get("pidio_humano") or 0) >= 1
+    # Escape hatch *agente*, pedido de técnico a mitad de diagnóstico,
+    # o 2ª insistencia sin síntoma → ticket.
+    # Pedido de humano al inicio SIN síntoma y SIN flujo → menú + CTA *agente*.
+    if (
+        es_escape_agente(texto)
+        or pide_humano_en_flujo_activo(texto, ctx)
+        or (
+            pide_humano(texto)
+            and not contiene_sintoma_canal(texto)
+            and int(ctx.get("pidio_humano") or 0) >= 1
+        )
     ):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
         tid = _crear_ticket_n2(
@@ -481,13 +490,13 @@ def procesar_mensaje_entrante(
             org_id,
             conv,
             abonado,
-            "Cliente solicitó agente humano",
+            "Cliente solicitó agente/técnico",
             intencion=intent,
-            paso_idx=int(ctx.get("paso_idx") or 0),
+            paso_idx=int(ctx.get("paso_idx") or ctx.get("diag_turnos") or 0),
         )
         resp = (
-            f"Te derivo con un agente. Ticket {tid}. "
-            "Quedate en esta conversación, te van a responder acá."
+            f"Dale, te derivo con un agente y le paso lo que charlamos. "
+            f"Ticket {tid}. Quedate en este chat."
         )
         _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
         return {

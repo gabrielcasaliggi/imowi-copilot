@@ -63,12 +63,28 @@ def test_detecta_frustracion_requiere_progreso_n1():
 
 
 def test_escape_agente_y_sintoma():
+    from app.domain.flujos_abonado import pide_humano_en_flujo_activo
+
     assert es_escape_agente("*agente*") is True
     assert es_escape_agente("agente") is True
     assert es_escape_agente("Quiero hablar con un operador") is False
     assert contiene_sintoma_canal("pasame con operador que no anda internet") is True
     assert contiene_sintoma_canal("quiero un operador") is False
     assert pide_humano("quiero un operador") is True
+    assert pide_humano("nose como hacer eso, deberia venir un tecnico") is True
+    assert pide_humano("tienen que mandar una visita técnica") is True
+    assert pide_humano_en_flujo_activo(
+        "deberia venir un tecnico",
+        {"intencion": "wifi", "diag_turnos": 2},
+    ) is True
+    assert pide_humano_en_flujo_activo(
+        "deberia venir un tecnico",
+        {"intencion": "wifi", "diag_turnos": 0, "paso_idx": 0},
+    ) is False
+    assert pide_humano_en_flujo_activo(
+        "quiero un operador",
+        {"intencion": "", "diag_turnos": 0},
+    ) is False
 
 
 def test_typo_internet_clasifica():
