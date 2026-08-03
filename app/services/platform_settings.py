@@ -94,6 +94,7 @@ def _default_payload() -> dict[str, Any]:
         },
         "canal": {
             "usar_llama_default": True,
+            "diagnostico_ia": True,
         },
         "playbooks": {
             nombre: [
@@ -288,6 +289,15 @@ def resolve_canal_usar_llama(db: Session | None = None) -> bool:
     """Si el canal abonado (portal/WA) debe redactar con la IA configurada en admin."""
     s = get_merged_settings(db).get("canal") or {}
     raw = s.get("usar_llama_default", True)
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes", "on", "si", "sí")
+    return bool(raw) if raw is not None else True
+
+
+def resolve_canal_diagnostico_ia(db: Session | None = None) -> bool:
+    """Si N1 técnico usa IA para diagnosticar (playbook = checklist)."""
+    s = get_merged_settings(db).get("canal") or {}
+    raw = s.get("diagnostico_ia", True)
     if isinstance(raw, str):
         return raw.strip().lower() in ("1", "true", "yes", "on", "si", "sí")
     return bool(raw) if raw is not None else True

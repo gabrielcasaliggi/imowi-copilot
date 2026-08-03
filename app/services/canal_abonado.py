@@ -27,7 +27,8 @@ from app.domain.flujos_abonado import (
 from app.estate import canal_repo as crepo
 from app.estate.models import Abonado, ConversacionCanal
 from app.services import ticket_bridge
-from app.services.platform_settings import playbooks_as_pasos
+from app.services.diagnostico_n1 import diagnosticar_turno, es_intencion_diagnostico
+from app.services.platform_settings import playbooks_as_pasos, resolve_canal_diagnostico_ia
 from app.services.whatsapp_client import enviar_texto
 from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
 
@@ -208,6 +209,121 @@ def _enviar_respuesta(
     if enviar_wa and conv.canal == "whatsapp":
         enviar_texto(conv.telefono, texto)
     return texto
+
+
+def _aplicar_diagnostico_ia(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+    usar_llama: bool,
+) -> dict | None:
+    """Modo técnico: la IA diagnostica con el playbook como checklist.
+
+    Retorna respuesta del canal o None si no aplica (seguir flujo estructurado).
+    """
+    if not usar_llama or not resolve_canal_diagnostico_ia(db):
+        return None
+    if not es_intencion_diagnostico(intencion):
+        return None
+
+    pb = _playbooks(db)
+    checklist = pb.get(intencion) or pb.get("general") or []
+    historial = crepo.list_mensajes(db, conv.id)
+    turnos = int(ctx.get("diag_turnos") or 0)
+    cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    kb = _kb_fragmento(db, org_id, texto)
+    forzar = bool(es_escape_agente(texto))
+
+    result = diagnosticar_turno(
+        intencion=intencion,
+        checklist=checklist,
+        historial_mensajes=historial,
+        mensaje_cliente=texto,
+        turnos_diagnostico=turnos,
+        pasos_cubiertos=cubiertos,
+        kb_fragmento=kb,
+        forzar_agente=forzar,
+    )
+
+    accion = result.get("accion") or "ask"
+    mensaje = (result.get("mensaje") or "").strip()
+    paso = (result.get("paso_cubierto") or "").strip()
+    if paso and paso not in cubiertos:
+        cubiertos.append(paso)
+    ctx["pasos_cubiertos"] = cubiertos
+    ctx["diag_turnos"] = turnos + 1
+    ctx["paso_idx"] = min(len(cubiertos), max(len(checklist) - 1, 0))
+    ctx["ultima_diag_motivo"] = (result.get("motivo") or "")[:200]
+    ctx["intencion"] = intencion
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+
+    if accion == "escalate":
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            f"Diagnóstico N1 IA: {result.get('motivo') or 'escalate'} ({intencion})",
+            intencion=intencion,
+            paso_idx=int(ctx.get("paso_idx") or 0),
+        )
+        if not mensaje or "ticket" not in mensaje.lower():
+            mensaje = (
+                f"Avancé todo lo posible en soporte N1 y generé el ticket {tid} "
+                "para un agente. Te van a responder por este mismo chat."
+            )
+        elif tid not in mensaje:
+            mensaje = f"{mensaje} Ticket {tid}."
+        _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": mensaje,
+            "estado": conv.estado,
+            "ticket_id": tid,
+            "intencion": intencion,
+            "diagnostico_ia": True,
+        }
+
+    if accion == "resolved":
+        conv.estado = "cerrado"
+        db.commit()
+        if not mensaje:
+            mensaje = (
+                "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
+                "escribime de nuevo. ¡Gracias!"
+            )
+        _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "cerrado",
+            "conversacion_id": conv.id,
+            "respuesta": mensaje,
+            "estado": conv.estado,
+            "intencion": intencion,
+            "diagnostico_ia": True,
+        }
+
+    if not mensaje:
+        mensaje = "Contame un poco más del problema para seguir el diagnóstico."
+    _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": mensaje,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "diagnostico_ia": True,
+    }
 
 
 def procesar_mensaje_entrante(
@@ -502,6 +618,8 @@ def procesar_mensaje_entrante(
             paso_inicial = 1
         ctx["intencion"] = intencion
         ctx["paso_idx"] = paso_inicial
+        ctx["diag_turnos"] = 0
+        ctx["pasos_cubiertos"] = []
         conv.servicio_detectado = (
             intencion
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")
@@ -549,7 +667,24 @@ def procesar_mensaje_entrante(
                 "intencion": intencion,
             }
         # Pagos identificados (no corte): conservar plantilla; no reescribir con LLM
-        usar_llm_paso = usar_llama and intencion not in ("corte_deuda", "facturacion")
+        if intencion in ("corte_deuda", "facturacion"):
+            usar_llm_paso = False
+        else:
+            # Diagnóstico IA (técnicos): playbook = checklist
+            diag = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+                usar_llama=usar_llama,
+            )
+            if diag is not None:
+                return diag
+            usar_llm_paso = usar_llama
         if usar_llm_paso:
             pregunta = _redactar_con_llama(
                 pregunta,
@@ -575,11 +710,26 @@ def procesar_mensaje_entrante(
             intencion = refinada
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
             conv.servicio_detectado = intencion
             crepo.set_contexto(conv, ctx)
             db.commit()
             pb = _playbooks(db)
             pasos = pb.get(intencion) or pb["general"]
+            diag = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+                usar_llama=usar_llama,
+            )
+            if diag is not None:
+                return diag
             pregunta = pasos[0].pregunta
             if usar_llama:
                 pregunta = _redactar_con_llama(
@@ -606,10 +756,25 @@ def procesar_mensaje_entrante(
             intencion = nueva
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
             crepo.set_contexto(conv, ctx)
             db.commit()
             pb = _playbooks(db)
             pasos = pb.get(intencion) or pb["general"]
+            diag = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+                usar_llama=usar_llama,
+            )
+            if diag is not None:
+                return diag
             pregunta = pasos[0].pregunta
             if usar_llama:
                 pregunta = _redactar_con_llama(
@@ -665,10 +830,25 @@ def procesar_mensaje_entrante(
             intencion = nueva
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
             crepo.set_contexto(conv, ctx)
             db.commit()
             pb = _playbooks(db)
             pasos = pb.get(intencion) or pb["general"]
+            diag = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+                usar_llama=usar_llama,
+            )
+            if diag is not None:
+                return diag
             pregunta = pasos[0].pregunta
             if usar_llama:
                 pregunta = _redactar_con_llama(
@@ -687,6 +867,21 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "intencion": intencion,
             }
+
+    # Continuación: técnicos con diagnóstico IA (sin sí/no rígido del playbook)
+    diag = _aplicar_diagnostico_ia(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion=intencion,
+        usar_llama=usar_llama,
+    )
+    if diag is not None:
+        return diag
 
     pb = _playbooks(db)
     pasos = pb.get(intencion) or pb["general"]

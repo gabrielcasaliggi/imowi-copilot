@@ -300,7 +300,10 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
       <GlassCard title="Importar documento" accent="cyan" variant="secondary">
         <p className="text-xs text-slate-500 mb-2 leading-relaxed">
           Pegá o subí un guión de troubleshooting (.txt / .md). La IA lo convierte a
-          flujos lineales; después elegís cuáles aplicar al playbook general.
+          flujos lineales; después elegís cuáles aplicar al playbook general. En
+          intenciones técnicas (internet, WiFi, móvil…) el playbook actúa como{" "}
+          <strong className="font-medium text-slate-400">checklist de diagnóstico</strong>
+          : Eco pregunta con IA según el caso, no solo lee el guión.
         </p>
         <textarea
           className={`${inputCls} font-mono text-xs min-h-[140px]`}
