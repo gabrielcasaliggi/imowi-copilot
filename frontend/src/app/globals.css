@@ -107,11 +107,12 @@ button:focus-visible {
 
 .enterprise-panel-header {
   font-size: 0.7rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: var(--text-dim);
   margin-bottom: 0.75rem;
+  font-weight: 600;
 }
 
 .chip {
@@ -121,7 +122,9 @@ button:focus-visible {
   padding: 0.2rem 0.55rem;
   border-radius: 9999px;
   font-size: 0.6875rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.06em;
   border: 1px solid var(--border-subtle);
 }
 
@@ -170,9 +173,9 @@ button:focus-visible {
 
 .sidebar-section-title {
   font-size: 0.6875rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
   font-weight: 600;
 }
@@ -341,9 +344,10 @@ button:focus-visible {
   padding: 0.15rem 0.55rem;
   border-radius: 9999px;
   font-size: 0.6875rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   border: 1px solid transparent;
   white-space: nowrap;
 }

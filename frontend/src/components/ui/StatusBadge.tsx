@@ -27,7 +27,7 @@ export function StatusBadge({ value }: { value: string }) {
     "bg-gray-100 text-gray-700 border-gray-200 dark:bg-slate-600/20 dark:text-slate-300 dark:border-slate-500/30";
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-mono font-medium uppercase tracking-wide rounded-full border transition-all duration-200 ease-in-out ${cls}`}
+      className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-full border transition-all duration-200 ease-in-out ${cls}`}
     >
       {value}
     </span>

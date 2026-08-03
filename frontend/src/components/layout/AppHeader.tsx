@@ -34,7 +34,7 @@ export function AppHeader() {
         </div>
         <div className="min-w-0">
           <h1 className="font-semibold text-slate-100 truncate tracking-tight">{orgName}</h1>
-          <p className="text-[10px] font-mono text-slate-500 truncate uppercase">
+          <p className="text-[10px] font-medium text-slate-500 truncate uppercase tracking-wide">
             {user?.rol || "agente"}
           </p>
         </div>
@@ -43,7 +43,7 @@ export function AppHeader() {
       <div className="flex items-center gap-3 flex-wrap justify-end">
         {isAdmin && (
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
+            <span className="text-[10px] font-medium text-slate-500 hidden sm:inline">
               Tenant
             </span>
             <select
@@ -68,7 +68,7 @@ export function AppHeader() {
         <button
           type="button"
           onClick={logout}
-          className="text-xs font-mono px-3 py-1.5 rounded-lg border border-slate-600/80 text-slate-400 hover:text-slate-200 hover:border-slate-500 hover:bg-slate-800/50 transition-all duration-200 ease-in-out"
+          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-600/80 text-slate-400 hover:text-slate-200 hover:border-slate-500 hover:bg-slate-800/50 transition-all duration-200 ease-in-out"
         >
           Salir
         </button>

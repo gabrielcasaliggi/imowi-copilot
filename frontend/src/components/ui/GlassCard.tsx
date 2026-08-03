@@ -134,7 +134,7 @@ export function KpiCard({
             : "text-slate-100";
   return (
     <div className={`rounded-xl border p-3.5 shadow-sm transition-all duration-200 ease-in-out ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-wider font-mono text-slate-400">
+      <p className="text-[11px] uppercase tracking-wider font-medium text-slate-500">
         {label}
       </p>
       <p className={`text-2xl font-semibold mt-1 tabular-nums tracking-tight ${valueClass}`}>{value}</p>

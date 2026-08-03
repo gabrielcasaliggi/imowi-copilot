@@ -277,7 +277,7 @@ export default function PortalPage() {
       <header className="border-b border-slate-800/80 px-4 py-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold tracking-tight">Portal abonado · Cooperativa Batán</p>
-          <p className="text-[10px] font-mono text-slate-500">Ecolan + IMOVI · soporte</p>
+          <p className="text-[10px] font-medium text-slate-500">Ecolan + IMOVI · soporte</p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
@@ -324,7 +324,7 @@ export default function PortalPage() {
             {mode === "dni" ? (
               <form onSubmit={onStartDni} className="space-y-3">
                 <div>
-                  <label htmlFor="portal-dni" className="text-xs font-mono text-slate-400 block mb-1">
+                  <label htmlFor="portal-dni" className="text-xs font-medium text-slate-500 block mb-1.5">
                     DNI
                   </label>
                   <input
@@ -333,7 +333,7 @@ export default function PortalPage() {
                     onChange={(e) => setDni(e.target.value)}
                     placeholder="Solo números"
                     inputMode="numeric"
-                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
+                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm tabular-nums transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     required
                   />
                 </div>
@@ -348,7 +348,7 @@ export default function PortalPage() {
             ) : (
               <form onSubmit={onPinLogin} className="space-y-3">
                 <div>
-                  <label htmlFor="portal-dni-pin" className="text-xs font-mono text-slate-400 block mb-1">
+                  <label htmlFor="portal-dni-pin" className="text-xs font-medium text-slate-500 block mb-1.5">
                     DNI
                   </label>
                   <input
@@ -357,12 +357,12 @@ export default function PortalPage() {
                     onChange={(e) => setDni(e.target.value)}
                     placeholder="Solo números"
                     inputMode="numeric"
-                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
+                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm tabular-nums transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="portal-pin" className="text-xs font-mono text-slate-400 block mb-1">
+                  <label htmlFor="portal-pin" className="text-xs font-medium text-slate-500 block mb-1.5">
                     PIN
                   </label>
                   <input
@@ -372,7 +372,7 @@ export default function PortalPage() {
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
                     placeholder="6–8 dígitos"
-                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
+                    className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm tabular-nums transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     required
                   />
                 </div>
@@ -410,7 +410,7 @@ export default function PortalPage() {
               Enviamos un código a <span className="font-mono text-slate-300">{contactMasked}</span>
             </p>
             <div>
-              <label htmlFor="portal-otp" className="text-xs font-mono text-slate-400 block mb-1">
+              <label htmlFor="portal-otp" className="text-xs font-medium text-slate-500 block mb-1.5">
                 Código OTP
               </label>
               <input
@@ -461,7 +461,7 @@ export default function PortalPage() {
             <h1 className="text-lg font-semibold">Creá un PIN (opcional)</h1>
             <p className="text-xs text-slate-400">Para próximos ingresos sin OTP. 6 a 8 dígitos.</p>
             <div>
-              <label htmlFor="portal-new-pin" className="text-xs font-mono text-slate-400 block mb-1">
+              <label htmlFor="portal-new-pin" className="text-xs font-medium text-slate-500 block mb-1.5">
                 Nuevo PIN
               </label>
               <input
@@ -471,7 +471,7 @@ export default function PortalPage() {
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
                 placeholder="6–8 dígitos"
-                className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
+                className="w-full bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm tabular-nums transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                 minLength={6}
                 maxLength={8}
                 required

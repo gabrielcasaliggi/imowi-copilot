@@ -118,7 +118,7 @@ export function SidebarNav() {
         })}
       </nav>
       <aside className="w-60 shrink-0 border-r border-slate-800/80 p-3 bg-ecolan-dark/30 hidden lg:block">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 px-2 mb-3">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500 px-2 mb-3">
           Navegación
         </p>
         <nav className="space-y-4">
@@ -127,7 +127,7 @@ export function SidebarNav() {
             if (!items.length) return null;
             return (
               <div key={group.title}>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 px-2 mb-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500 px-2 mb-1.5">
                   {group.title}
                 </p>
                 <div className="space-y-1">

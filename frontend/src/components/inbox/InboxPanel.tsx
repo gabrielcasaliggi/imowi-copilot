@@ -236,7 +236,7 @@ export function InboxPanel() {
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-4 overflow-hidden">
       <div className="flex flex-wrap justify-between gap-3 items-end">
         <div className="space-y-1">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-ecolan-brand">
             Canal abonado
           </p>
           <h2 className="text-xl font-semibold text-slate-50 tracking-tight">Bandeja</h2>

@@ -29,7 +29,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       onClick={toggleTheme}
       title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-      className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-600/80 text-slate-400 hover:text-slate-100 hover:border-slate-500 hover:bg-slate-800/40 transition-all duration-200 ease-in-out ${
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-600/80 text-slate-500 hover:text-slate-100 hover:border-slate-500 hover:bg-slate-800/40 transition-all duration-200 ease-in-out ${
         compact ? "p-1.5" : "px-2.5 py-1.5 text-[11px] font-medium"
       }`}
     >
