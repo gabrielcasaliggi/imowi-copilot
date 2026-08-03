@@ -30,9 +30,199 @@ INTENCIONES_DIAGNOSTICO = frozenset({
 
 MIN_TURNOS_ANTES_ESCALAR = 3
 
+_AFIRMACIONES = (
+    "si",
+    "sí",
+    "sip",
+    "correcto",
+    "exacto",
+    "afirmativo",
+    "tal cual",
+    "claro",
+    "eso",
+    "asi es",
+    "así es",
+    "confirmo",
+)
+
+_DANO_FIBRA = (
+    "daño",
+    "dano",
+    "dañado",
+    "danado",
+    "roto",
+    "rota",
+    "partido",
+    "cortado",
+    "quebrado",
+    "doblado",
+    "quemado",
+    "rajado",
+    "fisura",
+    "roto el cable",
+    "cable roto",
+)
+
+_WIFI_MARKERS = (
+    "wifi",
+    "wi-fi",
+    "wi fi",
+    "por cable",
+    "cable directo",
+    "saturación",
+    "saturacion",
+    "canal",
+    "solo wifi",
+)
+
 
 def es_intencion_diagnostico(intencion: str) -> bool:
     return (intencion or "").strip() in INTENCIONES_DIAGNOSTICO
+
+
+def _autor_texto(m: Any) -> tuple[str, str]:
+    autor = getattr(m, "autor", None) or (m.get("autor") if isinstance(m, dict) else "")
+    texto = getattr(m, "texto", None) or (m.get("texto") if isinstance(m, dict) else "")
+    if not texto and isinstance(m, dict):
+        texto = m.get("contenido") or m.get("mensaje") or ""
+    return str(autor or ""), str(texto or "")
+
+
+def _es_afirmacion(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(k in t for k in ("luz roja", "roja", "encendida", "prendida", "sigue")):
+        # "tengo una luz roja" / "sigue en rojo" cuenta como evidencia óptica
+        if any(k in t for k in ("roja", "rojo", "los", "pon")):
+            return True
+    if t in _AFIRMACIONES:
+        return True
+    return any(t == a or t.startswith(a + " ") or t.startswith(a + ",") for a in _AFIRMACIONES)
+
+
+def _bot_menciona_los(texto: str) -> bool:
+    t = texto or ""
+    tl = t.lower()
+    if "LOS" in t:
+        return True
+    return any(
+        k in tl
+        for k in (
+            "luz los",
+            "la los",
+            "led los",
+            "los'",
+            "'los",
+            "los en",
+            "los apagada",
+            "los prendida",
+            "pon está",
+            "pon esta",
+        )
+    )
+
+
+def _bot_pregunta_fibra(texto: str) -> bool:
+    tl = (texto or "").lower()
+    return any(
+        k in tl
+        for k in (
+            "fibra",
+            "cable amarillo",
+            "dobleces",
+            "daños visibles",
+            "danos visibles",
+            "enchufado en la ont",
+            "cable de fibra",
+        )
+    )
+
+
+def _tiene_dano_fibra(texto: str) -> bool:
+    tl = (texto or "").lower()
+    return any(k in tl for k in _DANO_FIBRA)
+
+
+def detectar_falla_optica_escalar(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None,
+) -> str | None:
+    """Si hay LOS confirmada + chequeo de fibra (o fibra dañada), hay que escalar.
+
+    No seguir con WiFi / saturación de canal: es capa óptica.
+    """
+    parts = [_autor_texto(m) for m in (historial_mensajes or [])]
+    last = (mensaje_cliente or "").strip()
+    if last and (not parts or parts[-1][1].strip() != last):
+        parts.append(("cliente", last))
+    recent = parts[-14:]
+    if not recent:
+        return None
+
+    bot_hablo_los = False
+    cliente_confirmo_los = False
+    bot_pregunto_fibra = False
+    for i, (autor, texto) in enumerate(recent):
+        if autor == "bot" and _bot_menciona_los(texto):
+            bot_hablo_los = True
+            for autor2, texto2 in recent[i + 1 :]:
+                if autor2 == "cliente":
+                    if _es_afirmacion(texto2) or _bot_menciona_los(texto2) or "roja" in texto2.lower():
+                        cliente_confirmo_los = True
+                    break
+        if autor == "bot" and _bot_pregunta_fibra(texto):
+            bot_pregunto_fibra = True
+
+    last_l = last.lower()
+    dano = _tiene_dano_fibra(last_l)
+    cliente_dice_los = any(
+        k in last_l
+        for k in (
+            "luz los",
+            "los roja",
+            "los en rojo",
+            "tengo los",
+            "led los",
+            "la los",
+        )
+    )
+
+    if dano and (bot_pregunto_fibra or bot_hablo_los or cliente_confirmo_los):
+        return "fibra_danada"
+    if cliente_confirmo_los and bot_pregunto_fibra and last:
+        return "los_con_chequeo_fibra"
+    if cliente_dice_los and dano:
+        return "los_y_fibra_danada"
+    if cliente_confirmo_los and dano:
+        return "los_y_fibra_danada"
+    return None
+
+
+def los_confirmada_en_historial(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None,
+) -> bool:
+    """True si el cliente ya confirmó LOS / luz óptica en rojo."""
+    if detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes):
+        return True
+    parts = [_autor_texto(m) for m in (historial_mensajes or [])]
+    last = (mensaje_cliente or "").strip()
+    if last and (not parts or parts[-1][1].strip() != last):
+        parts.append(("cliente", last))
+    recent = parts[-14:]
+    for i, (autor, texto) in enumerate(recent):
+        if autor == "bot" and _bot_menciona_los(texto):
+            for autor2, texto2 in recent[i + 1 :]:
+                if autor2 == "cliente":
+                    if _es_afirmacion(texto2) or "roja" in (texto2 or "").lower():
+                        return True
+                    break
+    last_l = last.lower()
+    return any(
+        k in last_l
+        for k in ("luz los", "los roja", "los en rojo", "tengo los", "led los")
+    )
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -87,6 +277,8 @@ def _fallback_ask(
     pasos: list[PasoPlaybook] | list[dict],
     cubiertos: list[str],
     mensaje_cliente: str,
+    *,
+    saltar_wifi: bool = False,
 ) -> dict[str, str]:
     done = set(cubiertos or [])
     for p in pasos or []:
@@ -97,14 +289,20 @@ def _fallback_ask(
             preg = str(p.get("pregunta") or "")
         else:
             continue
-        if pid not in done and preg:
-            return {
-                "accion": "ask",
-                "mensaje": preg,
-                "paso_cubierto": pid,
-                "motivo": "fallback_playbook",
-            }
-    # Checklist agotado
+        if pid in done or not preg:
+            continue
+        if saltar_wifi and (
+            "wifi" in pid.lower()
+            or any(k in preg.lower() for k in _WIFI_MARKERS)
+        ):
+            continue
+        return {
+            "accion": "ask",
+            "mensaje": preg,
+            "paso_cubierto": pid,
+            "motivo": "fallback_playbook",
+        }
+    # Checklist agotado (o solo quedaban pasos WiFi irrelevantes)
     return {
         "accion": "escalate",
         "mensaje": (
@@ -137,6 +335,19 @@ def diagnosticar_turno(
             ),
             "paso_cubierto": "",
             "motivo": "pedido_humano",
+        }
+
+    motivo_optico = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
+    if motivo_optico:
+        return {
+            "accion": "escalate",
+            "mensaje": (
+                "Con luz LOS y el estado del cable de fibra ya no lo resolvemos "
+                "a distancia: hace falta visita técnica. ¿Te derivo con un agente "
+                "para coordinar?"
+            ),
+            "paso_cubierto": "",
+            "motivo": motivo_optico,
         }
 
     from app.services.prompt_safety import (
@@ -183,9 +394,13 @@ def diagnosticar_turno(
         "- No inventes datos (OLT, potencias, saldos, turnos, lecturas de red).\n"
         "- No uses jerga interna del NOC ni listas/viñetas.\n"
         f"- NO uses escalate hasta haber hecho al menos {MIN_TURNOS_ANTES_ESCALAR} turnos "
-        f"de diagnóstico (ahora vas por el turno {turnos + 1}), salvo que el cliente pida "
-        "agente, técnico, visita técnica o que vaya alguien.\n"
+        f"de diagnóstico (ahora vas por el turno {turnos + 1}), salvo excepciones abajo.\n"
         "- Si pide técnico/visita/agente, escalate ya (no sigas el checklist).\n"
+        "- Si hay luz LOS en rojo / confirmada, o cable de fibra dañado/malo: escalate YA. "
+        "NUNCA preguntes por WiFi, cable al router ni saturación de canal después de LOS "
+        "o daño de fibra: es falla óptica, no de WiFi.\n"
+        "- Tras confirmar LOS, como máximo preguntá por el cable amarillo/fibra; "
+        "con la respuesta (dañado o no), escalate.\n"
         "- resolved solo si el cliente confirma explícitamente que ya funciona.\n"
         "- Si el cliente sigue con el problema, NUNCA resolved.\n"
         "- paso_cubierto: id del checklist que estás cubriendo en este turno (si aplica).\n"
@@ -231,9 +446,40 @@ def diagnosticar_turno(
         mensaje = str(data.get("mensaje") or "").strip()
         paso = str(data.get("paso_cubierto") or "").strip()
         motivo = str(data.get("motivo") or "ia").strip()[:200]
+        forzar_optico = bool(
+            detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
+            or (
+                los_confirmada_en_historial(mensaje_cliente, historial_mensajes)
+                and any(k in mensaje.lower() for k in _WIFI_MARKERS)
+            )
+        )
+
+        # Si la IA pregunta WiFi con LOS ya confirmada → forzar escalate óptico
+        if (
+            accion == "ask"
+            and los_confirmada_en_historial(mensaje_cliente, historial_mensajes)
+            and any(k in mensaje.lower() for k in _WIFI_MARKERS)
+        ):
+            accion = "escalate"
+            motivo = "bloqueado_wifi_post_los"
+            mensaje = (
+                "Con la luz LOS en rojo ya es un tema de fibra/señal óptica; "
+                "no se arregla mirando el WiFi. Te derivo para visita técnica."
+            )
 
         # Guardrails
-        if accion == "escalate" and turnos < MIN_TURNOS_ANTES_ESCALAR and not forzar_agente:
+        if (
+            accion == "escalate"
+            and turnos < MIN_TURNOS_ANTES_ESCALAR
+            and not forzar_agente
+            and not forzar_optico
+            and motivo not in (
+                "fibra_danada",
+                "los_con_chequeo_fibra",
+                "los_y_fibra_danada",
+                "bloqueado_wifi_post_los",
+            )
+        ):
             accion = "ask"
             motivo = "bloqueado_min_turnos"
             if not mensaje or "?" not in mensaje:
@@ -242,7 +488,17 @@ def diagnosticar_turno(
                 paso = fb.get("paso_cubierto") or paso
 
         # Escalate por IA solo si el checklist está casi agotado (evita inyección → ticket)
-        if accion == "escalate" and not forzar_agente:
+        if (
+            accion == "escalate"
+            and not forzar_agente
+            and not forzar_optico
+            and motivo not in (
+                "fibra_danada",
+                "los_con_chequeo_fibra",
+                "los_y_fibra_danada",
+                "bloqueado_wifi_post_los",
+            )
+        ):
             ids = []
             for p in checklist or []:
                 pid = p.get("id") if isinstance(p, dict) else getattr(p, "id", "")
@@ -257,6 +513,16 @@ def diagnosticar_turno(
                     fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                     mensaje = fb["mensaje"]
                     paso = fb.get("paso_cubierto") or paso
+
+        # Re-chequeo óptico por si la IA ignoró evidencia
+        opt2 = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
+        if opt2 and accion != "escalate":
+            accion = "escalate"
+            motivo = opt2
+            mensaje = (
+                "Con luz LOS y el estado del cable de fibra ya no lo resolvemos "
+                "a distancia: hace falta visita técnica. Te derivo con un agente."
+            )
 
         if accion == "resolved":
             t = (mensaje_cliente or "").lower()

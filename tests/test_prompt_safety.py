@@ -111,3 +111,61 @@ def test_diagnostico_bloquea_jailbreak_sin_llm(monkeypatch):
     )
     assert out["accion"] == "ask"
     assert out["motivo"] == "bloqueado_prompt_injection"
+
+
+def test_diagnostico_escala_los_y_fibra_danada(monkeypatch):
+    def _boom(*_a, **_k):
+        raise AssertionError("no debería llamar al LLM con falla óptica clara")
+
+    monkeypatch.setattr("app.llm.chat_completion", _boom)
+    historial = [
+        {"autor": "cliente", "texto": "si lo hice y tengo una luz roja"},
+        {
+            "autor": "bot",
+            "texto": "¿Esa luz roja que mencionás es la de 'LOS' en la cajita blanca (ONT)?",
+        },
+        {"autor": "cliente", "texto": "correcto"},
+        {
+            "autor": "bot",
+            "texto": (
+                "¿Podrías confirmarme si el cable de fibra amarillo está bien "
+                "enchufado en la ONT y si no tiene dobleces marcados o daños visibles?"
+            ),
+        },
+    ]
+    out = diagnosticar_turno(
+        intencion="internet_ftth",
+        checklist=[
+            {"id": "luces_los", "pregunta": "¿LOS?"},
+            {"id": "cable_fibra", "pregunta": "¿Fibra?"},
+            {"id": "wifi_vs_cable_ftth", "pregunta": "¿Solo WiFi?"},
+        ],
+        historial_mensajes=historial,
+        mensaje_cliente="tiene un daño visible",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["luces_los", "cable_fibra"],
+    )
+    assert out["accion"] == "escalate"
+    assert out["motivo"] == "fibra_danada"
+    assert "wifi" not in (out.get("mensaje") or "").lower()
+
+
+def test_detectar_falla_optica_helpers():
+    from app.services.diagnostico_n1 import detectar_falla_optica_escalar
+
+    historial = [
+        {
+            "autor": "bot",
+            "texto": "¿La luz es la de 'LOS' en la ONT?",
+        },
+        {"autor": "cliente", "texto": "correcto"},
+        {
+            "autor": "bot",
+            "texto": "¿El cable amarillo de fibra tiene daños visibles?",
+        },
+    ]
+    assert (
+        detectar_falla_optica_escalar("tiene un daño visible", historial)
+        == "fibra_danada"
+    )
+    assert detectar_falla_optica_escalar("hola", []) is None
