@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { InboxMessage } from "@/lib/api-client";
 import { getBranding } from "@/lib/brand";
+import { EcoAvatar } from "@/components/ui/EcoAvatar";
 
 type AutorKind = "cliente" | "bot" | "agente" | string;
 
@@ -14,7 +16,7 @@ function originLabel(autor: AutorKind, portal?: boolean): string {
 
 function bubbleClass(autor: AutorKind): string {
   if (autor === "cliente") return "chat-bubble-cliente ml-auto";
-  if (autor === "bot") return "chat-bubble-bot mr-auto";
+  if (autor === "bot") return "chat-bubble-bot";
   return "chat-bubble-agente mr-auto";
 }
 
@@ -25,6 +27,15 @@ function formatTime(iso?: string): string | null {
   return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function BotBubbleRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-end gap-2 mr-auto max-w-[min(90%,28rem)]">
+      <EcoAvatar className="h-7 w-7 mb-0.5" />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
 export function ChatMessageBubble({
   message,
   portal = false,
@@ -33,19 +44,20 @@ export function ChatMessageBubble({
   portal?: boolean;
 }) {
   const isCliente = message.autor === "cliente";
+  const isBot = message.autor === "bot";
   const time = formatTime(message.created_at);
   const origen = originLabel(message.autor, portal);
 
-  return (
+  const bubble = (
     <div
-      className={`group max-w-[min(90%,28rem)] px-3.5 py-2.5 rounded-xl text-sm shadow-sm transition-all duration-200 ease-in-out ${bubbleClass(message.autor)}`}
+      className={`group px-3.5 py-2.5 rounded-xl text-sm shadow-sm transition-all duration-200 ease-in-out ${bubbleClass(message.autor)} ${isBot ? "w-full" : "max-w-[min(90%,28rem)]"}`}
     >
       <div
         className={`flex items-center gap-2 mb-1.5 ${isCliente ? "justify-end" : "justify-start"}`}
       >
-        <span className={`chat-origin-label ${message.autor === "bot" ? "chat-origin-label-accent" : ""}`}>
+        <span className={`chat-origin-label ${isBot ? "chat-origin-label-accent" : ""}`}>
           <span className="opacity-60">[ORIGEN:</span>
-          <span className={message.autor === "bot" ? "text-ecolan-brand" : isCliente ? "text-ecolan-brand" : "text-slate-300"}>
+          <span className={isBot ? "text-ecolan-brand" : isCliente ? "text-ecolan-brand" : "text-slate-300"}>
             {origen}
           </span>
           <span className="opacity-60">]</span>
@@ -61,27 +73,35 @@ export function ChatMessageBubble({
       </p>
     </div>
   );
+
+  if (isBot) {
+    return <BotBubbleRow>{bubble}</BotBubbleRow>;
+  }
+
+  return bubble;
 }
 
 export function ChatTypingIndicator() {
   const { botDisplayName, botDisplayNameShort } = getBranding();
   return (
-    <div
-      className="chat-bubble-bot mr-auto max-w-[min(90%,28rem)] px-3.5 py-2.5 rounded-xl text-sm shadow-sm"
-      aria-live="polite"
-      aria-label={`${botDisplayName} está escribiendo`}
-    >
-      <span className="chat-origin-label chat-origin-label-accent mb-1.5 block">
-        <span className="opacity-60">[ORIGEN:</span>
-        <span className="text-ecolan-brand">{botDisplayNameShort}</span>
-        <span className="opacity-60">]</span>
-      </span>
-      <div className="flex items-center gap-1.5 py-0.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80 animate-bounce [animation-delay:0ms]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80 animate-bounce [animation-delay:150ms]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80 animate-bounce [animation-delay:300ms]" />
+    <BotBubbleRow>
+      <div
+        className="chat-bubble-bot w-full px-3.5 py-2.5 rounded-xl text-sm shadow-sm"
+        aria-live="polite"
+        aria-label={`${botDisplayName} está escribiendo`}
+      >
+        <span className="chat-origin-label chat-origin-label-accent mb-1.5 block">
+          <span className="opacity-60">[ORIGEN:</span>
+          <span className="text-ecolan-brand">{botDisplayNameShort}</span>
+          <span className="opacity-60">]</span>
+        </span>
+        <div className="flex items-center gap-1.5 py-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80 animate-bounce [animation-delay:0ms]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80 animate-bounce [animation-delay:150ms]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80 animate-bounce [animation-delay:300ms]" />
+        </div>
       </div>
-    </div>
+    </BotBubbleRow>
   );
 }
 

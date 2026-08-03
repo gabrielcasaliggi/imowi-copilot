@@ -16,6 +16,7 @@ import {
   MessagesEmptyIcon,
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
+import { getBranding } from "@/lib/brand";
 
 /**
  * Consola del agente: mesa de trabajo sobre el ticket tomado.
@@ -24,6 +25,7 @@ import {
 export function ChatPanel() {
   const { isAdmin, ticketFormacion, tenantSlug, updateTicket } = useApp();
   const { push: toast } = useToast();
+  const botName = getBranding().botDisplayName;
   const slug = isAdmin ? tenantSlug : undefined;
 
   const [conv, setConv] = useState<InboxConversation | null>(null);
@@ -224,7 +226,7 @@ export function ChatPanel() {
               </p>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Usá el panel derecho para notas, seguimiento y proponer a KB. El chat en vivo
-                aparece cuando Eco armó el ticket desde el canal.
+                aparece cuando {botName} armó el ticket desde el canal.
               </p>
             </div>
           </div>

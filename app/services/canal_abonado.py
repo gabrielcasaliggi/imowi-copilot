@@ -24,7 +24,7 @@ from app.estate.models import Abonado, ConversacionCanal
 from app.services import ticket_bridge
 from app.services.platform_settings import playbooks_as_pasos
 from app.services.whatsapp_client import enviar_texto
-from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT
+from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
 
 logger = logging.getLogger("operations_hub")
 
@@ -91,13 +91,16 @@ def _redactar_con_llama(
                 {
                     "role": "system",
                     "content": (
-                        "Sos un agente de soporte humano de Cooperativa Batán / Ecolan. "
-                        "Escribí como en un chat de WhatsApp: natural, breve y empático. "
+                        f"Sos {BOT_DISPLAY_NAME}, el asistente de {PRODUCT_DISPLAY_NAME} "
+                        "(Cooperativa Batán / Ecolan + móvil). "
+                        "Escribí como en un chat de WhatsApp: natural, breve, cálido y resolutivo. "
+                        "No sos Copilot NOC ni un agente humano: si derivás, decilo claro. "
                         "REGLAS ESTRICTAS:\n"
                         "- Máximo 2 oraciones cortas.\n"
                         "- UNA sola pregunta por mensaje. Nunca combines varias preguntas.\n"
                         "- No uses listas largas, viñetas ni catálogos de servicios.\n"
                         "- No inventes datos (OLT, saldos, turnos, potencias).\n"
+                        "- No uses jerga interna del NOC.\n"
                         "- Conservá la intención del borrador; no agregues pasos extra.\n"
                         "- Español argentino cotidiano (vos)."
                     ),
@@ -322,7 +325,8 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = (
-                    f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de Cooperativa Batán y Ecolan. "
+                    f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME} "
+                    "(Cooperativa Batán / Ecolan). "
                     "Para identificarte (facturas, diagnóstico de cuenta o visitas), "
                     "enviame tu DNI o N.º de socio. Si preferís, escribí *agente*."
                 )

@@ -1,12 +1,13 @@
 /**
- * Branding del asistente abonado (N1).
- * Distinct from Copilot NOC (consola operadores).
+ * Branding del asistente abonado (N1) y producto abonado.
+ * Distinct from Copilot NOC (consola operadores / Operations Hub).
  */
 
 export type Branding = {
   botDisplayName: string;
   botDisplayNameShort: string;
   orgHint: string;
+  productDisplayName: string;
 };
 
 const DEFAULTS: Branding = {
@@ -17,6 +18,8 @@ const DEFAULTS: Branding = {
     "Eco"
   ).toUpperCase(),
   orgHint: "Cooperativa Batán",
+  productDisplayName:
+    process.env.NEXT_PUBLIC_PRODUCT_DISPLAY_NAME?.trim() || "Soporte Batán",
 };
 
 let cached: Branding = { ...DEFAULTS };
@@ -30,10 +33,11 @@ export function botEstadoLabel(): string {
   return `${cached.botDisplayName} (N1)`;
 }
 
-export function applyBranding( partial: {
+export function applyBranding(partial: {
   bot_display_name?: string;
   bot_display_name_short?: string;
   org_hint?: string;
+  product_display_name?: string;
 }): Branding {
   cached = {
     botDisplayName: partial.bot_display_name?.trim() || cached.botDisplayName,
@@ -43,6 +47,8 @@ export function applyBranding( partial: {
       cached.botDisplayNameShort
     ).toUpperCase(),
     orgHint: partial.org_hint?.trim() || cached.orgHint,
+    productDisplayName:
+      partial.product_display_name?.trim() || cached.productDisplayName,
   };
   return cached;
 }
@@ -62,6 +68,7 @@ export async function hydrateBranding(apiBase?: string): Promise<Branding> {
       bot_display_name?: string;
       bot_display_name_short?: string;
       org_hint?: string;
+      product_display_name?: string;
     };
     return applyBranding(data);
   } catch {

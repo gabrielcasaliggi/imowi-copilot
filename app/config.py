@@ -94,6 +94,10 @@ BOT_DISPLAY_NAME = (os.getenv("BOT_DISPLAY_NAME", "Eco") or "Eco").strip() or "E
 BOT_DISPLAY_NAME_SHORT = (
     os.getenv("BOT_DISPLAY_NAME_SHORT", "") or BOT_DISPLAY_NAME
 ).strip().upper() or "ECO"
+# Producto abonado (portal / WhatsApp). Consola ops sigue siendo APP_TITLE (Operations Hub).
+PRODUCT_DISPLAY_NAME = (
+    os.getenv("PRODUCT_DISPLAY_NAME", "Soporte Batán") or "Soporte Batán"
+).strip() or "Soporte Batán"
 
 # OTP portal
 OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6") or "6")

@@ -277,8 +277,12 @@ export default function PortalPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
       <header className="border-b border-slate-800/80 px-4 py-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold tracking-tight">Portal abonado · Cooperativa Batán</p>
-          <p className="text-[10px] font-medium text-slate-500">Ecolan + IMOVI · soporte</p>
+          <p className="text-sm font-semibold tracking-tight">
+            {getBranding().productDisplayName}
+          </p>
+          <p className="text-[10px] font-medium text-slate-500">
+            {getBranding().orgHint} · Ecolan + IMOVI
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact />

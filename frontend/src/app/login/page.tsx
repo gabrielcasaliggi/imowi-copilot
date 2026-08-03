@@ -5,9 +5,11 @@ import { useApp } from "@/contexts/AppContext";
 import { getToken } from "@/lib/storage";
 import { inputCls } from "@/components/ui/forms";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { getBranding } from "@/lib/brand";
 
 export default function LoginPage() {
   const { login, ready } = useApp();
+  const { productDisplayName, orgHint } = getBranding();
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -50,9 +52,9 @@ export default function LoginPage() {
             B
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-50 tracking-tight">Cooperativa Batán</h1>
+            <h1 className="text-xl font-semibold text-slate-50 tracking-tight">{productDisplayName}</h1>
             <p className="text-xs font-mono text-slate-500">
-              Soporte abonados · Ecolan + móvil · WhatsApp
+              {orgHint} · Ecolan + móvil · WhatsApp
             </p>
           </div>
         </div>
