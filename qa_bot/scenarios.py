@@ -152,7 +152,7 @@ ESCENARIOS: list[Escenario] = [
     ),
     Escenario(
         id="E06",
-        nombre="Móvil IMOVI sin datos",
+        nombre="Móvil IMOWI sin datos",
         categoria="movil_datos",
         descripcion="Guía APN / reinicio / datos móviles antes de derivar.",
         resolucion_n1_esperada=True,

@@ -42,7 +42,7 @@ El bot **contiene bien el diagnóstico técnico N1** (fibra, radio, móvil) en l
 | E03 | WiFi no llega al fondo | 0.83* | ❌* | no | no | **Falso cierre** (“¡Genial! quedó resuelto”) ante “anda bien… lejos no” |
 | E04 | Corte deuda / pago QR | 0.88 | ❌ | no | no | Detecta deuda pero **no entrega guía QR**; loop de “¿querés que te explique?” |
 | E05 | Factura / saldo | 1.0* | ⚠️ | no | no | No ticket, pero **no resuelve** pedido de QR; conversación desalineada |
-| E06 | Móvil IMOVI sin datos | 0.92 | ✅ | no | no | Datos → APN → roaming: buen N1 |
+| E06 | Móvil IMOWI sin datos | 0.92 | ✅ | no | no | Datos → APN → roaming: buen N1 |
 | E07 | Sin señal móvil | 1.0 | ✅ | no | no | Autodiagnóstico OK (puede reforzar orden de pasos) |
 | E08 | Pedido prematuro de humano | 0.28 | ❌ | sí | ⚠️ | **Crítico:** ticket inmediato `JSC-1006` sin síntoma ni N1 |
 | E09 | Alta / cambio de plan | 1.0 | ✅ | sí† | no | Handoff comercial correcto tras aclarar alta/zona |

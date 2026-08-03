@@ -281,7 +281,7 @@ export default function PortalPage() {
             {getBranding().productDisplayName}
           </p>
           <p className="text-[10px] font-medium text-slate-500">
-            {getBranding().orgHint} · Ecolan + IMOVI
+            {getBranding().orgHint} · Ecolan + IMOWI
           </p>
         </div>
         <div className="flex items-center gap-2">

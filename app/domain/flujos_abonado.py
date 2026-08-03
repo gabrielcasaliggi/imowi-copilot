@@ -2,7 +2,7 @@
 
 Catálogo:
 - Internet FTTH (fibra), Wireless/radio, ADSL
-- Telefonía móvil IMOVI y telefonía fija
+- Telefonía móvil IMOWI y telefonía fija
 - Ecolan B2B (Data Center, VMs, enlaces dedicados, housing/hosting)
 - Facturación / pagos QR Fiserv
 - Trámites digitales batan.coop
@@ -345,7 +345,7 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         return "movil_llamadas"
 
     if any(k in t for k in (
-        "imovi", "imovu", "señal", "senal",
+        "imowi", "imovi", "imovu", "señal", "senal",
         "chip", "4g", "5g", "celular", "móvil", "movil",
         "sim", "linea movil", "línea móvil",
     )):

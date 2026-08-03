@@ -414,7 +414,7 @@ def portal_auth_verify(
         nombre = (abo.nombre if abo else hit.get("nombre") or "hola").split()[0]
         saludo = (
             f"Hola {nombre}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-            "¿Tu consulta es por internet, móvil IMOVI, o factura/deuda?"
+            "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
         )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]

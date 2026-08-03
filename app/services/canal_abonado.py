@@ -446,7 +446,7 @@ def procesar_mensaje_entrante(
         else:
             base = (
                 "Para ayudarte necesito saber si es internet (fibra, antena o ADSL), "
-                "móvil IMOVI, factura/pago u otra consulta."
+                "móvil IMOWI, factura/pago u otra consulta."
             )
         resp = f"Para seguir, necesito ese dato. {base}"
         if usar_llama:
@@ -504,7 +504,7 @@ def procesar_mensaje_entrante(
         crepo.set_contexto(conv, ctx)
         db.commit()
         resp = (
-            "Puedo ayudarte yo primero (internet, móvil IMOVI o factura/pago). "
+            "Puedo ayudarte yo primero (internet, móvil IMOWI o factura/pago). "
             "Contame qué te pasa. Si preferís una persona, escribí *agente*."
         )
         if usar_llama:
@@ -572,7 +572,7 @@ def procesar_mensaje_entrante(
                 db.commit()
                 resp = (
                     "No figurás todavía en el padrón local. Igual te atiendo: "
-                    "¿tu consulta es por internet (fibra, radio o ADSL), móvil IMOVI, "
+                    "¿tu consulta es por internet (fibra, radio o ADSL), móvil IMOWI, "
                     "telefonía fija, factura/pago, o un servicio Ecolan empresa?"
                 )
                 _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))

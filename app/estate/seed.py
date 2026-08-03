@@ -476,18 +476,18 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             ),
         ),
 
-        # ==================== MÓVIL IMOVI ====================
+        # ==================== MÓVIL IMOWI ====================
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="IMOVI — sin señal o sin servicio",
+            titulo="IMOWI — sin señal o sin servicio",
             categoria="Móvil",
             contenido=(
-                "Cooperativa Batán — servicio móvil IMOVI (MVNO).\n\n"
+                "Cooperativa Batán — servicio móvil IMOWI (MVNO).\n\n"
                 "Diagnóstico N1:\n"
                 "1) Reiniciar el teléfono.\n"
                 "2) Modo avión 15s y desactivar → fuerza re-registro en la red.\n"
                 "3) Selección de red manual: Ajustes > Redes móviles > Operador > elegir otra red "
-                "   (Personal/Claro), esperar registro, volver a IMOVI. Genera nuevo registro.\n"
+                "   (Personal/Claro), esperar registro, volver a IMOWI. Genera nuevo registro.\n"
                 "4) Verificar que la SIM esté bien insertada (sacar y poner).\n"
                 "5) Probar la SIM en otro teléfono para descartar problema del equipo.\n"
                 "6) Si en otra ubicación anda → zona sin cobertura.\n"
@@ -496,7 +496,7 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="IMOVI — sin datos móviles",
+            titulo="IMOWI — sin datos móviles",
             categoria="Móvil",
             contenido=(
                 "Cuando hay señal (llamadas funcionan) pero no navega:\n"
@@ -511,7 +511,7 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="IMOVI — llamadas y SMS",
+            titulo="IMOWI — llamadas y SMS",
             categoria="Móvil",
             contenido=(
                 "Problemas con llamadas o mensajes de texto:\n"
@@ -526,20 +526,20 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="IMOVI — portabilidad numérica",
+            titulo="IMOWI — portabilidad numérica",
             categoria="Móvil",
             contenido=(
-                "Portabilidad de número a IMOVI:\n"
+                "Portabilidad de número a IMOWI:\n"
                 "1) Se solicita en oficina comercial con DNI y última factura del operador anterior.\n"
                 "2) El proceso tarda entre 3 y 5 días hábiles.\n"
                 "3) Durante la portabilidad puede haber un corte breve del servicio.\n"
                 "4) Si pasaron más de 5 días y no se completó → escalar a N2 con el número y DNI.\n"
-                "5) Para portar DESDE IMOVI a otro operador, se gestiona con el nuevo operador."
+                "5) Para portar DESDE IMOWI a otro operador, se gestiona con el nuevo operador."
             ),
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="IMOVI — activar SIM / eSIM",
+            titulo="IMOWI — activar SIM / eSIM",
             categoria="Móvil",
             contenido=(
                 "Activación de SIM/eSIM nueva:\n"
@@ -602,10 +602,10 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             categoria="General",
             contenido=(
                 "Cooperativa de Provisión de Servicios Telefónicos y Otros Batán Ltda.\n"
-                "Servicios: Internet (FTTH, radio/wireless, ADSL), Telefonía móvil (IMOVI).\n"
+                "Servicios: Internet (FTTH, radio/wireless, ADSL), Telefonía móvil (IMOWI).\n"
                 "Marca internet: Ecolan.\n"
                 "Planes internet: desde 25Mb hasta 300Mb según tecnología y zona.\n"
-                "Planes IMOVI: desde 3GB hasta 50GB con minutos ilimitados nacionales.\n"
+                "Planes IMOWI: desde 3GB hasta 50GB con minutos ilimitados nacionales.\n"
                 "Oficina: Av. Brown 1234, Batán. Tel: 0223-XXX-XXXX.\n"
                 "Horarios: Lunes a viernes 8-16h.\n"
                 "Guardia técnica: fuera de horario, los reclamos se atienden al día siguiente "
@@ -630,15 +630,15 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
-            titulo="Planes IMOVI móvil — vigentes",
+            titulo="Planes IMOWI móvil — vigentes",
             categoria="Comercial",
             contenido=(
-                "Planes IMOVI vigentes (confirmar precios en oficina):\n"
-                "- IMOVI 3GB: 3GB datos + minutos ilimitados + SMS ilimitados.\n"
-                "- IMOVI 5GB: 5GB datos + minutos ilimitados + SMS ilimitados.\n"
-                "- IMOVI 15GB: 15GB datos + minutos ilimitados + WhatsApp libre.\n"
-                "- IMOVI 30GB: 30GB datos + minutos ilimitados + redes sociales libres.\n"
-                "- IMOVI 50GB: 50GB datos + todo ilimitado.\n"
+                "Planes IMOWI vigentes (confirmar precios en oficina):\n"
+                "- IMOWI 3GB: 3GB datos + minutos ilimitados + SMS ilimitados.\n"
+                "- IMOWI 5GB: 5GB datos + minutos ilimitados + SMS ilimitados.\n"
+                "- IMOWI 15GB: 15GB datos + minutos ilimitados + WhatsApp libre.\n"
+                "- IMOWI 30GB: 30GB datos + minutos ilimitados + redes sociales libres.\n"
+                "- IMOWI 50GB: 50GB datos + todo ilimitado.\n"
                 "Todos los planes incluyen roaming nacional.\n"
                 "Portabilidad: se puede traer el número de otro operador (3-5 días hábiles).\n"
                 "Para contratar → oficina comercial con DNI."
@@ -663,10 +663,26 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
 
 
 def seed_kb_batan_servicios(db: Session) -> dict:
-    """Asegura artículos KB de radio/ADSL/IMOVI (idempotente por título)."""
+    """Asegura artículos KB de radio/ADSL/IMOWI (idempotente por título).
+
+    También corrige el typo histórico IMOVI → IMOWI en títulos/contenido ya seedados.
+    """
     batan = _org(db, "coop-batan")
     if not batan:
         return {"seeded": False, "articulos": 0}
+
+    fixed = 0
+    for art in db.scalars(
+        select(KnowledgeArticle).where(KnowledgeArticle.organizacion_id == batan.id)
+    ).all():
+        new_titulo = (art.titulo or "").replace("IMOVI", "IMOWI")
+        new_contenido = (art.contenido or "").replace("IMOVI", "IMOWI")
+        if new_titulo != (art.titulo or "") or new_contenido != (art.contenido or ""):
+            art.titulo = new_titulo
+            art.contenido = new_contenido
+            fixed += 1
+    if fixed:
+        db.commit()
 
     existentes = {
         a.titulo
@@ -675,11 +691,12 @@ def seed_kb_batan_servicios(db: Session) -> dict:
         ).all()
     }
     nuevos = [a for a in _articulos_kb_batan(batan.id) if a.titulo not in existentes]
-    if not nuevos:
-        return {"seeded": False, "articulos": len(existentes)}
-    db.add_all(nuevos)
-    db.commit()
-    return {"seeded": True, "articulos": len(nuevos)}
+    if not nuevos and not fixed:
+        return {"seeded": False, "articulos": len(existentes), "fixed_imowi": 0}
+    if nuevos:
+        db.add_all(nuevos)
+        db.commit()
+    return {"seeded": bool(nuevos), "articulos": len(nuevos), "fixed_imowi": fixed}
 
 
 def seed_inbox_conversaciones(db: Session) -> dict:
