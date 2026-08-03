@@ -124,6 +124,7 @@ export const api = {
       bot_display_name: string;
       bot_display_name_short: string;
       org_hint: string;
+      product_display_name: string;
     }>("/api/v1/public/branding", { skipAuth: true, timeoutMs: 8_000 });
   },
 
@@ -584,6 +585,13 @@ export const api = {
     });
   },
 
+  deleteKb(id: string, tenantSlug?: string) {
+    return request<{ status: string; id: string }>(`/api/v1/kb/${id}`, {
+      method: "DELETE",
+      tenantSlug,
+    });
+  },
+
   kbContributions(params?: { estado?: string; ticket_id?: string }, tenantSlug?: string) {
     const qs = new URLSearchParams();
     if (params?.estado) qs.set("estado", params.estado);
@@ -895,6 +903,16 @@ export const api = {
       "/api/v1/admin/settings/test-ai",
       { method: "POST" },
     );
+  },
+
+  convertPlaybooks(texto: string) {
+    return request<{
+      playbooks: Record<string, { id: string; pregunta: string }[]>;
+      sugeridos: string[];
+    }>("/api/v1/admin/playbooks/convert", {
+      method: "POST",
+      body: JSON.stringify({ texto }),
+    });
   },
 
   testAdminWhatsapp() {

@@ -79,6 +79,31 @@ def create_kb(
     }
 
 
+@router.delete("/kb/{articulo_id}")
+def delete_kb(
+    articulo_id: str,
+    ctx: TenantContext = Depends(require_kb_reviewer),
+    db: Session = Depends(get_db),
+):
+    """Baja de artículo — solo admin (p.ej. subido por error)."""
+    art = repo.get_kb(db, ctx.organizacion_id, articulo_id)
+    if not art:
+        raise HTTPException(404, "Artículo no encontrado")
+    titulo = art.titulo
+    ok = repo.delete_kb(db, ctx.organizacion_id, articulo_id)
+    if not ok:
+        raise HTTPException(404, "Artículo no encontrado")
+    log_audit(
+        db,
+        org_id=ctx.organizacion_id,
+        actor=ctx.usuario_email,
+        accion="kb_baja",
+        recurso=articulo_id,
+        detalle=titulo,
+    )
+    return {"status": "ok", "id": articulo_id}
+
+
 @router.get("/kb/contributions")
 def list_kb_contributions(
     estado: str = "pendiente",

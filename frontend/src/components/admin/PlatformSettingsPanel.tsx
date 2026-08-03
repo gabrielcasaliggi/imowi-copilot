@@ -5,13 +5,18 @@ import { api } from "@/lib/api-client";
 import type { PlatformSettingsResponse } from "@/lib/types";
 import { GlassCard, StatusPill } from "@/components/ui/GlassCard";
 import { inputCls } from "@/components/ui/forms";
+import { getBranding } from "@/lib/brand";
+import {
+  PlaybooksConsole,
+  type PlaybookMap,
+} from "@/components/admin/PlaybooksConsole";
 
 const labelCls = "block text-xs text-slate-400 mb-1";
 
-type PlaybookMap = Record<string, { id: string; pregunta: string }[]>;
 type SettingsSection = "ai" | "whatsapp" | "database" | "billtrack" | "knowledge" | "playbooks";
 
 export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string) => void }) {
+  const botName = getBranding().botDisplayName;
   const [data, setData] = useState<PlatformSettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -41,7 +46,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     detail: string;
   } | null>(null);
   const [kb, setKb] = useState({ min_score: 0.15, top_k: 1, max_fragment_chars: 1800 });
-  const [playbooksJson, setPlaybooksJson] = useState("");
+  const [playbooks, setPlaybooks] = useState<PlaybookMap>({});
 
   const applyResponse = useCallback((res: PlatformSettingsResponse) => {
     setData(res);
@@ -78,7 +83,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       top_k: Number(s.knowledge?.top_k ?? 1),
       max_fragment_chars: Number(s.knowledge?.max_fragment_chars ?? 1800),
     });
-    setPlaybooksJson(JSON.stringify((s.playbooks as PlaybookMap) || {}, null, 2));
+    setPlaybooks((s.playbooks as PlaybookMap) || {});
   }, []);
 
   const load = useCallback(async () => {
@@ -101,14 +106,6 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     e.preventDefault();
     setBusy(true);
     try {
-      let playbooks: PlaybookMap = {};
-      try {
-        playbooks = JSON.parse(playbooksJson) as PlaybookMap;
-      } catch {
-        onMessage?.("Playbooks: JSON inválido");
-        setBusy(false);
-        return;
-      }
       const res = await api.updateAdminSettings({
         ai,
         whatsapp: wa,
@@ -380,7 +377,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         <GlassCard title="BillTrack — padrón de clientes (solo lectura)" accent="amber" variant="secondary">
           <div className="grid gap-3 md:grid-cols-2">
             <p className="md:col-span-2 text-xs text-amber-200/90">
-              Conexión externa para que Eco consulte datos de clientes y valide acciones. No es la
+              Conexión externa para que {botName} consulte datos de clientes y valide acciones. No es la
               base del sistema. Este servidor on-prem no habla SSL: dejá <code>disable</code>.
             </p>
             <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
@@ -390,7 +387,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 onChange={(e) => setBilltrack({ ...billtrack, enabled: e.target.checked })}
                 className="rounded border-slate-600"
               />
-              Habilitar consultas BillTrack para Eco
+              Habilitar consultas BillTrack para {botName}
             </label>
             <div>
               <label className={labelCls}>Host / IP</label>
@@ -576,18 +573,12 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       )}
 
       {section === "playbooks" && (
-        <GlassCard title="Playbooks N1 (internet / móvil / corte)" accent="cyan" variant="secondary">
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500">
-              JSON por flujo: lista de pasos con <code>id</code> y <code>pregunta</code>.
-            </p>
-            <textarea
-              className={`${inputCls} font-mono min-h-[280px]`}
-              value={playbooksJson}
-              onChange={(e) => setPlaybooksJson(e.target.value)}
-            />
-          </div>
-        </GlassCard>
+        <PlaybooksConsole
+          value={playbooks}
+          onChange={setPlaybooks}
+          onMessage={onMessage}
+          busy={busy}
+        />
       )}
 
       <div className="flex gap-3 items-center">

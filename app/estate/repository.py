@@ -433,6 +433,24 @@ def add_kb(db: Session, org_id: str, titulo: str, categoria: str, contenido: str
     return art
 
 
+def get_kb(db: Session, org_id: str, articulo_id: str) -> KnowledgeArticle | None:
+    return db.scalar(
+        select(KnowledgeArticle).where(
+            KnowledgeArticle.id == articulo_id,
+            KnowledgeArticle.organizacion_id == org_id,
+        )
+    )
+
+
+def delete_kb(db: Session, org_id: str, articulo_id: str) -> bool:
+    art = get_kb(db, org_id, articulo_id)
+    if not art:
+        return False
+    db.delete(art)
+    db.commit()
+    return True
+
+
 def add_kb_contribution(
     db: Session,
     org_id: str,

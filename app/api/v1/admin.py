@@ -528,6 +528,27 @@ def test_ai_connection(
         return {"ok": False, "model": cfg["model"], "base_url": cfg["base_url"], "error": str(e)[:240]}
 
 
+@router.post("/admin/playbooks/convert")
+def convert_playbooks_document(
+    body: dict = Body(default={}),
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Convierte texto de troubleshooting a playbooks N1 estructurados vía IA."""
+    from app.services.playbook_convert import convert_document_to_playbooks
+
+    texto = str((body or {}).get("texto") or "").strip()
+    if not texto:
+        raise HTTPException(400, "Campo 'texto' obligatorio")
+    try:
+        result = convert_document_to_playbooks(db, texto)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"Error al convertir con IA: {str(e)[:240]}") from e
+    return result
+
+
 @router.post("/admin/settings/test-whatsapp")
 def test_whatsapp_config(
     _: UsuarioSesion = Depends(requiere_admin),

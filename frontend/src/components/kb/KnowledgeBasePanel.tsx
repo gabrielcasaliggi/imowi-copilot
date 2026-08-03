@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/GlassCard";
 import { KbReviewTray } from "@/components/kb/KbReviewTray";
 import { inputCls } from "@/components/ui/forms";
+import { getBranding } from "@/lib/brand";
 
 const SUGGESTED_CATEGORIES = [
   "Internet Ecolan",
@@ -20,13 +21,15 @@ const SUGGESTED_CATEGORIES = [
   "Procedimientos internos",
 ] as const;
 
-const INTELLIGENCE_USES = [
-  "Mejora respuestas de Eco en la consola",
-  "Refuerza clasificación de síntomas (internet, móvil, deuda)",
-  "Alimenta recomendaciones de próximo paso y escalamiento N2",
-  "Reduce repreguntas cuando el agente usa lenguaje libre",
-  "Enriquece sugerencias KB en tickets y casos similares",
-] as const;
+function intelligenceUses(botName: string) {
+  return [
+    `Mejora respuestas de ${botName} en la consola`,
+    "Refuerza clasificación de síntomas (internet, móvil, deuda)",
+    "Alimenta recomendaciones de próximo paso y escalamiento N2",
+    "Reduce repreguntas cuando el agente usa lenguaje libre",
+    "Enriquece sugerencias KB en tickets y casos similares",
+  ] as const;
+}
 
 const CONTENT_GUIDE = [
   "Procedimientos N1 paso a paso (módem, WiFi, señal móvil)",
@@ -50,11 +53,14 @@ function formatDate(iso?: string): string {
 }
 
 export function KnowledgeBasePanel() {
-  const { kb, createKbArticle, proposeKbArticle, isAdmin } = useApp();
+  const { kb, createKbArticle, proposeKbArticle, deleteKbArticle, isAdmin } = useApp();
+  const botName = getBranding().botDisplayName;
+  const uses = intelligenceUses(botName);
   const [titulo, setTitulo] = useState("");
   const [categoria, setCategoria] = useState("General");
   const [contenido, setContenido] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
 
@@ -107,11 +113,27 @@ export function KnowledgeBasePanel() {
     }
   };
 
+  const onDelete = async (id: string, tituloArt: string) => {
+    if (!window.confirm(`¿Eliminar «${tituloArt}»? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setDeletingId(id);
+    setFeedback("");
+    try {
+      await deleteKbArticle(id);
+      setFeedback("Artículo eliminado.");
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "No se pudo eliminar");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="p-4 space-y-6 overflow-y-auto min-h-0">
       <SectionHeader
         title="Intelligence Knowledge Center"
-        subtitle="Memoria operativa Batán · cada artículo mejora a Eco (N1/N2)"
+        subtitle={`Memoria operativa Batán · cada artículo mejora a ${botName} (N1/N2)`}
       />
 
       {isAdmin && (
@@ -134,7 +156,7 @@ export function KnowledgeBasePanel() {
 
         <GlassCard title="Cómo alimenta al sistema" variant="primary" className="mt-3">
           <ul className="space-y-2">
-            {INTELLIGENCE_USES.map((line) => (
+            {uses.map((line) => (
               <li key={line} className="text-xs text-slate-300 flex gap-2 leading-relaxed">
                 <span className="text-ecolan-brand shrink-0">→</span>
                 <span>{line}</span>
@@ -181,9 +203,21 @@ export function KnowledgeBasePanel() {
                   >
                     <div className="flex justify-between gap-3 mb-2">
                       <h4 className="text-sm font-semibold text-slate-100">{a.titulo}</h4>
-                      <span className="text-[11px] font-mono text-ecolan-brand shrink-0">
-                        {a.categoria}
-                      </span>
+                      <div className="flex items-start gap-2 shrink-0">
+                        <span className="text-[11px] font-mono text-ecolan-brand">
+                          {a.categoria}
+                        </span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => void onDelete(a.id, a.titulo)}
+                            disabled={deletingId === a.id}
+                            className="text-[11px] text-rose-400/90 hover:text-rose-300 disabled:opacity-50"
+                          >
+                            {deletingId === a.id ? "…" : "Eliminar"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-[11px] text-slate-500 font-mono mb-2">
                       {formatDate(a.created_at)}

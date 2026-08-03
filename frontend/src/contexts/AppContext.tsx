@@ -98,6 +98,7 @@ interface AppContextValue {
   simulateFailure: (elemento: string) => Promise<void>;
   createKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
   proposeKbArticle: (titulo: string, categoria: string, contenido: string) => Promise<void>;
+  deleteKbArticle: (id: string) => Promise<void>;
   explainEscalation: () => Promise<string | null>;
   addTicketNote: (detalle: string, interno?: boolean) => Promise<void>;
   publishTicketKb: (body?: {
@@ -665,6 +666,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [tenantSlug, isAdmin, appendTrace],
   );
 
+  const deleteKbArticle = useCallback(
+    async (id: string) => {
+      await api.deleteKb(id, tenantSlug);
+      const data = await api.kb(tenantSlug);
+      setKb(data.articulos || []);
+      appendTrace([`🗑️ Artículo KB eliminado`]);
+    },
+    [tenantSlug, appendTrace],
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       ready,
@@ -712,6 +723,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       simulateFailure,
       createKbArticle,
       proposeKbArticle,
+      deleteKbArticle,
       explainEscalation,
       addTicketNote,
       publishTicketKb,
@@ -764,6 +776,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       simulateFailure,
       createKbArticle,
       proposeKbArticle,
+      deleteKbArticle,
       explainEscalation,
       addTicketNote,
       publishTicketKb,
