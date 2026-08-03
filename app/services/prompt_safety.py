@@ -111,3 +111,33 @@ def with_anti_injection(system_prompt: str) -> str:
     if ANTI_INJECTION_SYSTEM in base:
         return base
     return f"{base}\n\n{ANTI_INJECTION_SYSTEM}"
+
+
+def sanitize_historial_messages(
+    historial: list[dict] | None,
+    *,
+    max_msgs: int = 40,
+    max_msg_chars: int = 800,
+) -> list[dict]:
+    """Normaliza historial de chat: roles allowlist + longitud por mensaje."""
+    out: list[dict] = []
+    for m in historial or []:
+        if not isinstance(m, dict):
+            continue
+        rol_raw = str(m.get("rol") or "").strip().lower()
+        if rol_raw in ("usuario", "user", "cliente", "abonado", "op", "operador"):
+            rol = "usuario"
+        elif rol_raw in ("asistente", "assistant", "bot"):
+            rol = "asistente"
+        else:
+            # Nunca tratar rol inventado (system, etc.) como asistente confiable
+            rol = "usuario"
+        contenido = sanitize_user_text(str(m.get("contenido") or ""), max_chars=max_msg_chars)
+        if not contenido:
+            continue
+        out.append({"rol": rol, "contenido": contenido})
+    return out[-max_msgs:]
+
+
+def clamp_message(texto: str, *, max_chars: int = _MAX_USER_CHARS) -> str:
+    return sanitize_user_text(texto, max_chars=max_chars)

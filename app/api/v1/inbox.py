@@ -18,13 +18,13 @@ router = APIRouter(tags=["Inbox"])
 
 
 class SimulateIn(BaseModel):
-    telefono: str = Field(..., min_length=8)
-    texto: str = Field(..., min_length=1)
+    telefono: str = Field(..., min_length=8, max_length=40)
+    texto: str = Field(..., min_length=1, max_length=4000)
     usar_llama: bool = False
 
 
 class AgentMessageIn(BaseModel):
-    texto: str = Field(..., min_length=1)
+    texto: str = Field(..., min_length=1, max_length=4000)
 
 
 def _org_id(ctx: TenantContext) -> str:

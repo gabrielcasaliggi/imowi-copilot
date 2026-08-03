@@ -21,17 +21,16 @@ class TenantContext(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    rol: str
-    contenido: str
+    rol: str = Field(..., max_length=32)
+    contenido: str = Field(..., max_length=4000)
 
 
 class ChatV1Request(BaseModel):
     historial: list[ChatMessage] = []
-    mensaje: str = ""
+    mensaje: str = Field(default="", max_length=4000)
     forzar_escalamiento: bool = False
-    session_id: str = ""
-    accion_operador: str = ""
-
+    session_id: str = Field(default="", max_length=120)
+    accion_operador: str = Field(default="", max_length=64)
 
 class ChatV1Response(BaseModel):
     respuesta: str

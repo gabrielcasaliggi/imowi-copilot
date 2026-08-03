@@ -1501,6 +1501,16 @@ def upsert_caso_conversacion(
             usuario=usuario,
         )
         db.add(row)
+    else:
+        # Conservar claves auxiliares (ej. historial_mensajes anti-injection) si el motor no las trae
+        try:
+            prev_datos = json.loads(row.datos_triaje_json or "{}")
+        except json.JSONDecodeError:
+            prev_datos = {}
+        if isinstance(prev_datos, dict):
+            for key in ("historial_mensajes",):
+                if key in prev_datos and key not in (datos_triaje or {}):
+                    datos_triaje = {**(datos_triaje or {}), key: prev_datos[key]}
     row.session_id = session_id
     row.usuario = usuario or row.usuario
     row.estado = estado
@@ -1515,6 +1525,39 @@ def upsert_caso_conversacion(
     db.commit()
     db.refresh(row)
     return _caso_to_dict(row)
+
+
+def merge_caso_historial_mensajes(
+    db: Session,
+    org_id: str,
+    session_id: str,
+    nuevos: list[dict],
+    *,
+    max_msgs: int = 40,
+) -> None:
+    """Persiste turnos de consola en datos_triaje.historial_mensajes (anti prompt-injection)."""
+    if not session_id or not nuevos:
+        return
+    from app.services.prompt_safety import sanitize_historial_messages
+
+    row = db.scalar(
+        select(CasoConversacion).where(
+            CasoConversacion.organizacion_id == org_id,
+            CasoConversacion.session_id == session_id,
+        )
+    )
+    if not row:
+        return
+    try:
+        datos = json.loads(row.datos_triaje_json or "{}")
+    except json.JSONDecodeError:
+        datos = {}
+    hist = list(datos.get("historial_mensajes") or [])
+    hist.extend(sanitize_historial_messages(nuevos, max_msgs=max_msgs))
+    datos["historial_mensajes"] = sanitize_historial_messages(hist, max_msgs=max_msgs)
+    row.datos_triaje_json = json.dumps(datos, ensure_ascii=False)
+    row.updated_at = datetime.now(UTC)
+    db.commit()
 
 
 def patch_caso_datos_triaje(

@@ -651,23 +651,68 @@ def aplicar_interpretacion(
     hechos: dict,
     intencion: dict,
     interpretacion: dict,
+    *,
+    mensaje_usuario: str = "",
 ) -> tuple[dict, dict]:
-    """Fusiona interpretación IA/reglas en hechos e intención."""
+    """Fusiona interpretación IA/reglas en hechos e intención.
+
+    Acciones sensibles (persistencia, cierre, resuelto) exigen señal heurística
+    en el mensaje del operador — no solo lo que diga el LLM.
+    """
     out_hechos = dict(hechos)
     out_int = dict(intencion)
     conf = float(interpretacion.get("confianza") or 0)
     if conf < 0.55:
         return out_hechos, out_int
 
+    fuente = interpretacion.get("fuente", "ia")
     tipo = interpretacion.get("intencion") or interpretacion.get("tipo")
+    msg = mensaje_usuario or ""
+
+    # IA sola no puede forzar persistencia/cierre sin evidencia en el texto
+    if fuente == "ia" and tipo in ("persistencia", "cerrar_ticket"):
+        if tipo == "persistencia" and not mensaje_reporta_persistencia(msg):
+            from app.domain.conversacion import operador_confirmo_persistencia_explicita
+
+            if not operador_confirmo_persistencia_explicita(msg):
+                tipo = None
+        elif tipo == "cerrar_ticket":
+            # Solo aceptar cierre IA si el mensaje es claramente de cierre/resolución
+            tl = msg.lower()
+            if not any(
+                k in tl
+                for k in (
+                    "cerrar",
+                    "cerrá",
+                    "cerra",
+                    "resuelto",
+                    "ya anda",
+                    "quedo bien",
+                    "quedó bien",
+                    "solucionado",
+                )
+            ):
+                tipo = None
+
     if tipo and conf >= 0.6:
         out_int["tipo"] = tipo
         out_int["confianza"] = conf
-        out_int["fuente"] = interpretacion.get("fuente", "ia")
+        out_int["fuente"] = fuente
 
     hechos_ia = interpretacion.get("hechos") or {}
     if isinstance(hechos_ia, dict):
         limpios = {k: v for k, v in hechos_ia.items() if v is not None}
+        # No marcar resuelto=True solo porque el LLM lo inventó
+        if limpios.get("resuelto") is True and fuente == "ia":
+            tl = msg.lower()
+            if not any(
+                k in tl
+                for k in ("ya anda", "funciona", "resuelto", "solucionado", "quedo bien", "quedó bien", "andando")
+            ):
+                limpios.pop("resuelto", None)
+        # Nunca aceptar claves de ticket desde hechos IA
+        limpios.pop("solicita_ticket", None)
+        limpios.pop("persistencia_confirmada", None)
         out_hechos = _fusionar_hechos(out_hechos, limpios)
 
     if interpretacion.get("aclaracion") and conf < 0.6:

@@ -51,10 +51,13 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     if msg.get("type") != "text":
                         continue
                     from_wa = msg.get("from") or ""
-                    text = (msg.get("text") or {}).get("body") or ""
+                    text = ((msg.get("text") or {}).get("body") or "")[:4000]
                     mid = msg.get("id") or ""
                     if not from_wa or not text:
                         continue
+                    from app.services.prompt_safety import clamp_message
+
+                    text = clamp_message(text, max_chars=4000)
                     procesar_mensaje_entrante(
                         db,
                         org.id,

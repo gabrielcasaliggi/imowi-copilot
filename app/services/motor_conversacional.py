@@ -207,7 +207,12 @@ def _aplicar_intencion_seguimiento(
             hechos_prev=hechos,
         )
         if interp:
-            hechos, intencion = aplicar_interpretacion(hechos, intencion, interp)
+            hechos, intencion = aplicar_interpretacion(
+                hechos,
+                intencion,
+                interp,
+                mensaje_usuario=ultimo_msg,
+            )
             datos_triaje["hechos"] = hechos
 
     out = dict(clasificacion)
