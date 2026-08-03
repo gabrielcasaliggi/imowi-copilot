@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
-:root {
+/* Modo oscuro = data-theme=dark (default). Clases dark: aplican solo ahí. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
   --background: #020617;
   --foreground: #e2e8f0;
   /* Ecolan / Cooperativa Batán */
@@ -17,6 +22,43 @@
   --text-dim: #64748b;
   --text-readable: #cbd5e1;
   --text-header: #1E293B;
+  --card-bg: rgba(15, 23, 42, 0.72);
+  --grid-line: rgba(34, 152, 166, 0.03);
+}
+
+/* Modo claro — marca Ecolan (#F4F7F6 + cards blancas) */
+html[data-theme="light"] {
+  color-scheme: light;
+  --background: #F4F7F6;
+  --foreground: #1E293B;
+  --brand: #2298A6;
+  --brand-dark: #1A7985;
+  --ecolan-dark: #0D1B2A;
+  --ecolan-light: #F4F7F6;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-elevated: #ffffff;
+  --surface-workbench: #ffffff;
+  --border-subtle: rgba(226, 232, 240, 0.95);
+  --border-accent: rgba(34, 152, 166, 0.35);
+  --text-muted: #64748B;
+  --text-dim: #64748B;
+  --text-readable: #334155;
+  --text-header: #1E293B;
+  --card-bg: #ffffff;
+  --grid-line: rgba(34, 152, 166, 0.06);
+
+  /* Invierte la escala slate para que las clases dark-first lean bien en claro */
+  --color-slate-50: #020617;
+  --color-slate-100: #0f172a;
+  --color-slate-200: #1e293b;
+  --color-slate-300: #334155;
+  --color-slate-400: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-600: #94a3b8;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+  --color-slate-900: #f1f5f9;
+  --color-slate-950: #ffffff;
 }
 
 @theme inline {
@@ -369,8 +411,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(34, 152, 166, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 152, 166, 0.03) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 56px 56px;
   pointer-events: none;
   z-index: -1;
@@ -384,4 +426,155 @@ body::before {
 ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 3px;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* ── Light mode: superficies estructurales ─────────────────────────────── */
+html[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+html[data-theme="light"] .workbench-main {
+  background: #ffffff;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-theme="light"] .workbench-sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #F4F7F6 100%);
+}
+
+html[data-theme="light"] .chat-action-bar {
+  background: #0D1B2A;
+  border-bottom-color: rgba(34, 152, 166, 0.25);
+}
+
+html[data-theme="light"] .chat-action-bar h2,
+html[data-theme="light"] .chat-action-bar .text-slate-50,
+html[data-theme="light"] .chat-action-bar .text-slate-100 {
+  color: #f8fafc;
+}
+
+html[data-theme="light"] .chat-composer {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+}
+
+html[data-theme="light"] .chat-thread {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 152, 166, 0.08), transparent),
+    #F4F7F6;
+}
+
+html[data-theme="light"] .chat-bubble-cliente,
+html[data-theme="light"] .chat-bubble-user {
+  background: linear-gradient(135deg, rgba(34, 152, 166, 0.14), rgba(34, 152, 166, 0.06));
+  border-color: rgba(34, 152, 166, 0.35);
+  color: #0f172a;
+}
+
+html[data-theme="light"] .chat-bubble-bot,
+html[data-theme="light"] .chat-bubble-assistant {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme="light"] .chat-bubble-agente {
+  background: #f0fdfa;
+  border-color: rgba(34, 152, 166, 0.3);
+  color: #0f172a;
+}
+
+html[data-theme="light"] .chat-bubble-cliente .text-slate-100\/95,
+html[data-theme="light"] .chat-bubble-agente .text-slate-100\/95,
+html[data-theme="light"] .chat-bubble-bot .text-slate-100\/95 {
+  color: #0f172a;
+}
+
+html[data-theme="light"] .admin-hub-page {
+  background: linear-gradient(180deg, rgba(34, 152, 166, 0.06) 0%, transparent 120px);
+}
+
+html[data-theme="light"] .enterprise-panel {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme="light"] .trace-panel {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+html[data-theme="light"] .kb-category-chip {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+html[data-theme="light"] .kb-category-chip:hover,
+html[data-theme="light"] .kb-category-chip-active {
+  color: #0f172a;
+}
+
+html[data-theme="light"] .status-pill-available {
+  color: #047857;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+html[data-theme="light"] .status-pill-demo {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+html[data-theme="light"] .status-pill-credentials {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+html[data-theme="light"] .status-pill-soon,
+html[data-theme="light"] .status-pill-neutral {
+  color: #475569;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+html[data-theme="light"] .chip-sla-ok {
+  color: #047857;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+html[data-theme="light"] .chip-sla-warn {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+html[data-theme="light"] .chip-sla-danger {
+  color: #be123c;
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+
+html[data-theme="light"] .operational-guide-card {
+  background: linear-gradient(160deg, rgba(16, 185, 129, 0.08) 0%, #ffffff 55%);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+html[data-theme="light"] .demo-banner {
+  background: linear-gradient(90deg, rgba(34, 152, 166, 0.1), rgba(244, 247, 246, 0.8));
+  border-color: rgba(34, 152, 166, 0.3);
 }

@@ -8,6 +8,7 @@ import {
   ChatTypingIndicator,
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const PORTAL_KEY = "ops_hub_portal_session";
 const showDemo =
@@ -272,21 +273,24 @@ export default function PortalPage() {
   const conAgente = conv?.estado === "con_agente";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
+      <header className="border-b border-slate-800/80 px-4 py-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Portal abonado · Cooperativa Batán</p>
-          <p className="text-[10px] font-mono text-slate-400">Ecolan + IMOVI · soporte</p>
+          <p className="text-sm font-semibold tracking-tight">Portal abonado · Cooperativa Batán</p>
+          <p className="text-[10px] font-mono text-slate-500">Ecolan + IMOVI · soporte</p>
         </div>
-        {token && (
-          <button
-            type="button"
-            onClick={onExit}
-            className="text-xs text-slate-400 hover:text-slate-200"
-          >
-            Salir
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <ThemeToggle compact />
+          {token && (
+            <button
+              type="button"
+              onClick={onExit}
+              className="text-xs text-slate-500 hover:text-slate-200 transition-colors duration-200"
+            >
+              Salir
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col max-w-lg mx-auto w-full p-4 gap-4">

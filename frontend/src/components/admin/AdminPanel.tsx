@@ -827,11 +827,11 @@ export function AdminPanel() {
                                     ))}
                                   </select>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-2.5 pt-0.5">
                                   <button
                                     type="button"
                                     disabled={busy}
-                                    className="text-[10px] text-ecolan-brand"
+                                    className="text-xs font-medium text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200"
                                     onClick={() => startEdit(u)}
                                   >
                                     Editar
@@ -839,7 +839,7 @@ export function AdminPanel() {
                                   <button
                                     type="button"
                                     disabled={busy}
-                                    className="text-[10px] text-slate-300"
+                                    className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors duration-200"
                                     onClick={() => void onToggleUserActive(u)}
                                   >
                                     {u.activo === false ? "Reactivar" : "Dar de baja"}
@@ -847,7 +847,7 @@ export function AdminPanel() {
                                   <button
                                     type="button"
                                     disabled={busy}
-                                    className="text-[10px] text-amber-300/90"
+                                    className="text-xs font-medium text-amber-600 dark:text-amber-300/90 hover:underline transition-colors duration-200"
                                     onClick={() => void onResetPassword(u)}
                                   >
                                     Reset por email

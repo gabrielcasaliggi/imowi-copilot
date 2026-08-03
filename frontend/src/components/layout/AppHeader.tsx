@@ -3,6 +3,7 @@
 import { useApp } from "@/contexts/AppContext";
 import { PendingTasksBell } from "@/components/layout/PendingTasksBell";
 import { AvailabilityControl } from "@/components/layout/AvailabilityControl";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export function AppHeader() {
   const { user, isAdmin, orgs, tenantSlug, tenantContext, logout, setTenant } =
@@ -60,6 +61,7 @@ export function AppHeader() {
         )}
         <AvailabilityControl />
         <PendingTasksBell />
+        <ThemeToggle />
         <div className="hidden md:flex flex-col items-end">
           <span className="text-xs text-slate-300 truncate max-w-[10rem]">{rolLabel}</span>
         </div>

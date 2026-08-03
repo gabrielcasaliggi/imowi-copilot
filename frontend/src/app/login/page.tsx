@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { getToken } from "@/lib/storage";
 import { inputCls } from "@/components/ui/forms";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function LoginPage() {
   const { login, ready } = useApp();
@@ -36,7 +37,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-b from-ecolan-dark/40 to-transparent">
+    <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-b from-ecolan-dark/40 to-transparent relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/60 p-8 glass shadow-sm">
         <div className="flex items-center gap-3 mb-8">
           <div
