@@ -272,9 +272,12 @@ def fallback_convert_from_text(texto: str) -> dict[str, Any]:
         )
     )
     lento = any(k in t for k in ("anda lento", "internet lento", "velocidad", "speedtest"))
-    fibra = "fibra" in t or "ftth" in t or "ont" in t
+    fibra = any(k in t for k in ("fibra", "ftth", " ont", "ont ", "cajita blanca", "gpon"))
     adsl = "adsl" in t
-    radio = "radioenlace" in t or "inalámbrico" in t or "inalambrico" in t or "antena" in t
+    radio = any(
+        k in t
+        for k in ("radioenlace", "inalámbrico", "inalambrico", "antena externa", "poe")
+    )
 
     if no_tec:
         defaults = [
