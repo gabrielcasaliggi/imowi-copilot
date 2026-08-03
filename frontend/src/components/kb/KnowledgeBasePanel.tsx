@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import {
   GlassCard,
@@ -71,6 +71,11 @@ export function KnowledgeBasePanel() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+
+  useEffect(() => {
+    setFilterCat(null);
+    setFeedback("");
+  }, [tenantSlug]);
 
   const tenantLabel =
     tenantContext?.organizacion_nombre ||

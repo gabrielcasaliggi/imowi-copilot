@@ -48,7 +48,9 @@ export function AppHeader() {
             </span>
             <select
               value={tenantSlug}
-              onChange={(e) => setTenant(e.target.value)}
+              onChange={(e) => {
+                void setTenant(e.target.value);
+              }}
               className="bg-slate-950 border border-slate-600/80 rounded-lg px-2.5 py-1.5 text-xs font-mono transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
             >
               {orgs.map((o) => (

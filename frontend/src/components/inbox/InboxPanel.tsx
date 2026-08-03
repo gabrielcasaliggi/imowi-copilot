@@ -92,6 +92,12 @@ export function InboxPanel() {
   }, [refreshList]);
 
   useEffect(() => {
+    setSelected(null);
+    setDetail(null);
+    setMensajes([]);
+  }, [slug]);
+
+  useEffect(() => {
     const tick = () => {
       if (claimingRef.current) return;
       void refreshList().catch(() => {});

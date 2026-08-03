@@ -213,34 +213,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const loads: Promise<unknown>[] = [];
     if (has("tickets.queue.view") || has("tickets.view")) {
-      loads.push(api.tickets(slug).then((d) => setTickets(d.tickets || [])));
-      loads.push(api.notifications(slug).then((d) => setNotifications(d.notificaciones || [])));
+      loads.push(
+        api
+          .tickets(slug)
+          .then((d) => setTickets(d.tickets || []))
+          .catch(() => setTickets([])),
+      );
+      loads.push(
+        api
+          .notifications(slug)
+          .then((d) => setNotifications(d.notificaciones || []))
+          .catch(() => setNotifications([])),
+      );
     } else {
       setTickets([]);
       setNotifications([]);
     }
     loads.push(
-      api.telemetry(slug).then((d) => {
-        const elementos = d.elementos || [];
-        setTelemetry(elementos);
-        const anomalias: AlertaRed[] = elementos
-          .filter((e) => e.estado_actual !== "Normal")
-          .map((e) => ({
-            elemento_red: e.elemento_red,
-            metrica: e.metrica,
-            valor_actual: e.valor_actual,
-            estado_actual: e.estado_actual,
-            correlacionada: false,
-          }));
-        if (anomalias.length) aplicarAlertasRed(anomalias);
-      }).catch(() => {}),
+      api
+        .telemetry(slug)
+        .then((d) => {
+          const elementos = d.elementos || [];
+          setTelemetry(elementos);
+          const anomalias: AlertaRed[] = elementos
+            .filter((e) => e.estado_actual !== "Normal")
+            .map((e) => ({
+              elemento_red: e.elemento_red,
+              metrica: e.metrica,
+              valor_actual: e.valor_actual,
+              estado_actual: e.estado_actual,
+              correlacionada: false,
+            }));
+          if (anomalias.length) aplicarAlertasRed(anomalias);
+        })
+        .catch(() => setTelemetry([])),
     );
 
     if (admin || has("kb.publish") || has("kb.propose")) {
-      loads.push(api.kb(slug).then((d) => setKb(d.articulos || [])).catch(() => {}));
+      loads.push(
+        api
+          .kb(slug)
+          .then((d) => setKb(d.articulos || []))
+          .catch(() => setKb([])),
+      );
+    } else {
+      setKb([]);
     }
     if (has("stats.global") || has("stats.bot") || has("stats.agents")) {
       loads.push(api.stats(undefined, slug).then(setStats).catch(() => setStats(null)));
+    } else {
+      setStats(null);
     }
 
     const results = await Promise.allSettled(loads);
@@ -374,8 +396,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTenant = useCallback(
     async (slug: string) => {
-      setTenantSlug(slug);
-      setTenantSlugState(slug);
+      const next = (slug || "").trim();
+      if (!next) return;
+
+      setTenantSlug(next);
+      setTenantSlugState(next);
+
+      // Limpiar datos del tenant anterior al instante (evita mostrar KB/tickets viejos)
+      setKb([]);
+      setTickets([]);
+      setNotifications([]);
+      setTelemetry([]);
+      setStats(null);
       setHistorial([]);
       setTraces([]);
       setTicketFormacion(null);
@@ -384,8 +416,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFichaJsc(null);
       setLineaDetectada("");
       setNetworkAlert(null);
-      await refreshData(slug);
-      appendTrace([`🔀 Vista NOC → ${slug}`]);
+      setAlertasRed([]);
+      setCasoActivo(null);
+      setTicketsSimilares([]);
+      setTicketExistente(null);
+      setTicketKbSuggestions([]);
+      setTicketLearning(null);
+      setFlujoOperativo(null);
+
+      await refreshData(next);
+      appendTrace([`🔀 Vista NOC → ${next}`]);
     },
     [refreshData, appendTrace],
   );

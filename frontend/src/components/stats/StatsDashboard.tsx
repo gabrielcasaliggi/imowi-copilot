@@ -338,6 +338,10 @@ export function StatsDashboard() {
   );
 
   useEffect(() => {
+    void loadStats(desde || undefined, hasta || undefined);
+  }, [tenantSlug, loadStats]); // eslint-disable-line react-hooks/exhaustive-deps -- solo al cambiar tenant
+
+  useEffect(() => {
     let mounted = true;
     api
       .executiveAnalytics(tenantSlug)
@@ -350,7 +354,7 @@ export function StatsDashboard() {
     return () => {
       mounted = false;
     };
-  }, [tenantSlug, stats]);
+  }, [tenantSlug]);
 
   const exportCsv = () => {
     if (!stats) return;
