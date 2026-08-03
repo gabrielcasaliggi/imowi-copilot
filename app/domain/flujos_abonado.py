@@ -48,6 +48,7 @@ TAG_POR_INTENCION: dict[str, str] = {
     "portal_tramites": "[HANDOFF_HUMANO]",
     "turno_campo": "[HANDOFF_HUMANO]",
     "general": "[HANDOFF_HUMANO]",
+    "no_tecnico": "[HANDOFF_HUMANO]",
 }
 
 
@@ -215,6 +216,24 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "Contame un poco más qué te está pasando y lo vemos paso a paso.",
         ),
     ],
+    "no_tecnico": [
+        PasoPlaybook(
+            "ampliar_reclamo",
+            "Dale, contame un poco más para ayudarte o derivarte al área correcta.",
+        ),
+        PasoPlaybook(
+            "tipo_reclamo",
+            "¿Es por factura o pago, plan/alta/baja, un reclamo formal, o otra consulta?",
+        ),
+        PasoPlaybook(
+            "dato_cliente",
+            "¿Me pasás DNI o N.º de socio para ubicar tu cuenta?",
+        ),
+        PasoPlaybook(
+            "derivar_area",
+            "Con eso te derivo al área que corresponde. ¿Querés que abra el ticket?",
+        ),
+    ],
 }
 
 
@@ -316,6 +335,14 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "sim", "linea movil", "línea móvil",
     )):
         return "movil"
+
+    if any(k in t for k in (
+        "reclamo formal", "reclamo legal", "queja formal", "area legal",
+        "área legal", "defensa del consumidor", "baja definitiva",
+        "no es tecnico", "no es técnico", "tema comercial", "tema administrativo",
+        "consulta general", "otro problema", "tengo un problema con",
+    )):
+        return "no_tecnico"
 
     if servicio_abonado in ("internet", "ambos"):
         return "internet"
@@ -480,6 +507,9 @@ def resumen_handoff(
         "ecolan_b2b": "Ecolan B2B",
         "corte_deuda": "Facturación/Pagos",
         "facturacion": "Facturación",
+        "alta_plan": "Alta/plan",
+        "no_tecnico": "No técnico",
+        "general": "General",
     }.get(intencion, intencion or "General")
     return (
         f"{tag} [HANDOFF_HUMANO] "

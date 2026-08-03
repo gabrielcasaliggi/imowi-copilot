@@ -909,6 +909,8 @@ export const api = {
     return request<{
       playbooks: Record<string, { id: string; pregunta: string }[]>;
       sugeridos: string[];
+      descartados?: string[];
+      claves_validas?: string[];
     }>("/api/v1/admin/playbooks/convert", {
       method: "POST",
       body: JSON.stringify({ texto }),

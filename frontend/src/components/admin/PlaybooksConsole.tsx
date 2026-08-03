@@ -38,11 +38,18 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
   const [importMap, setImportMap] = useState<PlaybookMap>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [activeFlow, setActiveFlow] = useState<string>("");
+  const [activeImportFlow, setActiveImportFlow] = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advancedJson, setAdvancedJson] = useState("");
+  const [convertInfo, setConvertInfo] = useState<string>("");
+  const [hasConverted, setHasConverted] = useState(false);
 
   const flowKeys = useMemo(() => Object.keys(value).sort(), [value]);
   const importKeys = useMemo(() => Object.keys(importMap).sort(), [importMap]);
+  const selectedCount = useMemo(
+    () => importKeys.filter((k) => selected[k]).length,
+    [importKeys, selected],
+  );
 
   useEffect(() => {
     if (!activeFlow && flowKeys.length) {
@@ -92,21 +99,40 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
       return;
     }
     setConverting(true);
+    setHasConverted(true);
     try {
       const res = await api.convertPlaybooks(draftText.trim());
       const pb = res.playbooks || {};
       setImportMap(pb);
-      const sug = new Set(res.sugeridos?.length ? res.sugeridos : Object.keys(pb));
+      const keys = Object.keys(pb);
+      // Por defecto: todos seleccionados para aplicar
       const sel: Record<string, boolean> = {};
-      for (const k of Object.keys(pb)) sel[k] = sug.has(k);
+      for (const k of keys) sel[k] = true;
       setSelected(sel);
-      const first = Object.keys(pb)[0] || "";
+      const first = keys[0] || "";
+      setActiveImportFlow(first);
       if (first) setActiveFlow(first);
+
+      const descartados = res.descartados || [];
+      let info = keys.length
+        ? `${keys.length} flujo(s) listos. Marcá cuáles aplicar y pulsá «Aplicar seleccionados».`
+        : "La conversión no devolvió flujos aplicables.";
+      if (descartados.length) {
+        info += ` Claves ignoradas: ${descartados.join(", ")}.`;
+      }
+      setConvertInfo(info);
       onMessage?.(
-        `Convertido: ${Object.keys(pb).length} flujo(s). Revisá y aplicá los que quieras.`,
+        keys.length
+          ? `Convertido: ${keys.join(", ")}. Elegí cuáles aplicar abajo.`
+          : info,
       );
     } catch (err) {
-      onMessage?.(err instanceof Error ? err.message : "Error al convertir");
+      setImportMap({});
+      setSelected({});
+      setActiveImportFlow("");
+      const msg = err instanceof Error ? err.message : "Error al convertir";
+      setConvertInfo(msg);
+      onMessage?.(msg);
     } finally {
       setConverting(false);
     }
@@ -123,9 +149,16 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
       next[k] = importMap[k].map((p) => ({ ...p }));
     }
     onChange(next);
+    if (keys[0]) setActiveFlow(keys[0]);
     onMessage?.(
-      `Listo para guardar: ${keys.join(", ")}. Pulsá «Guardar configuración» abajo.`,
+      `Aplicado en borrador: ${keys.join(", ")}. Pulsá «Guardar configuración» para persistir.`,
     );
+  };
+
+  const toggleAll = (on: boolean) => {
+    const sel: Record<string, boolean> = {};
+    for (const k of importKeys) sel[k] = on;
+    setSelected(sel);
   };
 
   const addPaso = (flow: string, source: "current" | "import") => {
@@ -293,76 +326,130 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
         </div>
       </GlassCard>
 
-      {importKeys.length > 0 && (
-        <GlassCard title="Vista previa de conversión" accent="emerald" variant="secondary">
-          <p className="text-xs text-slate-500 mb-3">
-            Marcá los flujos a incorporar. Podés editar pasos antes de aplicar.
-          </p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {importKeys.map((k) => (
-              <label
-                key={k}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border cursor-pointer ${
-                  selected[k]
-                    ? "border-ecolan-brand/50 bg-ecolan-brand/10 text-slate-100"
-                    : "border-slate-800 text-slate-400"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(selected[k])}
-                  onChange={(e) =>
-                    setSelected((s) => ({ ...s, [k]: e.target.checked }))
-                  }
-                />
-                <span className="font-mono">{k}</span>
-                <span className="text-slate-500">({importMap[k]?.length || 0})</span>
-              </label>
-            ))}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
-            <div className="flex flex-col gap-1">
-              {importKeys.map((k) => (
+      {hasConverted && (
+        <GlassCard
+          title="1. Elegí a qué flujos aplicar"
+          accent="emerald"
+          variant="secondary"
+        >
+          {convertInfo && (
+            <p className="text-xs text-slate-400 mb-3 leading-relaxed">{convertInfo}</p>
+          )}
+          {importKeys.length === 0 ? (
+            <p className="text-xs text-amber-400/90 leading-relaxed">
+              No hay flujos para seleccionar. Reintentá la conversión o revisá que el
+              documento tenga preguntas al abonado. Clave nueva para no técnico:{" "}
+              <code className="font-mono text-ecolan-brand">no_tecnico</code>.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2 mb-2 items-center">
                 <button
-                  key={k}
                   type="button"
-                  onClick={() => setActiveFlow(k)}
-                  className={`text-left text-[11px] font-mono px-2 py-1.5 rounded-md ${
-                    activeFlow === k
-                      ? "bg-slate-800 text-ecolan-brand"
-                      : "text-slate-400 hover:bg-slate-900"
-                  }`}
+                  onClick={() => toggleAll(true)}
+                  className="text-[11px] text-slate-400 hover:text-slate-200 underline"
                 >
-                  {k}
+                  Seleccionar todos
                 </button>
-              ))}
-            </div>
-            <div>
-              {activeFlow && importMap[activeFlow] && (
-                <>
-                  <p className="text-[11px] font-mono text-slate-500 mb-2">
-                    Editando import · {activeFlow}
-                  </p>
-                  {renderPasoEditor(activeFlow, importMap[activeFlow], "import")}
-                </>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={applySelected}
-            disabled={busy || converting}
-            className="mt-3 px-3 py-1.5 rounded-lg border border-ecolan-brand/40 text-xs font-semibold text-ecolan-brand hover:bg-ecolan-brand/10 disabled:opacity-50"
-          >
-            Aplicar flujos seleccionados
-          </button>
+                <button
+                  type="button"
+                  onClick={() => toggleAll(false)}
+                  className="text-[11px] text-slate-400 hover:text-slate-200 underline"
+                >
+                  Ninguno
+                </button>
+                <span className="text-[11px] text-slate-500 ml-auto">
+                  {selectedCount} de {importKeys.length} seleccionados
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {importKeys.map((k) => (
+                  <label
+                    key={k}
+                    className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border cursor-pointer transition ${
+                      selected[k]
+                        ? "border-ecolan-brand/60 bg-ecolan-brand/15 text-slate-100 shadow-sm"
+                        : "border-slate-700 text-slate-400 hover:border-slate-500"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-ecolan-brand h-4 w-4"
+                      checked={Boolean(selected[k])}
+                      onChange={(e) =>
+                        setSelected((s) => ({ ...s, [k]: e.target.checked }))
+                      }
+                    />
+                    <span className="font-mono font-semibold">{k}</span>
+                    <span className="text-slate-500">
+                      {importMap[k]?.length || 0} pasos
+                    </span>
+                    {value[k] ? (
+                      <span className="text-[10px] text-amber-400/80">reemplaza</span>
+                    ) : (
+                      <span className="text-[10px] text-emerald-400/80">nuevo</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              <p className="text-[11px] font-mono text-slate-500 mb-2">
+                2. Revisá / editá pasos del flujo seleccionado
+              </p>
+              <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
+                <div className="flex flex-col gap-1">
+                  {importKeys.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setActiveImportFlow(k)}
+                      className={`text-left text-[11px] font-mono px-2 py-1.5 rounded-md ${
+                        activeImportFlow === k
+                          ? "bg-slate-800 text-ecolan-brand"
+                          : "text-slate-400 hover:bg-slate-900"
+                      }`}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  {activeImportFlow && importMap[activeImportFlow] && (
+                    <>
+                      <p className="text-[11px] font-mono text-slate-500 mb-2">
+                        Import · {activeImportFlow}
+                      </p>
+                      {renderPasoEditor(
+                        activeImportFlow,
+                        importMap[activeImportFlow],
+                        "import",
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={applySelected}
+                disabled={busy || converting || selectedCount === 0}
+                className="mt-4 px-4 py-2 rounded-lg bg-ecolan-brand hover:bg-ecolan-brand-dark text-xs font-semibold text-white disabled:opacity-50"
+              >
+                Aplicar {selectedCount || ""} seleccionado{selectedCount === 1 ? "" : "s"}
+              </button>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Después pulsá «Guardar configuración» al final de la página.
+              </p>
+            </>
+          )}
         </GlassCard>
       )}
 
       <GlassCard title="Playbooks actuales" accent="cyan" variant="secondary">
         <p className="text-xs text-slate-500 mb-3">
-          Editor de los flujos ya cargados. Los cambios se guardan con «Guardar
-          configuración».
+          Editor de los flujos ya cargados. Buscá{" "}
+          <code className="font-mono text-ecolan-brand">no_tecnico</code> tras guardar.
+          Los cambios se persisten con «Guardar configuración».
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
           <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
