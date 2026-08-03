@@ -1,0 +1,1223 @@
+[
+  {
+    "escenario_id": "E01",
+    "nombre": "Sin internet — fibra FTTH",
+    "categoria": "internet_ftth",
+    "turnos": [
+      {
+        "usuario": "Hola, no tengo internet en casa",
+        "respuesta": "Hola, lamento que tengas problemas con el servicio. ¿Qué tipo de conexión tenés: fibra óptica (cable amarillo a una cajita blanca), radio en el techo o ADSL?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1135,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Tengo fibra, la cajita blanca",
+        "respuesta": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1470,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Sí, tiene luces encendidas",
+        "respuesta": "Fijate en la ONT si la luz PON está en verde fijo y la LOS está apagada. ¿Qué luces ves encendidas ahora?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1184,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "La PON está verde y la LOS apagada",
+        "respuesta": "¿El cable de fibra amarillo está bien enchufado en la ONT? Fijate si no tiene dobleces pronunciados o si algo lo está presionando.",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1023,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 1.0,
+    "resumen_fallas": [],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Hola, no tengo internet en casa"
+      },
+      {
+        "rol": "bot",
+        "texto": "Hola, lamento que tengas problemas con el servicio. ¿Qué tipo de conexión tenés: fibra óptica (cable amarillo a una cajita blanca), radio en el techo o ADSL?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Tengo fibra, la cajita blanca"
+      },
+      {
+        "rol": "bot",
+        "texto": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Sí, tiene luces encendidas"
+      },
+      {
+        "rol": "bot",
+        "texto": "Fijate en la ONT si la luz PON está en verde fijo y la LOS está apagada. ¿Qué luces ves encendidas ahora?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "La PON está verde y la LOS apagada"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El cable de fibra amarillo está bien enchufado en la ONT? Fijate si no tiene dobleces pronunciados o si algo lo está presionando."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E02",
+    "nombre": "Internet lento en horario pico",
+    "categoria": "internet_lento",
+    "turnos": [
+      {
+        "usuario": "Internet anda re lento desde ayer a la tarde",
+        "respuesta": "¿Cuántos dispositivos tenés conectados al WiFi ahora? A veces la lentitud es por saturación.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 972,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "Hay como 8 equipos conectados",
+        "respuesta": "¿Podés hacer un test de velocidad desde una PC conectada por cable? Entrá a fast.com o speedtest.net y decime cuánto te da de bajada.",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1096,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Es más a la noche",
+        "respuesta": "¿Cuánto te dio? Si está por debajo del 70% del plan contratado con el equipo por cable, hay que revisarlo. Te derivo con un agente para que verifiquen la línea. ¿Querés?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1229,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.15000000000000002
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": true,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.633,
+    "resumen_fallas": [
+      "T1: No ofreció pasos de autodiagnóstico esperados",
+      "T3: Derivación/ticket prematuro sin agotar N1"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Internet anda re lento desde ayer a la tarde"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Cuántos dispositivos tenés conectados al WiFi ahora? A veces la lentitud es por saturación."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Hay como 8 equipos conectados"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Podés hacer un test de velocidad desde una PC conectada por cable? Entrá a fast.com o speedtest.net y decime cuánto te da de bajada."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Es más a la noche"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Cuánto te dio? Si está por debajo del 70% del plan contratado con el equipo por cable, hay que revisarlo. Te derivo con un agente para que verifiquen la línea. ¿Querés?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E03",
+    "nombre": "WiFi no llega al fondo de la casa",
+    "categoria": "wifi",
+    "turnos": [
+      {
+        "usuario": "El WiFi no llega a la habitación del fondo",
+        "respuesta": "¿El WiFi falla en toda la casa o solo en la habitación del fondo? La señal suele perder fuerza con las paredes de ladrillo o cemento.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1260,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "En el living anda bien, lejos no",
+        "respuesta": "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, escribime de nuevo y te ayudo. ¡Gracias!",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 40,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "Sí, reinicié el router y sigue igual de lejos",
+        "respuesta": "Entiendo, para poder ayudarte mejor, ¿qué tipo de conexión tenés en tu casa? (Fibra óptica, radio o ADSL).",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 969,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.833,
+    "resumen_fallas": [
+      "T1: No ofreció pasos de autodiagnóstico esperados",
+      "T2: No ofreció pasos de autodiagnóstico esperados"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "El WiFi no llega a la habitación del fondo"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El WiFi falla en toda la casa o solo en la habitación del fondo? La señal suele perder fuerza con las paredes de ladrillo o cemento."
+      },
+      {
+        "rol": "usuario",
+        "texto": "En el living anda bien, lejos no"
+      },
+      {
+        "rol": "bot",
+        "texto": "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, escribime de nuevo y te ayudo. ¡Gracias!"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Sí, reinicié el router y sigue igual de lejos"
+      },
+      {
+        "rol": "bot",
+        "texto": "Entiendo, para poder ayudarte mejor, ¿qué tipo de conexión tenés en tu casa? (Fibra óptica, radio o ADSL)."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E04",
+    "nombre": "Corte por deuda / pago QR",
+    "categoria": "corte_deuda",
+    "turnos": [
+      {
+        "usuario": "Me cortaron el servicio por falta de pago, ¿cómo pago?",
+        "respuesta": "Tu cuenta tiene un saldo pendiente y por eso el servicio está limitado. ¿Querés que te explique cómo podés regularizarlo?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 968,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados",
+          "No resolvió/instruyó de forma directa"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "Mi DNI es 30111222",
+        "respuesta": "Gracias por el dato. Tu cuenta tiene un saldo pendiente y el servicio podría estar limitado. ¿Querés que te explique cómo regularizarlo?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 826,
+        "hallazgos": [
+          "No resolvió/instruyó de forma directa"
+        ],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.875,
+    "resumen_fallas": [
+      "T1: No ofreció pasos de autodiagnóstico esperados",
+      "T1: No resolvió/instruyó de forma directa",
+      "T2: No resolvió/instruyó de forma directa"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Me cortaron el servicio por falta de pago, ¿cómo pago?"
+      },
+      {
+        "rol": "bot",
+        "texto": "Tu cuenta tiene un saldo pendiente y por eso el servicio está limitado. ¿Querés que te explique cómo podés regularizarlo?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Mi DNI es 30111222"
+      },
+      {
+        "rol": "bot",
+        "texto": "Gracias por el dato. Tu cuenta tiene un saldo pendiente y el servicio podría estar limitado. ¿Querés que te explique cómo regularizarlo?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E05",
+    "nombre": "Consulta de factura / saldo",
+    "categoria": "facturacion",
+    "turnos": [
+      {
+        "usuario": "Quiero saber cuánto debo de la factura de este mes",
+        "respuesta": "¿Me podrías decir qué duda tenés con tu factura o qué cobro no reconocés?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 755,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "No tengo el QR a mano, ¿me lo pueden mandar?",
+        "respuesta": "¿Qué medio de pago utilizaste y en qué fecha hiciste el movimiento?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 716,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 1.0,
+    "resumen_fallas": [],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Quiero saber cuánto debo de la factura de este mes"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Me podrías decir qué duda tenés con tu factura o qué cobro no reconocés?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "No tengo el QR a mano, ¿me lo pueden mandar?"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Qué medio de pago utilizaste y en qué fecha hiciste el movimiento?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E06",
+    "nombre": "Móvil IMOVI sin datos",
+    "categoria": "movil_datos",
+    "turnos": [
+      {
+        "usuario": "Mi celular IMOWI no tiene datos, WhatsApp no carga con datos móviles",
+        "respuesta": "¿Tenés los datos móviles activados en tu teléfono? Fijate en Ajustes > Redes móviles y confirmá que no estés en modo avión.",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1261,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Datos estánidos y modo avión apagado",
+        "respuesta": "Fijate si tenés configurado el APN de datos como internet.coopbatan.ar. ¿Pudiste revisarlo?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1032,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Reinicié el teléfono y sigue sin datos",
+        "respuesta": "¿Estás en tu zona habitual o estás viajando? Si estás fuera de la zona de cobertura, tenés que tener habilitado el roaming de datos.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1072,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.917,
+    "resumen_fallas": [
+      "T3: No ofreció pasos de autodiagnóstico esperados"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Mi celular IMOWI no tiene datos, WhatsApp no carga con datos móviles"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Tenés los datos móviles activados en tu teléfono? Fijate en Ajustes > Redes móviles y confirmá que no estés en modo avión."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Datos estánidos y modo avión apagado"
+      },
+      {
+        "rol": "bot",
+        "texto": "Fijate si tenés configurado el APN de datos como internet.coopbatan.ar. ¿Pudiste revisarlo?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Reinicié el teléfono y sigue sin datos"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Estás en tu zona habitual o estás viajando? Si estás fuera de la zona de cobertura, tenés que tener habilitado el roaming de datos."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E07",
+    "nombre": "Sin señal móvil",
+    "categoria": "movil",
+    "turnos": [
+      {
+        "usuario": "No tengo señal en el celular, no puedo llamar ni nada",
+        "respuesta": "¿El problema es que no podés hacer llamadas, no las recibís, o se cortan? ¿Y con los SMS te pasa lo mismo?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 932,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Probé modo avión y reiniciar, sigue sin barras",
+        "respuesta": "Entiendo, probá reiniciar el teléfono y hacé una llamada de prueba al *99#. ¿Te funcionó?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 989,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 1.0,
+    "resumen_fallas": [],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "No tengo señal en el celular, no puedo llamar ni nada"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El problema es que no podés hacer llamadas, no las recibís, o se cortan? ¿Y con los SMS te pasa lo mismo?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Probé modo avión y reiniciar, sigue sin barras"
+      },
+      {
+        "rol": "bot",
+        "texto": "Entiendo, probá reiniciar el teléfono y hacé una llamada de prueba al *99#. ¿Te funcionó?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E08",
+    "nombre": "Pedido prematuro de operador humano",
+    "categoria": "general",
+    "turnos": [
+      {
+        "usuario": "Quiero hablar con una persona, pasame con un operador",
+        "respuesta": "Te derivo con un agente. Ticket JSC-1006. Quedate en esta conversación, te van a responder acá.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 74,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.4
+      },
+      {
+        "usuario": "Es que no me anda internet",
+        "respuesta": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 26,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.15000000000000002
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": true,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.275,
+    "resumen_fallas": [
+      "T1: Derivación/ticket prematuro sin agotar N1",
+      "T2: Derivación/ticket prematuro sin agotar N1"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Quiero hablar con una persona, pasame con un operador"
+      },
+      {
+        "rol": "bot",
+        "texto": "Te derivo con un agente. Ticket JSC-1006. Quedate en esta conversación, te van a responder acá."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Es que no me anda internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E09",
+    "nombre": "Alta / cambio de plan",
+    "categoria": "alta_plan",
+    "turnos": [
+      {
+        "usuario": "Quiero contratar internet fibra en Batán",
+        "respuesta": "¿Querés dar de alta un servicio nuevo, o cambiar/mejorar el plan que ya tenés? ¿Es internet, móvil, o ambos?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 965,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Es alta nueva, barrio Centro",
+        "respuesta": "Para altas y cambios de plan, te puedo derivar con un agente del área comercial para que te pase las opciones y precios vigentes. ¿Querés que te derive?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1124,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 1.0,
+    "resumen_fallas": [],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Quiero contratar internet fibra en Batán"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Querés dar de alta un servicio nuevo, o cambiar/mejorar el plan que ya tenés? ¿Es internet, móvil, o ambos?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Es alta nueva, barrio Centro"
+      },
+      {
+        "rol": "bot",
+        "texto": "Para altas y cambios de plan, te puedo derivar con un agente del área comercial para que te pase las opciones y precios vigentes. ¿Querés que te derive?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E10",
+    "nombre": "Internet radio/antena caído",
+    "categoria": "internet_radio",
+    "turnos": [
+      {
+        "usuario": "Se me cayó internet, tengo antena en el techo",
+        "respuesta": "Internet por radio/antena: ¿podés apagar el equipo de radio (CPE, generalmente en el techo o pared exterior) y el router durante 30 segundos? Encendé primero el CPE/radio, esperá 1 minuto a que enganche la señal, y después el router. ¿Volvió la conexión?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1348,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "La fuente PoE tiene lucecita prendida",
+        "respuesta": "¿El LED de enlace está fijo o parpadea? Si parpadea rápido o está en rojo, puede ser una pérdida de señal con la torre.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1023,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "Reinicié antena y router y no volvió",
+        "respuesta": "¿La antena tiene línea de vista libre hacia la torre (sin árboles, construcciones nuevas u otros obstáculos)? ¿El cable de alimentación (PoE) está bien conectado y el inyector tiene luz?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1018,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.917,
+    "resumen_fallas": [
+      "T2: No ofreció pasos de autodiagnóstico esperados"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Se me cayó internet, tengo antena en el techo"
+      },
+      {
+        "rol": "bot",
+        "texto": "Internet por radio/antena: ¿podés apagar el equipo de radio (CPE, generalmente en el techo o pared exterior) y el router durante 30 segundos? Encendé primero el CPE/radio, esperá 1 minuto a que enganche la señal, y después el router. ¿Volvió la conexión?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "La fuente PoE tiene lucecita prendida"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El LED de enlace está fijo o parpadea? Si parpadea rápido o está en rojo, puede ser una pérdida de señal con la torre."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Reinicié antena y router y no volvió"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿La antena tiene línea de vista libre hacia la torre (sin árboles, construcciones nuevas u otros obstáculos)? ¿El cable de alimentación (PoE) está bien conectado y el inyector tiene luz?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E11",
+    "nombre": "Persistencia post-N1 → ticket legítimo",
+    "categoria": "internet_ftth",
+    "turnos": [
+      {
+        "usuario": "No tengo internet, es fibra",
+        "respuesta": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1609,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Sí tiene luces",
+        "respuesta": "Fijate en la ONT si la luz PON está en verde fijo y la LOS está apagada. ¿Qué luces ves ahora?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 988,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "PON verde, LOS apagada",
+        "respuesta": "¿El cable de fibra amarillo está bien enchufado en la ONT? Fijate que no esté doblado o suelto por algún mueble.",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 921,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Reinicié ONT y router 30 segundos y no volvió",
+        "respuesta": "¿El problema es solo con el WiFi o también falla si conectás una PC por cable directo al router?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 809,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "El cable amarillo está bien",
+        "respuesta": "Si después de reiniciar sigue sin funcionar, parece que necesitás una revisión técnica. ¿Querés que te derive con un agente para coordinar una visita?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1032,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.4
+      },
+      {
+        "usuario": "Falla también por cable, no es solo WiFi. Sigue sin internet",
+        "respuesta": "Entendido, no te derivo por ahora. Si más adelante necesitás ayuda o querés hablar con un agente, escribí *agente*.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 32,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Sí, abrí el ticket por favor",
+        "respuesta": "Ya generé el ticket JSC-1007 para que un agente lo revise. ¿Te gustaría que te avise cuando haya novedades?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1194,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": true,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.914,
+    "resumen_fallas": [
+      "T5: Derivación/ticket prematuro sin agotar N1"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet, es fibra"
+      },
+      {
+        "rol": "bot",
+        "texto": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Sí tiene luces"
+      },
+      {
+        "rol": "bot",
+        "texto": "Fijate en la ONT si la luz PON está en verde fijo y la LOS está apagada. ¿Qué luces ves ahora?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "PON verde, LOS apagada"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El cable de fibra amarillo está bien enchufado en la ONT? Fijate que no esté doblado o suelto por algún mueble."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Reinicié ONT y router 30 segundos y no volvió"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El problema es solo con el WiFi o también falla si conectás una PC por cable directo al router?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "El cable amarillo está bien"
+      },
+      {
+        "rol": "bot",
+        "texto": "Si después de reiniciar sigue sin funcionar, parece que necesitás una revisión técnica. ¿Querés que te derive con un agente para coordinar una visita?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Falla también por cable, no es solo WiFi. Sigue sin internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Entendido, no te derivo por ahora. Si más adelante necesitás ayuda o querés hablar con un agente, escribí *agente*."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Sí, abrí el ticket por favor"
+      },
+      {
+        "rol": "bot",
+        "texto": "Ya generé el ticket JSC-1007 para que un agente lo revise. ¿Te gustaría que te avise cuando haya novedades?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E12",
+    "nombre": "Comprensión — typos y lenguaje coloquial",
+    "categoria": "internet",
+    "turnos": [
+      {
+        "usuario": "ola no anda el interntt, no me carga nadaa",
+        "respuesta": "Hola, soy el asistente virtual de Cooperativa Batán. ¿En qué puedo ayudarte hoy?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 888,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "es fibraa la cajita blanca",
+        "respuesta": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1704,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.875,
+    "resumen_fallas": [
+      "T1: No ofreció pasos de autodiagnóstico esperados"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "ola no anda el interntt, no me carga nadaa"
+      },
+      {
+        "rol": "bot",
+        "texto": "Hola, soy el asistente virtual de Cooperativa Batán. ¿En qué puedo ayudarte hoy?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "es fibraa la cajita blanca"
+      },
+      {
+        "rol": "bot",
+        "texto": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E13",
+    "nombre": "Bucle — mensaje repetido idéntico",
+    "categoria": "internet",
+    "turnos": [
+      {
+        "usuario": "No tengo internet",
+        "respuesta": "Hola, lamento que estés sin conexión. ¿Qué tipo de servicio tenés: fibra óptica, radio o línea telefónica?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 944,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "No tengo internet",
+        "respuesta": "Ya generé el ticket JSC-1008 para que un agente revise tu caso. ¿Qué tipo de conexión tenés, fibra o antena?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1023,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.4
+      },
+      {
+        "usuario": "No tengo internet",
+        "respuesta": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 27,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.15000000000000002
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": true,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.517,
+    "resumen_fallas": [
+      "T2: Derivación/ticket prematuro sin agotar N1",
+      "T3: Derivación/ticket prematuro sin agotar N1"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Hola, lamento que estés sin conexión. ¿Qué tipo de servicio tenés: fibra óptica, radio o línea telefónica?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Ya generé el ticket JSC-1008 para que un agente revise tu caso. ¿Qué tipo de conexión tenés, fibra o antena?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E14",
+    "nombre": "Ecolan B2B / Data Center",
+    "categoria": "ecolan_b2b",
+    "turnos": [
+      {
+        "usuario": "Hola, tenemos una VM en el data center de Ecolan que no responde",
+        "respuesta": "Hola, te ayudo con lo de Ecolan. ¿Tu servicio es PBX, Cloud/VM, hosting o enlace dedicado?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 953,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Está caída ahora, impacto productivo",
+        "respuesta": "¿Tenés el servicio caído ahora o es una consulta por una cotización?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 792,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 1.0,
+    "resumen_fallas": [],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Hola, tenemos una VM en el data center de Ecolan que no responde"
+      },
+      {
+        "rol": "bot",
+        "texto": "Hola, te ayudo con lo de Ecolan. ¿Tu servicio es PBX, Cloud/VM, hosting o enlace dedicado?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Está caída ahora, impacto productivo"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Tenés el servicio caído ahora o es una consulta por una cotización?"
+      }
+    ]
+  },
+  {
+    "escenario_id": "E15",
+    "nombre": "Teléfono fijo sin tono",
+    "categoria": "telefono_fija",
+    "turnos": [
+      {
+        "usuario": "El teléfono fijo no tiene tono",
+        "respuesta": "¿Te sale tono cuando descolgás el teléfono?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 740,
+        "hallazgos": [
+          "No ofreció pasos de autodiagnóstico esperados"
+        ],
+        "score_n1": 0.75
+      },
+      {
+        "usuario": "El cable está bien enchufado y sigue sin tono",
+        "respuesta": "¿Podrías revisar si el cable está bien conectado en la toma de la pared?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1126,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.875,
+    "resumen_fallas": [
+      "T1: No ofreció pasos de autodiagnóstico esperados"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "El teléfono fijo no tiene tono"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Te sale tono cuando descolgás el teléfono?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "El cable está bien enchufado y sigue sin tono"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿Podrías revisar si el cable está bien conectado en la toma de la pared?"
+      }
+    ]
+  }
+]

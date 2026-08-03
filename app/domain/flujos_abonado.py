@@ -60,13 +60,15 @@ TAG_POR_INTENCION: dict[str, str] = {
 PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "corte_deuda": [
         PasoPlaybook(
-            "confirmar_deuda",
-            "Puede haber saldo pendiente. ¿Me pasás el DNI o N.º de socio para ayudarte con el pago?",
-        ),
-        PasoPlaybook(
             "medios_pago_qr",
             "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
-            "Al acreditarse, el servicio se reactiva solo. ¿Pudiste pagar?",
+            "Cuando se acredita, el servicio se reactiva solo. "
+            "Si no tenés el QR, identificáte con DNI en el portal o pasame DNI/N.º de socio. "
+            "¿Pudiste pagar o necesitás que te ubique la cuenta?",
+        ),
+        PasoPlaybook(
+            "confirmar_deuda",
+            "¿Me pasás el DNI o N.º de socio para ubicar el saldo y el QR?",
         ),
         PasoPlaybook(
             "derivar_pagos",
@@ -75,12 +77,14 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     ],
     "facturacion": [
         PasoPlaybook(
-            "pedir_dni_factura",
-            "Para ver saldo o factura necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
+            "guia_qr_o_dni",
+            "Para saldo o copia de factura identificáte con DNI en el portal. "
+            "Si es un pago, usá el QR Fiserv de la boleta (Mercado Pago, MODO, etc.). "
+            "¿Es por saldo, un cobro que no reconocés, o necesitás el QR?",
         ),
         PasoPlaybook(
-            "tipo_consulta_factura",
-            "¿Es por un importe que no entendés, saldo pendiente, copia de factura, o un pago?",
+            "pedir_dni_factura",
+            "Para ver tu cuenta necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
         ),
         PasoPlaybook(
             "detalle_importe",
@@ -322,6 +326,9 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "modem", "módem", "router", "internet fijo",
         "sin internet", "no anda internet", "internet", "no navego",
         "no cargo", "pagina", "página",
+        # typos / coloquial frecuentes
+        "interntt", "internt", "internte", "intenet", "inteernet",
+        "no anda nada", "no me carga nada", "sin servi", "cajita blanca",
     )):
         return "internet"
 
@@ -478,29 +485,77 @@ def respuesta_paso_ok(texto: str) -> bool | None:
 
 
 def indica_resuelto(texto: str) -> bool:
-    """El abonado indica que el servicio ya volvió / funciona."""
+    """El abonado indica que el servicio ya volvió / funciona.
+
+    Requiere anclas claras («ya…», «volvió», «quedó…»). Evita falsos positivos
+    como «en el living anda bien, lejos no».
+    """
     t = (texto or "").lower().strip()
     if not t:
         return False
     if parece_consulta_nueva(t) or es_saludo_corto(t):
         return False
-    claves = (
-        "ya anda", "ya funciona", "ya volvio", "ya volvió",
-        "mejoro", "mejoró", "anda bien", "quedó bien",
-        "quedo bien", "resuelto", "solucionado",
-        "todo bien", "ya esta", "ya está", "quedó resuelto", "quedo resuelto",
-    )
-    if any(x in t for x in (
-        "no anda", "no funciona", "sigue sin", "no volvio", "no volvió",
-        "no mejoro", "no mejoró", "consultar", "quisiera", "quiero",
-    )):
-        return False
-    # Evitar 'funciona'/'volvio' sueltos dentro de frases largas de consulta
-    if len(t.split()) > 8 and not any(
-        x in t for x in ("ya anda", "ya funciona", "ya volvió", "ya volvio", "quedó bien", "resuelto")
+    # Problema parcial / contraste → nunca cerrar como resuelto
+    if any(
+        x in t
+        for x in (
+            "no anda",
+            "no funciona",
+            "sigue sin",
+            "no volvio",
+            "no volvió",
+            "no mejoro",
+            "no mejoró",
+            "consultar",
+            "quisiera",
+            "quiero",
+            "pero",
+            "lejos",
+            "solo en",
+            "sólo en",
+            "excepto",
+            "no llega",
+            "sigue mal",
+            "sigue igual",
+            "en el fondo",
+            "habitacion",
+            "habitación",
+        )
     ):
         return False
-    return any(k in t for k in claves)
+    claves = (
+        "ya anda",
+        "ya funciona",
+        "ya volvio",
+        "ya volvió",
+        "ya mejoró",
+        "ya mejoro",
+        "mejoró todo",
+        "mejoro todo",
+        "quedó bien",
+        "quedo bien",
+        "quedó resuelto",
+        "quedo resuelto",
+        "ya esta",
+        "ya está",
+        "ya quedó",
+        "ya quedo",
+        "se solucionó",
+        "se soluciono",
+        "ahora sí",
+        "ahora si",
+        "volvió todo",
+        "volvio todo",
+        "todo bien ahora",
+    )
+    if any(k in t for k in claves):
+        return True
+    # Respuesta corta a «¿Mejoró?» / «¿Volvió?»
+    if _token_en_texto(t, "mejoró") or _token_en_texto(t, "mejoro"):
+        return True
+    if _token_en_texto(t, "volvió") or _token_en_texto(t, "volvio"):
+        return True
+    return False
 
 
 def es_paso_derivacion(paso: PasoPlaybook | None) -> bool:
@@ -540,25 +595,82 @@ def pide_humano(texto: str) -> bool:
     )
 
 
+def es_escape_agente(texto: str) -> bool:
+    """Escape hatch documentado: *agente* / «agente» solo → handoff inmediato."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    compact = re.sub(r"\s+", "", t)
+    if compact in ("*agente*", "agente", "*agente"):
+        return True
+    return bool(re.fullmatch(r"\*+\s*agente\s*\*+", t))
+
+
+def contiene_sintoma_canal(texto: str) -> bool:
+    """True si el mensaje trae un síntoma/consulta N1 además del pedido de humano."""
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "internet",
+            "wifi",
+            "wi-fi",
+            "fibra",
+            "antena",
+            "router",
+            "modem",
+            "módem",
+            "datos",
+            "señal",
+            "senal",
+            "llamada",
+            "factura",
+            "pago",
+            "deuda",
+            "saldo",
+            "qr",
+            "corte",
+            "lento",
+            "ont",
+            "adsl",
+            "imowi",
+            "celular",
+            "móvil",
+            "movil",
+            "tono",
+            "fijo",
+            "no anda",
+            "no funciona",
+            "sin servicio",
+            "sin internet",
+            "cajita",
+            "internt",
+        )
+    )
+
+
 def normalizar_queja(texto: str) -> str:
     t = (texto or "").lower().strip()
     t = " ".join(t.split())
     return t[:160]
 
 
-def detecta_frustracion(texto: str, ctx: dict) -> bool:
-    """True si el usuario reitera la misma queja sustancial (2ª vez) sin progreso.
-
-    Ignora respuestas cortas de diagnóstico ("no", "sigue igual") para no
-    escalar en medio del playbook N1.
-    """
+def misma_queja(texto: str, ctx: dict) -> bool:
     actual = normalizar_queja(texto)
-    if len(actual) < 20:
-        return False
-    if respuesta_paso_ok(texto) is not None and len(actual) < 40:
+    if len(actual) < 8:
         return False
     prev = str(ctx.get("ultima_queja") or "").strip()
     return bool(prev and actual == prev)
+
+
+def detecta_frustracion(texto: str, ctx: dict) -> bool:
+    """True si reitera la misma queja *después* de avance N1 real (paso_idx ≥ 2).
+
+    No abre ticket por repetir el síntoma al inicio del playbook (triaje).
+    """
+    if not misma_queja(texto, ctx):
+        return False
+    return int(ctx.get("paso_idx") or 0) >= 2
 
 
 def registrar_queja(ctx: dict, texto: str) -> dict:

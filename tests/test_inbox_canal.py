@@ -151,6 +151,7 @@ def test_inbox_list_and_claim():
 
 
 def test_pide_agente_crea_ticket_n2():
+    """Handoff humano: 1er pedido sin síntoma → menú; *agente* → ticket."""
     headers = _admin_headers()
     tel = "5492235560099"
     _cerrar_convs_telefono(tel)
@@ -172,8 +173,17 @@ def test_pide_agente_crea_ticket_n2():
     )
     assert r.status_code == 200
     data = r.json()
-    assert data.get("ticket_id")
-    assert data.get("estado") == "espera_agente"
+    assert data.get("estado") == "bot"
+    assert not data.get("ticket_id")
+    r2 = client.post(
+        "/api/v1/inbox/simulate",
+        headers=headers,
+        json={"telefono": tel, "texto": "*agente*", "usar_llama": False},
+    )
+    assert r2.status_code == 200
+    data2 = r2.json()
+    assert data2.get("ticket_id")
+    assert data2.get("estado") == "espera_agente"
 
 
 def test_batan_ve_conversaciones_y_puede_tomar():

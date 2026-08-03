@@ -1,0 +1,262 @@
+[
+  {
+    "escenario_id": "E01",
+    "nombre": "Sin internet — fibra FTTH",
+    "categoria": "internet_ftth",
+    "turnos": [
+      {
+        "usuario": "Hola, no tengo internet en casa",
+        "respuesta": "Hola, lamento que tengas problemas con el servicio. ¿Qué tipo de conexión tenés: fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo o ADSL?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1601,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Tengo fibra, la cajita blanca",
+        "respuesta": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 2104,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "Sí, tiene luces encendidas",
+        "respuesta": "Fijate en la ONT: ¿la luz PON está en verde fijo y la luz LOS apagada? Si LOS está en rojo, puede haber un corte de fibra. Respondé qué ves.",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1586,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "La PON está verde y la LOS apagada",
+        "respuesta": "¿El cable de fibra amarillo está bien enchufado en la ONT? Fijate si no tiene dobleces pronunciados o si se desconectó por algo.",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1093,
+        "hallazgos": [],
+        "score_n1": 1.0
+      }
+    ],
+    "resolutivo_autonomo": true,
+    "ticket_creado_o_ofrecido": false,
+    "ticket_prematuro": false,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 1.0,
+    "resumen_fallas": [],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Hola, no tengo internet en casa"
+      },
+      {
+        "rol": "bot",
+        "texto": "Hola, lamento que tengas problemas con el servicio. ¿Qué tipo de conexión tenés: fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo o ADSL?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Tengo fibra, la cajita blanca"
+      },
+      {
+        "rol": "bot",
+        "texto": "Internet por fibra óptica (FTTH): ¿podés desenchufar la ONT (cajita blanca con el cable de fibra amarillo) y el router durante 30 segundos, encender primero la ONT, esperar que encienda la luz PON/LINK en verde fijo, y después el router? ¿Volvió la conexión?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "Sí, tiene luces encendidas"
+      },
+      {
+        "rol": "bot",
+        "texto": "Fijate en la ONT: ¿la luz PON está en verde fijo y la luz LOS apagada? Si LOS está en rojo, puede haber un corte de fibra. Respondé qué ves."
+      },
+      {
+        "rol": "usuario",
+        "texto": "La PON está verde y la LOS apagada"
+      },
+      {
+        "rol": "bot",
+        "texto": "¿El cable de fibra amarillo está bien enchufado en la ONT? Fijate si no tiene dobleces pronunciados o si se desconectó por algo."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E08",
+    "nombre": "Pedido prematuro de operador humano",
+    "categoria": "general",
+    "turnos": [
+      {
+        "usuario": "Quiero hablar con una persona, pasame con un operador",
+        "respuesta": "Te derivo con un agente. Ticket JSC-1009. Quedate en esta conversación, te van a responder acá.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 579,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.4
+      },
+      {
+        "usuario": "Es que no me anda internet",
+        "respuesta": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 583,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.15000000000000002
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": true,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.275,
+    "resumen_fallas": [
+      "T1: Derivación/ticket prematuro sin agotar N1",
+      "T2: Derivación/ticket prematuro sin agotar N1"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "Quiero hablar con una persona, pasame con un operador"
+      },
+      {
+        "rol": "bot",
+        "texto": "Te derivo con un agente. Ticket JSC-1009. Quedate en esta conversación, te van a responder acá."
+      },
+      {
+        "rol": "usuario",
+        "texto": "Es que no me anda internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat."
+      }
+    ]
+  },
+  {
+    "escenario_id": "E13",
+    "nombre": "Bucle — mensaje repetido idéntico",
+    "categoria": "internet",
+    "turnos": [
+      {
+        "usuario": "No tengo internet",
+        "respuesta": "Hola, lamento que estés sin conexión. ¿Qué tipo de servicio tenés: fibra óptica, radio o línea telefónica?",
+        "resolvio_en_chat": true,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": false,
+        "ticket_prematuro": false,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1064,
+        "hallazgos": [],
+        "score_n1": 1.0
+      },
+      {
+        "usuario": "No tengo internet",
+        "respuesta": "Te cuento que ya generé el ticket JSC-1010 para que un agente te ayude. ¿Qué tipo de conexión tenés, es por fibra o por antena?",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": true,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 1584,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.4
+      },
+      {
+        "usuario": "No tengo internet",
+        "respuesta": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat.",
+        "resolvio_en_chat": false,
+        "instruyo_autodiagnostico": false,
+        "derivo_ticket": true,
+        "ticket_prematuro": true,
+        "falla_comprension": false,
+        "posible_bucle": false,
+        "pidio_identificacion": false,
+        "latency_ms": 592,
+        "hallazgos": [
+          "Derivación/ticket prematuro sin agotar N1"
+        ],
+        "score_n1": 0.15000000000000002
+      }
+    ],
+    "resolutivo_autonomo": false,
+    "ticket_creado_o_ofrecido": true,
+    "ticket_prematuro": true,
+    "bucle_detectado": false,
+    "falla_comprension": false,
+    "score_n1": 0.517,
+    "resumen_fallas": [
+      "T2: Derivación/ticket prematuro sin agotar N1",
+      "T3: Derivación/ticket prematuro sin agotar N1"
+    ],
+    "transcript": [
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Hola, lamento que estés sin conexión. ¿Qué tipo de servicio tenés: fibra óptica, radio o línea telefónica?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Te cuento que ya generé el ticket JSC-1010 para que un agente te ayude. ¿Qué tipo de conexión tenés, es por fibra o por antena?"
+      },
+      {
+        "rol": "usuario",
+        "texto": "No tengo internet"
+      },
+      {
+        "rol": "bot",
+        "texto": "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat."
+      }
+    ]
+  }
+]

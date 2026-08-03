@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.domain.flujos_abonado import (
     clasificar_intencion,
+    contiene_sintoma_canal,
     detecta_frustracion,
+    es_escape_agente,
     es_paso_derivacion,
     es_saludo_corto,
     indica_resuelto,
+    misma_queja,
     parece_consulta_nueva,
     pide_humano,
     refinar_intencion_internet,
@@ -29,6 +32,14 @@ from app.services.whatsapp_client import enviar_texto
 from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
 
 logger = logging.getLogger("operations_hub")
+
+# Plantilla fija N1 — no depende del playbook admin (puede estar desactualizado).
+PLANTILLA_PAGO_QR = (
+    "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+    "Cuando se acredita, el servicio se reactiva solo. "
+    "Si no tenés el QR, identificáte con DNI en el portal o pasame DNI/N.º de socio. "
+    "¿Pudiste pagar o necesitás que te ubique la cuenta?"
+)
 
 
 def _playbooks(db: Session):
@@ -104,6 +115,12 @@ def _redactar_con_llama(
                         "- No inventes datos (OLT, saldos, turnos, potencias).\n"
                         "- No uses jerga interna del NOC.\n"
                         "- Conservá la intención del borrador; no agregues pasos extra.\n"
+                        "- Si el borrador menciona QR Fiserv / Mercado Pago / MODO, conservalo.\n"
+                        "- Nunca digas que quedó resuelto si el cliente aún describe un problema "
+                        "(ej. «anda bien lejos no»).\n"
+                        "- No ofrezcas ticket ni derivación a agente en el primer o segundo paso "
+                        "de un diagnóstico técnico (internet/wifi/móvil); primero autodiagnóstico.\n"
+                        "- Si el cliente no respondió la pregunta anterior, reiterá ESA pregunta.\n"
                         "- Español argentino cotidiano (vos)."
                     ),
                 },
@@ -258,7 +275,7 @@ def procesar_mensaje_entrante(
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
 
-    # Frustración / reiteración de la misma queja → handoff
+    # Frustración / reiteración: solo tras avance N1 real (paso_idx ≥ 2)
     if detecta_frustracion(texto, ctx):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
         paso = int(ctx.get("paso_idx") or 0)
@@ -284,12 +301,52 @@ def procesar_mensaje_entrante(
             "estado": conv.estado,
             "ticket_id": tid,
         }
+
+    # Reiteración temprana (mismo síntoma sin progreso): reformular, no ticket
+    reiteracion_temprana = misma_queja(texto, ctx) and int(ctx.get("paso_idx") or 0) < 2
     ctx = registrar_queja(ctx, texto)
     crepo.set_contexto(conv, ctx)
     db.commit()
 
-    # Pedir agente tiene prioridad absoluta (también sin estar identificado)
-    if pide_humano(texto):
+    if reiteracion_temprana:
+        intent = str(ctx.get("intencion") or "")
+        pb = _playbooks(db)
+        if intent and intent in pb:
+            pasos = pb[intent]
+            idx = max(0, min(int(ctx.get("paso_idx") or 0), len(pasos) - 1))
+            base = pasos[idx].pregunta
+        else:
+            base = (
+                "Para ayudarte necesito saber si es internet (fibra, antena o ADSL), "
+                "móvil IMOVI, factura/pago u otra consulta."
+            )
+        resp = f"Para seguir, necesito ese dato. {base}"
+        if usar_llama:
+            resp = _redactar_con_llama(
+                resp,
+                f"reiteracion_temprana intencion={intent or 'ninguna'}",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intent or None,
+        }
+
+    # Escape hatch *agente* o 2ª insistencia sin síntoma → ticket.
+    # Pedido de humano CON síntoma → sigue N1 (no cortar acá).
+    # Primer pedido sin síntoma → menú + CTA *agente*.
+    if es_escape_agente(texto) or (
+        pide_humano(texto)
+        and not contiene_sintoma_canal(texto)
+        and int(ctx.get("pidio_humano") or 0) >= 1
+    ):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
         tid = _crear_ticket_n2(
             db,
@@ -312,6 +369,31 @@ def procesar_mensaje_entrante(
             "respuesta": resp,
             "estado": conv.estado,
             "ticket_id": tid,
+        }
+
+    if pide_humano(texto) and not contiene_sintoma_canal(texto):
+        ctx["pidio_humano"] = int(ctx.get("pidio_humano") or 0) + 1
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = (
+            "Puedo ayudarte yo primero (internet, móvil IMOVI o factura/pago). "
+            "Contame qué te pasa. Si preferís una persona, escribí *agente*."
+        )
+        if usar_llama:
+            resp = _redactar_con_llama(
+                resp,
+                "pedido_humano_sin_sintoma",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
         }
 
     # Identificación — portal/web continúa como invitado si no hay match
@@ -412,8 +494,14 @@ def procesar_mensaje_entrante(
             intencion = "corte_deuda"
         else:
             intencion = clasificar_intencion(texto, servicio_abo)
+        paso_inicial = 0
+        # Ya dijo «sin tono» → no re-preguntar tono
+        if intencion == "telefono_fija" and any(
+            k in texto.lower() for k in ("sin tono", "no tiene tono", "no hay tono")
+        ):
+            paso_inicial = 1
         ctx["intencion"] = intencion
-        ctx["paso_idx"] = 0
+        ctx["paso_idx"] = paso_inicial
         conv.servicio_detectado = (
             intencion
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")
@@ -423,13 +511,46 @@ def procesar_mensaje_entrante(
         db.commit()
         pb = _playbooks(db)
         pasos = pb.get(intencion) or pb["general"]
-        pregunta = pasos[0].pregunta
-        if intencion == "corte_deuda" and abonado:
+        idx = max(0, min(paso_inicial, len(pasos) - 1))
+        pregunta = pasos[idx].pregunta
+        if intencion == "corte_deuda":
+            # Siempre guía QR primero (evita playbooks admin sin Fiserv / rewrites).
+            if abonado:
+                pregunta = (
+                    f"Tu cuenta figura con estado «{abonado.estado}» "
+                    f"y saldo pendiente ${abonado.deuda_monto}. {PLANTILLA_PAGO_QR}"
+                )
+            else:
+                pregunta = (
+                    "Puede haber un saldo pendiente o el servicio limitado. "
+                    f"{PLANTILLA_PAGO_QR}"
+                )
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
+        if intencion == "facturacion" and not abonado:
             pregunta = (
-                f"Tu cuenta figura con estado «{abonado.estado}» "
-                f"y saldo pendiente ${abonado.deuda_monto}. {pregunta}"
+                "Para saldo o copia de factura identificáte con DNI en el portal. "
+                f"{PLANTILLA_PAGO_QR}"
             )
-        if usar_llama:
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
+        # Pagos identificados (no corte): conservar plantilla; no reescribir con LLM
+        usar_llm_paso = usar_llama and intencion not in ("corte_deuda", "facturacion")
+        if usar_llm_paso:
             pregunta = _redactar_con_llama(
                 pregunta,
                 f"intencion={intencion}",
@@ -578,7 +699,8 @@ def procesar_mensaje_entrante(
         pregunta = pasos[idx].pregunta
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
-        if usar_llama:
+        # Pagos/QR: plantilla fija para no perder instrucciones Fiserv
+        if usar_llama and intencion not in ("corte_deuda", "facturacion"):
             pregunta = _redactar_con_llama(
                 pregunta,
                 f"paso={idx} intencion={intencion}",
