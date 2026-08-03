@@ -11,7 +11,9 @@ from app.domain.flujos_abonado import (
     clasificar_intencion,
     detecta_frustracion,
     es_paso_derivacion,
+    es_saludo_corto,
     indica_resuelto,
+    parece_consulta_nueva,
     pide_humano,
     refinar_intencion_internet,
     registrar_queja,
@@ -492,6 +494,64 @@ def procesar_mensaje_entrante(
                 pregunta = _redactar_con_llama(
                     pregunta,
                     f"intencion={intencion}",
+                    db=db,
+                    org_id=org_id,
+                    consulta=texto,
+                )
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
+
+    # Saludo corto: no avanzar el playbook (evita agotar pasos con "Hola")
+    if es_saludo_corto(texto):
+        pb = _playbooks(db)
+        pasos = pb.get(intencion) or pb["general"]
+        paso_idx = int(ctx.get("paso_idx") or 0)
+        paso_idx = max(0, min(paso_idx, max(len(pasos) - 1, 0)))
+        pregunta = pasos[paso_idx].pregunta if pasos else (
+            "¿En qué te puedo ayudar: internet, móvil, factura u otra consulta?"
+        )
+        resp = f"¡Hola! {pregunta}"
+        if usar_llama:
+            resp = _redactar_con_llama(
+                resp,
+                f"saludo intencion={intencion}",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+
+    # Consulta nueva a mitad de otro flujo: reclasificar si cambia la intención
+    if parece_consulta_nueva(texto) and intencion:
+        nueva = clasificar_intencion(texto, servicio_abo)
+        if nueva and nueva != intencion:
+            intencion = nueva
+            ctx["intencion"] = intencion
+            ctx["paso_idx"] = 0
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pb = _playbooks(db)
+            pasos = pb.get(intencion) or pb["general"]
+            pregunta = pasos[0].pregunta
+            if usar_llama:
+                pregunta = _redactar_con_llama(
+                    pregunta,
+                    f"intencion={intencion} reclasificado=1",
                     db=db,
                     org_id=org_id,
                     consulta=texto,

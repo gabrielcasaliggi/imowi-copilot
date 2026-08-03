@@ -10,6 +10,7 @@ Catálogo:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
@@ -262,10 +263,17 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         return "portal_tramites"
 
     if any(k in t for k in (
+        "estado de mi cuenta", "estado de cuenta", "estado de la cuenta",
+        "consultar cuenta", "consulta de cuenta", "consultar el estado",
+        "mi cuenta", "saldo de cuenta", "cómo está mi cuenta", "como esta mi cuenta",
+    )):
+        return "facturacion"
+
+    if any(k in t for k in (
         "deuda", "corte", "suspend", "factur", "pago", "saldo", "boleta",
         "cuenta corriente", "resumen", "recibo", "qr", "fiserv", "mercado pago",
     )):
-        if any(k in t for k in ("copia", "resumen", "comprobante", "factura")):
+        if any(k in t for k in ("copia", "resumen", "comprobante", "factura", "cuenta")):
             return "facturacion"
         return "corte_deuda"
 
@@ -371,12 +379,60 @@ def refinar_intencion_internet(texto: str) -> str | None:
     return None
 
 
+def _token_en_texto(texto: str, token: str) -> bool:
+    """Match de token con límites de palabra para evitar 'si'∈'quisiera'."""
+    t = (token or "").lower().strip()
+    if not t:
+        return False
+    # Frases multi-palabra: substring alcanza
+    if " " in t or len(t) > 4:
+        return t in texto
+    return bool(
+        re.search(
+            rf"(?<![a-záéíóúüñ0-9]){re.escape(t)}(?![a-záéíóúüñ0-9])",
+            texto,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
+def es_saludo_corto(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    if not t or len(t) > 40:
+        return False
+    saludos = (
+        "hola", "hola hola", "buenas", "buen dia", "buen día", "buenas tardes",
+        "buenas noches", "hey", "holis", "ola", "hi", "hello",
+    )
+    return t in saludos or any(t == s or t.startswith(s + " ") for s in saludos)
+
+
+def parece_consulta_nueva(texto: str) -> bool:
+    """Mensaje que inicia un reclamo/consulta, no un sí/no de diagnóstico."""
+    t = (texto or "").lower().strip()
+    if len(t) < 12:
+        return False
+    return any(
+        k in t
+        for k in (
+            "quisiera", "quería", "queria", "quiero", "necesito", "consultar",
+            "consulta", "me podes", "me podés", "podes ayud", "podés ayud",
+            "tengo un problema", "no me anda", "no funciona", "estado de",
+            "cuánto pago", "cuanto pago", "dar de baja", "reclamo",
+        )
+    )
+
+
 def respuesta_paso_ok(texto: str) -> bool | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    # Saludos y consultas nuevas no son sí/no de un paso de playbook
+    if es_saludo_corto(t) or parece_consulta_nueva(t):
+        return None
     palabras_ok = (
-        "si", "sí", "ok", "listo", "hecho", "verificado", "ya",
+        "si", "sí", "ok", "dale", "listo", "hecho", "verificado", "ya",
         "mejoro", "mejoró", "volvio", "volvió", "anda", "funciona",
         "anduvo", "perfecto", "genial",
     )
@@ -384,9 +440,15 @@ def respuesta_paso_ok(texto: str) -> bool | None:
         "no", "sigue", "persiste", "igual", "nada", "falla", "mal",
         "sigue sin", "tampoco", "peor", "no funciona", "no anda",
     )
-    if any(p in t for p in palabras_fail):
-        return False
-    if any(p in t for p in palabras_ok):
+    if any(_token_en_texto(t, p) if len(p) <= 4 else p in t for p in palabras_fail):
+        # "no funciona" etc. ya cubiertos; evitar 'no' dentro de otras palabras
+        if any(p in t for p in ("no funciona", "no anda", "sigue sin", "tampoco", "peor")):
+            return False
+        if _token_en_texto(t, "no") or any(
+            _token_en_texto(t, p) for p in ("sigue", "persiste", "igual", "nada", "falla", "mal")
+        ):
+            return False
+    if any(_token_en_texto(t, p) if len(p) <= 4 else p in t for p in palabras_ok):
         return True
     return None
 
@@ -396,16 +458,23 @@ def indica_resuelto(texto: str) -> bool:
     t = (texto or "").lower().strip()
     if not t:
         return False
+    if parece_consulta_nueva(t) or es_saludo_corto(t):
+        return False
     claves = (
-        "ya anda", "ya funciona", "ya volvio", "ya volvió", "volvio", "volvió",
-        "mejoro", "mejoró", "funciona", "anduvo", "anda bien", "quedó bien",
-        "quedo bien", "resuelto", "solucionado", "perfecto", "genial",
-        "todo bien", "ya esta", "ya está",
+        "ya anda", "ya funciona", "ya volvio", "ya volvió",
+        "mejoro", "mejoró", "anda bien", "quedó bien",
+        "quedo bien", "resuelto", "solucionado",
+        "todo bien", "ya esta", "ya está", "quedó resuelto", "quedo resuelto",
     )
     if any(x in t for x in (
         "no anda", "no funciona", "sigue sin", "no volvio", "no volvió",
-        "no mejoro", "no mejoró",
+        "no mejoro", "no mejoró", "consultar", "quisiera", "quiero",
     )):
+        return False
+    # Evitar 'funciona'/'volvio' sueltos dentro de frases largas de consulta
+    if len(t.split()) > 8 and not any(
+        x in t for x in ("ya anda", "ya funciona", "ya volvió", "ya volvio", "quedó bien", "resuelto")
+    ):
         return False
     return any(k in t for k in claves)
 
