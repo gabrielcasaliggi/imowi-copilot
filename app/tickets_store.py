@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 
-from app.config import ESTADOS_TICKET_VALIDOS, supabase_configurado
+from app.config import ESTADOS_TICKET_VALIDOS, TICKET_ID_PREFIX, supabase_configurado
 from app.models import GuardarTicketInput, Ticket, TicketUpdateInput
 from app.persistencia import escribir_json, leer_json
 
@@ -20,6 +20,18 @@ def _sb():
     from app import tickets_supabase
 
     return tickets_supabase
+
+
+def _ticket_seq_num(tid: str) -> int | None:
+    if not tid or "-" not in tid:
+        return None
+    prefix, _, rest = tid.partition("-")
+    if prefix.upper() not in {TICKET_ID_PREFIX.upper(), "JSC", "IBOT"}:
+        return None
+    try:
+        return int(rest)
+    except ValueError:
+        return None
 
 
 def cargar_tickets_desde_disco() -> int:
@@ -37,14 +49,8 @@ def cargar_tickets_desde_disco() -> int:
     if isinstance(contador, int) and contador >= 1000:
         _contador = contador
     elif _db:
-        nums = []
-        for t in _db:
-            tid = str(t.get("id", ""))
-            if tid.startswith("JSC-"):
-                try:
-                    nums.append(int(tid.split("-", 1)[1]))
-                except ValueError:
-                    pass
+        nums = [_ticket_seq_num(str(t.get("id", ""))) for t in _db]
+        nums = [n for n in nums if n is not None]
         _contador = max(nums) if nums else 1000
     return len(_db)
 
@@ -75,7 +81,7 @@ def crear_ticket(data: GuardarTicketInput, creado_por: str = "") -> Ticket:
     modulo_id = data.modulo_id or _slug_modulo(modulo_label)
     descripcion = data.descripcion or data.falla_exacta
     ticket = {
-        "id": f"JSC-{_contador}",
+        "id": f"{TICKET_ID_PREFIX}-{_contador}",
         "cooperativa": data.cooperativa,
         "modulo": modulo_label,
         "modulo_id": modulo_id,

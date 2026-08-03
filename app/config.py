@@ -98,6 +98,10 @@ BOT_DISPLAY_NAME_SHORT = (
 PRODUCT_DISPLAY_NAME = (
     os.getenv("PRODUCT_DISPLAY_NAME", "Soporte Batán") or "Soporte Batán"
 ).strip() or "Soporte Batán"
+# Prefijo de IDs de ticket (antes JSC-; legacy JSC-* se sigue contando para secuencia).
+TICKET_ID_PREFIX = (
+    os.getenv("TICKET_ID_PREFIX", "IBOT") or "IBOT"
+).strip().upper().rstrip("-") or "IBOT"
 
 # OTP portal
 OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6") or "6")

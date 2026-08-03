@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.config import ANOMALY_TTL_MINUTES
+from app.config import ANOMALY_TTL_MINUTES, TICKET_ID_PREFIX
 from app.estate.models import (
     CasoConversacion,
     KnowledgeArticle,
@@ -644,19 +644,27 @@ def simulate_failure(db: Session, org_id: str, elemento_red: str) -> NetworkElem
     return el
 
 
+def _ticket_seq_num(tid: str) -> int | None:
+    """Número secuencial de IDs tipo PREFIJO-NNNN (IBOT / legacy JSC)."""
+    if not tid or "-" not in tid:
+        return None
+    prefix, _, rest = tid.partition("-")
+    # Contar prefijo actual + legacy JSC para no reiniciar la secuencia.
+    known = {TICKET_ID_PREFIX.upper(), "JSC", "IBOT"}
+    if prefix.upper() not in known:
+        return None
+    try:
+        return int(rest)
+    except ValueError:
+        return None
+
+
 def _next_ticket_id(db: Session, org_id: str) -> str:
-    # Ticket.id es primary key global, por lo que la numeración no puede ser
-    # por organización: dos cooperativas no deben generar el mismo JSC-1001.
+    # Ticket.id es primary key global: la numeración no puede ser por organización.
     rows = db.scalars(select(Ticket.id)).all()
-    nums = []
-    for tid in rows:
-        if tid.startswith("JSC-"):
-            try:
-                nums.append(int(tid.split("-", 1)[1]))
-            except ValueError:
-                pass
+    nums = [n for tid in rows if (n := _ticket_seq_num(tid)) is not None]
     n = max(nums) + 1 if nums else 1001
-    return f"JSC-{n}"
+    return f"{TICKET_ID_PREFIX}-{n}"
 
 
 def create_ticket(

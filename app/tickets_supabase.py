@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 
-from app.config import ESTADOS_TICKET_VALIDOS, supabase_configurado
+from app.config import ESTADOS_TICKET_VALIDOS, TICKET_ID_PREFIX, supabase_configurado
 from app.models import GuardarTicketInput, Ticket, TicketUpdateInput
 
 _client = None
@@ -69,23 +69,31 @@ def _a_ticket(raw: dict) -> Ticket:
 
 
 def _siguiente_id() -> str:
+    prefix = TICKET_ID_PREFIX
     r = (
         _sb()
         .table(_TABLA)
         .select("id")
-        .like("id", "JSC-%")
+        .or_(f"id.like.{prefix}-%,id.like.JSC-%,id.like.IBOT-%")
         .order("id", desc=True)
-        .limit(1)
+        .limit(50)
         .execute()
     )
-    if r.data:
-        ultimo = r.data[0]["id"]
+    nums: list[int] = []
+    for row in r.data or []:
+        tid = str(row.get("id") or "")
+        if "-" not in tid:
+            continue
+        pfx, _, rest = tid.partition("-")
+        if pfx.upper() not in {prefix.upper(), "JSC", "IBOT"}:
+            continue
         try:
-            n = int(str(ultimo).split("-", 1)[1])
-            return f"JSC-{n + 1}"
-        except (ValueError, IndexError):
-            pass
-    return "JSC-1001"
+            nums.append(int(rest))
+        except ValueError:
+            continue
+    if nums:
+        return f"{prefix}-{max(nums) + 1}"
+    return f"{prefix}-1001"
 
 
 def cargar_tickets_desde_disco() -> int:
