@@ -729,6 +729,18 @@ def procesar_mensaje_entrante(
         dni = _extraer_dni(texto)
         if dni:
             abonado = crepo.find_abonado_por_dni(db, org_id, dni)
+            if not abonado:
+                try:
+                    from app.estate import repository as org_repo
+                    from app.services.billtrack import ensure_local_abonado, lookup_abonado_por_dni
+
+                    org = org_repo.get_org_by_id(db, org_id)
+                    slug = org.slug if org else ""
+                    hit = lookup_abonado_por_dni(dni, org_slug=slug, db=db)
+                    if hit and hit.get("activo"):
+                        abonado = ensure_local_abonado(db, org_id, hit)
+                except Exception:
+                    logger.debug("BillTrack lookup DNI falló", exc_info=True)
 
         if not abonado:
             # WhatsApp: pedir DNI una sola vez; después seguir como invitado

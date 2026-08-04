@@ -222,8 +222,16 @@ def _abrir_conversacion_identificada(
     dni_n: str,
     telefono: str,
     abonado_ref: str,
+    hit: dict | None = None,
 ) -> tuple:
+    from app.services.billtrack import ensure_local_abonado
+
     abo = crepo.find_abonado_por_dni(db, org.id, dni_n)
+    if abo is None and hit:
+        try:
+            abo = ensure_local_abonado(db, org.id, {**hit, "dni": dni_n})
+        except Exception:
+            abo = None
     tel = crepo.normalizar_telefono(telefono) if telefono else ""
     if abo and abo.telefono_e164:
         tel = crepo.normalizar_telefono(abo.telefono_e164)
@@ -240,6 +248,8 @@ def _abrir_conversacion_identificada(
     ctx["identificado"] = True
     ctx["dni"] = dni_n
     ctx["abonado_ref"] = abonado_ref
+    if hit and hit.get("fuente"):
+        ctx["padron_fuente"] = hit.get("fuente")
     ctx.pop("invitado", None)
     crepo.set_contexto(conv, ctx)
     db.commit()
@@ -378,7 +388,7 @@ def portal_auth_verify(
         abonado_ref=challenge.abonado_ref,
         email_masked=challenge.contact_masked,
     )
-    # Buscar teléfono del padrón vía mock/local
+    # Buscar teléfono del padrón vía BillTrack / mock local
     hit = lookup_abonado_por_dni(challenge.dni_normalized, org_slug=org.slug, db=db) or {}
     conv, abo, tel = _abrir_conversacion_identificada(
         db,
@@ -386,6 +396,7 @@ def portal_auth_verify(
         dni_n=challenge.dni_normalized,
         telefono=str(hit.get("telefono") or ""),
         abonado_ref=challenge.abonado_ref,
+        hit=hit,
     )
     token = _crear_portal_token(
         org_id=org.id,
@@ -471,6 +482,7 @@ def portal_login_pin(
         dni_n=dni_n,
         telefono=str(hit.get("telefono") or ""),
         abonado_ref=link.abonado_ref,
+        hit=hit,
     )
     link.last_login_at = datetime.now(UTC)
     db.commit()

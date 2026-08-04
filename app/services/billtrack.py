@@ -126,6 +126,127 @@ def resolve_connection(db: Session | None = None) -> dict[str, Any]:
     return params
 
 
+# Padrón BillTrack (Ecolan): api_person + email/phone.
+# DNI del portal (7–8 dígitos) vs doc_cuit: igual exacto o CUIT AR (11 dígitos, DNI en posiciones 3–10).
+DEFAULT_LOOKUP_SQL = """
+SELECT
+  p.id::text AS ref,
+  TRIM(BOTH FROM CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, ''))) AS nombre,
+  e.email AS email,
+  ph.phone AS telefono,
+  COALESCE(NULLIF(TRIM(p.client_state), ''), NULLIF(TRIM(p.billing_state), ''), '') AS activo,
+  COALESCE(p.billing_balance::text, '0') AS deuda,
+  p.doc_cuit AS doc_cuit,
+  COALESCE(p.partner_number::text, '') AS partner_number,
+  COALESCE(p.client_number::text, '') AS client_number
+FROM public.api_person p
+LEFT JOIN LATERAL (
+  SELECT email
+  FROM public.api_person_email
+  WHERE person_id = p.id AND NULLIF(TRIM(email), '') IS NOT NULL
+  ORDER BY id ASC
+  LIMIT 1
+) e ON TRUE
+LEFT JOIN LATERAL (
+  SELECT phone
+  FROM public.api_person_phone
+  WHERE person_id = p.id AND NULLIF(TRIM(phone), '') IS NOT NULL
+  ORDER BY id ASC
+  LIMIT 1
+) ph ON TRUE
+WHERE (
+  regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g') = :dni
+  OR (
+    length(regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g')) = 11
+    AND substring(
+      regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g') FROM 3 FOR 8
+    ) = lpad(:dni, 8, '0')
+  )
+)
+LIMIT 1
+""".strip()
+
+_ACTIVE_STATES = frozenset(
+    {
+        "1",
+        "true",
+        "yes",
+        "si",
+        "sí",
+        "activo",
+        "active",
+        "habilitado",
+        "a",
+        "ok",
+        "al dia",
+        "al día",
+        "enabled",
+        "normal",
+        "vigente",
+    }
+)
+_INACTIVE_STATES = frozenset(
+    {
+        "0",
+        "false",
+        "no",
+        "inactivo",
+        "inactive",
+        "baja",
+        "disabled",
+        "suspendido",
+        "suspended",
+        "cancelled",
+        "cancelado",
+        "moroso",
+        "corte",
+        "bloqueado",
+    }
+)
+
+
+def lookup_sql() -> str:
+    from app.config import BILLTRACK_LOOKUP_SQL
+
+    return (BILLTRACK_LOOKUP_SQL or DEFAULT_LOOKUP_SQL).strip()
+
+
+def _lookup_forced_off() -> bool:
+    import os
+
+    raw = os.getenv("BILLTRACK_LOOKUP_READY", "").strip().lower()
+    return raw in ("0", "false", "no", "off")
+
+
+def _map_activo(raw: Any) -> bool:
+    val = str(raw or "").strip().lower()
+    if not val:
+        return True  # sin estado → permitir intento de auth; el OTP valida contacto
+    if val in _INACTIVE_STATES:
+        return False
+    if val in _ACTIVE_STATES:
+        return True
+    # Estados desconocidos: no bloquear (BillTrack puede usar códigos propios)
+    return True
+
+
+def map_lookup_row(row: dict[str, Any], *, dni_n: str) -> dict[str, Any]:
+    """Normaliza una fila BillTrack al dict del portal/bot."""
+    return {
+        "ref": str(row.get("ref") or row.get("id") or dni_n),
+        "email": str(row.get("email") or row.get("correo") or "").strip(),
+        "telefono": str(row.get("telefono") or row.get("msisdn") or row.get("phone") or "").strip(),
+        "nombre": str(row.get("nombre") or "").strip(),
+        "activo": _map_activo(row.get("activo") if row.get("activo") is not None else row.get("estado")),
+        "dni": dni_n,
+        "deuda": str(row.get("deuda") or row.get("billing_balance") or "0").strip(),
+        "doc_cuit": str(row.get("doc_cuit") or "").strip(),
+        "partner_number": str(row.get("partner_number") or "").strip(),
+        "client_number": str(row.get("client_number") or "").strip(),
+        "fuente": "billtrack",
+    }
+
+
 def lookup_abonado_por_dni(
     dni: str,
     *,
@@ -135,69 +256,100 @@ def lookup_abonado_por_dni(
 ) -> dict[str, Any] | None:
     """Consulta padrón BillTrack (RO). Retorna dict o None.
 
-    SQL configurable vía BILLTRACK_LOOKUP_SQL con placeholders :dni, :org_slug, :linea.
-    Columnas esperadas (aliases): ref, email, telefono, activo, nombre.
+    SQL: BILLTRACK_LOOKUP_SQL o DEFAULT_LOOKUP_SQL (api_person).
+    Placeholders: :dni, :org_slug, :linea.
     """
-    from app.config import (
-        BILLTRACK_ENABLED,
-        BILLTRACK_LOOKUP_READY,
-        BILLTRACK_LOOKUP_SQL,
-        BILLTRACK_SSLMODE,
-        es_produccion,
-    )
+    from app.config import BILLTRACK_ENABLED, es_produccion
     from app.estate.security import normalizar_dni, valid_dni_ar
 
     dni_n = normalizar_dni(dni)
     if not valid_dni_ar(dni_n):
         return None
 
-    # Mock en non-prod cuando no hay BillTrack real
-    if not BILLTRACK_ENABLED or not BILLTRACK_LOOKUP_READY:
+    params = resolve_connection(db)
+    enabled = bool(params.get("enabled")) or BILLTRACK_ENABLED
+    url = str(params.get("url") or "").strip()
+    sql = lookup_sql()
+    use_real = enabled and bool(url) and bool(sql) and not _lookup_forced_off()
+
+    if not use_real:
         if es_produccion():
             return None
         return _mock_lookup(dni_n, org_slug=org_slug, linea=linea, db=db)
 
-    sql = BILLTRACK_LOOKUP_SQL
-    if not sql:
-        return None
-
-    params = resolve_connection(db)
-    url = str(params.get("url") or "").strip()
-    if not url:
-        return None
-
     from sqlalchemy import create_engine, text
 
-    sslmode = str(params.get("sslmode") or BILLTRACK_SSLMODE or "require")
-    connect_args = {"connect_timeout": 8}
-    if "sslmode" not in url:
-        connect_args["sslmode"] = sslmode
+    sslmode = str(params.get("sslmode") or "disable")
+    connect_args: dict[str, Any] = {"connect_timeout": 8, "sslmode": sslmode}
 
     engine = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
     try:
         with engine.connect() as conn:
-            # Solo SELECT — no ejecutar DDL/DML
             cleaned = sql.strip().rstrip(";")
-            if not cleaned.lower().startswith("select"):
-                raise ValueError("BILLTRACK_LOOKUP_SQL debe ser un SELECT")
-            row = conn.execute(
-                text(cleaned),
-                {"dni": dni_n, "org_slug": org_slug or "", "linea": (linea or "").strip()},
-            ).mappings().first()
+            if not cleaned.lower().startswith("select") and not cleaned.lower().startswith("with"):
+                raise ValueError("BILLTRACK_LOOKUP_SQL debe ser un SELECT (o WITH … SELECT)")
+            row = (
+                conn.execute(
+                    text(cleaned),
+                    {"dni": dni_n, "org_slug": org_slug or "", "linea": (linea or "").strip()},
+                )
+                .mappings()
+                .first()
+            )
             if not row:
                 return None
-            activo_raw = str(row.get("activo") or row.get("estado") or "activo").lower()
-            activo = activo_raw in ("1", "true", "yes", "si", "sí", "activo", "habilitado", "a")
-            return {
-                "ref": str(row.get("ref") or row.get("id") or dni_n),
-                "email": str(row.get("email") or row.get("correo") or "").strip(),
-                "telefono": str(row.get("telefono") or row.get("msisdn") or "").strip(),
-                "nombre": str(row.get("nombre") or "").strip(),
-                "activo": activo,
-                "dni": dni_n,
-            }
+            return map_lookup_row(dict(row), dni_n=dni_n)
+    except Exception:
+        if es_produccion():
+            raise
+        # Dev/test: si la red/SQL falla, no romper el portal — padrón mock/local
+        return _mock_lookup(dni_n, org_slug=org_slug, linea=linea, db=db)
     finally:
         engine.dispose()
+
+
+def ensure_local_abonado(
+    db: Session,
+    org_id: str,
+    hit: dict[str, Any],
+) -> Any:
+    """Crea/actualiza réplica mínima en Data Estate a partir del hit BillTrack."""
+    from app.estate import canal_repo as crepo
+    from app.estate.models import Abonado
+
+    dni_n = str(hit.get("dni") or "").strip()
+    abo = crepo.find_abonado_por_dni(db, org_id, dni_n) if dni_n else None
+    estado = "activo" if hit.get("activo", True) else "suspendido"
+    nombre = str(hit.get("nombre") or "").strip()
+    tel = str(hit.get("telefono") or "").strip()
+    deuda = str(hit.get("deuda") or "0").strip() or "0"
+
+    if abo is None:
+        abo = Abonado(
+            organizacion_id=org_id,
+            dni=dni_n,
+            nombre=nombre,
+            telefono_e164=tel,
+            linea_msisdn="".join(c for c in tel if c.isdigit())[-10:] if tel else "",
+            estado=estado,
+            deuda_monto=deuda,
+            plan="",
+            servicio="internet",
+        )
+        db.add(abo)
+    else:
+        if nombre:
+            abo.nombre = nombre
+        if tel:
+            abo.telefono_e164 = tel
+            digits = "".join(c for c in tel if c.isdigit())
+            if digits:
+                abo.linea_msisdn = digits[-10:]
+        abo.estado = estado
+        abo.deuda_monto = deuda
+    db.commit()
+    db.refresh(abo)
+    return abo
 
 
 def _mock_lookup(
@@ -252,7 +404,7 @@ def _mock_lookup(
             return None
         if linea and hit.get("telefono") and linea not in str(hit["telefono"]):
             return None
-        return {**hit, "dni": dni_n}
+        return {**hit, "dni": dni_n, "fuente": "mock"}
 
     from app.estate import canal_repo as crepo
     from app.estate import repository as repo
@@ -278,4 +430,5 @@ def _mock_lookup(
         "nombre": abo.nombre or "",
         "activo": (abo.estado or "").lower() in ("activo", "al dia", "al día", ""),
         "dni": dni_n,
+        "fuente": "mock_local",
     }
