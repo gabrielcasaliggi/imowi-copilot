@@ -162,6 +162,29 @@ def test_corte_deuda_invitado_menciona_qr():
     assert not data.get("ticket_id")
 
 
+def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
+    """Regresión: billing_balance > 0 no debe pisar reclamo IMOWI + aumento con QR."""
+    from app.estate.models import Abonado
+    from app.services.canal_abonado import _deberia_priorizar_corte_deuda
+    from app.domain.flujos_abonado import clasificar_intencion, detectar_temas_duales
+
+    msg = "tengo problemas con imowi y quiero reclamar por una factura con aumento"
+    assert set(detectar_temas_duales(msg)) == {"tecnico", "facturacion"}
+    assert clasificar_intencion(msg) == "facturacion"
+
+    abo = Abonado(
+        organizacion_id="x",
+        dni="30111222",
+        nombre="JORGE",
+        estado="activo",
+        deuda_monto="55779.99",
+    )
+    assert _deberia_priorizar_corte_deuda(abo, msg, "facturacion") is False
+    assert _deberia_priorizar_corte_deuda(
+        abo, "Me cortaron por falta de pago, como pago?", "general"
+    ) is True
+
+
 def test_wifi_parcial_no_cierra_resuelto():
     token = _guest_portal()
     _portal_msg(token, "El WiFi no llega a la habitación del fondo")

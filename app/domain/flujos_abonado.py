@@ -677,6 +677,14 @@ def detectar_temas_duales(texto: str) -> list[str]:
             "corte de línea",
             "sin servicio",
             "cajita",
+            "imowi",
+            "imovi",
+            "móvil",
+            "movil",
+            "celular",
+            "chip",
+            "4g",
+            "5g",
         )
     )
     factura = any(
@@ -730,6 +738,12 @@ def resolver_prioridad_tema(texto: str) -> str | None:
             "lo tecnico",
             "primero internet",
             "por el internet",
+            "imowi",
+            "móvil",
+            "movil",
+            "celular",
+            "por el móvil",
+            "por el movil",
         )
     ):
         return "tecnico"

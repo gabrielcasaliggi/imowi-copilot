@@ -63,6 +63,53 @@ def _deuda_positiva(abonado: Abonado) -> bool:
         return abonado.estado in ("corte", "suspendido")
 
 
+def _pide_pago_o_reactivar(texto: str) -> bool:
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "como pago",
+            "cómo pago",
+            "quiero pagar",
+            "pagar la deuda",
+            "pagar la factura",
+            "me cortaron",
+            "cortaron por",
+            "falta de pago",
+            "reactivar",
+            "reactivación",
+            "reactivacion",
+            "sin servicio por deuda",
+            "fiserv",
+            "pagar con qr",
+        )
+    )
+
+
+def _deberia_priorizar_corte_deuda(
+    abonado: Abonado | None,
+    texto: str,
+    intencion_clasificada: str,
+) -> bool:
+    """Solo cobro/QR si el usuario habla de pagar/corte, o la cuenta está cortada.
+
+    Un saldo > 0 en BillTrack (billing_balance) NO alcanza: puede ser factura vigente
+    o un reclamo de aumento, no un corte por mora.
+    """
+    if not abonado:
+        return False
+    if _pide_pago_o_reactivar(texto):
+        return True
+    estado = (abonado.estado or "").lower()
+    if estado in ("corte", "suspendido") and intencion_clasificada in (
+        "",
+        "general",
+        "corte_deuda",
+    ):
+        return True
+    return False
+
+
 def _kb_fragmento(
     db: Session | None,
     org_id: str,
@@ -876,33 +923,38 @@ def procesar_mensaje_entrante(
         # Continúa abajo si el diagnóstico IA no aplicó
 
     if not intencion:
-        if abonado and (_deuda_positiva(abonado) or abonado.estado in ("corte", "suspendido")):
-            intencion = "corte_deuda"
-        else:
-            temas = detectar_temas_duales(texto)
-            if len(temas) >= 2:
-                ctx["intencion"] = "multi_tema"
-                ctx["temas_pendientes"] = temas
-                ctx["texto_multi_tema"] = texto[:500]
-                ctx["paso_idx"] = 0
-                ctx["diag_turnos"] = 0
-                ctx["pasos_cubiertos"] = []
-                crepo.set_contexto(conv, ctx)
-                db.commit()
+        temas = detectar_temas_duales(texto)
+        if len(temas) >= 2:
+            ctx["intencion"] = "multi_tema"
+            ctx["temas_pendientes"] = temas
+            ctx["texto_multi_tema"] = texto[:500]
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = (
+                "Veo dos cosas: la conexión y el tema de la factura. "
+                "¿Arrancamos por el internet o por el aumento?"
+            )
+            # IMOWI / móvil + factura
+            if any(k in texto.lower() for k in ("imowi", "móvil", "movil", "celular")):
                 resp = (
-                    "Veo dos cosas: la conexión y el tema de la factura. "
-                    "¿Arrancamos por el internet o por el aumento?"
+                    "Veo dos cosas: el móvil IMOWI y el tema de la factura. "
+                    "¿Arrancamos por el móvil o por el aumento?"
                 )
-                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
-                return {
-                    "ok": True,
-                    "modo": "bot",
-                    "conversacion_id": conv.id,
-                    "respuesta": resp,
-                    "estado": conv.estado,
-                    "intencion": "multi_tema",
-                }
-            intencion = clasificar_intencion(texto, servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "multi_tema",
+            }
+        intencion = clasificar_intencion(texto, servicio_abo)
+        if _deberia_priorizar_corte_deuda(abonado, texto, intencion):
+            intencion = "corte_deuda"
         paso_inicial = 0
         # Ya dijo «sin tono» → no re-preguntar tono
         if intencion == "telefono_fija" and any(
