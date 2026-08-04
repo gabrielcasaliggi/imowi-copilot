@@ -357,6 +357,51 @@ def _parece_dump_pagos(mensaje: str) -> bool:
     return hits >= 3 or (hits >= 2 and len(t) > 280)
 
 
+def _ofrece_handoff_prematuro(mensaje: str) -> bool:
+    """True si el mensaje invita a asesor/llamada/ticket en vez de seguir N1."""
+    t = (mensaje or "").lower()
+    return any(
+        k in t
+        for k in (
+            "asesor",
+            "te contacte",
+            "te contactemos",
+            "preferís que te llam",
+            "preferis que te llam",
+            "que te llamen",
+            "te llame",
+            "área de cuentas",
+            "area de cuentas",
+            "abra un ticket",
+            "abro un ticket",
+            "generé el ticket",
+            "genere el ticket",
+            "te derive",
+            "un agente te",
+        )
+    )
+
+
+def _pregunta_pago_fuera_de_lugar(mensaje: str, mensaje_cliente: str) -> bool:
+    """Preguntas de medio/fecha de pago cuando el cliente no dijo que pagó."""
+    if _cliente_pide_pagar(mensaje_cliente):
+        return False
+    t = (mensaje or "").lower()
+    return any(
+        k in t
+        for k in (
+            "medio de pago",
+            "fecha realizó",
+            "fecha realizo",
+            "fecha del pago",
+            "qué fecha",
+            "que fecha",
+            "realizó el movimiento",
+            "realizo el movimiento",
+        )
+    )
+
+
 def diagnosticar_turno(
     *,
     intencion: str,
@@ -434,6 +479,10 @@ def diagnosticar_turno(
             "- En modo invitado (sin cuenta): podés pedir DNI/N.º de socio para ubicar la cuenta; "
             "no inventes saldos ni desgloses.\n"
             "- No digas que viste la factura o el sistema si no hay datos reales.\n"
+            "- No ofrezcas asesor, llamada ni ticket hasta indagar (mes/monto/cambio de plan) "
+            f"al menos {MIN_TURNOS_ANTES_ESCALAR} turnos, salvo que el cliente pida agente.\n"
+            "- Si pregunta si aumentaron el servicio y no hay cuenta: pedí DNI/N.º de socio "
+            "o mes/monto; no inventes un aumento general.\n"
             "- escalate cuando ya pediste el detalle y hace falta sistema interno, o si pide agente.\n"
         )
 
@@ -600,6 +649,39 @@ def diagnosticar_turno(
             )
             paso = "triaje_motivo"
             motivo = "bloqueado_dump_pagos"
+
+        # No ofrecer asesor/llamada antes del mínimo de turnos N1
+        if (
+            accion == "ask"
+            and turnos < MIN_TURNOS_ANTES_ESCALAR
+            and _ofrece_handoff_prematuro(mensaje)
+            and not forzar_agente
+        ):
+            if es_facturacion:
+                mensaje = (
+                    "Para confirmar si hubo ajuste de tarifa o cambio de plan necesito "
+                    "mirar tu cuenta. ¿Me pasás el DNI del titular o N.º de socio?"
+                )
+                paso = "identificar_cuenta"
+            else:
+                fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso
+            motivo = "bloqueado_handoff_prematuro"
+
+        # No preguntar medio/fecha de pago si no dijo que pagó
+        if accion == "ask" and _pregunta_pago_fuera_de_lugar(mensaje, mensaje_cliente):
+            if es_facturacion:
+                mensaje = (
+                    "Perfecto. Para ver si hubo un ajuste necesito ubicarte: "
+                    "¿me pasás DNI del titular o N.º de socio?"
+                )
+                paso = "identificar_cuenta"
+            else:
+                fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso
+            motivo = "bloqueado_pregunta_pago"
 
         if not mensaje:
             fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)

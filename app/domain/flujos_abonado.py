@@ -259,7 +259,7 @@ def tag_para_intencion(intencion: str) -> str:
 
 
 def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
-    t = (texto or "").lower()
+    t = (texto or "").lower().replace("fatura", "factura")
 
     if any(k in t for k in (
         "data center", "datacenter", "ecolan", "central virtual", "pbx",
@@ -596,6 +596,18 @@ def pide_humano(texto: str) -> bool:
             "hablar con",
             "atencion",
             "atención",
+            "atiendan",
+            "atiendeme",
+            "atiéndeme",
+            "atenderme",
+            "me atiendan",
+            "me atienda",
+            "que me atiendan",
+            "asesor",
+            "que me llamen",
+            "llamenme",
+            "llámenme",
+            "me llamen",
             "tecnico",
             "técnico",
             "representante",
@@ -616,6 +628,8 @@ def pide_humano(texto: str) -> bool:
             "debería venir",
             "tienen que venir",
             "tiene que venir",
+            "atiendan ya",
+            "ahora mismo",
         )
     )
 
@@ -630,6 +644,125 @@ def pide_humano_en_flujo_activo(texto: str, ctx: dict) -> bool:
     turnos = int(ctx.get("diag_turnos") or 0)
     paso = int(ctx.get("paso_idx") or 0)
     return turnos >= 1 or paso >= 1
+
+
+def detectar_temas_duales(texto: str) -> list[str]:
+    """Detecta si el mensaje mezcla tema técnico y facturación.
+
+    Retorna p.ej. ['tecnico', 'facturacion'] cuando hay ambos.
+    """
+    t = (texto or "").lower().replace("fatura", "factura")
+    tecnico = any(
+        k in t
+        for k in (
+            "internet",
+            "wifi",
+            "wi-fi",
+            "conexión",
+            "conexion",
+            "señal",
+            "senal",
+            "router",
+            "módem",
+            "modem",
+            "ont",
+            "fibra",
+            "lento",
+            "lenta",
+            "anda mal",
+            "anda cada vez peor",
+            "cada vez peor",
+            "no anda",
+            "no funciona",
+            "corte de línea",
+            "sin servicio",
+            "cajita",
+        )
+    )
+    factura = any(
+        k in t
+        for k in (
+            "factura",
+            "factur",
+            "aumento",
+            "aumentó",
+            "boleta",
+            "tarifa",
+            "cobro",
+            "saldo",
+            "deuda",
+            "pago",
+            "más cara",
+            "mas cara",
+            "subió",
+            "subio",
+        )
+    )
+    out: list[str] = []
+    if tecnico:
+        out.append("tecnico")
+    if factura:
+        out.append("facturacion")
+    return out
+
+
+def resolver_prioridad_tema(texto: str) -> str | None:
+    """Interpreta la elección del cliente tras preguntar prioridad doble-tema."""
+    t = (texto or "").lower().replace("fatura", "factura")
+    # Ambos: no forzar
+    if any(k in t for k in ("los dos", "ambas", "los dos temas", "las dos")):
+        return "facturacion"  # factura suele ser más rápida; luego técnico
+    if any(
+        k in t
+        for k in (
+            "internet",
+            "wifi",
+            "conexión",
+            "conexion",
+            "señal",
+            "senal",
+            "router",
+            "técnico",
+            "tecnico",
+            "la conexión",
+            "la conexion",
+            "lo técnico",
+            "lo tecnico",
+            "primero internet",
+            "por el internet",
+        )
+    ):
+        return "tecnico"
+    if any(
+        k in t
+        for k in (
+            "factura",
+            "factur",
+            "aumento",
+            "boleta",
+            "tarifa",
+            "cobro",
+            "pago",
+            "plata",
+            "precio",
+            "monto",
+            "la cuenta",
+        )
+    ):
+        return "facturacion"
+    return None
+
+
+def intencion_desde_tema(tema: str, texto_original: str = "") -> str:
+    """Mapea tema dual → intención concreta."""
+    if tema == "facturacion":
+        return "facturacion"
+    # técnico: reclasificar con el texto original si aporta, si no internet genérico
+    if texto_original:
+        intent = clasificar_intencion(texto_original)
+        if intent not in ("facturacion", "corte_deuda", "general", "portal_tramites", "alta_plan"):
+            return intent
+    return "internet"
 
 
 def es_escape_agente(texto: str) -> bool:

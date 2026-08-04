@@ -10,17 +10,20 @@ from sqlalchemy.orm import Session
 from app.domain.flujos_abonado import (
     clasificar_intencion,
     contiene_sintoma_canal,
+    detectar_temas_duales,
     detecta_frustracion,
     es_escape_agente,
     es_paso_derivacion,
     es_saludo_corto,
     indica_resuelto,
+    intencion_desde_tema,
     misma_queja,
     parece_consulta_nueva,
     pide_humano,
     pide_humano_en_flujo_activo,
     refinar_intencion_internet,
     registrar_queja,
+    resolver_prioridad_tema,
     resumen_handoff,
     respuesta_paso_ok,
     tag_para_intencion,
@@ -611,10 +614,79 @@ def procesar_mensaje_entrante(
     # Corte por deuda automático si aplica
     intencion = ctx.get("intencion") or ""
     servicio_abo = abonado.servicio if abonado else ""
+
+    # Doble tema (internet + factura): esperar elección de prioridad
+    if intencion == "multi_tema":
+        elegida = resolver_prioridad_tema(texto)
+        if not elegida:
+            resp = (
+                "Decime por cuál empezamos: ¿el internet o el aumento de la factura?"
+            )
+            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "multi_tema",
+            }
+        original = str(ctx.get("texto_multi_tema") or texto)
+        intent = intencion_desde_tema(elegida, original)
+        pendientes = [t for t in (ctx.get("temas_pendientes") or []) if t != elegida]
+        ctx["intencion"] = intent
+        ctx["prioridad_elegida"] = elegida
+        ctx["temas_pendientes"] = pendientes
+        ctx["paso_idx"] = 0
+        ctx["diag_turnos"] = 0
+        ctx["pasos_cubiertos"] = []
+        conv.servicio_detectado = intent
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        # Diagnosticar con el mensaje original (tenía ambos temas), no solo "internet"/"factura"
+        diag = _aplicar_diagnostico_ia(
+            db,
+            org_id,
+            conv,
+            abonado,
+            original,
+            canal=canal,
+            ctx=ctx,
+            intencion=intent,
+            usar_llama=usar_llama,
+        )
+        if diag is not None:
+            return diag
+        intencion = intent
+        # Continúa abajo si el diagnóstico IA no aplicó
+
     if not intencion:
         if abonado and (_deuda_positiva(abonado) or abonado.estado in ("corte", "suspendido")):
             intencion = "corte_deuda"
         else:
+            temas = detectar_temas_duales(texto)
+            if len(temas) >= 2:
+                ctx["intencion"] = "multi_tema"
+                ctx["temas_pendientes"] = temas
+                ctx["texto_multi_tema"] = texto[:500]
+                ctx["paso_idx"] = 0
+                ctx["diag_turnos"] = 0
+                ctx["pasos_cubiertos"] = []
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                resp = (
+                    "Veo dos cosas: la conexión y el tema de la factura. "
+                    "¿Arrancamos por el internet o por el aumento?"
+                )
+                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                    "intencion": "multi_tema",
+                }
             intencion = clasificar_intencion(texto, servicio_abo)
         paso_inicial = 0
         # Ya dijo «sin tono» → no re-preguntar tono

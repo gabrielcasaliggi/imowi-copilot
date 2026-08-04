@@ -75,3 +75,79 @@ def test_system_prompt_incluye_empatia_y_json():
     assert "escalate" in p
     assert "CONTEXTO_ABONADO" in p
     assert "turno 2" in p
+
+
+def test_doble_tema_y_prioridad():
+    from app.domain.flujos_abonado import (
+        detectar_temas_duales,
+        pide_humano,
+        resolver_prioridad_tema,
+    )
+
+    msg = "hola internet anda cada vez peor y encima me vino aumento en la fatura"
+    assert set(detectar_temas_duales(msg)) == {"tecnico", "facturacion"}
+    assert resolver_prioridad_tema("por el internet") == "tecnico"
+    assert resolver_prioridad_tema("el aumento") == "facturacion"
+    assert pide_humano("que me atiendan ya") is True
+    assert pide_humano("quiero un asesor") is True
+
+
+def test_bloquea_handoff_y_pago_prematuro(monkeypatch):
+    import json
+
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    def _fake(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "¿Te gustaría que un asesor te contacte por este medio "
+                    "o preferís que te llamen?"
+                ),
+                "paso_cubierto": "x",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake)
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[
+            {"id": "identificar_cuenta", "pregunta": "¿Me pasás el DNI?"},
+            {"id": "detalle_importe", "pregunta": "¿Qué monto ves?"},
+        ],
+        historial_mensajes=[],
+        mensaje_cliente="la de este mes y son 5000 pesos mas",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["triaje_motivo", "detalle_importe"],
+    )
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "bloqueado_handoff_prematuro"
+    assert "asesor" not in (out.get("mensaje") or "").lower()
+    assert "dni" in (out.get("mensaje") or "").lower() or "socio" in (out.get("mensaje") or "").lower()
+
+    def _fake_pago(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": "¿Qué medio de pago utilizó y en qué fecha realizó el movimiento?",
+                "paso_cubierto": "x",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake_pago)
+    out2 = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[{"id": "identificar_cuenta", "pregunta": "¿DNI?"}],
+        historial_mensajes=[],
+        mensaje_cliente="que me atiendan ya",
+        turnos_diagnostico=3,
+        pasos_cubiertos=[],
+        forzar_agente=True,
+    )
+    assert out2["accion"] == "escalate"
+    assert out2["motivo"] == "pedido_humano"
