@@ -195,6 +195,8 @@ def test_facturacion_saldo_corto_identificado():
     )
     assert out["motivo"] == "facturacion_saldo_real"
     assert "1234.56" in (out.get("mensaje") or "")
+    assert "https://ov.batan.coop" in (out.get("mensaje") or "")
+    assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
     assert "medio de pago" not in (out.get("mensaje") or "").lower()
 
 
@@ -221,7 +223,26 @@ def test_facturacion_saldo_y_web_ov_batan():
     )
     assert out["motivo"] == "facturacion_saldo_y_web_pago"
     assert "86479.89" in (out.get("mensaje") or "")
-    assert "ov.batan.coop" in (out.get("mensaje") or "").lower()
+    assert "https://ov.batan.coop" in (out.get("mensaje") or "").lower()
+    assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
+
+
+def test_facturacion_aviso_pago_link():
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[],
+        mensaje_cliente="ya pagué pero no se acredita",
+        turnos_diagnostico=1,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 100\n"
+        ),
+    )
+    assert out["motivo"] == "facturacion_aviso_pago_ov"
+    assert "https://ov.batan.coop/#/aviso-de-pago" in (out.get("mensaje") or "")
 
 
 def test_facturacion_saldo_y_pago_sin_inventar_cbu():

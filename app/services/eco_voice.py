@@ -18,13 +18,29 @@ def _mask_dni(dni: str) -> str:
     return f"{d[:2]}***{d[-3:]}"
 
 
+# Oficina virtual Batán — links oficiales (no inventar otras URLs).
+OV_BATAN_URL = "https://ov.batan.coop"
+OV_BATAN_PAGAR_URL = "https://ov.batan.coop/#/pagar"
+OV_BATAN_AVISO_PAGO_URL = "https://ov.batan.coop/#/aviso-de-pago"
+
+# Compacto: home + pagar. Aviso-de-pago solo si el cliente dice que ya abonó.
+TEXTO_OV_GESTIONES = (
+    f"Pagos y gestiones: {OV_BATAN_URL} — "
+    f"para pagar con DNI: {OV_BATAN_PAGAR_URL}."
+)
+
 # Plantilla fija N1 pagos — no depende del LLM (evita inventar CBU/adjuntos).
 PLANTILLA_PAGO_QR = (
-    "Podés abonar desde la oficina virtual ov.batan.coop "
+    f"Podés abonar en {OV_BATAN_PAGAR_URL} "
+    f"o desde la oficina virtual {OV_BATAN_URL}, "
     "o con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
     "Cuando se acredita, el servicio se reactiva solo. "
     "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. "
     "¿Pudiste pagar o necesitás que te ubique la cuenta?"
+)
+
+TEXTO_OV_AVISO_PAGO = (
+    f"Si ya realizaste el pago, podés avisarlo acá: {OV_BATAN_AVISO_PAGO_URL}."
 )
 
 

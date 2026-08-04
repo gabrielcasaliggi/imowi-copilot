@@ -38,7 +38,7 @@ from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY
 
 logger = logging.getLogger("operations_hub")
 
-from app.services.eco_voice import PLANTILLA_PAGO_QR
+from app.services.eco_voice import PLANTILLA_PAGO_QR, TEXTO_OV_AVISO_PAGO, TEXTO_OV_GESTIONES
 
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
@@ -716,7 +716,7 @@ def procesar_mensaje_entrante(
                 resp = (
                     f"Te ubiqué, {nombre}.{baja_nota} "
                     f"El saldo / última factura que figura es ${deuda}. "
-                    "Podés ver pagos y gestiones en ov.batan.coop. "
+                    f"{TEXTO_OV_GESTIONES} "
                     "¿Necesitás abonar o algo más?"
                 )
                 ctx["intencion"] = "facturacion"
@@ -991,7 +991,7 @@ def procesar_mensaje_entrante(
             )
             resp = (
                 f"El saldo / última factura que figura es ${deuda}.{nota_baja} "
-                "Podés ver pagos y gestiones en ov.batan.coop. "
+                f"{TEXTO_OV_GESTIONES} "
                 "¿Necesitás abonar o algo más?"
             )
             ctx["intencion"] = "facturacion"

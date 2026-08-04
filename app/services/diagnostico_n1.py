@@ -521,7 +521,11 @@ def _facturacion_deterministica(
     historial_mensajes: list | None,
 ) -> dict | None:
     """Respuestas fijas con saldo real; sin inventar CBU/QR adjunto/web."""
-    from app.services.eco_voice import PLANTILLA_PAGO_QR
+    from app.services.eco_voice import (
+        PLANTILLA_PAGO_QR,
+        TEXTO_OV_AVISO_PAGO,
+        TEXTO_OV_GESTIONES,
+    )
 
     identificado = "modo: identificado" in (contexto_abonado or "")
     saldo = _saldo_desde_contexto(contexto_abonado) if identificado else None
@@ -548,6 +552,31 @@ def _facturacion_deterministica(
             "mensaje": "De nada. Cualquier otra consulta, escribime. ¡Buen día!",
             "paso_cubierto": "cierre_facturacion",
             "motivo": "facturacion_cierre_cliente",
+        }
+
+    # Ya pagó → link de aviso de pago (sin inventar comprobantes).
+    if identificado and any(
+        k in t
+        for k in (
+            "ya pague",
+            "ya pagué",
+            "ya abone",
+            "ya aboné",
+            "avise el pago",
+            "avisar el pago",
+            "aviso de pago",
+            "pague pero",
+            "pagué pero",
+            "pague y no",
+            "pagué y no",
+        )
+    ):
+        pref = f"Saldo que figura aún: ${saldo}. " if saldo is not None else ""
+        return {
+            "accion": "ask",
+            "mensaje": f"{pref}{TEXTO_OV_AVISO_PAGO} ¿Pudiste cargar el aviso?",
+            "paso_cubierto": "aviso_pago_ov",
+            "motivo": "facturacion_aviso_pago_ov",
         }
 
     if identificado and saldo is not None and _cliente_consulta_saldo(mensaje_cliente):
@@ -581,6 +610,7 @@ def _facturacion_deterministica(
             "accion": "ask",
             "mensaje": (
                 f"El saldo / última factura que figura es ${saldo}. "
+                f"{TEXTO_OV_GESTIONES} "
                 "¿Necesitás abonar o algo más de la factura?"
             ),
             "paso_cubierto": "informar_saldo",
