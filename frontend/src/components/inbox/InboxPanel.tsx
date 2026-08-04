@@ -18,6 +18,7 @@ import {
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
 import { botEstadoLabel, getBranding } from "@/lib/brand";
+import { useStickToBottom } from "@/hooks/useStickToBottom";
 
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
@@ -57,7 +58,7 @@ export function InboxPanel() {
   const [injectText, setInjectText] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
   const detailSeq = useRef(0);
   const claimingRef = useRef(false);
 
@@ -110,8 +111,8 @@ export function InboxPanel() {
   }, [selected, refreshList, openConv]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensajes]);
+    forceStick();
+  }, [selected, forceStick]);
 
   const onInject = async (e: FormEvent) => {
     e.preventDefault();
@@ -196,6 +197,7 @@ export function InboxPanel() {
     if (!selected || !reply.trim()) return;
     setBusy(true);
     claimingRef.current = true;
+    forceStick();
     try {
       if (detail?.estado === "bot" || detail?.estado === "espera_agente") {
         try {
@@ -480,13 +482,17 @@ export function InboxPanel() {
                     )}
                 </div>
               </div>
-              <div className="chat-thread flex-1 overflow-y-auto p-4 space-y-3">
+              <div
+                ref={threadRef}
+                onScroll={onScroll}
+                className="chat-thread flex-1 overflow-y-auto p-4 space-y-3"
+              >
                 {!mensajes.length ? (
                   <p className="text-sm text-slate-500 text-center py-8">Sin mensajes en este hilo.</p>
                 ) : (
                   mensajes.map((m) => <ChatMessageBubble key={m.id} message={m} />)
                 )}
-                <div ref={messagesEndRef} />
+                <div ref={bottomRef} />
               </div>
               {isAdmin && detail.estado !== "cerrado" && (
                 <form onSubmit={onSend} className="chat-composer px-4 py-3.5 flex gap-2.5">

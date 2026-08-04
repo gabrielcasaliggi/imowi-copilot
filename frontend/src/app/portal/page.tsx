@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type InboxConversation, type InboxMessage } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/ChatMessageBubble";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { botEstadoLabel, getBranding } from "@/lib/brand";
+import { useStickToBottom } from "@/hooks/useStickToBottom";
 
 const PORTAL_KEY = "ops_hub_portal_session";
 const showDemo =
@@ -70,7 +71,10 @@ export default function PortalPage() {
   const [modoInvitado, setModoInvitado] = useState(false);
   const [newPin, setNewPin] = useState("");
   const [otpInfo, setOtpInfo] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([
+    mensajes,
+    botTyping,
+  ]);
 
   const applyPayload = useCallback(
     (c: InboxConversation, msgs: InboxMessage[], portalToken: string, guest = false) => {
@@ -114,10 +118,6 @@ export default function PortalPage() {
     }, 4000);
     return () => window.clearInterval(id);
   }, [token, conv?.id, conv?.estado, refresh]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensajes, botTyping]);
 
   const onStartDni = async (e: FormEvent) => {
     e.preventDefault();
@@ -233,6 +233,7 @@ export default function PortalPage() {
     setError("");
     const outgoing = texto.trim();
     setTexto("");
+    forceStick();
     setMensajes((prev) => [
       ...prev,
       {
@@ -529,7 +530,11 @@ export default function PortalPage() {
               </p>
             )}
 
-            <div className="chat-thread flex-1 rounded-2xl border border-slate-700/80 bg-slate-900/40 p-4 overflow-y-auto min-h-[320px] max-h-[55vh] space-y-3 shadow-sm">
+            <div
+              ref={threadRef}
+              onScroll={onScroll}
+              className="chat-thread flex-1 rounded-2xl border border-slate-700/80 bg-slate-900/40 p-4 overflow-y-auto min-h-[320px] max-h-[55vh] space-y-3 shadow-sm"
+            >
               {mensajes.map((m) => (
                 <ChatMessageBubble key={m.id} message={m} portal />
               ))}

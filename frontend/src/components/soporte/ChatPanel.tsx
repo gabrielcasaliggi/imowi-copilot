@@ -17,6 +17,7 @@ import {
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
 import { getBranding } from "@/lib/brand";
+import { useStickToBottom } from "@/hooks/useStickToBottom";
 
 /**
  * Consola del agente: mesa de trabajo sobre el ticket tomado.
@@ -34,7 +35,7 @@ export function ChatPanel() {
   const [busy, setBusy] = useState(false);
   const [loadingConv, setLoadingConv] = useState(false);
   const [confirmResolve, setConfirmResolve] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
   const seq = useRef(0);
 
   const loadCanal = useCallback(async (opts?: { silent?: boolean }) => {
@@ -76,8 +77,8 @@ export function ChatPanel() {
   }, [ticketFormacion?.id, conv?.id, loadCanal]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensajes]);
+    forceStick();
+  }, [ticketFormacion?.id, forceStick]);
 
   if (isAdmin) return null;
 
@@ -119,6 +120,7 @@ export function ChatPanel() {
     e.preventDefault();
     if (!conv?.id || !reply.trim()) return;
     setBusy(true);
+    forceStick();
     try {
       if (conv.estado === "bot" || conv.estado === "espera_agente") {
         try {
@@ -202,7 +204,11 @@ export function ChatPanel() {
       </div>
 
       {/* Thread */}
-      <div className="chat-thread flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+      <div
+        ref={threadRef}
+        onScroll={onScroll}
+        className="chat-thread flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0"
+      >
         {loadingConv && !mensajes.length ? (
           <div className="space-y-3 animate-pulse" aria-busy="true" aria-label="Cargando chat">
             {[1, 2, 3].map((i) => (
