@@ -265,6 +265,89 @@ def test_facturacion_aviso_pago_link():
     assert "https://ov.batan.coop/#/aviso-de-pago" in (out.get("mensaje") or "")
 
 
+def test_facturacion_si_tras_oferta_pago_incluye_ov():
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[
+            {
+                "autor": "bot",
+                "texto": (
+                    "Tenés un saldo pendiente de $3248.04. "
+                    "¿Querés que te explique cómo podés realizar el pago?"
+                ),
+            },
+        ],
+        mensaje_cliente="si",
+        turnos_diagnostico=1,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -3248.04\n"
+        ),
+    )
+    assert out["motivo"] == "facturacion_pago_plantilla"
+    assert "https://ov.batan.coop" in (out.get("mensaje") or "")
+    assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
+
+
+def test_facturacion_oficina_virtual_nunca_niega(monkeypatch):
+    import json
+
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    # Determinístico (incluye typo «ofocina»)
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[],
+        mensaje_cliente="no tienen una ofocina virtual?",
+        turnos_diagnostico=1,
+        pasos_cubiertos=[],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -100\n"
+        ),
+    )
+    assert out["motivo"] == "facturacion_oficina_virtual"
+    assert "https://ov.batan.coop" in (out.get("mensaje") or "")
+    assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
+    assert "no contamos" not in (out.get("mensaje") or "").lower()
+
+    invento = (
+        "No contamos con una oficina virtual por el momento. "
+        "¿Te gustaría que derive tu consulta al área de facturación?"
+    )
+
+    def _fake(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": invento,
+                "paso_cubierto": "x",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake)
+    # Mensaje que no matchea paths determinísticos, LLM niega OV → guard
+    out2 = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[{"id": "triaje", "pregunta": "?"}],
+        historial_mensajes=[],
+        mensaje_cliente="me cobraron algo raro el mes pasado",
+        turnos_diagnostico=1,
+        pasos_cubiertos=[],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -100\n"
+        ),
+    )
+    assert out2["motivo"] == "bloqueado_invento_pago_o_desvio"
+    assert "https://ov.batan.coop" in (out2.get("mensaje") or "")
+    assert "no contamos" not in (out2.get("mensaje") or "").lower()
+
+
 def test_facturacion_saldo_y_pago_sin_inventar_cbu():
     from app.services.diagnostico_n1 import diagnosticar_turno
 

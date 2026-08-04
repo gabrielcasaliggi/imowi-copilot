@@ -978,17 +978,44 @@ def procesar_mensaje_entrante(
                 "abonado": crepo.abonado_to_dict(abonado),
             }
 
-    # Saldo/deuda con cuenta identificada: dato del padrón, sin triaje LLM.
+    # Saldo/pago/OV con cuenta identificada: respuesta fija (sin LLM).
     if abonado:
-        from app.services.diagnostico_n1 import _cliente_consulta_saldo
+        from app.services.diagnostico_n1 import (
+            _cliente_consulta_saldo,
+            _cliente_pide_oficina_virtual,
+            _cliente_pide_pagar,
+        )
+        from app.services.eco_voice import PLANTILLA_PAGO_QR
+
+        deuda = str(abonado.deuda_monto or "0").strip() or "0"
+        nota_baja = (
+            "La cuenta figura «de baja» en el padrón."
+            if (abonado.estado or "").lower() == "baja"
+            else ""
+        )
+
+        if _cliente_pide_oficina_virtual(texto) or _cliente_pide_pagar(texto):
+            resp = (
+                f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
+                f"{PLANTILLA_PAGO_QR}"
+            )
+            ctx["intencion"] = "facturacion"
+            ctx["saludo"] = True
+            ctx.pop("invitado", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "abonado": crepo.abonado_to_dict(abonado),
+                "intencion": "facturacion",
+            }
 
         if _cliente_consulta_saldo(texto):
-            deuda = str(abonado.deuda_monto or "0").strip() or "0"
-            nota_baja = (
-                "La cuenta figura «de baja» en el padrón."
-                if (abonado.estado or "").lower() == "baja"
-                else ""
-            )
             resp = mensaje_saldo_padron(deuda, nota_extra=nota_baja)
             ctx["intencion"] = "facturacion"
             ctx["saludo"] = True

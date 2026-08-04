@@ -351,6 +351,36 @@ def _cliente_pide_pagar(texto: str) -> bool:
             "cuenta bancaria",
             "cbu",
             "transferencia",
+            "realizar el pago",
+            "realizar pago",
+            "formas de pago",
+            "cómo abonar",
+            "como abonar",
+            "donde pago",
+            "dónde pago",
+        )
+    )
+
+
+def _cliente_pide_oficina_virtual(texto: str) -> bool:
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "oficina virtual",
+            "ofocina virtual",  # typo frecuente
+            "oficiana virtual",
+            "ov.batan",
+            "ov batan",
+            "portal de pagos",
+            "pagina de pago",
+            "página de pago",
+            "web de pago",
+            "web para pagar",
+            "sitio para pagar",
+            "tienen una oficina",
+            "tienen oficina",
+            "hay oficina virtual",
         )
     )
 
@@ -581,6 +611,21 @@ def _facturacion_deterministica(
             "motivo": "facturacion_aviso_pago_ov",
         }
 
+    # Siempre hay oficina virtual: nunca dejar que el LLM la niegue.
+    if identificado and _cliente_pide_oficina_virtual(mensaje_cliente):
+        pref = ""
+        if saldo is not None:
+            pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+        return {
+            "accion": "ask",
+            "mensaje": (
+                f"{pref}Sí: la oficina virtual está acá.\n"
+                f"{PLANTILLA_PAGO_QR}"
+            ),
+            "paso_cubierto": "guia_oficina_virtual",
+            "motivo": "facturacion_oficina_virtual",
+        }
+
     if identificado and saldo is not None and _cliente_consulta_saldo(mensaje_cliente):
         web = any(
             k in t
@@ -618,7 +663,20 @@ def _facturacion_deterministica(
         _autor_texto(m)[1] for m in (historial_mensajes or [])[-8:]
     ).lower()
     oferta_pago_previa = any(
-        k in hist_txt for k in ("qr", "fiserv", "pagar", "abonar", "mercado pago")
+        k in hist_txt
+        for k in (
+            "qr",
+            "fiserv",
+            "pagar",
+            "pago",
+            "abonar",
+            "mercado pago",
+            "oficina virtual",
+            "ov.batan",
+            "cómo podés",
+            "como podes",
+            "realizar el pago",
+        )
     )
 
     if identificado and (
@@ -629,11 +687,13 @@ def _facturacion_deterministica(
             and any(k in hist_txt for k in ("cbu", "bancaria", "qr", "cuenta"))
         )
     ):
-        extra = f" Saldo pendiente ${saldo}." if saldo is not None else ""
+        extra = ""
+        if saldo is not None:
+            extra = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
         return {
             "accion": "ask",
             "mensaje": (
-                f"Por este chat no te puedo pasar CBU ni adjuntar un QR.{extra} "
+                f"{extra}Por este chat no te puedo pasar CBU ni adjuntar un QR.\n"
                 f"{PLANTILLA_PAGO_QR}"
             ),
             "paso_cubierto": "guia_pago_fiserv",
@@ -642,9 +702,11 @@ def _facturacion_deterministica(
 
     if identificado and (
         _cliente_pide_pagar(mensaje_cliente)
-        or (t in ("ambas", "si", "sí", "dale") and oferta_pago_previa)
+        or (t in ("ambas", "si", "sí", "dale", "ok", "dale si") and oferta_pago_previa)
     ):
-        pref = f"Saldo pendiente ${saldo}. " if saldo is not None else ""
+        pref = ""
+        if saldo is not None:
+            pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
         return {
             "accion": "ask",
             "mensaje": f"{pref}{PLANTILLA_PAGO_QR}",
@@ -653,6 +715,24 @@ def _facturacion_deterministica(
         }
 
     return None
+
+
+def _parece_niega_oficina_virtual(mensaje: str) -> bool:
+    t = (mensaje or "").lower()
+    if "oficina virtual" not in t and "ov.batan" not in t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "no contamos",
+            "no tenemos",
+            "no hay",
+            "por el momento",
+            "no disponemos",
+            "todavía no",
+            "todavia no",
+        )
+    )
 
 
 def _parece_dump_pagos(mensaje: str) -> bool:
@@ -807,13 +887,13 @@ def diagnosticar_turno(
             "(antes vs ahora) o si hubo cambio de plan/servicios. NUNCA preguntes medio de pago "
             "ni fecha de un pago salvo que diga que pagó y no figura.\n"
             "- Si no reconoce un cobro: pedí mes/importe/concepto; no asumas que es un pago fallido.\n"
-            "- Solo explicá cómo pagar (QR Fiserv / Mercado Pago / MODO) si pide pagar, QR, "
-            "saldo a abonar, o tiene corte. En ese caso, una o dos oraciones + una pregunta.\n"
-            "- NUNCA inventes CBU, alias, cuenta bancaria, adjuntos de QR ni pasos de una web "
-            "de pagos que no existan. Si no hay integración de QR en el chat, pedí el QR Fiserv "
-            "de la factura o derivá a agente.\n"
+            "- Solo explicá cómo pagar si pide pagar, QR, oficina virtual, saldo a abonar, o tiene corte.\n"
+            "- SIEMPRE existe la oficina virtual: https://ov.batan.coop y pago con DNI "
+            "https://ov.batan.coop/#/pagar — NUNCA digas que no hay oficina virtual.\n"
+            "- Al explicar pagos, incluí esos links + QR Fiserv de la factura (Mercado Pago/MODO).\n"
+            "- NUNCA inventes CBU, alias, cuenta bancaria ni adjuntos de QR.\n"
             "- Si CONTEXTO_ABONADO trae deuda_monto, usá SOLO ese valor; no inventes montos.\n"
-            "- En consulta de saldo/pago NO preguntes por fibra, antena, módem ni tipode conexión.\n"
+            "- En consulta de saldo/pago NO preguntes por fibra, antena, módem ni tipo de conexión.\n"
             "- En modo invitado (sin cuenta): pedí DNI/N.º de socio; no inventes saldos.\n"
             "- Si el cliente agradece y dice que solo quería el saldo: accion=resolved.\n"
             "- No ofrezcas asesor/ticket hasta indagar al menos "
@@ -990,15 +1070,23 @@ def diagnosticar_turno(
 
         # Facturación: bloquear inventos (CBU, adjunto QR falso, web inventada) y desvío técnico
         if es_facturacion and accion in ("ask", "resolved") and (
-            _parece_invento_pago(mensaje) or _parece_desvio_tecnico(mensaje)
+            _parece_invento_pago(mensaje)
+            or _parece_desvio_tecnico(mensaje)
+            or _parece_niega_oficina_virtual(mensaje)
         ):
             saldo = _saldo_desde_contexto(contexto_abonado)
             from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
 
             pref = f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n" if saldo else ""
-            if _cliente_pide_pagar(mensaje_cliente) or _pide_cbu_o_adjunto(mensaje_cliente):
+            if (
+                _cliente_pide_pagar(mensaje_cliente)
+                or _pide_cbu_o_adjunto(mensaje_cliente)
+                or _cliente_pide_oficina_virtual(mensaje_cliente)
+                or _parece_niega_oficina_virtual(mensaje)
+            ):
                 mensaje = (
-                    f"{pref}Por este chat no te paso CBU ni adjunto QR.\n"
+                    f"{pref}Sí, tenemos oficina virtual. "
+                    f"Por este chat no te paso CBU ni adjunto QR.\n"
                     f"{PLANTILLA_PAGO_QR}"
                 )
                 paso = "guia_pago_fiserv"
@@ -1007,10 +1095,10 @@ def diagnosticar_turno(
                 paso = "informar_saldo"
             else:
                 mensaje = (
-                    "Para la factura puedo decirte el saldo del padrón o guiarte con el "
-                    "pago en la oficina virtual. ¿Qué necesitás exactamente?"
+                    f"{pref}Sí tenemos oficina virtual para pagos y gestiones.\n"
+                    f"{PLANTILLA_PAGO_QR}"
                 )
-                paso = "triaje_motivo"
+                paso = "guia_oficina_virtual"
             motivo = "bloqueado_invento_pago_o_desvio"
             if accion == "resolved":
                 accion = "ask"
