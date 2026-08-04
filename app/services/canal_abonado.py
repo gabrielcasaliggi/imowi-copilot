@@ -38,7 +38,7 @@ from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY
 
 logger = logging.getLogger("operations_hub")
 
-from app.services.eco_voice import PLANTILLA_PAGO_QR, TEXTO_OV_AVISO_PAGO, TEXTO_OV_GESTIONES
+from app.services.eco_voice import PLANTILLA_PAGO_QR, TEXTO_OV_GESTIONES
 
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
