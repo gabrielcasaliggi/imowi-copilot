@@ -201,3 +201,14 @@ def test_cierre_escalamiento_los_no_es_cortante():
     assert "IBOT-1016" in msg
     assert "visita" in msg.lower()
     assert "factura" in msg.lower() or "aumento" in msg.lower()
+
+
+def test_declara_solo_movil_sin_fijo():
+    from app.domain.flujos_abonado import clasificar_intencion, declara_solo_movil_sin_fijo
+
+    assert declara_solo_movil_sin_fijo("no tengo internet solo tengo imowi") is True
+    assert declara_solo_movil_sin_fijo("no tengo internet, solo tengo telefonia movil") is True
+    assert declara_solo_movil_sin_fijo("me quedé sin internet") is False
+    assert declara_solo_movil_sin_fijo("no tengo internet") is False  # corte ambiguo
+    assert clasificar_intencion("no tengo internet solo tengo imowi", "internet") == "movil"
+    assert clasificar_intencion("hola", "internet") == "internet"

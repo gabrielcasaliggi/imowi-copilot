@@ -258,8 +258,77 @@ def tag_para_intencion(intencion: str) -> str:
     return TAG_POR_INTENCION.get((intencion or "").strip(), "[HANDOFF_HUMANO]")
 
 
+def declara_solo_movil_sin_fijo(texto: str) -> bool:
+    """True si aclara que no tiene internet fijo y solo usa móvil/IMOWI.
+
+    No confundir con corte (“me quedé sin internet”).
+    """
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "solo tengo imowi",
+            "solo imowi",
+            "solo tengo imovi",
+            "solo imovi",
+            "solo tengo móvil",
+            "solo tengo movil",
+            "solo móvil",
+            "solo movil",
+            "solo tengo celular",
+            "solo celular",
+            "solo tengo telefonía móvil",
+            "solo tengo telefonia movil",
+            "solo telefonía móvil",
+            "solo telefonia movil",
+            "únicamente móvil",
+            "unicamente movil",
+            "nada más que el móvil",
+            "nada mas que el movil",
+        )
+    ):
+        return True
+    afirma_movil = any(
+        k in t
+        for k in (
+            "imowi",
+            "imovi",
+            "móvil",
+            "movil",
+            "celular",
+            "telefonía móvil",
+            "telefonia movil",
+            "línea móvil",
+            "linea movil",
+        )
+    )
+    niega_fijo = any(
+        k in t
+        for k in (
+            "no tengo internet",
+            "no tengo el internet",
+            "no tengo fibra",
+            "sin internet fijo",
+            "no tengo fijo",
+            "no es internet",
+            "no tengo servicio de internet",
+            "no contraté internet",
+            "no contrate internet",
+        )
+    )
+    return bool(afirma_movil and niega_fijo)
+
+
 def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     t = (texto or "").lower().replace("fatura", "factura")
+
+    # Corrección frecuente: “no tengo internet, solo IMOWI”
+    if declara_solo_movil_sin_fijo(t):
+        if any(k in t for k in ("datos", "navega", "4g", "5g", "sin señal", "sin senal")):
+            return "movil_datos"
+        if any(k in t for k in ("llamar", "llamada", "sms")):
+            return "movil_llamadas"
+        return "movil"
 
     if any(k in t for k in (
         "data center", "datacenter", "ecolan", "central virtual", "pbx",

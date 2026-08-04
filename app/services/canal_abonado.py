@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.domain.flujos_abonado import (
     clasificar_intencion,
     contiene_sintoma_canal,
+    declara_solo_movil_sin_fijo,
     detectar_temas_duales,
     detecta_frustracion,
     es_escape_agente,
@@ -1192,6 +1193,56 @@ def procesar_mensaje_entrante(
         }
 
     # Refinar internet → radio / ADSL tras la pregunta de tipo de acceso
+    # Si aclara que NO tiene fijo y solo móvil/IMOWI → saltar a playbook móvil
+    if intencion.startswith("internet") or intencion in ("wifi", "internet_lento"):
+        if declara_solo_movil_sin_fijo(texto):
+            intencion = clasificar_intencion(texto, "movil")
+            if not intencion.startswith("movil"):
+                intencion = "movil"
+            ctx["intencion"] = intencion
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            ctx["correccion_solo_movil"] = True
+            conv.servicio_detectado = "movil"
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pb = _playbooks(db)
+            pasos = pb.get(intencion) or pb["general"]
+            diag = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+                usar_llama=usar_llama,
+            )
+            if diag is not None:
+                return diag
+            pregunta = pasos[0].pregunta if pasos else (
+                "Dale, vamos con el móvil IMOWI. ¿Qué te pasa: sin señal, sin datos o no podés llamar?"
+            )
+            if usar_llama:
+                pregunta = _redactar_con_llama(
+                    pregunta,
+                    f"intencion={intencion} correccion_solo_movil=1",
+                    db=db,
+                    org_id=org_id,
+                    consulta=texto,
+                )
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
+
     if intencion == "internet":
         refinada = refinar_intencion_internet(texto)
         if refinada:
