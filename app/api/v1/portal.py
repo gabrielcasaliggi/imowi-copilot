@@ -260,10 +260,18 @@ def _abrir_conversacion_identificada(
 
         nombre = (abo.nombre if abo else "") or ""
         primer = nombre.split()[0].title() if nombre.strip() else ""
-        saludo = (
-            f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-            "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
-        )
+        estado = ((abo.estado if abo else "") or "").lower()
+        if estado == "baja":
+            saludo = (
+                f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+                "Tu cuenta figura «de baja» en el padrón. "
+                "Igual puedo ayudarte (reactivación, factura u otro trámite). ¿Qué necesitás?"
+            )
+        else:
+            saludo = (
+                f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+                "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+            )
         crepo.add_mensaje(
             db, org.id, conv.id, direccion="out", autor="bot", texto=saludo
         )
@@ -309,12 +317,14 @@ def portal_auth_start(
     except Exception:
         _fail("billtrack_error")
 
-    if not hit or not hit.get("activo"):
+    if not hit:
         _fail("not_found_or_inactive")
 
     email = (hit.get("email") or "").strip()
     if not email or "@" not in email:
         _fail("no_contact")
+
+    # Cuentas de baja / inactivas: se identifican igual (OTP) para trámites y consultas.
 
     otp = generate_otp(OTP_LENGTH)
     challenge = PortalOtpChallenge(

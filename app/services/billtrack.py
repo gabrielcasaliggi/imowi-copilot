@@ -193,6 +193,7 @@ _INACTIVE_STATES = frozenset(
         "inactivo",
         "inactive",
         "baja",
+        "de baja",
         "disabled",
         "suspendido",
         "suspended",
@@ -232,12 +233,14 @@ def _map_activo(raw: Any) -> bool:
 
 def map_lookup_row(row: dict[str, Any], *, dni_n: str) -> dict[str, Any]:
     """Normaliza una fila BillTrack al dict del portal/bot."""
+    estado_raw = str(row.get("activo") if row.get("activo") is not None else row.get("estado") or "").strip()
     return {
         "ref": str(row.get("ref") or row.get("id") or dni_n),
         "email": str(row.get("email") or row.get("correo") or "").strip(),
         "telefono": str(row.get("telefono") or row.get("msisdn") or row.get("phone") or "").strip(),
         "nombre": str(row.get("nombre") or "").strip(),
-        "activo": _map_activo(row.get("activo") if row.get("activo") is not None else row.get("estado")),
+        "activo": _map_activo(estado_raw),
+        "estado_padron": estado_raw.lower(),
         "dni": dni_n,
         "deuda": str(row.get("deuda") or row.get("billing_balance") or "0").strip(),
         "doc_cuit": str(row.get("doc_cuit") or "").strip(),
@@ -319,7 +322,15 @@ def ensure_local_abonado(
 
     dni_n = str(hit.get("dni") or "").strip()
     abo = crepo.find_abonado_por_dni(db, org_id, dni_n) if dni_n else None
-    estado = "activo" if hit.get("activo", True) else "suspendido"
+    estado_padron = str(hit.get("estado_padron") or "").strip().lower()
+    if "baja" in estado_padron:
+        estado = "baja"
+    elif hit.get("activo", True):
+        estado = "activo"
+    elif any(k in estado_padron for k in ("corte", "suspend", "mora")):
+        estado = "suspendido" if "suspend" in estado_padron else "corte"
+    else:
+        estado = "suspendido"
     nombre = str(hit.get("nombre") or "").strip()
     tel = str(hit.get("telefono") or "").strip()
     deuda = str(hit.get("deuda") or "0").strip() or "0"

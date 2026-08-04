@@ -56,6 +56,38 @@ def _extraer_dni(texto: str) -> str:
     return nums[0] if nums else ""
 
 
+def _es_solo_dni(texto: str) -> bool:
+    """True si el mensaje es (casi) solo un DNI — no es 'queja' ni frustración."""
+    t = (texto or "").strip()
+    return bool(re.fullmatch(r"\d{7,8}", t))
+
+
+def _intentar_identificar_por_dni(
+    db: Session,
+    org_id: str,
+    texto: str,
+) -> Abonado | None:
+    dni = _extraer_dni(texto)
+    if not dni:
+        return None
+    abonado = crepo.find_abonado_por_dni(db, org_id, dni)
+    if abonado:
+        return abonado
+    try:
+        from app.estate import repository as org_repo
+        from app.services.billtrack import ensure_local_abonado, lookup_abonado_por_dni
+
+        org = org_repo.get_org_by_id(db, org_id)
+        slug = org.slug if org else ""
+        hit = lookup_abonado_por_dni(dni, org_slug=slug, db=db)
+        # Incluye cuentas de baja / inactivas: se identifican igual
+        if hit:
+            return ensure_local_abonado(db, org_id, hit)
+    except Exception:
+        logger.debug("BillTrack lookup DNI falló", exc_info=True)
+    return None
+
+
 def _deuda_positiva(abonado: Abonado) -> bool:
     try:
         return float(str(abonado.deuda_monto).replace(",", ".").replace("$", "")) > 0
@@ -646,8 +678,51 @@ def procesar_mensaje_entrante(
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
 
+    # DNI solo (p. ej. respuesta a «pasame DNI»): identificar antes de frustración/ticket
+    if not abonado and _es_solo_dni(texto):
+        abonado = _intentar_identificar_por_dni(db, org_id, texto)
+        if abonado:
+            conv.abonado_id = abonado.id
+            if abonado.telefono_e164:
+                # No pisar guest phone sintético si no hay tel real — opcional
+                pass
+            ctx["identificado"] = True
+            ctx["dni"] = abonado.dni
+            ctx.pop("invitado", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            nombre = (abonado.nombre or "").split()[0].title() or "ahí"
+            estado = (abonado.estado or "").lower()
+            if estado == "baja":
+                resp = (
+                    f"Te ubiqué, {nombre}: la cuenta figura «de baja» en el padrón. "
+                    "Igual puedo ayudarte (reactivación, factura, o un trámite). "
+                    "¿Qué necesitás?"
+                )
+            elif estado in ("corte", "suspendido"):
+                resp = (
+                    f"Te ubiqué, {nombre}: la cuenta figura «{abonado.estado}». "
+                    f"Saldo pendiente ${abonado.deuda_monto}. "
+                    "¿Es por reactivar, pagar, o por otra consulta?"
+                )
+            else:
+                resp = (
+                    f"Listo {nombre}, ya te identifiqué. "
+                    "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+                )
+            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "abonado": crepo.abonado_to_dict(abonado),
+            }
+
     # Frustración / reiteración: solo tras avance N1 real (paso_idx ≥ 2)
-    if detecta_frustracion(texto, ctx):
+    # No aplicar a mensajes que son solo un DNI.
+    if not _es_solo_dni(texto) and detecta_frustracion(texto, ctx):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
         paso = int(ctx.get("paso_idx") or 0)
         tid = _crear_ticket_n2(
@@ -775,21 +850,14 @@ def procesar_mensaje_entrante(
 
     # Identificación — portal/web continúa como invitado si no hay match
     if not abonado:
-        dni = _extraer_dni(texto)
-        if dni:
-            abonado = crepo.find_abonado_por_dni(db, org_id, dni)
-            if not abonado:
-                try:
-                    from app.estate import repository as org_repo
-                    from app.services.billtrack import ensure_local_abonado, lookup_abonado_por_dni
-
-                    org = org_repo.get_org_by_id(db, org_id)
-                    slug = org.slug if org else ""
-                    hit = lookup_abonado_por_dni(dni, org_slug=slug, db=db)
-                    if hit and hit.get("activo"):
-                        abonado = ensure_local_abonado(db, org_id, hit)
-                except Exception:
-                    logger.debug("BillTrack lookup DNI falló", exc_info=True)
+        abonado = _intentar_identificar_por_dni(db, org_id, texto)
+        if abonado:
+            conv.abonado_id = abonado.id
+            ctx["identificado"] = True
+            ctx["dni"] = abonado.dni
+            ctx.pop("invitado", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
 
         if not abonado:
             # WhatsApp: pedir DNI una sola vez; después seguir como invitado

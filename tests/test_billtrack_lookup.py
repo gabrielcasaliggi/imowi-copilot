@@ -15,6 +15,23 @@ def test_default_sql_usa_api_person():
     assert DEFAULT_LOOKUP_SQL.strip().lower().startswith("select")
 
 
+def test_map_lookup_row_baja_queda_identificable():
+    hit = map_lookup_row(
+        {
+            "ref": "9",
+            "nombre": "Cliente Baja",
+            "email": "baja@coop.test",
+            "telefono": "5492231112222",
+            "activo": "de baja",
+            "deuda": "0",
+        },
+        dni_n="13920806",
+    )
+    assert hit["activo"] is False
+    assert "baja" in hit["estado_padron"]
+    assert hit["dni"] == "13920806"
+
+
 def test_map_lookup_row_activo_y_aliases():
     row = {
         "ref": "42",
