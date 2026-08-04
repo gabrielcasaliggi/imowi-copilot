@@ -7,9 +7,6 @@ import { EcoAvatar } from "@/components/ui/EcoAvatar";
 
 type AutorKind = "cliente" | "bot" | "agente" | string;
 
-/** Detecta http(s) URLs (incl. hash routes tipo /#/pagar). */
-const URL_RE = /(https?:\/\/[^\s<>"'`]+)/g;
-
 function trimUrlTrailingPunct(url: string): { href: string; trailing: string } {
   let href = url;
   let trailing = "";
@@ -20,7 +17,8 @@ function trimUrlTrailingPunct(url: string): { href: string; trailing: string } {
   return { href, trailing };
 }
 
-function ChatLink({ href }: { href: string }) {
+function ChatLink({ href, label }: { href: string; label?: string }) {
+  const text = label || href;
   return (
     <a
       href={href}
@@ -28,27 +26,51 @@ function ChatLink({ href }: { href: string }) {
       rel="noopener noreferrer"
       className="chat-msg-link"
       onClick={(e) => e.stopPropagation()}
+      style={{
+        color: "#2ec4d6",
+        textDecoration: "underline",
+        textUnderlineOffset: "2px",
+        fontWeight: 600,
+        wordBreak: "break-all",
+        cursor: "pointer",
+        pointerEvents: "auto",
+      }}
     >
-      {href}
+      {text}
     </a>
   );
+}
+
+/** Reconoce URL http(s) o host ov.batan.coop sin esquema. */
+function extractHref(raw: string): string | null {
+  const t = raw.trim();
+  if (/^https?:\/\//i.test(t)) {
+    return trimUrlTrailingPunct(t).href || null;
+  }
+  if (/^(www\.)?ov\.batan\.coop(\/|#|$)/i.test(t)) {
+    return trimUrlTrailingPunct(`https://${t.replace(/^\/\//, "")}`).href || null;
+  }
+  return null;
 }
 
 export function linkifyText(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   let last = 0;
   let key = 0;
-  for (const match of text.matchAll(URL_RE)) {
+  // Incluye ov.batan.coop sin https
+  const re = /(https?:\/\/[^\s<>"'`]+|(?:www\.)?ov\.batan\.coop(?:\/[^\s<>"'`]*)?)/gi;
+  for (const match of text.matchAll(re)) {
     const raw = match[0];
     const idx = match.index ?? 0;
     if (idx > last) {
       nodes.push(text.slice(last, idx));
     }
-    const { href, trailing } = trimUrlTrailingPunct(raw);
+    const href = extractHref(raw);
     if (href) {
       nodes.push(<ChatLink key={`url-${key++}`} href={href} />);
+    } else {
+      nodes.push(raw);
     }
-    if (trailing) nodes.push(trailing);
     last = idx + raw.length;
   }
   if (last < text.length) {
@@ -57,22 +79,38 @@ export function linkifyText(text: string): ReactNode[] {
   return nodes.length > 0 ? nodes : [text];
 }
 
-/** Renderiza el cuerpo: líneas que son solo URL → link destacado. */
+/** Renderiza el cuerpo: líneas URL → bloque link + chip Abrir. */
 export function renderMessageBody(text: string): ReactNode {
   const raw = text || "";
-  const lines = raw.split("\n");
-  if (lines.length <= 1 && !/^https?:\/\//i.test(raw.trim())) {
+  const lines = raw.split(/\r?\n/);
+  if (lines.length <= 1 && !extractHref(raw.trim()) && !/https?:\/\//i.test(raw)) {
     return linkifyText(raw);
   }
 
   return lines.map((line, i) => {
     const trimmed = line.trim();
-    const isUrlLine = /^https?:\/\//i.test(trimmed);
-    if (isUrlLine) {
-      const { href } = trimUrlTrailingPunct(trimmed);
+    const href = extractHref(trimmed);
+    if (href && trimmed.replace(/\s/g, "").length <= href.length + 8) {
       return (
         <span key={`line-${i}`} className="block my-1.5">
           <ChatLink href={href} />
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+            style={{
+              background: "rgba(46, 196, 214, 0.18)",
+              color: "#2ec4d6",
+              border: "1px solid rgba(46, 196, 214, 0.45)",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              textDecoration: "none",
+            }}
+          >
+            Abrir ↗
+          </a>
           {i < lines.length - 1 ? "\n" : null}
         </span>
       );
