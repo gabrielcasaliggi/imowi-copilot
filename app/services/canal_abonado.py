@@ -94,6 +94,7 @@ def _redactar_con_llama(
     """Reescribe el paso del playbook con la IA admin, estilo agente humano breve."""
     try:
         from app.llm import chat_completion
+        from app.services.eco_voice import TEMPERATURE_N1, system_prompt_eco_rewrite
         from app.services.prompt_safety import (
             looks_like_jailbreak,
             sanitize_user_text,
@@ -116,26 +117,7 @@ def _redactar_con_llama(
             [
                 {
                     "role": "system",
-                    "content": with_anti_injection(
-                        f"Sos {BOT_DISPLAY_NAME}, el asistente de {PRODUCT_DISPLAY_NAME} "
-                        "(Cooperativa Batán / Ecolan + móvil). "
-                        "Escribí como en un chat de WhatsApp: natural, breve, cálido y resolutivo. "
-                        "No sos Copilot NOC ni un agente humano: si derivás, decilo claro. "
-                        "REGLAS ESTRICTAS:\n"
-                        "- Máximo 2 oraciones cortas.\n"
-                        "- UNA sola pregunta por mensaje. Nunca combines varias preguntas.\n"
-                        "- No uses listas largas, viñetas ni catálogos de servicios.\n"
-                        "- No inventes datos (OLT, saldos, turnos, potencias).\n"
-                        "- No uses jerga interna del NOC.\n"
-                        "- Conservá la intención del borrador; no agregues pasos extra.\n"
-                        "- Si el borrador menciona QR Fiserv / Mercado Pago / MODO, conservalo.\n"
-                        "- Nunca digas que quedó resuelto si el cliente aún describe un problema "
-                        "(ej. «anda bien lejos no»).\n"
-                        "- No ofrezcas ticket ni derivación a agente en el primer o segundo paso "
-                        "de un diagnóstico técnico (internet/wifi/móvil); primero autodiagnóstico.\n"
-                        "- Si el cliente no respondió la pregunta anterior, reiterá ESA pregunta.\n"
-                        "- Español argentino cotidiano (vos)."
-                    ),
+                    "content": with_anti_injection(system_prompt_eco_rewrite()),
                 },
                 {
                     "role": "user",
@@ -148,7 +130,7 @@ def _redactar_con_llama(
                     ),
                 },
             ],
-            temperature=0.2,
+            temperature=TEMPERATURE_N1,
         )
         texto = (out or "").strip() or borrador
         # Si el modelo se va de mambo, volver al playbook corto
@@ -257,6 +239,8 @@ def _aplicar_diagnostico_ia(
         or pide_humano(texto)
     )
 
+    from app.services.eco_voice import build_contexto_abonado
+
     result = diagnosticar_turno(
         intencion=intencion,
         checklist=checklist,
@@ -266,6 +250,7 @@ def _aplicar_diagnostico_ia(
         pasos_cubiertos=cubiertos,
         kb_fragmento=kb,
         forzar_agente=forzar,
+        contexto_abonado=build_contexto_abonado(abonado, org_id=org_id),
     )
 
     accion = result.get("accion") or "ask"

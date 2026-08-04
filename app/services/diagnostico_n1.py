@@ -7,7 +7,6 @@ import logging
 import re
 from typing import Any
 
-from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
 from app.domain.flujos_abonado import PasoPlaybook
 
 logger = logging.getLogger("operations_hub")
@@ -29,7 +28,7 @@ INTENCIONES_DIAGNOSTICO = frozenset({
     "facturacion",
 })
 
-MIN_TURNOS_ANTES_ESCALAR = 3
+MIN_TURNOS_ANTES_ESCALAR = 4
 
 _AFIRMACIONES = (
     "si",
@@ -368,6 +367,7 @@ def diagnosticar_turno(
     pasos_cubiertos: list[str],
     kb_fragmento: str = "",
     forzar_agente: bool = False,
+    contexto_abonado: str = "",
 ) -> dict[str, str]:
     """Pide a la IA el próximo acto de diagnóstico. Fallback = siguiente paso del playbook."""
     if forzar_agente:
@@ -394,8 +394,13 @@ def diagnosticar_turno(
             "motivo": motivo_optico,
         }
 
+    from app.services.eco_voice import (
+        HISTORIAL_CHAT_MAX_MSGS,
+        TEMPERATURE_N1,
+        historial_canal_a_mensajes_chat,
+        system_prompt_eco_n1,
+    )
     from app.services.prompt_safety import (
-        format_historial_seguro,
         looks_like_jailbreak,
         sanitize_user_text,
         strip_instruction_phrases,
@@ -408,16 +413,6 @@ def diagnosticar_turno(
         fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
         return {**fb, "motivo": "bloqueado_prompt_injection"}
 
-    historial = format_historial_seguro(
-        [
-            {
-                "rol": getattr(m, "rol", None) or (m.get("rol") if isinstance(m, dict) else "usuario"),
-                "contenido": getattr(m, "contenido", None)
-                or (m.get("contenido") if isinstance(m, dict) else str(m)),
-            }
-            for m in (historial_mensajes or [])
-        ]
-    )
     checklist_txt = _checklist_texto(checklist, pasos_cubiertos)
     kb = strip_instruction_phrases((kb_fragmento or "").strip()[:800])
     kb_block = f"\nConocimiento útil (opcional):\n{wrap_untrusted('KB', kb, max_chars=800)}\n" if kb else ""
@@ -443,63 +438,49 @@ def diagnosticar_turno(
         )
 
     system = with_anti_injection(
-        f"Sos {BOT_DISPLAY_NAME}, técnico N1 de {PRODUCT_DISPLAY_NAME} "
-        "(Cooperativa Batán / Ecolan + móvil IMOWI). "
-        "Diagnosticás como un profesional de soporte: escuchás, pedís un dato útil, "
-        "y avanzás. El checklist es una GUÍA de temas a cubrir, no un guión literal.\n\n"
-        "Respondé SOLO JSON válido:\n"
-        '{"accion":"ask"|"resolved"|"escalate","mensaje":"...","paso_cubierto":"id_o_vacio","motivo":"..."}\n\n'
-        "Reglas:\n"
-        "- accion=ask: una sola pregunta corta (máx 2 oraciones). Español argentino (vos).\n"
-        "- Elegí el próximo chequeo según lo que YA dijo el cliente; no repitas lo respondido.\n"
-        "- Podés reformular las preguntas del checklist o adaptarlas al caso.\n"
-        "- No inventes datos (OLT, potencias, saldos, turnos, lecturas de red, desglose de factura).\n"
-        "- No uses jerga interna del NOC ni listas/viñetas largas.\n"
-        f"- NO uses escalate hasta haber hecho al menos {MIN_TURNOS_ANTES_ESCALAR} turnos "
-        f"de diagnóstico (ahora vas por el turno {turnos + 1}), salvo excepciones abajo.\n"
-        "- Si pide técnico/visita/agente, escalate ya (no sigas el checklist).\n"
-        "- Si hay luz LOS en rojo / confirmada, o cable de fibra dañado/malo: escalate YA. "
-        "NUNCA preguntes por WiFi, cable al router ni saturación de canal después de LOS "
-        "o daño de fibra: es falla óptica, no de WiFi.\n"
-        "- Tras confirmar LOS, como máximo preguntá por el cable amarillo/fibra; "
-        "con la respuesta (dañado o no), escalate.\n"
-        "- resolved solo si el cliente confirma explícitamente que ya funciona o quedó resuelto.\n"
-        "- Si el cliente sigue con el problema, NUNCA resolved.\n"
-        "- paso_cubierto: id del checklist que estás cubriendo en este turno (si aplica).\n"
-        "- Si el checklist está casi agotado y el problema sigue, escalate con mensaje claro."
-        f"{reglas_facturacion}"
+        system_prompt_eco_n1(
+            intencion=intencion,
+            turnos=turnos,
+            min_turnos_antes_escalar=MIN_TURNOS_ANTES_ESCALAR,
+            reglas_extra=reglas_facturacion,
+            contexto_abonado=contexto_abonado,
+        )
     )
 
-    user = (
-        f"Intención: {sanitize_user_text(intencion, max_chars=80)}\n"
-        f"Turnos de diagnóstico ya hechos: {turnos}\n"
-        f"Pasos ya cubiertos: {', '.join(pasos_cubiertos) or '(ninguno)'}\n"
-        f"Checklist guía:\n{checklist_txt}\n"
-        f"{kb_block}"
-        f"{wrap_untrusted('HISTORIAL', historial, max_chars=6000)}\n\n"
-        f"{wrap_untrusted('ULTIMO_MENSAJE_CLIENTE', msg_safe)}\n"
-        "Decidí el próximo acto."
+    chat_hist = historial_canal_a_mensajes_chat(
+        historial_mensajes,
+        max_msgs=HISTORIAL_CHAT_MAX_MSGS,
     )
+    # Instrucción estructurada al final (el historial ya trae el último mensaje del cliente)
+    task = (
+        f"Estado del diagnóstico (interno):\n"
+        f"- Intención: {sanitize_user_text(intencion, max_chars=80)}\n"
+        f"- Turnos de diagnóstico ya hechos: {turnos}\n"
+        f"- Pasos ya cubiertos: {', '.join(pasos_cubiertos) or '(ninguno)'}\n"
+        f"- Checklist guía:\n{checklist_txt}\n"
+        f"{kb_block}"
+        f"Último mensaje del cliente (referencia):\n"
+        f"{wrap_untrusted('ULTIMO_MENSAJE_CLIENTE', msg_safe)}\n"
+        "Decidí el próximo acto y respondé SOLO el JSON pedido."
+    )
+
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    messages.extend(chat_hist)
+    messages.append({"role": "user", "content": task})
 
     try:
         from app.llm import chat_completion
 
         try:
             raw = chat_completion(
-                [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                temperature=0.3,
+                messages,
+                temperature=TEMPERATURE_N1,
                 json_mode=True,
             )
         except Exception:
             raw = chat_completion(
-                [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                temperature=0.3,
+                messages,
+                temperature=TEMPERATURE_N1,
                 json_mode=False,
             )
         data = _extract_json(raw)
@@ -569,7 +550,7 @@ def diagnosticar_turno(
                     ids.append(str(pid))
             cubiertos = {str(x) for x in (pasos_cubiertos or [])}
             restantes = [i for i in ids if i not in cubiertos]
-            if len(restantes) > 1 and turnos < max(MIN_TURNOS_ANTES_ESCALAR + 2, 5):
+            if len(restantes) > 1 and turnos < max(MIN_TURNOS_ANTES_ESCALAR + 1, 5):
                 accion = "ask"
                 motivo = "bloqueado_escalate_sin_agotamiento"
                 if not mensaje or "?" not in mensaje:
