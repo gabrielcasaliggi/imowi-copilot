@@ -633,9 +633,11 @@ def procesar_mensaje_entrante(
             db, org_id, conv, texto, canal=canal
         )
 
+    # No reabrir hilos cerrados: si quedó cerrado, pedir uno nuevo (histórico intacto)
     if conv.estado == "cerrado":
-        conv.estado = "bot"
-        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org_id, telefono=telefono, canal=canal, wa_id=wa_id
+        )
 
     ctx = crepo.get_contexto(conv)
     abonado: Abonado | None = None

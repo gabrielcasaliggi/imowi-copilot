@@ -447,6 +447,22 @@ def update_ticket(
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
     accion = "ticket_cierre" if body.estado == "Cerrado" else "ticket_actualizacion"
+    # Al cerrar el ticket, cerrar el hilo de canal: el próximo ingreso del abonado abre conversación nueva.
+    if body.estado == "Cerrado":
+        from app.estate import canal_repo as crepo
+
+        conv = crepo.get_conversacion_by_ticket(db, t.organizacion_id, ticket_id)
+        if conv and conv.estado != "cerrado":
+            conv.estado = "cerrado"
+            db.commit()
+            crepo.add_mensaje(
+                db,
+                t.organizacion_id,
+                conv.id,
+                direccion="out",
+                autor="sistema",
+                texto="[Sistema] Conversación cerrada al resolver el ticket. Si volvés a escribir, iniciamos un chat nuevo.",
+            )
     log_audit(
         db,
         org_id=t.organizacion_id,

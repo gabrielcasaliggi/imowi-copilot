@@ -97,6 +97,16 @@ def get_or_create_conversacion(
         .order_by(ConversacionCanal.updated_at.desc())
     )
     if existing:
+        # Ticket ya cerrado pero el hilo quedó abierto → cerrar y abrir uno nuevo
+        if (existing.ticket_id or "").strip():
+            from app.estate.models import Ticket
+
+            t = db.get(Ticket, existing.ticket_id)
+            if t is not None and (t.estado or "") == "Cerrado":
+                existing.estado = "cerrado"
+                db.commit()
+                existing = None
+    if existing:
         return existing
     conv = ConversacionCanal(
         organizacion_id=org_id,
@@ -106,6 +116,8 @@ def get_or_create_conversacion(
         session_id=f"wa:{org_id}:{tel}",
         estado="bot",
         contexto_json="{}",
+        ticket_id="",
+        agente_id="",
     )
     db.add(conv)
     db.commit()

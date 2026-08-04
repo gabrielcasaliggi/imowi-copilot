@@ -238,6 +238,7 @@ def _abrir_conversacion_identificada(
     if not tel:
         tel = f"portal{dni_n}"
     conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal="web", wa_id=tel)
+    msgs_previos = crepo.list_mensajes(db, conv.id)
     if abo and not conv.abonado_id:
         conv.abonado_id = abo.id
     conv.canal = "web"
@@ -253,6 +254,19 @@ def _abrir_conversacion_identificada(
     ctx.pop("invitado", None)
     crepo.set_contexto(conv, ctx)
     db.commit()
+
+    if not msgs_previos:
+        from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
+
+        nombre = (abo.nombre if abo else "") or ""
+        primer = nombre.split()[0].title() if nombre.strip() else ""
+        saludo = (
+            f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+            "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+        )
+        crepo.add_mensaje(
+            db, org.id, conv.id, direccion="out", autor="bot", texto=saludo
+        )
     return conv, abo, tel
 
 
