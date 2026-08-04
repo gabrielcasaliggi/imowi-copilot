@@ -18,6 +18,15 @@ def _mask_dni(dni: str) -> str:
     return f"{d[:2]}***{d[-3:]}"
 
 
+# Plantilla fija N1 pagos — no depende del LLM (evita inventar CBU/adjuntos).
+PLANTILLA_PAGO_QR = (
+    "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+    "Cuando se acredita, el servicio se reactiva solo. "
+    "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. "
+    "¿Pudiste pagar o necesitás que te ubique la cuenta?"
+)
+
+
 def enrich_contexto_desde_integraciones(
     abonado: Any | None,
     *,
@@ -123,7 +132,7 @@ def system_prompt_eco_n1(
         "- Si el cliente está frustrado ('siempre lo mismo', 'nunca anda'), validá en pocas "
         "palabras y seguí con el próximo paso útil.\n"
         "- Evitá menús rígidos, listas largas, viñetas y tonos de contestador automático.\n"
-        "- No inventes datos (OLT, ONT, potencias, saldos, pagos, turnos, cortes de zona).\n"
+        "- No inventes datos (OLT, ONT, potencias, saldos, pagos, CBU, adjuntos QR, turnos, cortes de zona).\n"
         "- No uses jerga interna del NOC.\n\n"
         "Respondé SOLO JSON válido:\n"
         '{"accion":"ask"|"resolved"|"escalate","mensaje":"...","paso_cubierto":"id_o_vacio","motivo":"..."}\n\n'

@@ -38,13 +38,9 @@ from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY
 
 logger = logging.getLogger("operations_hub")
 
-# Plantilla fija N1 — no depende del playbook admin (puede estar desactualizado).
-PLANTILLA_PAGO_QR = (
-    "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
-    "Cuando se acredita, el servicio se reactiva solo. "
-    "Si no tenés el QR, identificáte con DNI en el portal o pasame DNI/N.º de socio. "
-    "¿Pudiste pagar o necesitás que te ubique la cuenta?"
-)
+from app.services.eco_voice import PLANTILLA_PAGO_QR
+
+# Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
 
 def _playbooks(db: Session):

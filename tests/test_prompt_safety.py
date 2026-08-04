@@ -171,11 +171,84 @@ def test_detectar_falla_optica_helpers():
     assert detectar_falla_optica_escalar("hola", []) is None
 
 
+def test_facturacion_saldo_y_pago_sin_inventar_cbu():
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    ctx = (
+        "CONTEXTO_ABONADO (datos reales del sistema; usalos solo si aportan):\n"
+        "- modo: identificado\n"
+        "- nombre: Armando\n"
+        "- deuda_monto: 86479.89\n"
+    )
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[{"id": "triaje_motivo", "pregunta": "¿Saldo o cómo pagar?"}],
+        historial_mensajes=[],
+        mensaje_cliente="Queria saber cuanto me vino en la ultima factura?",
+        turnos_diagnostico=0,
+        pasos_cubiertos=[],
+        contexto_abonado=ctx,
+    )
+    assert out["motivo"] == "facturacion_saldo_real"
+    assert "86479.89" in (out.get("mensaje") or "")
+    assert "cbu" not in (out.get("mensaje") or "").lower()
+
+    hist = [
+        {"autor": "bot", "texto": "El saldo es $86479.89. ¿Necesitás abonar?"},
+        {"autor": "cliente", "texto": "si, para abonar"},
+    ]
+    out2 = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[{"id": "triaje_motivo", "pregunta": "?"}],
+        historial_mensajes=hist,
+        mensaje_cliente="si, para abonar",
+        turnos_diagnostico=1,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=ctx,
+    )
+    assert out2["motivo"] == "facturacion_pago_plantilla"
+    assert "fiserv" in (out2.get("mensaje") or "").lower()
+    assert "cbu" not in (out2.get("mensaje") or "").lower()
+    assert "adjunt" not in (out2.get("mensaje") or "").lower()
+
+    out3 = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=hist
+        + [
+            {"autor": "bot", "texto": out2["mensaje"]},
+            {"autor": "cliente", "texto": "ambas"},
+        ],
+        mensaje_cliente="pasame el CBU y el QR",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["informar_saldo", "guia_pago_fiserv"],
+        contexto_abonado=ctx,
+    )
+    assert out3["motivo"] == "facturacion_sin_invento_cbu"
+    assert "no te puedo pasar cbu" in (out3.get("mensaje") or "").lower() or "cbu" in (
+        out3.get("mensaje") or ""
+    ).lower()
+    assert "fiserv" in (out3.get("mensaje") or "").lower()
+
+    out4 = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[],
+        mensaje_cliente="no hace falta, solo queria saber el saldo, gracias",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=ctx,
+    )
+    assert out4["accion"] == "resolved"
+    assert out4["motivo"] == "facturacion_cierre_cliente"
+
+
 def test_facturacion_en_diagnostico_y_bloquea_dump_pagos(monkeypatch):
     import json
 
     from app.domain.flujos_abonado import clasificar_intencion
     from app.services.diagnostico_n1 import (
+        diagnosticar_turno,
         es_intencion_diagnostico,
         _parece_dump_pagos,
     )
@@ -218,3 +291,46 @@ def test_facturacion_en_diagnostico_y_bloquea_dump_pagos(monkeypatch):
     assert out["motivo"] == "bloqueado_dump_pagos"
     assert "fiserv" not in (out.get("mensaje") or "").lower()
     assert "aumento" in (out.get("mensaje") or "").lower() or "?" in (out.get("mensaje") or "")
+
+
+def test_facturacion_bloquea_invento_cbu_post_llm(monkeypatch):
+    import json
+
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    invento = (
+        "Te paso el CBU: [Insertar CBU]. También te adjunto el código QR. "
+        "¿Tu conexión es por fibra óptica (cable amarillo)?"
+    )
+
+    def _fake_llm(*_a, **_k):
+        return (
+            '{"accion":"ask","mensaje":'
+            + json.dumps(invento, ensure_ascii=False)
+            + ',"paso_cubierto":"pago","motivo":"ia"}'
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake_llm)
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[{"id": "triaje_motivo", "pregunta": "?"}],
+        historial_mensajes=[
+            {"autor": "bot", "texto": "El saldo es $100. ¿Necesitás abonar?"},
+        ],
+        mensaje_cliente="pasame el CBU",
+        turnos_diagnostico=1,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 100\n"
+        ),
+    )
+    # Si llega al LLM (mensaje no cubierto solo por det), el guard post-LLM corta inventos.
+    # Con "pasame el CBU" normalmente corta antes (determinístico).
+    assert out["accion"] == "ask"
+    assert "insertar" not in (out.get("mensaje") or "").lower()
+    assert "fibra" not in (out.get("mensaje") or "").lower()
+    assert "fiserv" in (out.get("mensaje") or "").lower()
+    assert out["motivo"] in (
+        "facturacion_sin_invento_cbu",
+        "bloqueado_invento_pago_o_desvio",
+    )

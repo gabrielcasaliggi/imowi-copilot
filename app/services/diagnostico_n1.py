@@ -334,7 +334,11 @@ def _cliente_pide_pagar(texto: str) -> bool:
             "cómo pago",
             "quiero pagar",
             "necesito pagar",
+            "para abonar",
+            "quiero abonar",
+            "para pagar",
             "pagar la",
+            "abonar",
             "medio de pago",
             "qr",
             "fiserv",
@@ -343,8 +347,221 @@ def _cliente_pide_pagar(texto: str) -> bool:
             "saldo pendiente",
             "me cortaron",
             "sin servicio por",
+            "datos de la cuenta",
+            "cuenta bancaria",
+            "cbu",
+            "transferencia",
         )
     )
+
+
+def _cliente_consulta_saldo(texto: str) -> bool:
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "cuanto me vino",
+            "cuánto me vino",
+            "cuanto debo",
+            "cuánto debo",
+            "ultima factura",
+            "última factura",
+            "ultimo monto",
+            "último monto",
+            "importe de la factura",
+            "monto de la factura",
+            "saldo de la factura",
+            "saldo de mi",
+            "qué me vino",
+            "que me vino",
+            "cuanto me cobraron",
+            "cuánto me cobraron",
+            "cuanto es la factura",
+            "cuánto es la factura",
+        )
+    )
+
+
+def _pide_cbu_o_adjunto(texto: str) -> bool:
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "cbu",
+            "cuenta bancaria",
+            "transferencia",
+            "alias bancario",
+            "adjunt",
+            "mandame el qr",
+            "pasame el qr",
+            "enviame el qr",
+            "pegame el qr",
+        )
+    )
+
+
+def _cierra_consulta_facturacion(texto: str) -> bool:
+    """El abonado ya obtuvo el dato (saldo/pago) y cierra la consulta."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "no anda",
+            "problema",
+            "sigue",
+            "falla",
+            "aument",
+            "reclamo",
+        )
+    ):
+        return False
+    return any(
+        k in t
+        for k in (
+            "gracias",
+            "graciass",
+            "listo",
+            "perfecto",
+            "solo queria",
+            "solo quería",
+            "ya me lo dijiste",
+            "no hace falta",
+            "eso era todo",
+            "nada mas",
+            "nada más",
+        )
+    )
+
+
+def _parece_invento_pago(mensaje: str) -> bool:
+    """Respuestas que inventan CBU, adjuntos o pasos web inexistentes."""
+    t = (mensaje or "").lower()
+    return any(
+        k in t
+        for k in (
+            "cbu",
+            "insertar cbu",
+            "te adjunto",
+            "te paso el código qr",
+            "te paso el codigo qr",
+            "adjunto el código",
+            "adjunto el codigo",
+            "cuenta bancaria es",
+            "número de cbu",
+            "numero de cbu",
+            "sección de 'pagos'",
+            'seccion de "pagos"',
+            "generarlo desde nuestra web",
+            "ingresá tu número de asociado",
+            "ingresa tu numero de asociado",
+        )
+    )
+
+
+def _parece_desvio_tecnico(mensaje: str) -> bool:
+    t = (mensaje or "").lower()
+    return any(
+        k in t
+        for k in (
+            "fibra óptica",
+            "fibra optica",
+            "cable amarillo",
+            "cajita blanca",
+            "antena en el techo",
+            "línea telefónica",
+            "linea telefonica",
+            "luces del ont",
+            "reiniciá el módem",
+            "reinicia el modem",
+        )
+    )
+
+
+def _saldo_desde_contexto(contexto_abonado: str) -> str | None:
+    import re
+
+    m = re.search(r"deuda_monto:\s*([^\n]+)", contexto_abonado or "", flags=re.I)
+    if not m:
+        return None
+    val = (m.group(1) or "").strip()
+    if not val or "sin dato" in val.lower():
+        return None
+    return val.strip().lstrip("$").strip()
+
+
+def _facturacion_deterministica(
+    mensaje_cliente: str,
+    *,
+    contexto_abonado: str,
+    historial_mensajes: list | None,
+) -> dict | None:
+    """Respuestas fijas con saldo real; sin inventar CBU/QR adjunto/web."""
+    from app.services.eco_voice import PLANTILLA_PAGO_QR
+
+    identificado = "modo: identificado" in (contexto_abonado or "")
+    saldo = _saldo_desde_contexto(contexto_abonado) if identificado else None
+    t = (mensaje_cliente or "").lower().strip()
+
+    if identificado and _cierra_consulta_facturacion(mensaje_cliente):
+        return {
+            "accion": "resolved",
+            "mensaje": "De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+            "paso_cubierto": "cierre_facturacion",
+            "motivo": "facturacion_cierre_cliente",
+        }
+
+    if identificado and saldo is not None and _cliente_consulta_saldo(mensaje_cliente):
+        return {
+            "accion": "ask",
+            "mensaje": (
+                f"El saldo / última factura que figura es ${saldo}. "
+                "¿Necesitás abonar o algo más de la factura?"
+            ),
+            "paso_cubierto": "informar_saldo",
+            "motivo": "facturacion_saldo_real",
+        }
+
+    hist_txt = " ".join(
+        _autor_texto(m)[1] for m in (historial_mensajes or [])[-8:]
+    ).lower()
+    oferta_pago_previa = any(
+        k in hist_txt for k in ("qr", "fiserv", "pagar", "abonar", "mercado pago")
+    )
+
+    if identificado and (
+        _pide_cbu_o_adjunto(mensaje_cliente)
+        or (
+            t in ("ambas", "los dos", "las dos", "si", "sí")
+            and oferta_pago_previa
+            and any(k in hist_txt for k in ("cbu", "bancaria", "qr", "cuenta"))
+        )
+    ):
+        extra = f" Saldo pendiente ${saldo}." if saldo is not None else ""
+        return {
+            "accion": "ask",
+            "mensaje": (
+                f"Por este chat no te puedo pasar CBU ni adjuntar un QR.{extra} "
+                f"{PLANTILLA_PAGO_QR}"
+            ),
+            "paso_cubierto": "guia_pago_fiserv",
+            "motivo": "facturacion_sin_invento_cbu",
+        }
+
+    if identificado and (
+        _cliente_pide_pagar(mensaje_cliente)
+        or (t in ("ambas", "si", "sí", "dale") and oferta_pago_previa)
+    ):
+        pref = f"Saldo pendiente ${saldo}. " if saldo is not None else ""
+        return {
+            "accion": "ask",
+            "mensaje": f"{pref}{PLANTILLA_PAGO_QR}",
+            "paso_cubierto": "guia_pago_fiserv",
+            "motivo": "facturacion_pago_plantilla",
+        }
+
+    return None
 
 
 def _parece_dump_pagos(mensaje: str) -> bool:
@@ -481,6 +698,15 @@ def diagnosticar_turno(
     msg_safe = sanitize_user_text(mensaje_cliente)
     es_facturacion = (intencion or "").strip() == "facturacion"
 
+    if es_facturacion:
+        det = _facturacion_deterministica(
+            mensaje_cliente,
+            contexto_abonado=contexto_abonado,
+            historial_mensajes=historial_mensajes,
+        )
+        if det:
+            return det
+
     reglas_facturacion = ""
     if es_facturacion:
         reglas_facturacion = (
@@ -492,13 +718,15 @@ def diagnosticar_turno(
             "- Si no reconoce un cobro: pedí mes/importe/concepto; no asumas que es un pago fallido.\n"
             "- Solo explicá cómo pagar (QR Fiserv / Mercado Pago / MODO) si pide pagar, QR, "
             "saldo a abonar, o tiene corte. En ese caso, una o dos oraciones + una pregunta.\n"
-            "- En modo invitado (sin cuenta): podés pedir DNI/N.º de socio para ubicar la cuenta; "
-            "no inventes saldos ni desgloses.\n"
-            "- No digas que viste la factura o el sistema si no hay datos reales.\n"
-            "- No ofrezcas asesor, llamada ni ticket hasta indagar (mes/monto/cambio de plan) "
-            f"al menos {MIN_TURNOS_ANTES_ESCALAR} turnos, salvo que el cliente pida agente.\n"
-            "- Si pregunta si aumentaron el servicio y no hay cuenta: pedí DNI/N.º de socio "
-            "o mes/monto; no inventes un aumento general.\n"
+            "- NUNCA inventes CBU, alias, cuenta bancaria, adjuntos de QR ni pasos de una web "
+            "de pagos que no existan. Si no hay integración de QR en el chat, pedí el QR Fiserv "
+            "de la factura o derivá a agente.\n"
+            "- Si CONTEXTO_ABONADO trae deuda_monto, usá SOLO ese valor; no inventes montos.\n"
+            "- En consulta de saldo/pago NO preguntes por fibra, antena, módem ni tipode conexión.\n"
+            "- En modo invitado (sin cuenta): pedí DNI/N.º de socio; no inventes saldos.\n"
+            "- Si el cliente agradece y dice que solo quería el saldo: accion=resolved.\n"
+            "- No ofrezcas asesor/ticket hasta indagar al menos "
+            f"{MIN_TURNOS_ANTES_ESCALAR} turnos, salvo que pida agente.\n"
             "- escalate cuando ya pediste el detalle y hace falta sistema interno, o si pide agente.\n"
         )
 
@@ -668,6 +896,36 @@ def diagnosticar_turno(
             )
             paso = "triaje_motivo"
             motivo = "bloqueado_dump_pagos"
+
+        # Facturación: bloquear inventos (CBU, adjunto QR falso, web inventada) y desvío técnico
+        if es_facturacion and accion in ("ask", "resolved") and (
+            _parece_invento_pago(mensaje) or _parece_desvio_tecnico(mensaje)
+        ):
+            saldo = _saldo_desde_contexto(contexto_abonado)
+            from app.services.eco_voice import PLANTILLA_PAGO_QR
+
+            pref = f"Saldo pendiente ${saldo}. " if saldo else ""
+            if _cliente_pide_pagar(mensaje_cliente) or _pide_cbu_o_adjunto(mensaje_cliente):
+                mensaje = (
+                    f"{pref}Por este chat no te paso CBU ni adjunto QR. "
+                    f"{PLANTILLA_PAGO_QR}"
+                )
+                paso = "guia_pago_fiserv"
+            elif saldo and _cliente_consulta_saldo(mensaje_cliente):
+                mensaje = (
+                    f"El saldo / última factura que figura es ${saldo}. "
+                    "¿Necesitás abonar o algo más de la factura?"
+                )
+                paso = "informar_saldo"
+            else:
+                mensaje = (
+                    "Para la factura puedo decirte el saldo del padrón o guiarte con el "
+                    "QR Fiserv de la factura. ¿Qué necesitás exactamente?"
+                )
+                paso = "triaje_motivo"
+            motivo = "bloqueado_invento_pago_o_desvio"
+            if accion == "resolved":
+                accion = "ask"
 
         # No ofrecer asesor/llamada antes del mínimo de turnos N1
         if (
