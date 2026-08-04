@@ -82,25 +82,25 @@ def mensaje_saldo_padron(
 ) -> str:
     """Texto claro de saldo + links OV.
 
-    Convención BillTrack / Batán:
-      - negativo → debe ese monto
-      - positivo → saldo a favor
+    Convención BillTrack / Batán (padrón):
+      - positivo → debe ese monto
+      - negativo → saldo a favor del cliente
       - 0 → sin deuda
     """
     monto = parse_monto(deuda_raw)
     debe = False
     if monto is None:
         body = f"El saldo / última factura que figura es ${deuda_raw}."
-    elif monto < 0:
+    elif monto > 0:
         debe = True
         body = (
-            f"El saldo / última factura pendiente es ${formatear_monto_ars(abs(monto))}."
+            f"El saldo / última factura pendiente es ${formatear_monto_ars(monto)}."
         )
     elif monto == 0:
         body = "No figuran deudas pendientes (saldo $0)."
     else:
         body = (
-            f"Tenés un saldo a favor de ${formatear_monto_ars(monto)} "
+            f"Tenés un saldo a favor de ${formatear_monto_ars(abs(monto))} "
             "(no figuran deudas pendientes)."
         )
 

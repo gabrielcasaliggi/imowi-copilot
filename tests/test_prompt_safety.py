@@ -178,12 +178,12 @@ def test_facturacion_saldo_corto_identificado():
     assert _cliente_consulta_saldo("solo quiero el saldo") is True
     assert _cliente_consulta_saldo("saldo de mi cuenta") is True
 
-    # Negativo = deuda (BillTrack)
+    # Positivo = deuda (BillTrack)
     ctx = (
         "CONTEXTO_ABONADO:\n"
         "- modo: identificado\n"
         "- nombre: Maria\n"
-        "- deuda_monto: -1234.56\n"
+        "- deuda_monto: 1234.56\n"
     )
     out = diagnosticar_turno(
         intencion="facturacion",
@@ -206,15 +206,15 @@ def test_facturacion_saldo_corto_identificado():
 def test_mensaje_saldo_a_favor():
     from app.services.eco_voice import mensaje_saldo_padron
 
-    # BillTrack: negativo = debe
-    deuda = mensaje_saldo_padron("-3248.04")
+    # BillTrack: positivo = debe
+    deuda = mensaje_saldo_padron("3248.04")
     assert "pendiente" in deuda.lower()
     assert "3.248,04" in deuda
     assert "a favor" not in deuda.lower()
     assert "https://ov.batan.coop/#/pagar" in deuda
 
-    # positivo = a favor
-    favor = mensaje_saldo_padron("1500.00")
+    # negativo = a favor del cliente
+    favor = mensaje_saldo_padron("-1500.00")
     assert "saldo a favor" in favor.lower()
     assert "1.500,00" in favor
 
@@ -226,7 +226,7 @@ def test_facturacion_saldo_y_web_ov_batan():
         "CONTEXTO_ABONADO (datos reales del sistema; usalos solo si aportan):\n"
         "- modo: identificado\n"
         "- nombre: Armando\n"
-        "- deuda_monto: -86479.89\n"
+        "- deuda_monto: 86479.89\n"
     )
     out = diagnosticar_turno(
         intencion="facturacion",
@@ -258,7 +258,7 @@ def test_facturacion_aviso_pago_link():
         turnos_diagnostico=1,
         pasos_cubiertos=["informar_saldo"],
         contexto_abonado=(
-            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -100\n"
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 100\n"
         ),
     )
     assert out["motivo"] == "facturacion_aviso_pago_ov"
@@ -284,7 +284,7 @@ def test_facturacion_si_tras_oferta_pago_incluye_ov():
         turnos_diagnostico=1,
         pasos_cubiertos=["informar_saldo"],
         contexto_abonado=(
-            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -3248.04\n"
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 3248.04\n"
         ),
     )
     assert out["motivo"] == "facturacion_pago_plantilla"
@@ -306,7 +306,7 @@ def test_facturacion_oficina_virtual_nunca_niega(monkeypatch):
         turnos_diagnostico=1,
         pasos_cubiertos=[],
         contexto_abonado=(
-            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -100\n"
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 100\n"
         ),
     )
     assert out["motivo"] == "facturacion_oficina_virtual"
@@ -340,7 +340,7 @@ def test_facturacion_oficina_virtual_nunca_niega(monkeypatch):
         turnos_diagnostico=1,
         pasos_cubiertos=[],
         contexto_abonado=(
-            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: -100\n"
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 100\n"
         ),
     )
     assert out2["motivo"] == "bloqueado_invento_pago_o_desvio"
@@ -355,7 +355,7 @@ def test_facturacion_saldo_y_pago_sin_inventar_cbu():
         "CONTEXTO_ABONADO (datos reales del sistema; usalos solo si aportan):\n"
         "- modo: identificado\n"
         "- nombre: Armando\n"
-        "- deuda_monto: -86479.89\n"
+        "- deuda_monto: 86479.89\n"
     )
     out = diagnosticar_turno(
         intencion="facturacion",

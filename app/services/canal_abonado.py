@@ -101,13 +101,13 @@ def _intentar_identificar_por_dni(
 
 
 def _deuda_positiva(abonado: Abonado) -> bool:
-    """True si el padrón indica deuda. BillTrack: balance negativo = debe."""
+    """True si el padrón indica deuda. BillTrack: balance positivo = debe."""
     from app.services.eco_voice import parse_monto
 
     m = parse_monto(getattr(abonado, "deuda_monto", None))
     if m is None:
         return abonado.estado in ("corte", "suspendido")
-    return m < 0
+    return m > 0
 
 def _pide_pago_o_reactivar(texto: str) -> bool:
     t = (texto or "").lower()
