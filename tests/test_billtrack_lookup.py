@@ -15,7 +15,35 @@ def test_default_sql_usa_api_person():
     assert DEFAULT_LOOKUP_SQL.strip().lower().startswith("select")
 
 
-def test_map_lookup_row_baja_queda_identificable():
+def test_lookup_billtrack_falla_en_prod_no_tira(monkeypatch):
+    """En producción un fallo de red/SQL no debe propagarse (evita 500 en login-pin)."""
+    from app.services import billtrack as bt
+
+    monkeypatch.setattr(bt, "resolve_connection", lambda db=None: {
+        "enabled": True,
+        "url": "postgresql+psycopg://u:p@127.0.0.1:1/db",
+        "sslmode": "disable",
+    })
+    monkeypatch.setenv("BILLTRACK_LOOKUP_READY", "1")
+    import app.config as cfg
+
+    monkeypatch.setattr(cfg, "BILLTRACK_ENABLED", True)
+    monkeypatch.setattr(cfg, "es_produccion", lambda: True)
+
+    class Boom:
+        def connect(self):
+            raise OSError("billtrack down")
+
+        def dispose(self):
+            return None
+
+    import sqlalchemy
+
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda *a, **k: Boom())
+
+    hit = bt.lookup_abonado_por_dni("11350542", org_slug="coop-batan", db=None)
+    assert hit is None
+
     hit = map_lookup_row(
         {
             "ref": "9",

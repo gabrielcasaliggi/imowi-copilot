@@ -5,10 +5,13 @@ Independiente del Data Estate. No persistir tickets ni config de plataforma ahí
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("operations_hub")
 
 
 def build_postgres_url(
@@ -303,9 +306,10 @@ def lookup_abonado_por_dni(
                 return None
             return map_lookup_row(dict(row), dni_n=dni_n)
     except Exception:
+        logger.exception("BillTrack lookup falló (dni=***%s)", dni_n[-3:] if dni_n else "")
+        # Nunca tumbar portal/auth: en prod devolver None; en dev/mock local.
         if es_produccion():
-            raise
-        # Dev/test: si la red/SQL falla, no romper el portal — padrón mock/local
+            return None
         return _mock_lookup(dni_n, org_slug=org_slug, linea=linea, db=db)
     finally:
         engine.dispose()

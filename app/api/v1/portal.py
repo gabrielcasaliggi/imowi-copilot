@@ -412,8 +412,11 @@ def portal_auth_verify(
         abonado_ref=challenge.abonado_ref,
         email_masked=challenge.contact_masked,
     )
-    # Buscar teléfono del padrón vía BillTrack / mock local
-    hit = lookup_abonado_por_dni(challenge.dni_normalized, org_slug=org.slug, db=db) or {}
+    # Buscar teléfono/saldo del padrón (BillTrack); si falla, seguir con el link local
+    try:
+        hit = lookup_abonado_por_dni(challenge.dni_normalized, org_slug=org.slug, db=db) or {}
+    except Exception:
+        hit = {}
     conv, abo, tel = _abrir_conversacion_identificada(
         db,
         org=org,
@@ -499,36 +502,53 @@ def portal_login_pin(
         aseg.register_failure(db, superficie="portal", actor=actor, ip=ip)
         raise HTTPException(400, _GENERIC_AUTH_MSG)
 
-    hit = lookup_abonado_por_dni(dni_n, org_slug=slug, db=db) or {}
-    conv, abo, tel = _abrir_conversacion_identificada(
-        db,
-        org=org,
-        dni_n=dni_n,
-        telefono=str(hit.get("telefono") or ""),
-        abonado_ref=link.abonado_ref,
-        hit=hit,
-    )
-    link.last_login_at = datetime.now(UTC)
-    db.commit()
-    token = _crear_portal_token(
-        org_id=org.id,
-        org_slug=org.slug,
-        conversacion_id=conv.id,
-        telefono=tel,
-        abonado_id=abo.id if abo else "",
-        dni=dni_n,
-        abonado_ref=link.abonado_ref,
-        identified=True,
-    )
-    aseg.clear_failures(db, superficie="portal", actor=actor, ip=ip)
-    return {
-        "portal_token": token,
-        "org_slug": org.slug,
-        "abonado_identificado": True,
-        "has_pin": True,
-        "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
-        "mensajes": [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)],
-    }
+    try:
+        hit = lookup_abonado_por_dni(dni_n, org_slug=slug, db=db) or {}
+    except Exception:
+        hit = {}
+    try:
+        conv, abo, tel = _abrir_conversacion_identificada(
+            db,
+            org=org,
+            dni_n=dni_n,
+            telefono=str(hit.get("telefono") or ""),
+            abonado_ref=link.abonado_ref,
+            hit=hit,
+        )
+        link.last_login_at = datetime.now(UTC)
+        db.commit()
+        token = _crear_portal_token(
+            org_id=org.id,
+            org_slug=org.slug,
+            conversacion_id=conv.id,
+            telefono=tel,
+            abonado_id=abo.id if abo else "",
+            dni=dni_n,
+            abonado_ref=link.abonado_ref,
+            identified=True,
+        )
+        aseg.clear_failures(db, superficie="portal", actor=actor, ip=ip)
+        aseg.record_login_event(
+            db, superficie="portal", actor=actor, ip=ip, ok=True, reason="pin_ok", org_slug=slug
+        )
+        return {
+            "portal_token": token,
+            "org_slug": org.slug,
+            "abonado_identificado": True,
+            "has_pin": True,
+            "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
+            "mensajes": [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)],
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+
+        logging.getLogger("operations_hub").exception("portal login-pin falló")
+        raise HTTPException(
+            503,
+            "No pudimos iniciar la sesión ahora. Probá de nuevo en unos segundos.",
+        ) from None
 
 
 @router.post("/portal/auth/set-pin")
@@ -624,23 +644,34 @@ def portal_enviar_mensaje(
 ):
     org_id = payload["org_id"]
     telefono = payload["telefono"]
-    result = procesar_mensaje_entrante(
-        db,
-        org_id,
-        telefono=telefono,
-        texto=body.texto,
-        canal="web",
-        usar_llama=resolve_canal_usar_llama(db),
-    )
-    conv_id = result.get("conversacion_id") or payload["conversacion_id"]
-    c = crepo.get_conversacion(db, org_id, conv_id)
-    abo = db.get(Abonado, c.abonado_id) if c and c.abonado_id else None
-    mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv_id)] if c else []
-    return {
-        **result,
-        "conversacion": crepo.conversacion_to_dict(c, abonado=abo) if c else None,
-        "mensajes": mensajes,
-    }
+    try:
+        result = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=telefono,
+            texto=body.texto,
+            canal="web",
+            usar_llama=resolve_canal_usar_llama(db),
+        )
+        conv_id = result.get("conversacion_id") or payload["conversacion_id"]
+        c = crepo.get_conversacion(db, org_id, conv_id)
+        abo = db.get(Abonado, c.abonado_id) if c and c.abonado_id else None
+        mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv_id)] if c else []
+        return {
+            **result,
+            "conversacion": crepo.conversacion_to_dict(c, abonado=abo) if c else None,
+            "mensajes": mensajes,
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+
+        logging.getLogger("operations_hub").exception("portal/messages falló")
+        raise HTTPException(
+            503,
+            "No pudimos procesar el mensaje ahora. Probá de nuevo en unos segundos.",
+        ) from None
 
 
 @router.get("/portal/conversations/{conv_id}")
