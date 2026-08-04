@@ -48,6 +48,8 @@ def parse_monto(raw: str | float | int | None) -> float | None:
     if raw is None:
         return None
     s = str(raw).strip().replace("$", "").replace(" ", "")
+    # Guiones unicode (BillTrack / Excel a veces manda − U+2212)
+    s = s.replace("\u2212", "-").replace("\u2013", "-").replace("\u2014", "-")
     if not s:
         return None
     # 1.234,56 → 1234.56 ; 1234.56 queda

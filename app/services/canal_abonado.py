@@ -82,9 +82,8 @@ def _intentar_identificar_por_dni(
     dni = _extraer_dni(texto)
     if not dni:
         return None
-    abonado = crepo.find_abonado_por_dni(db, org_id, dni)
-    if abonado:
-        return abonado
+    # BillTrack es la fuente de verdad del saldo/estado: refrescar siempre
+    # (el padrón local puede quedar desfasado o con el signo viejo).
     try:
         from app.estate import repository as org_repo
         from app.services.billtrack import ensure_local_abonado, lookup_abonado_por_dni
@@ -97,7 +96,7 @@ def _intentar_identificar_por_dni(
             return ensure_local_abonado(db, org_id, hit)
     except Exception:
         logger.debug("BillTrack lookup DNI falló", exc_info=True)
-    return None
+    return crepo.find_abonado_por_dni(db, org_id, dni)
 
 
 def _deuda_positiva(abonado: Abonado) -> bool:
