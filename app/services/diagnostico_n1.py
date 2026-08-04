@@ -524,7 +524,7 @@ def _facturacion_deterministica(
     from app.services.eco_voice import (
         PLANTILLA_PAGO_QR,
         TEXTO_OV_AVISO_PAGO,
-        TEXTO_OV_GESTIONES,
+        mensaje_saldo_padron,
     )
 
     identificado = "modo: identificado" in (contexto_abonado or "")
@@ -571,10 +571,12 @@ def _facturacion_deterministica(
             "pagué y no",
         )
     ):
-        pref = f"Saldo que figura aún: ${saldo}. " if saldo is not None else ""
+        pref = ""
+        if saldo is not None:
+            pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
         return {
             "accion": "ask",
-            "mensaje": f"{pref}{TEXTO_OV_AVISO_PAGO} ¿Pudiste cargar el aviso?",
+            "mensaje": f"{pref}{TEXTO_OV_AVISO_PAGO}\n¿Pudiste cargar el aviso?",
             "paso_cubierto": "aviso_pago_ov",
             "motivo": "facturacion_aviso_pago_ov",
         }
@@ -600,19 +602,14 @@ def _facturacion_deterministica(
             return {
                 "accion": "ask",
                 "mensaje": (
-                    f"El saldo / última factura que figura es ${saldo}. "
-                    f"{PLANTILLA_PAGO_QR}"
+                    f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n{PLANTILLA_PAGO_QR}"
                 ),
                 "paso_cubierto": "informar_saldo_y_pago",
                 "motivo": "facturacion_saldo_y_web_pago",
             }
         return {
             "accion": "ask",
-            "mensaje": (
-                f"El saldo / última factura que figura es ${saldo}. "
-                f"{TEXTO_OV_GESTIONES} "
-                "¿Necesitás abonar o algo más de la factura?"
-            ),
+            "mensaje": mensaje_saldo_padron(saldo),
             "paso_cubierto": "informar_saldo",
             "motivo": "facturacion_saldo_real",
         }
@@ -996,25 +993,22 @@ def diagnosticar_turno(
             _parece_invento_pago(mensaje) or _parece_desvio_tecnico(mensaje)
         ):
             saldo = _saldo_desde_contexto(contexto_abonado)
-            from app.services.eco_voice import PLANTILLA_PAGO_QR
+            from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
 
-            pref = f"Saldo pendiente ${saldo}. " if saldo else ""
+            pref = f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n" if saldo else ""
             if _cliente_pide_pagar(mensaje_cliente) or _pide_cbu_o_adjunto(mensaje_cliente):
                 mensaje = (
-                    f"{pref}Por este chat no te paso CBU ni adjunto QR. "
+                    f"{pref}Por este chat no te paso CBU ni adjunto QR.\n"
                     f"{PLANTILLA_PAGO_QR}"
                 )
                 paso = "guia_pago_fiserv"
             elif saldo and _cliente_consulta_saldo(mensaje_cliente):
-                mensaje = (
-                    f"El saldo / última factura que figura es ${saldo}. "
-                    "¿Necesitás abonar o algo más de la factura?"
-                )
+                mensaje = mensaje_saldo_padron(saldo)
                 paso = "informar_saldo"
             else:
                 mensaje = (
                     "Para la factura puedo decirte el saldo del padrón o guiarte con el "
-                    "QR Fiserv de la factura. ¿Qué necesitás exactamente?"
+                    "pago en la oficina virtual. ¿Qué necesitás exactamente?"
                 )
                 paso = "triaje_motivo"
             motivo = "bloqueado_invento_pago_o_desvio"

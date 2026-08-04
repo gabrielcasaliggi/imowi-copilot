@@ -38,7 +38,7 @@ from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY
 
 logger = logging.getLogger("operations_hub")
 
-from app.services.eco_voice import PLANTILLA_PAGO_QR, TEXTO_OV_GESTIONES
+from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
 
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
@@ -709,15 +709,13 @@ def procesar_mensaje_entrante(
             deuda = str(abonado.deuda_monto or "0").strip() or "0"
             if pedi_saldo:
                 baja_nota = (
-                    " La cuenta figura «de baja» en el padrón."
+                    "La cuenta figura «de baja» en el padrón."
                     if estado == "baja"
                     else ""
                 )
                 resp = (
-                    f"Te ubiqué, {nombre}.{baja_nota} "
-                    f"El saldo / última factura que figura es ${deuda}. "
-                    f"{TEXTO_OV_GESTIONES} "
-                    "¿Necesitás abonar o algo más?"
+                    f"Te ubiqué, {nombre}.\n"
+                    + mensaje_saldo_padron(deuda, nota_extra=baja_nota)
                 )
                 ctx["intencion"] = "facturacion"
                 ctx["saludo"] = True
@@ -985,15 +983,11 @@ def procesar_mensaje_entrante(
         if _cliente_consulta_saldo(texto):
             deuda = str(abonado.deuda_monto or "0").strip() or "0"
             nota_baja = (
-                " (la cuenta figura «de baja» en el padrón)."
+                "La cuenta figura «de baja» en el padrón."
                 if (abonado.estado or "").lower() == "baja"
                 else ""
             )
-            resp = (
-                f"El saldo / última factura que figura es ${deuda}.{nota_baja} "
-                f"{TEXTO_OV_GESTIONES} "
-                "¿Necesitás abonar o algo más?"
-            )
+            resp = mensaje_saldo_padron(deuda, nota_extra=nota_baja)
             ctx["intencion"] = "facturacion"
             ctx["saludo"] = True
             ctx.pop("invitado", None)

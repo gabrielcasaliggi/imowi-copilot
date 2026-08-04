@@ -23,25 +23,87 @@ OV_BATAN_URL = "https://ov.batan.coop"
 OV_BATAN_PAGAR_URL = "https://ov.batan.coop/#/pagar"
 OV_BATAN_AVISO_PAGO_URL = "https://ov.batan.coop/#/aviso-de-pago"
 
-# Compacto: home + pagar. Aviso-de-pago solo si el cliente dice que ya abonó.
+# Una URL por línea para que el portal las muestre como links claros.
 TEXTO_OV_GESTIONES = (
-    f"Pagos y gestiones: {OV_BATAN_URL} — "
-    f"para pagar con DNI: {OV_BATAN_PAGAR_URL}."
+    f"Pagos y gestiones:\n{OV_BATAN_URL}\n"
+    f"Para pagar con DNI:\n{OV_BATAN_PAGAR_URL}"
 )
 
 # Plantilla fija N1 pagos — no depende del LLM (evita inventar CBU/adjuntos).
 PLANTILLA_PAGO_QR = (
-    f"Podés abonar en {OV_BATAN_PAGAR_URL} "
-    f"o desde la oficina virtual {OV_BATAN_URL}, "
-    "o con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+    f"Podés abonar acá:\n{OV_BATAN_PAGAR_URL}\n"
+    f"Oficina virtual:\n{OV_BATAN_URL}\n"
+    "También con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
     "Cuando se acredita, el servicio se reactiva solo. "
     "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. "
     "¿Pudiste pagar o necesitás que te ubique la cuenta?"
 )
 
 TEXTO_OV_AVISO_PAGO = (
-    f"Si ya realizaste el pago, podés avisarlo acá: {OV_BATAN_AVISO_PAGO_URL}."
+    f"Si ya realizaste el pago, podés avisarlo acá:\n{OV_BATAN_AVISO_PAGO_URL}"
 )
+
+
+def parse_monto(raw: str | float | int | None) -> float | None:
+    if raw is None:
+        return None
+    s = str(raw).strip().replace("$", "").replace(" ", "")
+    if not s:
+        return None
+    # 1.234,56 → 1234.56 ; 1234.56 queda
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def formatear_monto_ars(valor: float) -> str:
+    """Formato legible AR: 3248.04 → 3.248,04"""
+    neg = valor < 0
+    v = abs(valor)
+    entero = int(v)
+    dec = int(round((v - entero) * 100))
+    if dec == 100:
+        entero += 1
+        dec = 0
+    entero_txt = f"{entero:,}".replace(",", ".")
+    return f"{'-' if neg else ''}{entero_txt},{dec:02d}"
+
+
+def mensaje_saldo_padron(
+    deuda_raw: str | float | int | None,
+    *,
+    incluir_ov: bool = True,
+    nota_extra: str = "",
+) -> str:
+    """Texto claro de saldo (deuda / a favor / cero) + links OV opcionales."""
+    monto = parse_monto(deuda_raw)
+    if monto is None:
+        body = f"El saldo / última factura que figura es ${deuda_raw}."
+    elif monto < 0:
+        body = (
+            f"Tenés un saldo a favor de ${formatear_monto_ars(abs(monto))} "
+            "(no figuran deudas pendientes)."
+        )
+    elif monto == 0:
+        body = "No figuran deudas pendientes (saldo $0)."
+    else:
+        body = f"El saldo / última factura pendiente es ${formatear_monto_ars(monto)}."
+
+    partes = [body]
+    if (nota_extra or "").strip():
+        partes.append(nota_extra.strip())
+    if incluir_ov:
+        partes.append(TEXTO_OV_GESTIONES)
+        if monto is not None and monto > 0:
+            partes.append("¿Necesitás abonar o algo más?")
+        else:
+            partes.append("¿Necesitás algo más?")
+    return "\n".join(partes)
 
 
 def enrich_contexto_desde_integraciones(

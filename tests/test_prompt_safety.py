@@ -194,10 +194,20 @@ def test_facturacion_saldo_corto_identificado():
         contexto_abonado=ctx,
     )
     assert out["motivo"] == "facturacion_saldo_real"
-    assert "1234.56" in (out.get("mensaje") or "")
+    assert "1234.56" in (out.get("mensaje") or "") or "1.234,56" in (out.get("mensaje") or "")
     assert "https://ov.batan.coop" in (out.get("mensaje") or "")
     assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
     assert "medio de pago" not in (out.get("mensaje") or "").lower()
+
+
+def test_mensaje_saldo_a_favor():
+    from app.services.eco_voice import mensaje_saldo_padron
+
+    msg = mensaje_saldo_padron("-3248.04")
+    assert "saldo a favor" in msg.lower()
+    assert "3.248,04" in msg
+    assert "$-" not in msg
+    assert "https://ov.batan.coop/#/pagar" in msg
 
 
 def test_facturacion_saldo_y_web_ov_batan():
@@ -222,7 +232,7 @@ def test_facturacion_saldo_y_web_ov_batan():
         contexto_abonado=ctx,
     )
     assert out["motivo"] == "facturacion_saldo_y_web_pago"
-    assert "86479.89" in (out.get("mensaje") or "")
+    assert "86479.89" in (out.get("mensaje") or "") or "86.479,89" in (out.get("mensaje") or "")
     assert "https://ov.batan.coop" in (out.get("mensaje") or "").lower()
     assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
 
@@ -264,9 +274,9 @@ def test_facturacion_saldo_y_pago_sin_inventar_cbu():
         contexto_abonado=ctx,
     )
     assert out["motivo"] == "facturacion_saldo_real"
-    assert "86479.89" in (out.get("mensaje") or "")
+    assert "86479.89" in (out.get("mensaje") or "") or "86.479,89" in (out.get("mensaje") or "")
     assert "cbu" not in (out.get("mensaje") or "").lower()
-
+    assert "https://ov.batan.coop" in (out.get("mensaje") or "")
     hist = [
         {"autor": "bot", "texto": "El saldo es $86479.89. ¿Necesitás abonar?"},
         {"autor": "cliente", "texto": "si, para abonar"},

@@ -7,6 +7,52 @@ import { EcoAvatar } from "@/components/ui/EcoAvatar";
 
 type AutorKind = "cliente" | "bot" | "agente" | string;
 
+/** Detecta http(s) URLs y las vuelve <a> clickeables (portal + inbox). */
+const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
+
+function trimUrlTrailingPunct(url: string): { href: string; trailing: string } {
+  let href = url;
+  let trailing = "";
+  while (href && /[.,;:!?]$/.test(href)) {
+    trailing = href.slice(-1) + trailing;
+    href = href.slice(0, -1);
+  }
+  return { href, trailing };
+}
+
+export function linkifyText(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  for (const match of text.matchAll(URL_RE)) {
+    const raw = match[0];
+    const idx = match.index ?? 0;
+    if (idx > last) {
+      nodes.push(text.slice(last, idx));
+    }
+    const { href, trailing } = trimUrlTrailingPunct(raw);
+    if (href) {
+      nodes.push(
+        <a
+          key={`url-${key++}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-ecolan-brand underline underline-offset-2 break-all hover:text-ecolan-brand-dark transition-colors"
+        >
+          {href}
+        </a>,
+      );
+    }
+    if (trailing) nodes.push(trailing);
+    last = idx + raw.length;
+  }
+  if (last < text.length) {
+    nodes.push(text.slice(last));
+  }
+  return nodes.length > 0 ? nodes : [text];
+}
+
 function originLabel(autor: AutorKind, portal?: boolean): string {
   if (autor === "cliente") return portal ? "VOS" : "ABONADO";
   if (autor === "bot") return getBranding().botDisplayNameShort;
@@ -69,7 +115,7 @@ export function ChatMessageBubble({
         )}
       </div>
       <p className="whitespace-pre-wrap leading-relaxed text-[13px] text-slate-100/95">
-        {message.texto}
+        {linkifyText(message.texto || "")}
       </p>
     </div>
   );
