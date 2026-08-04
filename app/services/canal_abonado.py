@@ -144,6 +144,40 @@ def _redactar_con_llama(
         return borrador
 
 
+def _label_tema_pendiente(tema: str) -> str:
+    return {
+        "facturacion": "aumento/factura",
+        "tecnico": "conexión/internet",
+    }.get((tema or "").strip(), tema or "otro tema")
+
+
+def _append_evidencia_ticket(
+    db: Session,
+    org_id: str,
+    ticket_id: str,
+    nota: str,
+) -> None:
+    if not ticket_id or not (nota or "").strip():
+        return
+    try:
+        from app.estate import repository as repo
+
+        t = repo.get_ticket(db, org_id, ticket_id)
+        if not t:
+            return
+        bloque = nota.strip()[:800]
+        ev = (t.evidencia or "").strip()
+        if bloque in ev:
+            return
+        t.evidencia = f"{ev}\n{bloque}".strip() if ev else bloque
+        desc = (t.descripcion_falla or "").strip()
+        if bloque[:120] not in desc:
+            t.descripcion_falla = f"{desc} | {bloque}".strip(" |")[:2000]
+        db.commit()
+    except Exception:
+        logger.debug("No se pudo anotar evidencia en ticket %s", ticket_id, exc_info=True)
+
+
 def _crear_ticket_n2(
     db: Session,
     org_id: str,
@@ -153,6 +187,7 @@ def _crear_ticket_n2(
     *,
     intencion: str = "",
     paso_idx: int = 0,
+    ctx: dict | None = None,
 ) -> str:
     if conv.ticket_id:
         return conv.ticket_id
@@ -169,8 +204,16 @@ def _crear_ticket_n2(
         motivo=motivo,
         paso_idx=paso_idx,
     )
+    ctx = ctx if isinstance(ctx, dict) else {}
+    pendientes = [str(x) for x in (ctx.get("temas_pendientes") or []) if str(x).strip()]
+    extra_temas = ""
+    if pendientes:
+        labels = ", ".join(_label_tema_pendiente(p) for p in pendientes)
+        extra_temas = f" Temas pendientes del abonado (aún sin cerrar en N1): {labels}."
+        evidencia = f"{evidencia}\n[Temas pendientes] {labels}".strip()
     descripcion = (
-        f"[ORIGEN: {BOT_DISPLAY_NAME_SHORT}] {tag} Escalamiento N2 canal abonado ({nombre}): {motivo}. {handoff}"
+        f"[ORIGEN: {BOT_DISPLAY_NAME_SHORT}] {tag} Escalamiento N2 canal abonado ({nombre}): "
+        f"{motivo}.{extra_temas} {handoff}"
     )
     t = ticket_bridge.crear_ticket(
         db,
@@ -191,8 +234,125 @@ def _crear_ticket_n2(
     )
     conv.ticket_id = t.id
     conv.estado = "espera_agente"
+    if pendientes:
+        ctx["temas_anotados_ticket"] = list(
+            dict.fromkeys(list(ctx.get("temas_anotados_ticket") or []) + pendientes)
+        )
+        crepo.set_contexto(conv, ctx)
     db.commit()
     return t.id
+
+
+def _nota_temas_pendientes(ctx: dict | None) -> str:
+    pendientes = [str(x) for x in ((ctx or {}).get("temas_pendientes") or []) if str(x).strip()]
+    if not pendientes:
+        return ""
+    labels = " y ".join(_label_tema_pendiente(p) for p in pendientes)
+    return f" También dejé anotado el tema de {labels} para el agente."
+
+
+def _tema_desde_mensaje(texto: str) -> str | None:
+    t = (texto or "").lower().replace("fatura", "factura")
+    if any(
+        k in t
+        for k in (
+            "factura",
+            "factur",
+            "aumento",
+            "boleta",
+            "tarifa",
+            "cobro",
+            "saldo",
+            "plata",
+            "precio",
+        )
+    ):
+        return "facturacion"
+    if any(
+        k in t
+        for k in (
+            "internet",
+            "wifi",
+            "conexión",
+            "conexion",
+            "fibra",
+            "los",
+            "router",
+            "ont",
+            "señal",
+            "senal",
+        )
+    ):
+        return "tecnico"
+    return None
+
+
+def _responder_espera_agente(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+) -> dict:
+    """En espera de agente: si pregunta por el otro tema, lo anota y confirma."""
+    tid = conv.ticket_id or ""
+    ctx = crepo.get_contexto(conv)
+    tema = _tema_desde_mensaje(texto)
+    pendientes = [str(x) for x in (ctx.get("temas_pendientes") or []) if str(x).strip()]
+    anotados = [str(x) for x in (ctx.get("temas_anotados_ticket") or []) if str(x).strip()]
+    insiste = any(
+        k in (texto or "").lower()
+        for k in ("y la ", "y el ", "qué pasó con", "que paso con", "y eso de")
+    )
+
+    if tema and tid and (tema in pendientes or tema in anotados or insiste):
+        label = _label_tema_pendiente(tema)
+        _append_evidencia_ticket(
+            db,
+            org_id,
+            tid,
+            f"[Seguimiento abonado] Insiste en {label}: {(texto or '').strip()[:300]}",
+        )
+        ctx["temas_pendientes"] = [p for p in pendientes if p != tema]
+        if tema not in anotados:
+            anotados.append(tema)
+        ctx["temas_anotados_ticket"] = anotados
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        aviso = (
+            f"Sí: el ticket {tid} queda con el reclamo de {label} "
+            "junto a lo de la conexión. El agente lo ve en el mismo caso; "
+            "te van a responder por este chat."
+        )
+        _enviar_respuesta(db, org_id, conv, aviso, enviar_wa=(canal == "whatsapp"))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": aviso,
+            "estado": conv.estado,
+            "ticket_id": tid,
+        }
+
+    aviso = (
+        "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat."
+    )
+    if pendientes and tid:
+        labels = " y ".join(_label_tema_pendiente(p) for p in pendientes)
+        aviso = (
+            f"Tu caso ya está derivado (ticket {tid}). "
+            f"También quedó anotado: {labels}. Te responden por este chat."
+        )
+    _enviar_respuesta(db, org_id, conv, aviso, enviar_wa=(canal == "whatsapp"))
+    return {
+        "ok": True,
+        "modo": "espera_agente",
+        "conversacion_id": conv.id,
+        "respuesta": aviso,
+        "estado": conv.estado,
+        "ticket_id": tid,
+    }
 
 
 def _enviar_respuesta(
@@ -207,6 +367,57 @@ def _enviar_respuesta(
     if enviar_wa and conv.canal == "whatsapp":
         enviar_texto(conv.telefono, texto)
     return texto
+
+
+def _mensaje_cierre_escalamiento(
+    tid: str,
+    *,
+    motivo: str = "",
+    mensaje_ia: str = "",
+    nota_temas: str = "",
+) -> str:
+    """Cierre empático al derivar: no reemplazar un mensaje bueno por plantilla fría."""
+    nota = (nota_temas or "").strip()
+    if nota and not nota.startswith(" "):
+        nota = " " + nota
+    motivo_l = (motivo or "").lower()
+    ia = (mensaje_ia or "").strip()
+
+    # Si la IA / detector ya explicó el caso, conservar tono y solo sumar ticket
+    if ia and "ticket" not in ia.lower():
+        base = ia.rstrip(" .")
+        # Evitar dejar la pregunta "¿te derivo?" si ya estamos derivando
+        for q in (
+            " ¿Te derivo con un agente para coordinar?",
+            " ¿Te derivo con un agente para coordinarla?",
+            " ¿Querés que te derive?",
+            " ¿Me confirmás si te derivo?",
+        ):
+            if base.endswith(q.strip()) or q.strip().lower() in base.lower():
+                base = base.replace(q.strip(), "").replace(q.strip().lower(), "").rstrip(" .")
+        return (
+            f"{base}. Ya generé el ticket {tid} y te derivo con un agente.{nota} "
+            "Te van a responder por este mismo chat."
+        )
+
+    if any(k in motivo_l for k in ("los", "fibra", "optica", "óptica", "wifi_post_los")):
+        return (
+            f"La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
+            f"Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
+            f"Generé el ticket {tid} y te derivo con un agente.{nota} "
+            "Te van a responder por este mismo chat."
+        )
+
+    if "pedido_humano" in motivo_l or "agente" in motivo_l:
+        return (
+            f"Dale, te derivo con un agente y le paso lo que charlamos. "
+            f"Ticket {tid}.{nota} Quedate en este chat."
+        )
+
+    return (
+        f"Con lo que me contaste ya hace falta un agente. "
+        f"Generé el ticket {tid}.{nota} Te van a responder por este mismo chat."
+    )
 
 
 def _aplicar_diagnostico_ia(
@@ -278,14 +489,14 @@ def _aplicar_diagnostico_ia(
             f"Diagnóstico N1 IA: {result.get('motivo') or 'escalate'} ({intencion})",
             intencion=intencion,
             paso_idx=int(ctx.get("paso_idx") or 0),
+            ctx=ctx,
         )
-        if not mensaje or "ticket" not in mensaje.lower():
-            mensaje = (
-                f"Avancé todo lo posible en soporte N1 y generé el ticket {tid} "
-                "para un agente. Te van a responder por este mismo chat."
-            )
-        elif tid not in mensaje:
-            mensaje = f"{mensaje} Ticket {tid}."
+        mensaje = _mensaje_cierre_escalamiento(
+            tid,
+            motivo=str(result.get("motivo") or ""),
+            mensaje_ia=mensaje,
+            nota_temas=_nota_temas_pendientes(ctx),
+        )
         _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
         return {
             "ok": True,
@@ -360,7 +571,7 @@ def procesar_mensaje_entrante(
         meta_message_id=meta_message_id,
     )
 
-    # Si ya está con agente o en espera, no responde el bot
+        # Si ya está con agente o en espera, no responde el bot N1
     if conv.estado in ("con_agente", "espera_agente"):
         if conv.estado == "con_agente":
             return {
@@ -371,19 +582,9 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "ticket_id": conv.ticket_id,
             }
-        # espera_agente: recordatorio breve
-        aviso = (
-            "Tu caso ya está derivado a un agente. En breve te van a responder por este mismo chat."
+        return _responder_espera_agente(
+            db, org_id, conv, texto, canal=canal
         )
-        _enviar_respuesta(db, org_id, conv, aviso, enviar_wa=(canal == "whatsapp"))
-        return {
-            "ok": True,
-            "modo": "espera_agente",
-            "conversacion_id": conv.id,
-            "respuesta": aviso,
-            "estado": conv.estado,
-            "ticket_id": conv.ticket_id,
-        }
 
     if conv.estado == "cerrado":
         conv.estado = "bot"
@@ -408,10 +609,11 @@ def procesar_mensaje_entrante(
             "Reiteración/frustración del abonado sin resolución N1",
             intencion=intent,
             paso_idx=paso,
+            ctx=ctx,
         )
         resp = (
             f"Entiendo la molestia. Te derivo con un agente con el historial. "
-            f"Ticket {tid}. Quedate en este chat."
+            f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
         _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
         return {
@@ -481,10 +683,11 @@ def procesar_mensaje_entrante(
             "Cliente solicitó agente/técnico",
             intencion=intent,
             paso_idx=int(ctx.get("paso_idx") or ctx.get("diag_turnos") or 0),
+            ctx=ctx,
         )
         resp = (
             f"Dale, te derivo con un agente y le paso lo que charlamos. "
-            f"Ticket {tid}. Quedate en este chat."
+            f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
         _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
         return {
@@ -982,10 +1185,13 @@ def procesar_mensaje_entrante(
             motivo,
             intencion=intencion,
             paso_idx=paso_idx,
+            ctx=ctx,
         )
-        resp = (
-            f"Avancé todo lo posible en soporte N1 y generé el ticket {tid} "
-            "para un agente. Te van a responder por este mismo chat."
+        resp = _mensaje_cierre_escalamiento(
+            tid,
+            motivo=motivo,
+            mensaje_ia="",
+            nota_temas=_nota_temas_pendientes(ctx),
         )
         if usar_llama:
             resp = _redactar_con_llama(
@@ -995,6 +1201,8 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
+            if tid not in resp:
+                resp = f"{resp.rstrip('.')} Ticket {tid}."
         _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
         return {
             "ok": True,
@@ -1003,6 +1211,7 @@ def procesar_mensaje_entrante(
             "respuesta": resp,
             "estado": conv.estado,
             "ticket_id": tid,
+            "intencion": intencion,
         }
 
     # El abonado dice que ya quedó resuelto

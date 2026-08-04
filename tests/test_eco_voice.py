@@ -151,3 +151,36 @@ def test_bloquea_handoff_y_pago_prematuro(monkeypatch):
     )
     assert out2["accion"] == "escalate"
     assert out2["motivo"] == "pedido_humano"
+
+
+def test_cierre_escalamiento_los_no_es_cortante():
+    from app.services.canal_abonado import _mensaje_cierre_escalamiento
+    from app.services.diagnostico_n1 import detectar_falla_optica_escalar
+
+    assert (
+        detectar_falla_optica_escalar(
+            "tengo ua luz roja de los",
+            [
+                {
+                    "autor": "bot",
+                    "texto": "¿La luz PON está verde y la LOS apagada?",
+                }
+            ],
+        )
+        == "los_confirmada"
+    )
+    msg = _mensaje_cierre_escalamiento(
+        "IBOT-1016",
+        motivo="los_confirmada",
+        mensaje_ia=(
+            "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
+            "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
+            "Te derivo con un agente para coordinarla."
+        ),
+        nota_temas=" También dejé anotado el tema de aumento/factura para el agente.",
+    )
+    assert "Avancé todo lo posible" not in msg
+    assert "LOS" in msg or "fibra" in msg.lower()
+    assert "IBOT-1016" in msg
+    assert "visita" in msg.lower()
+    assert "factura" in msg.lower() or "aumento" in msg.lower()

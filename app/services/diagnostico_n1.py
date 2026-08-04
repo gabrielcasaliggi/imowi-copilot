@@ -185,7 +185,13 @@ def detectar_falla_optica_escalar(
             "tengo los",
             "led los",
             "la los",
+            "roja de los",
+            "rojo de los",
+            "luz de los",
         )
+    ) or (
+        "los" in last_l
+        and any(k in last_l for k in ("roja", "rojo", "luz"))
     )
 
     if dano and (bot_pregunto_fibra or bot_hablo_los or cliente_confirmo_los):
@@ -196,6 +202,9 @@ def detectar_falla_optica_escalar(
         return "los_y_fibra_danada"
     if cliente_confirmo_los and dano:
         return "los_y_fibra_danada"
+    if cliente_dice_los:
+        # Declaró LOS en rojo: visita técnica (no seguir a WiFi)
+        return "los_confirmada"
     return None
 
 
@@ -428,13 +437,20 @@ def diagnosticar_turno(
 
     motivo_optico = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
     if motivo_optico:
+        if motivo_optico == "fibra_danada" and "los" not in (mensaje_cliente or "").lower():
+            msg_optico = (
+                "Con daño visible en el cable de fibra ya no lo resolvemos a distancia: "
+                "hace falta una visita técnica. Te derivo con un agente para coordinarla."
+            )
+        else:
+            msg_optico = (
+                "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
+                "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
+                "Te derivo con un agente para coordinarla."
+            )
         return {
             "accion": "escalate",
-            "mensaje": (
-                "Con luz LOS y el estado del cable de fibra ya no lo resolvemos "
-                "a distancia: hace falta visita técnica. ¿Te derivo con un agente "
-                "para coordinar?"
-            ),
+            "mensaje": msg_optico,
             "paso_cubierto": "",
             "motivo": motivo_optico,
         }
@@ -556,8 +572,8 @@ def diagnosticar_turno(
             accion = "escalate"
             motivo = "bloqueado_wifi_post_los"
             mensaje = (
-                "Con la luz LOS en rojo ya es un tema de fibra/señal óptica; "
-                "no se arregla mirando el WiFi. Te derivo para visita técnica."
+                "La luz LOS en rojo indica un problema de fibra/señal óptica; "
+                "no se arregla mirando el WiFi. Te derivo para coordinar una visita técnica."
             )
 
         # Guardrails
@@ -570,6 +586,7 @@ def diagnosticar_turno(
                 "fibra_danada",
                 "los_con_chequeo_fibra",
                 "los_y_fibra_danada",
+                "los_confirmada",
                 "bloqueado_wifi_post_los",
             )
         ):
@@ -589,6 +606,7 @@ def diagnosticar_turno(
                 "fibra_danada",
                 "los_con_chequeo_fibra",
                 "los_y_fibra_danada",
+                "los_confirmada",
                 "bloqueado_wifi_post_los",
             )
         ):
@@ -613,8 +631,9 @@ def diagnosticar_turno(
             accion = "escalate"
             motivo = opt2
             mensaje = (
-                "Con luz LOS y el estado del cable de fibra ya no lo resolvemos "
-                "a distancia: hace falta visita técnica. Te derivo con un agente."
+                "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
+                "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
+                "Te derivo con un agente para coordinarla."
             )
 
         if accion == "resolved":
