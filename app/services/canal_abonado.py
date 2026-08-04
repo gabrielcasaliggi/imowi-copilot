@@ -673,39 +673,21 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "intencion": intencion,
             }
-        if intencion == "facturacion" and not abonado:
-            pregunta = (
-                "Para saldo o copia de factura identificáte con DNI en el portal. "
-                f"{PLANTILLA_PAGO_QR}"
-            )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": pregunta,
-                "estado": conv.estado,
-                "intencion": intencion,
-            }
-        # Pagos identificados (no corte): conservar plantilla; no reescribir con LLM
-        if intencion in ("corte_deuda", "facturacion"):
-            usar_llm_paso = False
-        else:
-            # Diagnóstico IA (técnicos): playbook = checklist
-            diag = _aplicar_diagnostico_ia(
-                db,
-                org_id,
-                conv,
-                abonado,
-                texto,
-                canal=canal,
-                ctx=ctx,
-                intencion=intencion,
-                usar_llama=usar_llama,
-            )
-            if diag is not None:
-                return diag
-            usar_llm_paso = usar_llama
+        # Facturación y técnicos: diagnóstico IA (playbook = checklist de indagación).
+        diag = _aplicar_diagnostico_ia(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intencion,
+            usar_llama=usar_llama,
+        )
+        if diag is not None:
+            return diag
+        usar_llm_paso = usar_llama
         if usar_llm_paso:
             pregunta = _redactar_con_llama(
                 pregunta,
@@ -915,8 +897,8 @@ def procesar_mensaje_entrante(
         pregunta = pasos[idx].pregunta
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
-        # Pagos/QR: plantilla fija para no perder instrucciones Fiserv
-        if usar_llama and intencion not in ("corte_deuda", "facturacion"):
+        # Pagos/QR en corte: plantilla fija. Facturación ya va por diagnóstico IA.
+        if usar_llama and intencion != "corte_deuda":
             pregunta = _redactar_con_llama(
                 pregunta,
                 f"paso={idx} intencion={intencion}",

@@ -169,3 +169,52 @@ def test_detectar_falla_optica_helpers():
         == "fibra_danada"
     )
     assert detectar_falla_optica_escalar("hola", []) is None
+
+
+def test_facturacion_en_diagnostico_y_bloquea_dump_pagos(monkeypatch):
+    import json
+
+    from app.domain.flujos_abonado import clasificar_intencion
+    from app.services.diagnostico_n1 import (
+        es_intencion_diagnostico,
+        _parece_dump_pagos,
+    )
+
+    assert clasificar_intencion("quiero saber porque me vino la factura con aumento") == "facturacion"
+    assert es_intencion_diagnostico("facturacion") is True
+    dump = (
+        "Para saldo o copia de factura identifícate con DNI en el portal. "
+        "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+        "¿Pudiste pagar?"
+    )
+    assert _parece_dump_pagos(dump) is True
+
+    def _fake_llm(*_a, **_k):
+        return (
+            '{"accion":"ask","mensaje":'
+            + json.dumps(dump, ensure_ascii=False)
+            + ',"paso_cubierto":"guia_pago","motivo":"ia"}'
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake_llm)
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[
+            {
+                "id": "triaje_motivo",
+                "pregunta": (
+                    "¿Es por un aumento, un cobro que no reconocés, "
+                    "copia/saldo, o cómo pagar?"
+                ),
+            },
+            {"id": "detalle_importe", "pregunta": "¿De qué mes y qué monto ves?"},
+        ],
+        historial_mensajes=[],
+        mensaje_cliente="buen dia. tengo problemas con la facturacion",
+        turnos_diagnostico=0,
+        pasos_cubiertos=[],
+    )
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "bloqueado_dump_pagos"
+    assert "fiserv" not in (out.get("mensaje") or "").lower()
+    assert "aumento" in (out.get("mensaje") or "").lower() or "?" in (out.get("mensaje") or "")

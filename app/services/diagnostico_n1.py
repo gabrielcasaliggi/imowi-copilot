@@ -26,6 +26,7 @@ INTENCIONES_DIAGNOSTICO = frozenset({
     "telefono_fija",
     "no_tecnico",
     "ecolan_b2b",
+    "facturacion",
 })
 
 MIN_TURNOS_ANTES_ESCALAR = 3
@@ -296,6 +297,8 @@ def _fallback_ask(
             or any(k in preg.lower() for k in _WIFI_MARKERS)
         ):
             continue
+        if _parece_dump_pagos(preg) and not _cliente_pide_pagar(mensaje_cliente):
+            continue
         return {
             "accion": "ask",
             "mensaje": preg,
@@ -312,6 +315,47 @@ def _fallback_ask(
         "paso_cubierto": "",
         "motivo": "fallback_checklist_agotado",
     }
+
+
+def _cliente_pide_pagar(texto: str) -> bool:
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "como pago",
+            "cómo pago",
+            "quiero pagar",
+            "necesito pagar",
+            "pagar la",
+            "medio de pago",
+            "qr",
+            "fiserv",
+            "mercado pago",
+            "modo",
+            "saldo pendiente",
+            "me cortaron",
+            "sin servicio por",
+        )
+    )
+
+
+def _parece_dump_pagos(mensaje: str) -> bool:
+    """Detecta respuestas tipo manual (QR + varios medios) en vez de indagar."""
+    t = (mensaje or "").lower()
+    hits = sum(
+        1
+        for k in (
+            "fiserv",
+            "mercado pago",
+            "modo",
+            "qr",
+            "copia de factura",
+            "identific",
+            "portal",
+        )
+        if k in t
+    )
+    return hits >= 3 or (hits >= 2 and len(t) > 280)
 
 
 def diagnosticar_turno(
@@ -379,6 +423,24 @@ def diagnosticar_turno(
     kb_block = f"\nConocimiento útil (opcional):\n{wrap_untrusted('KB', kb, max_chars=800)}\n" if kb else ""
     turnos = max(0, int(turnos_diagnostico or 0))
     msg_safe = sanitize_user_text(mensaje_cliente)
+    es_facturacion = (intencion or "").strip() == "facturacion"
+
+    reglas_facturacion = ""
+    if es_facturacion:
+        reglas_facturacion = (
+            "\nReglas EXTRA — facturación/cuenta (prioridad alta):\n"
+            "- Primero INDAGÁ el problema real con UNA pregunta. No sueltes un manual de pagos.\n"
+            "- Si habla de aumento, tarifa más cara o factura distinta: preguntá mes, montos "
+            "(antes vs ahora) o si hubo cambio de plan/servicios. NUNCA preguntes medio de pago "
+            "ni fecha de un pago salvo que diga que pagó y no figura.\n"
+            "- Si no reconoce un cobro: pedí mes/importe/concepto; no asumas que es un pago fallido.\n"
+            "- Solo explicá cómo pagar (QR Fiserv / Mercado Pago / MODO) si pide pagar, QR, "
+            "saldo a abonar, o tiene corte. En ese caso, una o dos oraciones + una pregunta.\n"
+            "- En modo invitado (sin cuenta): podés pedir DNI/N.º de socio para ubicar la cuenta; "
+            "no inventes saldos ni desgloses.\n"
+            "- No digas que viste la factura o el sistema si no hay datos reales.\n"
+            "- escalate cuando ya pediste el detalle y hace falta sistema interno, o si pide agente.\n"
+        )
 
     system = with_anti_injection(
         f"Sos {BOT_DISPLAY_NAME}, técnico N1 de {PRODUCT_DISPLAY_NAME} "
@@ -391,8 +453,8 @@ def diagnosticar_turno(
         "- accion=ask: una sola pregunta corta (máx 2 oraciones). Español argentino (vos).\n"
         "- Elegí el próximo chequeo según lo que YA dijo el cliente; no repitas lo respondido.\n"
         "- Podés reformular las preguntas del checklist o adaptarlas al caso.\n"
-        "- No inventes datos (OLT, potencias, saldos, turnos, lecturas de red).\n"
-        "- No uses jerga interna del NOC ni listas/viñetas.\n"
+        "- No inventes datos (OLT, potencias, saldos, turnos, lecturas de red, desglose de factura).\n"
+        "- No uses jerga interna del NOC ni listas/viñetas largas.\n"
         f"- NO uses escalate hasta haber hecho al menos {MIN_TURNOS_ANTES_ESCALAR} turnos "
         f"de diagnóstico (ahora vas por el turno {turnos + 1}), salvo excepciones abajo.\n"
         "- Si pide técnico/visita/agente, escalate ya (no sigas el checklist).\n"
@@ -401,10 +463,11 @@ def diagnosticar_turno(
         "o daño de fibra: es falla óptica, no de WiFi.\n"
         "- Tras confirmar LOS, como máximo preguntá por el cable amarillo/fibra; "
         "con la respuesta (dañado o no), escalate.\n"
-        "- resolved solo si el cliente confirma explícitamente que ya funciona.\n"
+        "- resolved solo si el cliente confirma explícitamente que ya funciona o quedó resuelto.\n"
         "- Si el cliente sigue con el problema, NUNCA resolved.\n"
         "- paso_cubierto: id del checklist que estás cubriendo en este turno (si aplica).\n"
         "- Si el checklist está casi agotado y el problema sigue, escalate con mensaje claro."
+        f"{reglas_facturacion}"
     )
 
     user = (
@@ -539,6 +602,23 @@ def diagnosticar_turno(
                     fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                     mensaje = fb["mensaje"]
                     paso = fb.get("paso_cubierto") or paso
+
+        # Facturación: no soltar manual de pagos si el cliente no pidió pagar
+        if (
+            es_facturacion
+            and accion == "ask"
+            and _parece_dump_pagos(mensaje)
+            and not _cliente_pide_pagar(mensaje_cliente)
+            and not _cliente_pide_pagar(
+                " ".join(_autor_texto(m)[1] for m in (historial_mensajes or [])[-6:])
+            )
+        ):
+            mensaje = (
+                "Dale, contame un poco más: ¿es por un aumento respecto al mes anterior, "
+                "un cobro que no reconocés, o necesitás copia/saldo o cómo pagar?"
+            )
+            paso = "triaje_motivo"
+            motivo = "bloqueado_dump_pagos"
 
         if not mensaje:
             fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)

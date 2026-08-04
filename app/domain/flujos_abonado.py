@@ -77,22 +77,30 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     ],
     "facturacion": [
         PasoPlaybook(
-            "guia_qr_o_dni",
-            "Para saldo o copia de factura identificáte con DNI en el portal. "
-            "Si es un pago, usá el QR Fiserv de la boleta (Mercado Pago, MODO, etc.). "
-            "¿Es por saldo, un cobro que no reconocés, o necesitás el QR?",
-        ),
-        PasoPlaybook(
-            "pedir_dni_factura",
-            "Para ver tu cuenta necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
+            "triaje_motivo",
+            "¿Es por un aumento respecto al mes anterior, un cobro que no reconocés, "
+            "copia/saldo de factura, o necesitás saber cómo pagar?",
         ),
         PasoPlaybook(
             "detalle_importe",
-            "Contame qué ves distinto (monto, mes, o un cobro puntual) y lo vemos. ¿Me pasás ese detalle?",
+            "¿De qué mes es la factura y qué monto ves (o cuánto era antes vs ahora)?",
+        ),
+        PasoPlaybook(
+            "cambio_plan_o_servicios",
+            "¿Cambiaste de plan, sumaste un servicio o te avisaron de un ajuste de tarifas?",
+        ),
+        PasoPlaybook(
+            "identificar_cuenta",
+            "Para mirar tu cuenta necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
+        ),
+        PasoPlaybook(
+            "guia_pago_si_aplica",
+            "Si es para pagar: usá el QR Fiserv de la boleta (Mercado Pago, MODO, etc.). "
+            "¿Pudiste pagar o preferís que te derive?",
         ),
         PasoPlaybook(
             "derivar_factura",
-            "Si hace falta revisar la cuenta adentro, ¿querés que te derive con facturación?",
+            "Con lo que contás hace falta revisar la cuenta adentro. ¿Te derivo con facturación?",
         ),
     ],
     "internet_ftth": [
@@ -270,6 +278,8 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "estado de mi cuenta", "estado de cuenta", "estado de la cuenta",
         "consultar cuenta", "consulta de cuenta", "consultar el estado",
         "mi cuenta", "saldo de cuenta", "cómo está mi cuenta", "como esta mi cuenta",
+        "aumento", "aumentó", "más cara", "mas cara", "subió", "subio",
+        "cobro de más", "cobro de mas", "me cobraron de más", "me cobraron de mas",
     )):
         return "facturacion"
 
@@ -277,7 +287,7 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "deuda", "corte", "suspend", "factur", "pago", "saldo", "boleta",
         "cuenta corriente", "resumen", "recibo", "qr", "fiserv", "mercado pago",
     )):
-        if any(k in t for k in ("copia", "resumen", "comprobante", "factura", "cuenta")):
+        if any(k in t for k in ("copia", "resumen", "comprobante", "factura", "cuenta", "aumento")):
             return "facturacion"
         return "corte_deuda"
 
