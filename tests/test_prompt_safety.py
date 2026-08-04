@@ -171,6 +171,33 @@ def test_detectar_falla_optica_helpers():
     assert detectar_falla_optica_escalar("hola", []) is None
 
 
+def test_facturacion_saldo_corto_identificado():
+    from app.services.diagnostico_n1 import diagnosticar_turno, _cliente_consulta_saldo
+
+    assert _cliente_consulta_saldo("saldo") is True
+    assert _cliente_consulta_saldo("solo quiero el saldo") is True
+    assert _cliente_consulta_saldo("saldo de mi cuenta") is True
+
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- modo: identificado\n"
+        "- nombre: Maria\n"
+        "- deuda_monto: 1234.56\n"
+    )
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[],
+        mensaje_cliente="saldo",
+        turnos_diagnostico=1,
+        pasos_cubiertos=[],
+        contexto_abonado=ctx,
+    )
+    assert out["motivo"] == "facturacion_saldo_real"
+    assert "1234.56" in (out.get("mensaje") or "")
+    assert "medio de pago" not in (out.get("mensaje") or "").lower()
+
+
 def test_facturacion_saldo_y_web_ov_batan():
     from app.services.diagnostico_n1 import diagnosticar_turno
 

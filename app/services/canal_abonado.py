@@ -58,6 +58,22 @@ def _es_solo_dni(texto: str) -> bool:
     return bool(re.fullmatch(r"\d{7,8}", t))
 
 
+def _mensaje_pedi_saldo_reciente(db: Session, conv_id: str) -> bool:
+    """True si el cliente pidió saldo/deuda poco antes (p. ej. antes del DNI)."""
+    from app.services.diagnostico_n1 import _cliente_consulta_saldo
+
+    for m in crepo.list_mensajes(db, conv_id)[-10:]:
+        direccion = getattr(m, "direccion", "") or ""
+        autor = getattr(m, "autor", "") or ""
+        texto = getattr(m, "texto", "") or ""
+        es_cliente = direccion == "in" or autor in ("cliente", "user", "abonado")
+        if not es_cliente:
+            continue
+        if _cliente_consulta_saldo(texto) or "saldo" in texto.lower() or "deuda" in texto.lower():
+            return True
+    return False
+
+
 def _intentar_identificar_por_dni(
     db: Session,
     org_id: str,
@@ -689,7 +705,25 @@ def procesar_mensaje_entrante(
             db.commit()
             nombre = (abonado.nombre or "").split()[0].title() or "ahí"
             estado = (abonado.estado or "").lower()
-            if estado == "baja":
+            pedi_saldo = _mensaje_pedi_saldo_reciente(db, conv.id)
+            deuda = str(abonado.deuda_monto or "0").strip() or "0"
+            if pedi_saldo:
+                baja_nota = (
+                    " La cuenta figura «de baja» en el padrón."
+                    if estado == "baja"
+                    else ""
+                )
+                resp = (
+                    f"Te ubiqué, {nombre}.{baja_nota} "
+                    f"El saldo / última factura que figura es ${deuda}. "
+                    "Podés ver pagos y gestiones en ov.batan.coop. "
+                    "¿Necesitás abonar o algo más?"
+                )
+                ctx["intencion"] = "facturacion"
+                ctx["saludo"] = True
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+            elif estado == "baja":
                 resp = (
                     f"Te ubiqué, {nombre}: la cuenta figura «de baja» en el padrón. "
                     "Igual puedo ayudarte (reactivación, factura, o un trámite). "
@@ -706,6 +740,10 @@ def procesar_mensaje_entrante(
                     f"Listo {nombre}, ya te identifiqué. "
                     "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
                 )
+            if not pedi_saldo:
+                ctx["saludo"] = True
+                crepo.set_contexto(conv, ctx)
+                db.commit()
             _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
             return {
                 "ok": True,
@@ -938,6 +976,38 @@ def procesar_mensaje_entrante(
                 "respuesta": saludo,
                 "estado": conv.estado,
                 "abonado": crepo.abonado_to_dict(abonado),
+            }
+
+    # Saldo/deuda con cuenta identificada: dato del padrón, sin triaje LLM.
+    if abonado:
+        from app.services.diagnostico_n1 import _cliente_consulta_saldo
+
+        if _cliente_consulta_saldo(texto):
+            deuda = str(abonado.deuda_monto or "0").strip() or "0"
+            nota_baja = (
+                " (la cuenta figura «de baja» en el padrón)."
+                if (abonado.estado or "").lower() == "baja"
+                else ""
+            )
+            resp = (
+                f"El saldo / última factura que figura es ${deuda}.{nota_baja} "
+                "Podés ver pagos y gestiones en ov.batan.coop. "
+                "¿Necesitás abonar o algo más?"
+            )
+            ctx["intencion"] = "facturacion"
+            ctx["saludo"] = True
+            ctx.pop("invitado", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "abonado": crepo.abonado_to_dict(abonado),
+                "intencion": "facturacion",
             }
 
     # Corte por deuda automático si aplica

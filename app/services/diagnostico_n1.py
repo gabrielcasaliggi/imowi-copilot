@@ -356,7 +356,28 @@ def _cliente_pide_pagar(texto: str) -> bool:
 
 
 def _cliente_consulta_saldo(texto: str) -> bool:
-    t = (texto or "").lower()
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    if not t:
+        return False
+    # Respuestas cortas típicas tras “¿qué necesitás?”
+    if t in (
+        "saldo",
+        "el saldo",
+        "mi saldo",
+        "deuda",
+        "la deuda",
+        "mi deuda",
+        "el monto",
+        "monto",
+        "la factura",
+        "factura",
+    ):
+        return True
+    if "saldo" in t and any(
+        k in t for k in ("quiero", "necesito", "solo", "decime", "pasame", "saber", "consultar", "ver")
+    ):
+        return True
     return any(
         k in t
         for k in (
@@ -372,6 +393,8 @@ def _cliente_consulta_saldo(texto: str) -> bool:
             "monto de la factura",
             "saldo de la factura",
             "saldo de mi",
+            "saldo de cuenta",
+            "saldo de la cuenta",
             "qué me vino",
             "que me vino",
             "cuanto me cobraron",
