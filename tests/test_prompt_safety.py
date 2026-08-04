@@ -171,6 +171,32 @@ def test_detectar_falla_optica_helpers():
     assert detectar_falla_optica_escalar("hola", []) is None
 
 
+def test_facturacion_saldo_y_web_ov_batan():
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    ctx = (
+        "CONTEXTO_ABONADO (datos reales del sistema; usalos solo si aportan):\n"
+        "- modo: identificado\n"
+        "- nombre: Armando\n"
+        "- deuda_monto: 86479.89\n"
+    )
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[],
+        mensaje_cliente=(
+            "Queria saber cuanto me vino en mi factura de internet "
+            "y cual es la web para abonarla?"
+        ),
+        turnos_diagnostico=0,
+        pasos_cubiertos=[],
+        contexto_abonado=ctx,
+    )
+    assert out["motivo"] == "facturacion_saldo_y_web_pago"
+    assert "86479.89" in (out.get("mensaje") or "")
+    assert "ov.batan.coop" in (out.get("mensaje") or "").lower()
+
+
 def test_facturacion_saldo_y_pago_sin_inventar_cbu():
     from app.services.diagnostico_n1 import diagnosticar_turno
 

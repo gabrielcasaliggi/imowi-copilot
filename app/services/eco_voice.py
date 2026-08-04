@@ -20,7 +20,8 @@ def _mask_dni(dni: str) -> str:
 
 # Plantilla fija N1 pagos — no depende del LLM (evita inventar CBU/adjuntos).
 PLANTILLA_PAGO_QR = (
-    "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+    "Podés abonar desde la oficina virtual ov.batan.coop "
+    "o con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
     "Cuando se acredita, el servicio se reactiva solo. "
     "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. "
     "¿Pudiste pagar o necesitás que te ubique la cuenta?"

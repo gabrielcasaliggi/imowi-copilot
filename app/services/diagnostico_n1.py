@@ -528,6 +528,32 @@ def _facturacion_deterministica(
         }
 
     if identificado and saldo is not None and _cliente_consulta_saldo(mensaje_cliente):
+        web = any(
+            k in t
+            for k in (
+                "web",
+                "pagina",
+                "página",
+                "link",
+                "sitio",
+                "ov.batan",
+                "oficina virtual",
+                "donde pago",
+                "dónde pago",
+                "para abonar",
+                "abonar",
+            )
+        )
+        if web or _cliente_pide_pagar(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    f"El saldo / última factura que figura es ${saldo}. "
+                    f"{PLANTILLA_PAGO_QR}"
+                ),
+                "paso_cubierto": "informar_saldo_y_pago",
+                "motivo": "facturacion_saldo_y_web_pago",
+            }
         return {
             "accion": "ask",
             "mensaje": (

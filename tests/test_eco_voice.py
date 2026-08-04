@@ -82,6 +82,8 @@ def test_doble_tema_y_prioridad():
         detectar_temas_duales,
         pide_humano,
         resolver_prioridad_tema,
+        clasificar_intencion,
+        parece_consulta_nueva,
     )
 
     msg = "hola internet anda cada vez peor y encima me vino aumento en la fatura"
@@ -90,6 +92,21 @@ def test_doble_tema_y_prioridad():
     assert resolver_prioridad_tema("el aumento") == "facturacion"
     assert pide_humano("que me atiendan ya") is True
     assert pide_humano("quiero un asesor") is True
+
+    # "factura de internet" NO es doble tema técnico+factura
+    solo_factura = (
+        "Queria saber cuanto me vino en mi factura de internet "
+        "y cual es la web para abonarla?"
+    )
+    assert detectar_temas_duales(solo_factura) == ["facturacion"]
+    assert clasificar_intencion(solo_factura) == "facturacion"
+
+    # Negar técnico no es pedido de agente
+    corr = "no es un problema tecnico, necesito saber cuanto me vino en la factura"
+    assert pide_humano(corr) is False
+    assert parece_consulta_nueva(corr) is True
+    assert clasificar_intencion(corr) == "facturacion"
+    assert pide_humano("mandame un tecnico") is True
 
 
 def test_bloquea_handoff_y_pago_prematuro(monkeypatch):

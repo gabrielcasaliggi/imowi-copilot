@@ -454,6 +454,13 @@ def parece_consulta_nueva(texto: str) -> bool:
         "otra consulta",
         "en realidad es por",
         "ahora es por",
+        "no es un problema tecnico",
+        "no es un problema técnico",
+        "necesito saber cuanto",
+        "necesito saber cuánto",
+        "queria saber cuanto",
+        "quería saber cuánto",
+        "queria saber cuanto",
     )
     return any(k in t for k in aperturas)
 
@@ -589,6 +596,22 @@ def es_paso_derivacion(paso: PasoPlaybook | None) -> bool:
 
 def pide_humano(texto: str) -> bool:
     t = (texto or "").lower()
+    # Negaciones frecuentes: no son pedido de agente/técnico.
+    for neg in (
+        "no es un problema tecnico",
+        "no es un problema técnico",
+        "no es problema tecnico",
+        "no es problema técnico",
+        "no es tecnico",
+        "no es técnico",
+        "no quiero tecnico",
+        "no quiero técnico",
+        "no necesito tecnico",
+        "no necesito técnico",
+        "sin tecnico",
+        "sin técnico",
+    ):
+        t = t.replace(neg, " ")
     return any(
         k in t
         for k in (
@@ -655,14 +678,36 @@ def detectar_temas_duales(texto: str) -> list[str]:
     Retorna p.ej. ['tecnico', 'facturacion'] cuando hay ambos.
     """
     t = (texto or "").lower().replace("fatura", "factura")
-    tecnico = any(
+
+    # "factura de internet" / "cuánto me vino ... internet" = factura del servicio,
+    # no falla técnica + factura a la vez.
+    factura = any(
         k in t
         for k in (
-            "internet",
+            "factura",
+            "factur",
+            "aumento",
+            "aumentó",
+            "boleta",
+            "tarifa",
+            "cobro",
+            "saldo",
+            "deuda",
+            "pago",
+            "abonar",
+            "más cara",
+            "mas cara",
+            "subió",
+            "subio",
+            "cuanto me vino",
+            "cuánto me vino",
+        )
+    )
+    sintomas_tecnicos = any(
+        k in t
+        for k in (
             "wifi",
             "wi-fi",
-            "conexión",
-            "conexion",
             "señal",
             "senal",
             "router",
@@ -680,6 +725,19 @@ def detectar_temas_duales(texto: str) -> list[str]:
             "corte de línea",
             "sin servicio",
             "cajita",
+            "sin internet",
+            "se corta",
+            "reiniciar",
+        )
+    )
+    # Mención de "internet"/IMOWI solo cuenta como técnico si hay síntoma
+    # o si NO hay marco de factura/pago.
+    menciona_servicio = any(
+        k in t
+        for k in (
+            "internet",
+            "conexión",
+            "conexion",
             "imowi",
             "imovi",
             "móvil",
@@ -690,25 +748,8 @@ def detectar_temas_duales(texto: str) -> list[str]:
             "5g",
         )
     )
-    factura = any(
-        k in t
-        for k in (
-            "factura",
-            "factur",
-            "aumento",
-            "aumentó",
-            "boleta",
-            "tarifa",
-            "cobro",
-            "saldo",
-            "deuda",
-            "pago",
-            "más cara",
-            "mas cara",
-            "subió",
-            "subio",
-        )
-    )
+    tecnico = sintomas_tecnicos or (menciona_servicio and not factura)
+
     out: list[str] = []
     if tecnico:
         out.append("tecnico")
