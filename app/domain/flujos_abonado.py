@@ -280,6 +280,9 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "mi cuenta", "saldo de cuenta", "cómo está mi cuenta", "como esta mi cuenta",
         "aumento", "aumentó", "más cara", "mas cara", "subió", "subio",
         "cobro de más", "cobro de mas", "me cobraron de más", "me cobraron de mas",
+        "si tengo deuda", "tengo deuda", "cuanto debo", "cuánto debo",
+        "si debo", "hay deuda", "consultar deuda", "consultar saldo",
+        "saber si tengo", "ver mi saldo", "ver el saldo",
     )):
         return "facturacion"
 

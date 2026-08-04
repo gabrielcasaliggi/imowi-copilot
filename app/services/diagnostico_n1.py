@@ -504,6 +504,21 @@ def _facturacion_deterministica(
     saldo = _saldo_desde_contexto(contexto_abonado) if identificado else None
     t = (mensaje_cliente or "").lower().strip()
 
+    # Invitado: sin cuenta no hay saldo; pedir DNI (no llamar al LLM).
+    if not identificado and (
+        _cliente_consulta_saldo(mensaje_cliente)
+        or any(k in t for k in ("deuda", "saldo", "factura", "cuanto debo", "cuánto debo"))
+    ):
+        return {
+            "accion": "ask",
+            "mensaje": (
+                "En modo invitado no veo tu cuenta. "
+                "Pasame tu DNI (solo el número) y te digo el saldo de la última factura."
+            ),
+            "paso_cubierto": "pedir_dni_saldo",
+            "motivo": "facturacion_invitado_pide_dni",
+        }
+
     if identificado and _cierra_consulta_facturacion(mensaje_cliente):
         return {
             "accion": "resolved",

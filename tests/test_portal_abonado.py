@@ -95,11 +95,40 @@ def test_portal_pide_agente():
     assert listed.status_code == 200
 
 
-def test_portal_session_por_telefono_ya_no_identifica():
-    """Regresión: teléfono/DNI en /session no otorgan identidad."""
-    r = client.post(
-        "/api/v1/portal/session",
-        json={"telefono": "5492235551234", "org_slug": "coop-batan"},
-    )
+def test_portal_guest_mensaje_deuda_no_500(monkeypatch):
+    """Regresión: invitado + consulta deuda no debe NameError por dni."""
+    from unittest.mock import patch
+
+    from fastapi.testclient import TestClient
+
+    from main import app
+
+    client = TestClient(app)
+
+    def fake_llm(*_a, **_k):
+        raise AssertionError("invitado+deuda no debería necesitar LLM")
+
+    r = client.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})
     assert r.status_code == 200
-    assert r.json()["abonado_identificado"] is False
+    token = r.json()["portal_token"]
+
+    with patch("app.llm.chat_completion", side_effect=fake_llm):
+        msg = client.post(
+            "/api/v1/portal/messages",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"texto": "Necesito saber si tengo deuda"},
+        )
+    assert msg.status_code == 200, msg.text
+    body = msg.json()
+    assert body.get("ok") is True
+    resp = (body.get("respuesta") or "").lower()
+    if not resp:
+        bots = [
+            m.get("texto", "")
+            for m in (body.get("mensajes") or [])
+            if m.get("autor") == "bot"
+        ]
+        resp = (bots[-1] if bots else "").lower()
+    assert "dni" in resp
+    assert "fiserv" not in resp
+    assert "internal server" not in resp

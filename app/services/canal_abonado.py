@@ -846,6 +846,7 @@ def procesar_mensaje_entrante(
 
     # Identificación — portal/web continúa como invitado si no hay match
     if not abonado:
+        dni = _extraer_dni(texto)
         abonado = _intentar_identificar_por_dni(db, org_id, texto)
         if abonado:
             conv.abonado_id = abonado.id
@@ -1050,9 +1051,11 @@ def procesar_mensaje_entrante(
                     f"y saldo pendiente ${abonado.deuda_monto}. {PLANTILLA_PAGO_QR}"
                 )
             else:
+                # Invitado: no inventar saldo ni soltar QR sin cuenta.
                 pregunta = (
-                    "Puede haber un saldo pendiente o el servicio limitado. "
-                    f"{PLANTILLA_PAGO_QR}"
+                    "En modo invitado no veo tu cuenta. "
+                    "Pasame tu DNI (solo el número) y te digo si hay saldo pendiente "
+                    "y cómo abonar."
                 )
             _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
             return {

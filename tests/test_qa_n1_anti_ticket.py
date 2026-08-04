@@ -153,12 +153,14 @@ def test_reiteracion_temprana_no_ticket():
     assert not r3.get("ticket_id")
 
 
-def test_corte_deuda_invitado_menciona_qr():
+def test_corte_deuda_invitado_pide_dni():
+    """Invitado con corte/pago: pedir DNI; no inventar saldo ni soltar QR a ciegas."""
     token = _guest_portal()
     data = _portal_msg(token, "Me cortaron el servicio por falta de pago, como pago?")
     assert data.get("ok") is True
     resp = (data.get("respuesta") or "").lower()
-    assert "qr" in resp or "fiserv" in resp or "mercado pago" in resp
+    assert "dni" in resp
+    assert "fiserv" not in resp
     assert not data.get("ticket_id")
 
 
