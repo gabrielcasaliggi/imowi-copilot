@@ -101,11 +101,13 @@ def _intentar_identificar_por_dni(
 
 
 def _deuda_positiva(abonado: Abonado) -> bool:
-    try:
-        return float(str(abonado.deuda_monto).replace(",", ".").replace("$", "")) > 0
-    except ValueError:
-        return abonado.estado in ("corte", "suspendido")
+    """True si el padrón indica deuda. BillTrack: balance negativo = debe."""
+    from app.services.eco_voice import parse_monto
 
+    m = parse_monto(getattr(abonado, "deuda_monto", None))
+    if m is None:
+        return abonado.estado in ("corte", "suspendido")
+    return m < 0
 
 def _pide_pago_o_reactivar(texto: str) -> bool:
     t = (texto or "").lower()
@@ -137,8 +139,8 @@ def _deberia_priorizar_corte_deuda(
 ) -> bool:
     """Solo cobro/QR si el usuario habla de pagar/corte, o la cuenta está cortada.
 
-    Un saldo > 0 en BillTrack (billing_balance) NO alcanza: puede ser factura vigente
-    o un reclamo de aumento, no un corte por mora.
+    Un saldo distinto de 0 en BillTrack (billing_balance) NO alcanza: puede ser
+    factura vigente o un reclamo de aumento, no un corte por mora.
     """
     if not abonado:
         return False

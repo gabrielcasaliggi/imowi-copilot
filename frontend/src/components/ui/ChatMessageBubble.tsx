@@ -7,17 +7,31 @@ import { EcoAvatar } from "@/components/ui/EcoAvatar";
 
 type AutorKind = "cliente" | "bot" | "agente" | string;
 
-/** Detecta http(s) URLs y las vuelve <a> clickeables (portal + inbox). */
-const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
+/** Detecta http(s) URLs (incl. hash routes tipo /#/pagar). */
+const URL_RE = /(https?:\/\/[^\s<>"'`]+)/g;
 
 function trimUrlTrailingPunct(url: string): { href: string; trailing: string } {
   let href = url;
   let trailing = "";
-  while (href && /[.,;:!?]$/.test(href)) {
+  while (href && /[.,;:!?)]$/.test(href)) {
     trailing = href.slice(-1) + trailing;
     href = href.slice(0, -1);
   }
   return { href, trailing };
+}
+
+function ChatLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="chat-msg-link"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {href}
+    </a>
+  );
 }
 
 export function linkifyText(text: string): ReactNode[] {
@@ -32,17 +46,7 @@ export function linkifyText(text: string): ReactNode[] {
     }
     const { href, trailing } = trimUrlTrailingPunct(raw);
     if (href) {
-      nodes.push(
-        <a
-          key={`url-${key++}`}
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-ecolan-brand underline underline-offset-2 break-all hover:text-ecolan-brand-dark transition-colors"
-        >
-          {href}
-        </a>,
-      );
+      nodes.push(<ChatLink key={`url-${key++}`} href={href} />);
     }
     if (trailing) nodes.push(trailing);
     last = idx + raw.length;
@@ -51,6 +55,35 @@ export function linkifyText(text: string): ReactNode[] {
     nodes.push(text.slice(last));
   }
   return nodes.length > 0 ? nodes : [text];
+}
+
+/** Renderiza el cuerpo: líneas que son solo URL → link destacado. */
+export function renderMessageBody(text: string): ReactNode {
+  const raw = text || "";
+  const lines = raw.split("\n");
+  if (lines.length <= 1 && !/^https?:\/\//i.test(raw.trim())) {
+    return linkifyText(raw);
+  }
+
+  return lines.map((line, i) => {
+    const trimmed = line.trim();
+    const isUrlLine = /^https?:\/\//i.test(trimmed);
+    if (isUrlLine) {
+      const { href } = trimUrlTrailingPunct(trimmed);
+      return (
+        <span key={`line-${i}`} className="block my-1.5">
+          <ChatLink href={href} />
+          {i < lines.length - 1 ? "\n" : null}
+        </span>
+      );
+    }
+    return (
+      <span key={`line-${i}`}>
+        {linkifyText(line)}
+        {i < lines.length - 1 ? "\n" : null}
+      </span>
+    );
+  });
 }
 
 function originLabel(autor: AutorKind, portal?: boolean): string {
@@ -114,9 +147,9 @@ export function ChatMessageBubble({
           </span>
         )}
       </div>
-      <p className="whitespace-pre-wrap leading-relaxed text-[13px] text-slate-100/95">
-        {linkifyText(message.texto || "")}
-      </p>
+      <div className="whitespace-pre-wrap leading-relaxed text-[13px] text-slate-100/95">
+        {renderMessageBody(message.texto || "")}
+      </div>
     </div>
   );
 

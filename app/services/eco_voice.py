@@ -80,26 +80,36 @@ def mensaje_saldo_padron(
     incluir_ov: bool = True,
     nota_extra: str = "",
 ) -> str:
-    """Texto claro de saldo (deuda / a favor / cero) + links OV opcionales."""
+    """Texto claro de saldo + links OV.
+
+    Convención BillTrack / Batán:
+      - negativo → debe ese monto
+      - positivo → saldo a favor
+      - 0 → sin deuda
+    """
     monto = parse_monto(deuda_raw)
+    debe = False
     if monto is None:
         body = f"El saldo / última factura que figura es ${deuda_raw}."
     elif monto < 0:
+        debe = True
         body = (
-            f"Tenés un saldo a favor de ${formatear_monto_ars(abs(monto))} "
-            "(no figuran deudas pendientes)."
+            f"El saldo / última factura pendiente es ${formatear_monto_ars(abs(monto))}."
         )
     elif monto == 0:
         body = "No figuran deudas pendientes (saldo $0)."
     else:
-        body = f"El saldo / última factura pendiente es ${formatear_monto_ars(monto)}."
+        body = (
+            f"Tenés un saldo a favor de ${formatear_monto_ars(monto)} "
+            "(no figuran deudas pendientes)."
+        )
 
     partes = [body]
     if (nota_extra or "").strip():
         partes.append(nota_extra.strip())
     if incluir_ov:
         partes.append(TEXTO_OV_GESTIONES)
-        if monto is not None and monto > 0:
+        if debe:
             partes.append("¿Necesitás abonar o algo más?")
         else:
             partes.append("¿Necesitás algo más?")
