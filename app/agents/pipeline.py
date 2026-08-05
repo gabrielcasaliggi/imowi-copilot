@@ -7,14 +7,17 @@ from sqlalchemy.orm import Session
 from app.agents import diagnostico as ag_diag
 from app.agents import orquestacion as ag_orch
 from app.agents import triaje as ag_triaje
-from app.estate import repository as repo
-from app.services import clasificador
 from app.domain.flujos_operativos import traza_flujo
+from app.estate import repository as repo
+from app.services import clasificador, piloto_metricas
 from app.services.intenciones_seguimiento import construir_resumen
 from app.services.motor_conversacional import ACCIONES_SEGUIMIENTO, procesar_turno_conversacional
 from app.services.prefilter import analizar_relevancia
-from app.services.seguimiento_ticket import _detectar_pasos_completados, registrar_avances_en_ticket, serializar_timeline
-from app.services import piloto_metricas
+from app.services.seguimiento_ticket import (
+    _detectar_pasos_completados,
+    registrar_avances_en_ticket,
+    serializar_timeline,
+)
 from app.services.ticket_contexto import (
     enriquecer_clasificacion_con_hechos,
     persistir_datos_sms_en_ticket,

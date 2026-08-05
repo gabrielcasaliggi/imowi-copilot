@@ -1,6 +1,5 @@
 """Tests de contexto SMS en tickets y respuesta proactiva."""
 
-import pytest
 
 from app.services.ticket_contexto import (
     enriquecer_clasificacion_con_hechos,

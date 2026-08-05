@@ -7,12 +7,13 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
 from app.domain.flujos_abonado import (
     clasificar_intencion,
     contiene_sintoma_canal,
     declara_solo_movil_sin_fijo,
-    detectar_temas_duales,
     detecta_frustracion,
+    detectar_temas_duales,
     es_escape_agente,
     es_paso_derivacion,
     es_saludo_corto,
@@ -25,21 +26,19 @@ from app.domain.flujos_abonado import (
     refinar_intencion_internet,
     registrar_queja,
     resolver_prioridad_tema,
-    resumen_handoff,
     respuesta_paso_ok,
+    resumen_handoff,
     tag_para_intencion,
 )
 from app.estate import canal_repo as crepo
 from app.estate.models import Abonado, ConversacionCanal
 from app.services import ticket_bridge
 from app.services.diagnostico_n1 import diagnosticar_turno, es_intencion_diagnostico
+from app.services.eco_voice import mensaje_saldo_padron
 from app.services.platform_settings import playbooks_as_pasos, resolve_canal_diagnostico_ia
 from app.services.whatsapp_client import enviar_texto
-from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
 
 logger = logging.getLogger("operations_hub")
-
-from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
 
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 

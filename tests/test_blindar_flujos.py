@@ -44,7 +44,7 @@ def test_linea_sin_jsc_no_bloquea_flujo():
 
 def test_flujo_activo_no_pide_dni():
     hechos = {}
-    flujo = evaluar_flujo(hechos, "sin datos en Brasil, linea 2235551234")
+    _flujo = evaluar_flujo(hechos, "sin datos en Brasil, linea 2235551234")
     resp = respuesta_por_estado(
         EstadoConversacion.TICKET_CREADO,
         datos={"linea": "2235551234", "sintoma": "sin datos en Brasil"},
@@ -104,7 +104,10 @@ def test_pregunta_creaste_ticket_responde_estado_real():
 
 
 def test_no_funciona_no_marca_datos_ok_al_responder_gracias():
-    from app.services.intenciones_seguimiento import extraer_hechos_conversacion, detectar_intencion_seguimiento
+    from app.services.intenciones_seguimiento import (
+        detectar_intencion_seguimiento,
+        extraer_hechos_conversacion,
+    )
     from app.services.respuestas_conversacion import respuesta_por_estado
 
     hist = [
@@ -138,7 +141,10 @@ def test_no_funciona_no_marca_datos_ok_al_responder_gracias():
 
 
 def test_correccion_persistencia_no_cierra_ticket():
-    from app.services.intenciones_seguimiento import extraer_hechos_conversacion, detectar_intencion_seguimiento
+    from app.services.intenciones_seguimiento import (
+        detectar_intencion_seguimiento,
+        extraer_hechos_conversacion,
+    )
     from app.services.respuestas_conversacion import respuesta_por_estado
 
     hist = [
@@ -178,8 +184,8 @@ def test_correccion_persistencia_no_cierra_ticket():
 
 
 def test_reclamo_vago_luego_uruguay_avanza_roaming():
-    from app.services.intenciones_seguimiento import extraer_hechos_conversacion
     from app.agents.triaje import extraer_datos
+    from app.services.intenciones_seguimiento import extraer_hechos_conversacion
 
     hist = [
         {"rol": "usuario", "contenido": "tengo un problema con la linea 2235402692"},

@@ -22,7 +22,6 @@ def respuesta_por_estado(
 ) -> str | None:
     """Retorna respuesta lista o None si conviene usar IA."""
     clasif = clasificacion or {}
-    diag = diagnostico or {}
     accion = clasif.get("accion", "")
     hechos = hechos or {}
     ticket_ctx = ticket or ticket_existente
@@ -142,7 +141,7 @@ def respuesta_por_estado(
             if (ticket_ctx or {}).get("estado") == "Cerrado":
                 return f"El ticket {tid} ya está cerrado con la solución registrada." if tid else "La solución ya quedó registrada."
             return (
-                f"Datos y llamadas quedaron OK; el caso parece resuelto."
+                "Datos y llamadas quedaron OK; el caso parece resuelto."
                 + (f" ¿Cerramos el ticket {tid}?" if tid else "")
             )
         if tid and flujo.get("completado"):

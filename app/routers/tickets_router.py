@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app import tickets_store
 from app.auth import UsuarioSesion, obtener_usuario_requerido, requiere_admin
 from app.models import Ticket, TicketUpdateInput
-from app import tickets_store
 
 router = APIRouter(prefix="/api", tags=["Tickets"])
 

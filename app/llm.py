@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from openai import OpenAI
 from fastapi import HTTPException
+from openai import OpenAI
 
 from app.config import AI_API_KEY, AI_BASE_URL, AI_MODEL
 

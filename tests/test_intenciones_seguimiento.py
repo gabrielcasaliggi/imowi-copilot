@@ -354,7 +354,11 @@ def test_sms_recupera_flujo_con_senal_persistida_en_hechos():
 
 
 def test_funciona_bien_excepto_sms_no_cierra_caso():
-    from app.domain.conversacion import PolaridadMensaje, clasificar_polaridad, usuario_confirmo_resolucion
+    from app.domain.conversacion import (
+        PolaridadMensaje,
+        clasificar_polaridad,
+        usuario_confirmo_resolucion,
+    )
 
     hist = [
         {"rol": "usuario", "contenido": "linea 2234567890 no recibe sms de apple"},
@@ -369,10 +373,10 @@ def test_funciona_bien_excepto_sms_no_cierra_caso():
 
 
 def test_confirmo_persistencia_sms_marca_escalamiento():
-    from app.services.decision_engine import evaluar_crear_ticket
-    from app.services.turn_understanding import interpretar_turno_hibrido, fusionar_hechos_turno
-    from app.domain.flujos_operativos import evaluar_flujo
     from app.agents.triaje import extraer_datos
+    from app.domain.flujos_operativos import evaluar_flujo
+    from app.services.decision_engine import evaluar_crear_ticket
+    from app.services.turn_understanding import fusionar_hechos_turno, interpretar_turno_hibrido
 
     hist = [
         {"rol": "usuario", "contenido": "linea 2234567890 no recibe sms de apple"},

@@ -5,7 +5,11 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.estate import repository as repo
-from app.estate.learning_loop import cierre_positivo, crear_propuesta_kb_desde_ticket, procesar_cierre_ticket
+from app.estate.learning_loop import (
+    cierre_positivo,
+    crear_propuesta_kb_desde_ticket,
+    procesar_cierre_ticket,
+)
 from main import app
 from tests.conftest import add_ticket
 

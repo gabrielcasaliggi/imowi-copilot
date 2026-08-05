@@ -359,7 +359,10 @@ def detectar_intencion_normalizada(
     if h.get("resuelto") and _contiene_patron(tl, _PATRONES_RESUELTO):
         return {"tipo": "caso_resuelto", "confianza": 0.85, "fuente": "reglas"}
 
-    from app.domain.conversacion import mensaje_indica_persistencia_parcial, operador_confirmo_persistencia_explicita
+    from app.domain.conversacion import (
+        mensaje_indica_persistencia_parcial,
+        operador_confirmo_persistencia_explicita,
+    )
 
     if mensaje_indica_persistencia_parcial(tl) or operador_confirmo_persistencia_explicita(tl):
         return {"tipo": "persistencia", "confianza": 0.9, "fuente": "reglas"}
@@ -411,7 +414,10 @@ def extraer_hechos_normalizados(msg: str, *, ultimo_bot: str = "") -> dict[str, 
     if _contiene_patron(t, _PATRONES_PERSISTENCIA + _PATRONES_CORRECCION):
         out["resuelto"] = False
 
-    from app.domain.conversacion import mensaje_indica_persistencia_parcial, operador_confirmo_persistencia_explicita
+    from app.domain.conversacion import (
+        mensaje_indica_persistencia_parcial,
+        operador_confirmo_persistencia_explicita,
+    )
 
     if mensaje_indica_persistencia_parcial(t) or operador_confirmo_persistencia_explicita(t):
         out["resuelto"] = False

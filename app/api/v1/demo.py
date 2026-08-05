@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context
 from app.api.v1.schemas import TenantContext
-from app.domain.demo_validacion import CHECKLIST_GENERAL_IMOWI, listar_escenarios_demo, obtener_escenario_demo
+from app.domain.demo_validacion import (
+    CHECKLIST_GENERAL_IMOWI,
+    listar_escenarios_demo,
+    obtener_escenario_demo,
+)
 from app.estate import repository as repo
 from app.estate.database import get_db
 from app.services import piloto_metricas

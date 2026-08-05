@@ -35,7 +35,7 @@ def _kb_defaults() -> dict:
         }
 
 # ─── Estado global (cargado en startup) ───
-_bloques: list["BloqueConocimiento"] = []
+_bloques: list[BloqueConocimiento] = []
 _indice_invertido: dict[str, set[int]] = {}
 _cargado: bool = False
 _fuentes: list[Path] = []
@@ -343,7 +343,6 @@ def buscar_contexto(
         candidatos_idx.update(_indice_invertido.get(token, ()))
 
     if not candidatos_idx:
-        norm_consulta = _normalizar_texto(consulta)
         for token in query_tokens:
             if len(token) < 4:
                 continue

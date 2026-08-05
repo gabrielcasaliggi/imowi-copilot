@@ -3,6 +3,10 @@
 import pytest
 
 from app.domain.flujos_operativos import evaluar_flujo
+from app.services.intenciones_seguimiento import (
+    detectar_intencion_seguimiento,
+    extraer_hechos_conversacion,
+)
 from app.services.interprete_conversacional import (
     aplicar_interpretacion,
     detectar_intencion_normalizada,
@@ -10,7 +14,6 @@ from app.services.interprete_conversacional import (
     necesita_interpretacion_ia,
     perfil_operador,
 )
-from app.services.intenciones_seguimiento import detectar_intencion_seguimiento, extraer_hechos_conversacion
 
 
 @pytest.mark.parametrize(

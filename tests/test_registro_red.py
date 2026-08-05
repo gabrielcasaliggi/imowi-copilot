@@ -3,8 +3,6 @@
 from app.domain.flujos_operativos import evaluar_flujo, sintoma_cambio_categoria
 from app.services.intenciones_seguimiento import detectar_intencion_seguimiento
 from app.services.motor_conversacional import procesar_turno_conversacional
-from app.services.respuestas_conversacion import respuesta_por_estado
-from app.domain.conversacion import EstadoConversacion
 from tests.conftest import add_ticket
 
 

@@ -247,7 +247,7 @@ def _extract_json(text: str) -> dict[str, Any]:
         start = raw.find("{")
         end = raw.rfind("}")
         if start < 0 or end <= start:
-            raise ValueError("JSON inválido")
+            raise ValueError("JSON inválido") from None
         data = json.loads(raw[start : end + 1])
     if not isinstance(data, dict):
         raise ValueError("JSON raíz debe ser objeto")

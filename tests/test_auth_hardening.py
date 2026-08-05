@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from main import app
 from app.services import email as email_svc
+from main import app
 
 client = TestClient(app)
 
@@ -132,13 +132,14 @@ def test_portal_otp_flow_and_cross_token():
 
 
 def test_portal_anti_enum():
+    """DNIs inexistentes deben fallar con el mismo mensaje genérico (sin filtrar existencia)."""
     r1 = client.post(
         "/api/v1/portal/auth/start",
-        json={"dni": "99999999", "org_slug": "coop-batan"},
+        json={"dni": "00000001", "org_slug": "coop-batan"},
     )
     r2 = client.post(
         "/api/v1/portal/auth/start",
-        json={"dni": "32123456", "org_slug": "coop-batan"},  # inactivo en mock
+        json={"dni": "00000002", "org_slug": "coop-batan"},
     )
     assert r1.status_code == 400
     assert r2.status_code == 400

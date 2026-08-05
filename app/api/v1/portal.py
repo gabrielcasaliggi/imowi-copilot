@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from app.config import (
     BOT_DISPLAY_NAME,
-    PRODUCT_DISPLAY_NAME,
     OTP_LENGTH,
     OTP_MAX_ATTEMPTS,
     OTP_TTL_MINUTES,
@@ -21,6 +20,7 @@ from app.config import (
     PORTAL_AUTH_SECRET,
     PORTAL_JWT_AUD,
     PORTAL_TOKEN_HOURS,
+    PRODUCT_DISPLAY_NAME,
     WHATSAPP_DEFAULT_ORG_SLUG,
     es_produccion,
 )

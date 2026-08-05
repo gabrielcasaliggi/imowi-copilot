@@ -6,7 +6,6 @@ from app.domain.flujos_operativos import PASO_LABELS
 from app.estate import repository as repo
 from app.services.intenciones_seguimiento import construir_resumen
 
-
 # (paso_id, clave_hecho, valor_esperado). valor_esperado=None => cualquier valor nuevo distinto de ausente.
 _AVANCES: tuple[tuple[str, str, object], ...] = (
     ("roaming_datos_moviles", "datos_moviles_activos", True),

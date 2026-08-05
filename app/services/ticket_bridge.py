@@ -61,8 +61,8 @@ def crear_ticket(
     )
     if es_mirror_supabase_activo():
         try:
-            from app.models import GuardarTicketInput
             from app import tickets_supabase as sb
+            from app.models import GuardarTicketInput
 
             coop = _cooperativa_nombre(db, org_id)
             sb.crear_ticket(

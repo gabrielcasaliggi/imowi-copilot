@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context
 from app.api.v1.schemas import TenantContext
+from app.estate import repository as repo
 from app.estate.database import get_db
 from app.jsc import connector as jsc
-from app.estate import repository as repo
 
 router = APIRouter(tags=["JSC"])
 

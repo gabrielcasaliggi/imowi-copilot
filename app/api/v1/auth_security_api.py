@@ -9,9 +9,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import UsuarioSesion, bump_token_version, logout_sesion, obtener_usuario_requerido, requiere_admin
 from app.api.v1.deps import require_permiso
 from app.api.v1.schemas import TenantContext
+from app.auth import (
+    UsuarioSesion,
+    logout_sesion,
+    obtener_usuario_requerido,
+    requiere_admin,
+)
 from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db

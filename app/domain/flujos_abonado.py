@@ -553,10 +553,6 @@ def respuesta_paso_ok(texto: str) -> bool | None:
         "mejoro", "mejoró", "volvio", "volvió", "anda", "funciona",
         "anduvo", "perfecto", "genial",
     )
-    palabras_fail = (
-        "no", "sigue", "persiste", "igual", "nada", "falla", "mal",
-        "sigue sin", "tampoco", "peor", "no funciona", "no anda",
-    )
     if any(p in t for p in ("no funciona", "no anda", "sigue sin", "tampoco", "peor")):
         return False
     if _token_en_texto(t, "no") or any(

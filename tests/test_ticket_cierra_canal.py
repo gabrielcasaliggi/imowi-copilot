@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi.testclient import TestClient
 
-from app.estate.database import get_session_factory
-from app.estate.models import Ticket
 from app.estate import canal_repo as crepo
 from app.estate import repository as repo
+from app.estate.database import get_session_factory
+from app.estate.models import Ticket
 from main import app
 from tests.conftest import add_ticket
 
@@ -97,7 +99,7 @@ def test_get_or_create_ignora_hilo_con_ticket_cerrado():
         t = add_ticket(
             db,
             org.id,
-            id="TK-CANAL-CLOSE-1",
+            id=f"TK-CANAL-CLOSE-{uuid.uuid4().hex[:8]}",
             linea=tel,
             descripcion_falla="test cierre canal",
             estado="Abierto",

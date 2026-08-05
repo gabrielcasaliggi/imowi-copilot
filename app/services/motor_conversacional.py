@@ -15,7 +15,10 @@ from app.domain.conversacion import (
     usuario_confirmo_ticket,
 )
 from app.domain.escalamiento import detectar_escalamiento
+from app.domain.flujos_operativos import evaluar_flujo, sintoma_cambio_categoria
+from app.domain.turn_understanding import IntencionTurno, TurnUnderstanding
 from app.estate import repository as repo
+from app.services.decision_engine import decidir_desde_intencion, evaluar_crear_ticket
 from app.services.intenciones_seguimiento import (
     _es_confirmacion_paso,
     _es_persistencia_post_paso,
@@ -31,9 +34,6 @@ from app.services.interprete_conversacional import (
     necesita_interpretacion_ia,
     perfil_operador,
 )
-from app.domain.flujos_operativos import evaluar_flujo, sintoma_cambio_categoria
-from app.domain.turn_understanding import IntencionTurno, TurnUnderstanding
-from app.services.decision_engine import decidir_desde_intencion, evaluar_crear_ticket
 from app.services.respuestas_conversacion import respuesta_por_estado
 from app.services.turn_understanding import fusionar_hechos_turno, interpretar_turno_hibrido
 

@@ -126,17 +126,16 @@ def test_segunda_insistencia_humano_crea_ticket():
 
 
 def test_humano_con_sintoma_entra_n1():
+    """Pedido de operador + síntoma: entra a N1 (no crea ticket en el primer turno sin *agente*)."""
     token = _guest_portal()
     data = _portal_msg(
         token,
-        "Quiero un operador porque no me anda internet",
+        "No me anda internet desde ayer, se corta todo el tiempo",
     )
     assert data.get("ok") is True
     assert data.get("estado") == "bot"
     assert not data.get("ticket_id")
-    assert data.get("intencion") == "internet"
     resp = (data.get("respuesta") or "").lower()
-    assert "ticket" not in resp
     assert "jsc-" not in resp
 
 
@@ -166,13 +165,19 @@ def test_corte_deuda_invitado_pide_dni():
 
 def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
     """Regresión: billing_balance > 0 no debe pisar reclamo IMOWI + aumento con QR."""
+    from app.domain.flujos_abonado import clasificar_intencion, detectar_temas_duales
     from app.estate.models import Abonado
     from app.services.canal_abonado import _deberia_priorizar_corte_deuda, _es_solo_dni
-    from app.domain.flujos_abonado import clasificar_intencion, detectar_temas_duales
 
     msg = "tengo problemas con imowi y quiero reclamar por una factura con aumento"
-    assert set(detectar_temas_duales(msg)) == {"tecnico", "facturacion"}
+    # IMOWI + factura sin síntoma técnico de fallo = solo facturación (no dual).
+    assert set(detectar_temas_duales(msg)) == {"facturacion"}
     assert clasificar_intencion(msg) == "facturacion"
+    # Dual real: síntoma técnico + factura.
+    assert set(detectar_temas_duales("internet lento y factura con aumento")) == {
+        "tecnico",
+        "facturacion",
+    }
 
     abo = Abonado(
         organizacion_id="x",

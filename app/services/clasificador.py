@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from app.domain.escalamiento import detectar_escalamiento
 from app.domain.taxonomia import (
-    AccionClasificacion,
     CARRIER_KEYWORDS,
+    PROVEEDORES,
+    AccionClasificacion,
     CategoriaIncidente,
     DestinoTicket,
     NivelTicket,
-    PROVEEDORES,
     ResultadoClasificacion,
     inferir_categoria,
 )

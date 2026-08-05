@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.services.diagnostico_n1 import diagnosticar_turno
 from app.services.prompt_safety import (
     format_historial_seguro,
     looks_like_jailbreak,
@@ -9,7 +10,6 @@ from app.services.prompt_safety import (
     with_anti_injection,
     wrap_untrusted,
 )
-from app.services.diagnostico_n1 import diagnosticar_turno
 
 
 def test_detecta_jailbreak_clasico():
@@ -172,7 +172,7 @@ def test_detectar_falla_optica_helpers():
 
 
 def test_facturacion_saldo_corto_identificado():
-    from app.services.diagnostico_n1 import diagnosticar_turno, _cliente_consulta_saldo
+    from app.services.diagnostico_n1 import _cliente_consulta_saldo, diagnosticar_turno
 
     assert _cliente_consulta_saldo("saldo") is True
     assert _cliente_consulta_saldo("solo quiero el saldo") is True
@@ -426,9 +426,9 @@ def test_facturacion_en_diagnostico_y_bloquea_dump_pagos(monkeypatch):
 
     from app.domain.flujos_abonado import clasificar_intencion
     from app.services.diagnostico_n1 import (
+        _parece_dump_pagos,
         diagnosticar_turno,
         es_intencion_diagnostico,
-        _parece_dump_pagos,
     )
 
     assert clasificar_intencion("quiero saber porque me vino la factura con aumento") == "facturacion"
@@ -466,9 +466,12 @@ def test_facturacion_en_diagnostico_y_bloquea_dump_pagos(monkeypatch):
         pasos_cubiertos=[],
     )
     assert out["accion"] == "ask"
-    assert out["motivo"] == "bloqueado_dump_pagos"
+    # Invitado: pide DNI antes del LLM; si llegara al dump, lo bloquea.
+    assert out["motivo"] in {"bloqueado_dump_pagos", "facturacion_invitado_pide_dni"}
     assert "fiserv" not in (out.get("mensaje") or "").lower()
-    assert "aumento" in (out.get("mensaje") or "").lower() or "?" in (out.get("mensaje") or "")
+    assert "dni" in (out.get("mensaje") or "").lower() or "aumento" in (
+        out.get("mensaje") or ""
+    ).lower() or "?" in (out.get("mensaje") or "")
 
 
 def test_facturacion_bloquea_invento_cbu_post_llm(monkeypatch):

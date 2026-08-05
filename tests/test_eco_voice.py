@@ -79,11 +79,11 @@ def test_system_prompt_incluye_empatia_y_json():
 
 def test_doble_tema_y_prioridad():
     from app.domain.flujos_abonado import (
+        clasificar_intencion,
         detectar_temas_duales,
+        parece_consulta_nueva,
         pide_humano,
         resolver_prioridad_tema,
-        clasificar_intencion,
-        parece_consulta_nueva,
     )
 
     msg = "hola internet anda cada vez peor y encima me vino aumento en la fatura"

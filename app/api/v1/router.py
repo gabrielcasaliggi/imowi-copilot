@@ -13,9 +13,9 @@ from app.api.v1 import (
     portal,
     rbac_api,
     telemetry,
+    templates,
     tenants,
     tickets,
-    templates,
     whatsapp,
 )
 

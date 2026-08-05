@@ -251,9 +251,10 @@ def create_user_for_org(
     linea_principal: str = "",
     must_change_password: bool | None = None,
 ) -> User:
-    from app.rbac import normalizar_rol_consola
     import secrets
     import string
+
+    from app.rbac import normalizar_rol_consola
 
     email_norm = email.strip().lower()
     if not valid_email(email_norm):

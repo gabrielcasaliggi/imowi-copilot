@@ -67,7 +67,7 @@ def _extract_json(text: str) -> dict[str, Any]:
         start = raw.find("{")
         end = raw.rfind("}")
         if start < 0 or end <= start:
-            raise ValueError("La IA no devolvió JSON válido")
+            raise ValueError("La IA no devolvió JSON válido") from None
         data = json.loads(raw[start : end + 1])
     if not isinstance(data, dict):
         raise ValueError("JSON raíz debe ser un objeto")
@@ -212,7 +212,7 @@ def convert_document_to_playbooks(db: Session | None, texto: str) -> dict[str, A
             fb = fallback_convert_from_text(texto)
         except ValueError:
             if isinstance(e, ValueError):
-                raise e
+                raise e from None
             raise ValueError(
                 f"La IA falló ({str(e)[:160]}) y el fallback tampoco pudo armar flujos."
             ) from e

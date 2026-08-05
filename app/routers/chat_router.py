@@ -1,11 +1,17 @@
 from fastapi import APIRouter, Depends, Response
 
+from app import tickets_store
 from app.auth import UsuarioSesion, obtener_usuario_requerido
 from app.knowledge import estadisticas, listar_muestra_modulos
-from app.models import ChatInput, ChatResponse, EstructurarInput, EstructurarResponse, GuardarTicketInput
+from app.models import (
+    ChatInput,
+    ChatResponse,
+    EstructurarInput,
+    EstructurarResponse,
+    GuardarTicketInput,
+)
 from app.services.chat_service import procesar_chat
 from app.services.extraction_service import estructurar_ticket
-from app import tickets_store
 
 router = APIRouter(prefix="/api", tags=["Copilot (legacy)"])
 

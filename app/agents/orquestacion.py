@@ -6,8 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.taxonomia import AccionClasificacion, NivelTicket
 from app.estate import repository as repo
-from app.services import clasificador
-from app.services import ticket_bridge
+from app.services import clasificador, ticket_bridge
 
 
 def ejecutar_orquestacion(
@@ -187,7 +186,7 @@ def _armar_descripcion(datos: dict, diag: dict, clasif: dict) -> str:
         f"MOTIVO ESCALAMIENTO: {clasif.get('motivo_escalamiento', '')}",
         f"DATOS: Línea {datos.get('linea')}, {datos.get('dispositivo')}, {datos.get('cooperativa')}",
     ]
-    if clasif_dict.get("proveedor"):
+    if clasif.get("proveedor"):
         partes.append(f"PROVEEDOR: {clasif['proveedor']}")
     hechos = datos.get("hechos") or {}
     sms_ctx = []

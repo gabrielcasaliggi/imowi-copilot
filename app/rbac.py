@@ -5,7 +5,7 @@ Ver docs/RBAC-ROLES-PERMISOS.md.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 # Roles efectivos en JWT / consola
 ROLES_CONSOLA = ("admin", "supervisor", "ejecutivo", "agente")

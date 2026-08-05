@@ -16,7 +16,8 @@ cd /ruta/al/repo && git pull
 # 3) Backend
 source .venv/bin/activate
 pip install -r requirements.txt
-# Migraciones aditivas al reiniciar el servicio
+# Migraciones: create_all + migrate_schema al reiniciar;
+# esquema versionado (baseline): alembic stamp head  (ver docs/QA-PILOTO.md / alembic/)
 sudo systemctl restart operations-hub-api
 
 # 4) Frontend

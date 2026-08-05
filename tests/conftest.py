@@ -1,25 +1,34 @@
-"""Fixtures compartidas para tests con SQLite en memoria."""
+"""Fixtures compartidas. Fuerza SQLite de tests y arranca lifespan (seed)."""
 
 from __future__ import annotations
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import os
+from pathlib import Path
 
-from app.estate.database import Base
-from app.estate.models import NetworkElement, Organization, Ticket
+# Antes de importar app.* — load_dotenv no pisa vars ya definidas.
+_TEST_DB = Path(__file__).resolve().parent.parent / "data" / "test_estate.db"
+_TEST_DB.parent.mkdir(parents=True, exist_ok=True)
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
+os.environ.setdefault("APP_ENV", "development")
+os.environ.setdefault("DISABLE_DEMO_USERS", "false")
+os.environ.pop("BILLTRACK_DATABASE_URL", None)
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
+from app.estate.database import Base  # noqa: E402
+from app.estate.models import NetworkElement, Organization, Ticket  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _ensure_schema():
-    import app.estate.models  # noqa: F401
+def _bootstrap_seeded_app():
+    """Dispara lifespan de FastAPI → create_all + migrate + seed estate."""
+    from main import app
 
-    from app.estate.database import get_engine
-    from app.estate.migrate import migrate_schema
-
-    engine = get_engine()
-    Base.metadata.create_all(engine)
-    migrate_schema(engine)
+    with TestClient(app):
+        yield
 
 
 @pytest.fixture

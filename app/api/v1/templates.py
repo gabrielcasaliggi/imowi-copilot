@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from app.api.v1.deps import get_tenant_context
 from app.api.v1.schemas import TenantContext

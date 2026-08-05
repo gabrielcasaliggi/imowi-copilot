@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from qa_bot.analyzer import AnalisisEscenario
@@ -80,14 +80,14 @@ def generar_reporte(
         "solicitud de humano salvo keywords de emergencia (caída masiva B2B, seguridad)."
     )
 
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines: list[str] = []
     lines += [
         "# Reporte QA — Bot N1 Portal Ecolan / Cooperativa Batán",
         "",
         f"**Fecha:** {now}  ",
         f"**Portal:** {portal_url}  ",
-        f"**Modo de ingreso:** Invitado / Guest  ",
+        "**Modo de ingreso:** Invitado / Guest  ",
         f"**Método de ejecución:** {metodo}  ",
         f"**Escenarios ejecutados:** {total}",
         "",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 
@@ -17,16 +17,15 @@ _TABLA = "tickets"
 def _sb():
     global _client
     if _client is None:
-        from supabase import create_client
-
         from app.config import SUPABASE_SERVICE_KEY, SUPABASE_URL
+        from supabase import create_client
 
         _client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     return _client
 
 
 def _ahora_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _slug_modulo(modulo: str) -> str:

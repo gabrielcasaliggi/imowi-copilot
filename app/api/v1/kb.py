@@ -8,9 +8,9 @@ from app.api.v1.schemas import (
     KBCreate,
     TenantContext,
 )
+from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db
-from app.estate import repository as repo
 from app.estate.learning_loop import crear_propuesta_kb_desde_ticket
 
 router = APIRouter(tags=["Knowledge Estate"])

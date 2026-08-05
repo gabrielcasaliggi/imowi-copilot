@@ -23,7 +23,8 @@ from app.estate import repository as repo
 from app.estate.database import get_db
 from app.estate.security import hash_password, is_hashed, verify_password
 from app.models import LoginInput, LoginResponse
-from app.rbac import normalizar_rol_consola, permisos_para_rol, puede as rbac_puede
+from app.rbac import normalizar_rol_consola, permisos_para_rol
+from app.rbac import puede as rbac_puede
 from app.services import auth_security as aseg
 
 _bearer = HTTPBearer(auto_error=False)

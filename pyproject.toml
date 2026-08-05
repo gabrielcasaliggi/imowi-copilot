@@ -10,6 +10,7 @@ line-length = 100
 extend-exclude = [
     ".venv",
     "data",
+    "alembic/versions",
 ]
 
 [tool.ruff.lint]
@@ -23,6 +24,8 @@ select = [
 ignore = [
     "E501",
     "B008",
+    "UP042",
+    "E741",
 ]
 
 [tool.ruff.format]

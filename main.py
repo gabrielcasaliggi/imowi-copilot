@@ -3,15 +3,16 @@ Operations Hub — plataforma Agentic AI multitenant (OSS/BSS).
 Ejecutar: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import app.estate.models  # noqa: F401 — registra tablas SQLAlchemy
 from app import tickets_store
 from app.api.v1.router import api_v1
 from app.auth import cargar_tokens_desde_disco
@@ -35,11 +36,13 @@ from app.estate.seed import (
     seed_kb_batan_servicios,
     seed_lineas_jsc,
 )
-import app.estate.models  # noqa: F401 — registra tablas SQLAlchemy
 from app.knowledge import cargar_base_conocimiento, estadisticas
+from app.observability import init_sentry
 from app.routers import auth_router, chat_router, tickets_router
 
 logger = logging.getLogger("operations_hub")
+
+init_sentry()
 
 
 @asynccontextmanager

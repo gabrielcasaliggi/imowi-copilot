@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import os
 
-from app.estate.models import Abonado, KnowledgeArticle, LineaJSC, NetworkElement, Organization, User
-from app.estate.security import hash_password
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+from app.estate.models import (
+    Abonado,
+    KnowledgeArticle,
+    LineaJSC,
+    NetworkElement,
+    Organization,
+    User,
+)
+from app.estate.security import hash_password
 
 
 def _org(db: Session, slug: str) -> Organization | None:
@@ -64,7 +72,7 @@ def _seed_production_minimal(db: Session) -> dict:
 
 
 def seed_estate(db: Session) -> dict:
-    from app.config import es_produccion, demo_users_disabled
+    from app.config import demo_users_disabled, es_produccion
 
     if db.scalar(select(Organization).limit(1)):
         return {"seeded": False, "message": "Data Estate ya inicializado"}
@@ -701,8 +709,9 @@ def seed_kb_batan_servicios(db: Session) -> dict:
 
 def seed_inbox_conversaciones(db: Session) -> dict:
     """Hilos WhatsApp abiertos para operar la bandeja sin Meta (idempotente)."""
-    from app.estate.models import ConversacionCanal, MensajeCanal
     import json
+
+    from app.estate.models import ConversacionCanal, MensajeCanal
 
     batan = _org(db, "coop-batan")
     if not batan:

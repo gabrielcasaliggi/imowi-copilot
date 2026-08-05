@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,7 +16,7 @@ def _uuid() -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Organization(Base):
@@ -28,18 +28,18 @@ class Organization(Base):
     logo_label: Mapped[str] = mapped_column(String(8), default="i")
     brand_color: Mapped[str] = mapped_column(String(16), default="#2298A6")
 
-    usuarios: Mapped[list["User"]] = relationship(back_populates="organizacion")
-    articulos_kb: Mapped[list["KnowledgeArticle"]] = relationship(back_populates="organizacion")
-    contribuciones_kb: Mapped[list["KnowledgeContribution"]] = relationship(
+    usuarios: Mapped[list[User]] = relationship(back_populates="organizacion")
+    articulos_kb: Mapped[list[KnowledgeArticle]] = relationship(back_populates="organizacion")
+    contribuciones_kb: Mapped[list[KnowledgeContribution]] = relationship(
         back_populates="organizacion"
     )
-    elementos_red: Mapped[list["NetworkElement"]] = relationship(back_populates="organizacion")
-    tickets: Mapped[list["Ticket"]] = relationship(back_populates="organizacion")
-    ticket_events: Mapped[list["TicketEvent"]] = relationship(back_populates="organizacion")
-    ticket_notifications: Mapped[list["TicketNotification"]] = relationship(back_populates="organizacion")
-    casos_conversacion: Mapped[list["CasoConversacion"]] = relationship(back_populates="organizacion")
-    abonados: Mapped[list["Abonado"]] = relationship(back_populates="organizacion")
-    conversaciones_canal: Mapped[list["ConversacionCanal"]] = relationship(back_populates="organizacion")
+    elementos_red: Mapped[list[NetworkElement]] = relationship(back_populates="organizacion")
+    tickets: Mapped[list[Ticket]] = relationship(back_populates="organizacion")
+    ticket_events: Mapped[list[TicketEvent]] = relationship(back_populates="organizacion")
+    ticket_notifications: Mapped[list[TicketNotification]] = relationship(back_populates="organizacion")
+    casos_conversacion: Mapped[list[CasoConversacion]] = relationship(back_populates="organizacion")
+    abonados: Mapped[list[Abonado]] = relationship(back_populates="organizacion")
+    conversaciones_canal: Mapped[list[ConversacionCanal]] = relationship(back_populates="organizacion")
 
 
 class User(Base):
@@ -60,7 +60,7 @@ class User(Base):
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="usuarios")
+    organizacion: Mapped[Organization] = relationship(back_populates="usuarios")
 
 
 class KnowledgeArticle(Base):
@@ -73,7 +73,7 @@ class KnowledgeArticle(Base):
     contenido: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="articulos_kb")
+    organizacion: Mapped[Organization] = relationship(back_populates="articulos_kb")
 
 
 class KnowledgeContribution(Base):
@@ -97,7 +97,7 @@ class KnowledgeContribution(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="contribuciones_kb")
+    organizacion: Mapped[Organization] = relationship(back_populates="contribuciones_kb")
 
 
 class NetworkElement(Base):
@@ -111,7 +111,7 @@ class NetworkElement(Base):
     estado_actual: Mapped[str] = mapped_column(String(40), default="Normal")
     ultima_actualizacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="elementos_red")
+    organizacion: Mapped[Organization] = relationship(back_populates="elementos_red")
 
 
 class LineaJSC(Base):
@@ -133,7 +133,7 @@ class LineaJSC(Base):
     saldo_resumen: Mapped[str] = mapped_column(String(40), default="$0")
     ultima_sync: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship()
+    organizacion: Mapped[Organization] = relationship()
 
 
 class Ticket(Base):
@@ -167,9 +167,9 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="tickets")
-    eventos: Mapped[list["TicketEvent"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
-    notificaciones: Mapped[list["TicketNotification"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
+    organizacion: Mapped[Organization] = relationship(back_populates="tickets")
+    eventos: Mapped[list[TicketEvent]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
+    notificaciones: Mapped[list[TicketNotification]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
 
 
 class TicketEvent(Base):
@@ -189,8 +189,8 @@ class TicketEvent(Base):
     visible_cliente: Mapped[str] = mapped_column(String(8), default="Sí")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="ticket_events")
-    ticket: Mapped["Ticket"] = relationship(back_populates="eventos")
+    organizacion: Mapped[Organization] = relationship(back_populates="ticket_events")
+    ticket: Mapped[Ticket] = relationship(back_populates="eventos")
 
 
 class CasoConversacion(Base):
@@ -213,7 +213,7 @@ class CasoConversacion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="casos_conversacion")
+    organizacion: Mapped[Organization] = relationship(back_populates="casos_conversacion")
 
 
 class TicketNotification(Base):
@@ -231,8 +231,8 @@ class TicketNotification(Base):
     leida: Mapped[str] = mapped_column(String(8), default="No")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="ticket_notifications")
-    ticket: Mapped["Ticket"] = relationship(back_populates="notificaciones")
+    organizacion: Mapped[Organization] = relationship(back_populates="ticket_notifications")
+    ticket: Mapped[Ticket] = relationship(back_populates="notificaciones")
 
 
 class AuditEvent(Base):
@@ -248,7 +248,7 @@ class AuditEvent(Base):
     detalle: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship()
+    organizacion: Mapped[Organization] = relationship()
 
 
 class AuthLoginEvent(Base):
@@ -307,7 +307,7 @@ class UserInvite(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship()
+    organizacion: Mapped[Organization] = relationship()
 
 
 class PortalAbonadoLink(Base):
@@ -328,7 +328,7 @@ class PortalAbonadoLink(Base):
     activo: Mapped[str] = mapped_column(String(8), default="Sí")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship()
+    organizacion: Mapped[Organization] = relationship()
 
 
 class PortalOtpChallenge(Base):
@@ -367,7 +367,7 @@ class Abonado(Base):
     linea_msisdn: Mapped[str] = mapped_column(String(16), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="abonados")
+    organizacion: Mapped[Organization] = relationship(back_populates="abonados")
 
 
 class ConversacionCanal(Base):
@@ -390,8 +390,8 @@ class ConversacionCanal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
-    organizacion: Mapped["Organization"] = relationship(back_populates="conversaciones_canal")
-    mensajes: Mapped[list["MensajeCanal"]] = relationship(
+    organizacion: Mapped[Organization] = relationship(back_populates="conversaciones_canal")
+    mensajes: Mapped[list[MensajeCanal]] = relationship(
         back_populates="conversacion", cascade="all, delete-orphan"
     )
 
@@ -410,7 +410,7 @@ class MensajeCanal(Base):
     meta_message_id: Mapped[str] = mapped_column(String(80), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    conversacion: Mapped["ConversacionCanal"] = relationship(back_populates="mensajes")
+    conversacion: Mapped[ConversacionCanal] = relationship(back_populates="mensajes")
 
 
 class PlatformConfig(Base):
@@ -441,4 +441,4 @@ class PilotEvent(Base):
     detalle_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    organizacion: Mapped["Organization"] = relationship()
+    organizacion: Mapped[Organization] = relationship()

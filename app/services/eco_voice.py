@@ -182,7 +182,7 @@ def build_contexto_abonado(
 
     lines = [
         "CONTEXTO_ABONADO (datos reales del sistema; usalos solo si aportan):",
-        f"- modo: identificado",
+        "- modo: identificado",
         f"- nombre: {nombre or '(sin dato)'}",
         f"- dni_enmascarado: {_mask_dni(dni) or '(sin dato)'}",
         f"- nro_asociado: {nro}",

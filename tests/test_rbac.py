@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 from app.rbac import (
     catalogo_roles,
     normalizar_rol_consola,
-    puede,
     permisos_para_rol,
+    puede,
     roles_alta_permitidos,
 )
 from main import app
@@ -98,7 +98,7 @@ def test_supervisor_lista_y_crea_agentes_org():
     r = client.post(
         "/api/v1/org/users",
         headers=headers,
-        json={"email": email, "nombre": "Agente RBAC", "password": "secreto1", "rol": "agente"},
+        json={"email": email, "nombre": "Agente RBAC", "password": "Secreto123!", "rol": "agente"},
     )
     assert r.status_code == 200, r.text
     user_id = r.json()["usuario"]["id"]
@@ -111,7 +111,7 @@ def test_supervisor_lista_y_crea_agentes_org():
         json={
             "email": f"ejec.{uuid.uuid4().hex[:8]}@coopbatan.com",
             "nombre": "Ejec",
-            "password": "secreto1",
+            "password": "Secreto123!",
             "rol": "ejecutivo",
         },
     )
@@ -139,7 +139,7 @@ def test_admin_rbac_catalog_and_user_patch():
     r = client.post(
         "/api/v1/admin/organizations/coop-batan/users",
         headers=headers,
-        json={"email": email, "nombre": "Sup Test", "password": "secreto1", "rol": "supervisor"},
+        json={"email": email, "nombre": "Sup Test", "password": "Secreto123!", "rol": "supervisor"},
     )
     assert r.status_code == 200, r.text
     uid = r.json()["usuario"]["id"]

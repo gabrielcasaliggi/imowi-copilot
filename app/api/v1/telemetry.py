@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.agents.pipeline import procesar_mensaje
 from app.api.v1.deps import get_tenant_context, require_telemetry
 from app.api.v1.schemas import TelemetrySimulate, TenantContext
-from app.estate.database import get_db
 from app.estate import repository as repo
+from app.estate.database import get_db
 
 router = APIRouter(tags=["Telemetry"])
 

@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context, require_kb_proposer
-from app.api.v1.schemas import TenantContext, TicketEventCreate, TicketKbPublish, TicketReassign, TicketUpdateV1
+from app.api.v1.schemas import (
+    TenantContext,
+    TicketEventCreate,
+    TicketKbPublish,
+    TicketReassign,
+    TicketUpdateV1,
+)
 from app.estate import repository as repo
 from app.estate.audit import log_audit
 from app.estate.database import get_db
@@ -12,7 +18,11 @@ from app.estate.learning_loop import (
     similares_con_resolucion,
     sugerir_kb,
 )
-from app.estate.ticket_intelligence import calcular_prioridad, explicar_escalamiento, ordenar_por_riesgo
+from app.estate.ticket_intelligence import (
+    calcular_prioridad,
+    explicar_escalamiento,
+    ordenar_por_riesgo,
+)
 from app.services import ticket_bridge
 from app.services.ticket_queue import filtrar_tickets
 
@@ -232,7 +242,6 @@ def get_ticket_detail(
     kb = sugerir_kb(db, org_id, t)
     learning = None
     if t.estado == "Cerrado":
-        org = repo.get_org_by_id(db, org_id)
         learning = {
             "kb_sugerencias": kb,
             "similares_resueltos": [s for s in similares if s.get("cerrado")],

@@ -1,6 +1,10 @@
 """Tests del motor conversacional N1."""
 
-from app.domain.conversacion import EstadoConversacion, usuario_confirmo_resolucion, usuario_confirmo_ticket
+from app.domain.conversacion import (
+    EstadoConversacion,
+    usuario_confirmo_resolucion,
+    usuario_confirmo_ticket,
+)
 from app.services.motor_conversacional import (
     ajustar_clasificacion_por_estado,
     debe_usar_ia,
