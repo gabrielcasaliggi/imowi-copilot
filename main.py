@@ -118,10 +118,12 @@ app = FastAPI(
     openapi_url="/openapi.json" if ENABLE_API_DOCS else None,
 )
 
+_cors_wildcard = CORS_ORIGINS == ["*"] or "*" in CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=False,
+    allow_origins=["*"] if _cors_wildcard else CORS_ORIGINS,
+    # Credenciales (cookies) requieren orígenes explícitos — no compatibles con *
+    allow_credentials=not _cors_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )

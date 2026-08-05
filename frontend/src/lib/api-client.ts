@@ -70,6 +70,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     res = await fetch(`${API_BASE}${path}`, {
       ...opts,
       headers,
+      credentials: "include",
       signal: controller.signal,
     });
   } catch (err) {
@@ -1070,6 +1071,7 @@ export const api = {
   portalSend(texto: string, portalToken: string) {
     return fetch(`${API_BASE}/api/v1/portal/messages`, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${portalToken}`,
@@ -1097,6 +1099,7 @@ export const api = {
 
   portalConversation(id: string, portalToken: string) {
     return fetch(`${API_BASE}/api/v1/portal/conversations/${id}`, {
+      credentials: "include",
       headers: { Authorization: `Bearer ${portalToken}` },
     }).then(async (res) => {
       if (!res.ok) {
@@ -1111,6 +1114,13 @@ export const api = {
         mensajes: InboxMessage[];
       }>;
     });
+  },
+
+  portalLogout() {
+    return request<{ status: string }>("/api/v1/portal/logout", {
+      method: "POST",
+      skipAuth: true,
+    }).catch(() => ({ status: "ok" }));
   },
 
   inboxSimulate(

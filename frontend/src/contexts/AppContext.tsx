@@ -357,12 +357,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [appendTrace],
   );
 
-  // Bootstrap de sesión al recargar — patrón client-only intencional
+  // Bootstrap de sesión al recargar — Bearer (localStorage) o cookie HttpOnly
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      const id = requestAnimationFrame(() => setReady(true));
-      return () => cancelAnimationFrame(id);
+      // Intentar sesión por cookie (same-origin / credentials)
+      void api
+        .me()
+        .then((me) => boot({
+          token: "",
+          usuario: me.usuario,
+          rol: me.rol,
+          cooperativa: me.cooperativa,
+          nombre: me.nombre,
+          org_slug: me.org_slug,
+          permisos: me.permisos,
+          must_change_password: me.must_change_password,
+        } as LoginResponse))
+        .catch(() => {
+          setReady(true);
+        });
+      return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore session
     void boot().catch(() => {

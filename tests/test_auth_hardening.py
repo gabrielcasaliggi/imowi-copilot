@@ -72,10 +72,38 @@ def test_invite_flow():
 
 
 def test_legacy_tickets_require_auth():
+    client.cookies.clear()
     r = client.get("/api/listar-tickets")
     assert r.status_code == 401
     r2 = client.patch("/api/cerrar-ticket/TKT-NOEXISTE")
     assert r2.status_code == 401
+
+
+def test_console_login_sets_httponly_cookie():
+    c = TestClient(app)
+    r = c.post("/api/login", json={"usuario": "admin", "password": "admin"})
+    assert r.status_code == 200
+    assert r.json()["token"]
+    assert "ops_console_token" in r.cookies
+    # Dual: /me con cookie persistida en el client, sin Authorization
+    me = c.get("/api/me")
+    assert me.status_code == 200
+    assert me.json()["usuario"] == "admin"
+    out = c.post("/api/logout")
+    assert out.status_code == 200
+
+
+def test_portal_guest_sets_httponly_cookie():
+    c = TestClient(app)
+    r = c.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})
+    assert r.status_code == 200
+    assert r.json()["portal_token"]
+    assert "ops_portal_token" in r.cookies
+    conv_id = r.json()["conversacion"]["id"]
+    got = c.get(f"/api/v1/portal/conversations/{conv_id}")
+    assert got.status_code == 200
+    cleared = c.post("/api/v1/portal/logout")
+    assert cleared.status_code == 200
 
 
 def test_portal_guest_no_identifica_por_dni():

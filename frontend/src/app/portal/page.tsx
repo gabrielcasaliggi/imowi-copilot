@@ -261,6 +261,7 @@ export default function PortalPage() {
   };
 
   const onExit = () => {
+    void api.portalLogout().catch(() => {});
     saveStored(null);
     setToken("");
     setConv(null);

@@ -348,12 +348,18 @@ def _resolver_sesion(token: str | None, db: Session | None = None) -> UsuarioSes
 
 
 def obtener_usuario_opcional(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> UsuarioSesion | None:
-    if not credentials:
+    from app.http_cookies import console_token_from_request
+
+    token = console_token_from_request(
+        request, credentials.credentials if credentials else None
+    )
+    if not token:
         return None
-    return _resolver_sesion(credentials.credentials, db)
+    return _resolver_sesion(token, db)
 
 
 def obtener_usuario_requerido(
@@ -361,13 +367,18 @@ def obtener_usuario_requerido(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> UsuarioSesion:
-    if not credentials:
+    from app.http_cookies import console_token_from_request
+
+    token = console_token_from_request(
+        request, credentials.credentials if credentials else None
+    )
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token requerido",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    sesion = _resolver_sesion(credentials.credentials, db)
+    sesion = _resolver_sesion(token, db)
     if not sesion:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

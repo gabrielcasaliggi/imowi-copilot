@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.auth import UsuarioSesion, login_usuario_db, logout_sesion, obtener_usuario_requerido
 from app.estate.database import get_db
+from app.http_cookies import clear_console_cookie, set_console_cookie
 from app.models import LoginInput, LoginResponse
 
 router = APIRouter(prefix="/api", tags=["Autenticación"])
@@ -12,17 +13,22 @@ router = APIRouter(prefix="/api", tags=["Autenticación"])
 async def login(
     data: LoginInput,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
-    return login_usuario_db(data, db, request=request)
+    result = login_usuario_db(data, db, request=request)
+    set_console_cookie(response, result.token, request=request)
+    return result
 
 
 @router.post("/logout")
 async def logout(
+    response: Response,
     usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
     db: Session = Depends(get_db),
 ):
     logout_sesion(db, usuario)
+    clear_console_cookie(response)
     return {"status": "ok"}
 
 

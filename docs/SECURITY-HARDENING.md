@@ -18,7 +18,17 @@ Nunca mezclar tokens. BillTrack es **solo lectura**.
 | `ENABLE_LEGACY_API` | `false` | Sin `/api/chat` ni UI HTML legacy en `/` |
 | `WHATSAPP_APP_SECRET` | (requerido si hay WA) | Valida `X-Hub-Signature-256` en el webhook |
 
-Cookies HttpOnly JWT: **diferido** (consola/portal hoy usan `localStorage`; requiere proxy same-origin).
+### Cookies HttpOnly (Fase B cierre)
+
+| Cookie | Path | Uso |
+|---|---|---|
+| `ops_console_token` | `/api` | JWT consola (`typ=console`) |
+| `ops_portal_token` | `/api` | JWT portal (`typ=portal`) |
+
+- `HttpOnly` + `SameSite=Lax` + `Secure` en production.
+- Dual-path: si hay `Authorization: Bearer` se usa; si no, la cookie.
+- El FE sigue pudiendo guardar token en `localStorage`/`sessionStorage` como fallback (dev / clients viejos).
+- `CORS_ORIGINS` debe ser explícito (ej. `https://ibot.ecolan.com`) para enviar cookies cross-origin; en nginx same-origin con `/api` proxy es lo ideal.
 
 ## Deploy seguro (producción)
 
@@ -87,5 +97,5 @@ Cron sugerido (diario 03:15 UTC):
 ## Fuera de alcance (defaults seguros)
 
 - SMS/WhatsApp OTP (costos proveedor) — Fase 4.
-- WebAuthn / cookies HttpOnly JWT — post–Fase B (requiere same-origin proxy).
+- WebAuthn — post–piloto.
 - Escrituras a BillTrack — **prohibidas siempre**.

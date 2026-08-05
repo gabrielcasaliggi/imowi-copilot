@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -96,10 +96,13 @@ def _expire_pending_invites(db: Session, *, org_id: str, email: str, purpose: st
 @router.post("/auth/change-password")
 def change_password(
     body: ChangePasswordIn,
+    request: Request,
+    response: Response,
     usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
     db: Session = Depends(get_db),
 ):
     from app.auth import _crear_token
+    from app.http_cookies import set_console_cookie
     from app.rbac import permisos_para_rol
 
     if usuario.user_id.startswith("mock:"):
@@ -162,6 +165,7 @@ def change_password(
         recurso=user.email,
         detalle="password updated",
     )
+    set_console_cookie(response, token, request=request)
     return {
         "status": "ok",
         "must_change_password": False,
@@ -177,10 +181,14 @@ def change_password(
 
 @router.post("/auth/logout")
 def auth_logout(
+    response: Response,
     usuario: UsuarioSesion = Depends(obtener_usuario_requerido),
     db: Session = Depends(get_db),
 ):
+    from app.http_cookies import clear_console_cookie
+
     logout_sesion(db, usuario)
+    clear_console_cookie(response)
     return {"status": "ok"}
 
 

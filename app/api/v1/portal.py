@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -176,9 +176,13 @@ def _leer_portal_token(token: str | None) -> dict:
 
 
 def _portal_auth(
+    request: Request,
     authorization: str | None = Header(default=None),
 ) -> dict:
-    return _leer_portal_token(authorization)
+    from app.http_cookies import portal_token_from_request
+
+    token = portal_token_from_request(request, authorization)
+    return _leer_portal_token(token)
 
 
 def _get_or_create_link(
@@ -384,6 +388,7 @@ def portal_auth_start(
 def portal_auth_verify(
     body: PortalAuthVerifyIn,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     ip = _client_ip(request)
@@ -472,6 +477,9 @@ def portal_auth_verify(
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
 
+    from app.http_cookies import set_portal_cookie
+
+    set_portal_cookie(response, token, request=request)
     return {
         "portal_token": token,
         "org_slug": org.slug,
@@ -487,6 +495,7 @@ def portal_auth_verify(
 def portal_login_pin(
     body: PortalPinLoginIn,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     ip = _client_ip(request)
@@ -546,6 +555,9 @@ def portal_login_pin(
         aseg.record_login_event(
             db, superficie="portal", actor=actor, ip=ip, ok=True, reason="pin_ok", org_slug=slug
         )
+        from app.http_cookies import set_portal_cookie
+
+        set_portal_cookie(response, token, request=request)
         return {
             "portal_token": token,
             "org_slug": org.slug,
@@ -591,7 +603,12 @@ def portal_set_pin(
 
 
 @router.post("/portal/session")
-def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
+def abrir_sesion_portal(
+    body: PortalSessionIn,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Abre chat web. Guest anónimo OK; DNI solo ya NO identifica (usar /portal/auth/*)."""
     slug = _org_slug(body.org_slug)
     org = repo.get_org_by_slug(db, slug)
@@ -633,6 +650,9 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
 
+    from app.http_cookies import set_portal_cookie
+
+    set_portal_cookie(response, token, request=request)
     return {
         "portal_token": token,
         "org_slug": org.slug,
@@ -644,6 +664,15 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         "es_visitante": True,
         "cola_prioridad": "baja",
     }
+
+
+@router.post("/portal/logout")
+def portal_logout(response: Response):
+    """Cierra cookie de portal (el JWT en denylist no aplica; solo limpia cookie)."""
+    from app.http_cookies import clear_portal_cookie
+
+    clear_portal_cookie(response)
+    return {"status": "ok"}
 
 
 @router.post("/portal/messages")
