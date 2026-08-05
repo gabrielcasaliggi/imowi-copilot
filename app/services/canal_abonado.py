@@ -156,6 +156,95 @@ def _deberia_priorizar_corte_deuda(
     return False
 
 
+def _intencion_es_tecnica(intencion: str) -> bool:
+    intent = (intencion or "").strip()
+    if not intent or intent in ("facturacion", "corte_deuda", "general", "multi_tema", "aviso_deuda"):
+        return False
+    return es_intencion_diagnostico(intent)
+
+
+def _elige_pago_o_tecnico(texto: str) -> str | None:
+    """Tras aviso de deuda: 'pago' | 'tecnico' | None si no se entiende."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return None
+    paga = any(
+        k in t
+        for k in (
+            "pagar",
+            "pago",
+            "deuda",
+            "saldo",
+            "qr",
+            "factura",
+            "boleta",
+            "abonar",
+            "fiserv",
+            "primero pagar",
+            "la deuda",
+        )
+    )
+    tecnico = any(
+        k in t
+        for k in (
+            "seguí",
+            "segui",
+            "seguir",
+            "seguimos",
+            "diagnóstico",
+            "diagnostico",
+            "internet",
+            "wifi",
+            "wi-fi",
+            "conexión",
+            "conexion",
+            "el problema",
+            "móvil",
+            "movil",
+            "imowi",
+            "después pago",
+            "despues pago",
+            "más tarde",
+            "mas tarde",
+            "ahora no",
+            "después",
+            "despues",
+            "técnico",
+            "tecnico",
+            "fibra",
+        )
+    )
+    if paga and not tecnico:
+        return "pago"
+    if tecnico and not paga:
+        return "tecnico"
+    if paga and tecnico:
+        # "pagar después y seguí con internet" → técnico; "primero pagar" → pago
+        if any(k in t for k in ("después pago", "despues pago", "más tarde", "mas tarde", "ahora no")):
+            return "tecnico"
+        if any(k in t for k in ("primero", "antes", "pagar y", "pago y")):
+            return "pago"
+        return "pago"
+    return None
+
+
+def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
+    from app.services.eco_voice import formatear_monto_ars, parse_monto
+
+    m = parse_monto(getattr(abonado, "deuda_monto", None))
+    monto = formatear_monto_ars(m) if m is not None else str(abonado.deuda_monto or "0")
+    if (intencion_tecnica or "").startswith("movil"):
+        tema = "el móvil"
+    elif (intencion_tecnica or "").startswith("wifi"):
+        tema = "el WiFi"
+    else:
+        tema = "internet"
+    return (
+        f"Antes de seguir: en tu cuenta figura un saldo pendiente de ${monto}. "
+        f"¿Querés que te ayude primero a pagar, o seguimos con el diagnóstico de {tema}?"
+    )
+
+
 def _kb_fragmento(
     db: Session | None,
     org_id: str,
@@ -653,11 +742,18 @@ def _aplicar_diagnostico_ia(
     paso = (result.get("paso_cubierto") or "").strip()
     if paso and paso not in cubiertos:
         cubiertos.append(paso)
+    # PON verde: capa óptica OK → no seguir al chequeo del cable amarillo
+    if (result.get("motivo") or "") == "pon_verde_enlace_ok":
+        for pid in ("luces_los", "cable_fibra", "reinicio_ont"):
+            if pid not in cubiertos:
+                cubiertos.append(pid)
     ctx["pasos_cubiertos"] = cubiertos
     ctx["diag_turnos"] = turnos + 1
     ctx["paso_idx"] = min(len(cubiertos), max(len(checklist) - 1, 0))
     ctx["ultima_diag_motivo"] = (result.get("motivo") or "")[:200]
     ctx["intencion"] = intencion
+    if (result.get("motivo") or "") == "pon_verde_enlace_ok":
+        ctx["enlace_optico_ok"] = True
     crepo.set_contexto(conv, ctx)
     db.commit()
 
@@ -1127,6 +1223,97 @@ def procesar_mensaje_entrante(
     intencion = ctx.get("intencion") or ""
     servicio_abo = abonado.servicio if abonado else ""
 
+    # Aviso de deuda antes de diagnóstico técnico: esperar elección pago vs seguir
+    if intencion == "aviso_deuda":
+        eleccion = _elige_pago_o_tecnico(texto)
+        pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
+        if eleccion is None:
+            resp = (
+                "Decime cuál preferís: ¿te ayudo a pagar el saldo pendiente, "
+                "o seguimos con el diagnóstico del servicio?"
+            )
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "aviso_deuda",
+            }
+        if eleccion == "pago":
+            from app.services.eco_voice import PLANTILLA_PAGO_QR
+
+            deuda = str(abonado.deuda_monto or "0") if abonado else "0"
+            resp = (
+                f"{mensaje_saldo_padron(deuda, incluir_ov=False)}\n{PLANTILLA_PAGO_QR}"
+            )
+            ctx["intencion"] = "corte_deuda"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            # Conservar el tema técnico por si vuelve después
+            ctx["temas_pendientes"] = list(
+                dict.fromkeys(
+                    list(ctx.get("temas_pendientes") or [])
+                    + (["tecnico"] if _intencion_es_tecnica(pendiente) else [])
+                )
+            )
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "corte_deuda",
+            }
+        # Seguir técnico
+        intencion = pendiente if _intencion_es_tecnica(pendiente) else "internet"
+        ctx["intencion"] = intencion
+        ctx["paso_idx"] = 0
+        ctx["diag_turnos"] = 0
+        ctx["pasos_cubiertos"] = []
+        ctx.pop("intencion_tecnica_pendiente", None)
+        conv.servicio_detectado = intencion
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        diag = _aplicar_diagnostico_ia(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intencion,
+            usar_llama=usar_llama,
+        )
+        if diag is not None:
+            return diag
+        pb = _playbooks(db)
+        pasos = pb.get(intencion) or pb["general"]
+        pregunta = pasos[0].pregunta if pasos else "Contame qué te pasa con el servicio."
+        if usar_llama:
+            pregunta = _redactar_con_llama(
+                pregunta,
+                f"intencion={intencion} post_aviso_deuda=1",
+                db=db,
+                org_id=org_id,
+                consulta=texto,
+            )
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": pregunta,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+
     # Doble tema (internet + factura): esperar elección de prioridad
     if intencion == "multi_tema":
         elegida = resolver_prioridad_tema(texto)
@@ -1155,6 +1342,27 @@ def procesar_mensaje_entrante(
         conv.servicio_detectado = intent
         crepo.set_contexto(conv, ctx)
         db.commit()
+        if (
+            abonado
+            and _deuda_positiva(abonado)
+            and _intencion_es_tecnica(intent)
+            and not ctx.get("aviso_deuda_ofrecido")
+        ):
+            ctx["intencion"] = "aviso_deuda"
+            ctx["intencion_tecnica_pendiente"] = intent
+            ctx["aviso_deuda_ofrecido"] = True
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = _texto_aviso_deuda_tecnico(abonado, intent)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "aviso_deuda",
+            }
         # Diagnosticar con el mensaje original (tenía ambos temas), no solo "internet"/"factura"
         diag = _aplicar_diagnostico_ia(
             db,
@@ -1220,6 +1428,29 @@ def procesar_mensaje_entrante(
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")
             else (servicio_abo or intencion)
         )
+        # Con deuda: avisar una vez y dejar elegir pagar vs diagnóstico técnico
+        if (
+            abonado
+            and _deuda_positiva(abonado)
+            and _intencion_es_tecnica(intencion)
+            and not ctx.get("aviso_deuda_ofrecido")
+            and intencion != "corte_deuda"
+        ):
+            ctx["intencion"] = "aviso_deuda"
+            ctx["intencion_tecnica_pendiente"] = intencion
+            ctx["aviso_deuda_ofrecido"] = True
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = _texto_aviso_deuda_tecnico(abonado, intencion)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "aviso_deuda",
+            }
         crepo.set_contexto(conv, ctx)
         db.commit()
         pb = _playbooks(db)
@@ -1228,6 +1459,8 @@ def procesar_mensaje_entrante(
         pregunta = pasos[idx].pregunta
         if intencion == "corte_deuda":
             # Siempre guía QR primero (evita playbooks admin sin Fiserv / rewrites).
+            from app.services.eco_voice import PLANTILLA_PAGO_QR
+
             if abonado:
                 pregunta = (
                     f"Tu cuenta figura con estado «{abonado.estado}» "
@@ -1387,6 +1620,27 @@ def procesar_mensaje_entrante(
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
             ctx["pasos_cubiertos"] = []
+            if (
+                abonado
+                and _deuda_positiva(abonado)
+                and _intencion_es_tecnica(intencion)
+                and not ctx.get("aviso_deuda_ofrecido")
+            ):
+                ctx["intencion"] = "aviso_deuda"
+                ctx["intencion_tecnica_pendiente"] = intencion
+                ctx["aviso_deuda_ofrecido"] = True
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                resp = _texto_aviso_deuda_tecnico(abonado, intencion)
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                    "intencion": "aviso_deuda",
+                }
             crepo.set_contexto(conv, ctx)
             db.commit()
             pb = _playbooks(db)

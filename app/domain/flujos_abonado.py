@@ -110,7 +110,12 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "reinicio_ont",
             "Desenchufá ONT y router 30 segundos; prendé primero la ONT y después el router. ¿Volvió?",
         ),
+        # Solo si hay LOS/rojo; si PON está verde el motor saltea este paso.
         PasoPlaybook("cable_fibra", "¿El cable amarillo está bien enchufado, sin dobleces fuertes?"),
+        PasoPlaybook(
+            "servicio_tras_optica",
+            "Con la fibra en verde el enlace óptico está bien. ¿Ya te anda internet o sigue sin servicio?",
+        ),
         PasoPlaybook("wifi_vs_cable_ftth", "¿Falla también por cable al router, o solo el WiFi?"),
         PasoPlaybook(
             "turno_campo_ftth",

@@ -203,6 +203,28 @@ def test_cierre_escalamiento_los_no_es_cortante():
     assert "factura" in msg.lower() or "aumento" in msg.lower()
 
 
+def test_aviso_deuda_elige_pago_o_tecnico():
+    from types import SimpleNamespace
+
+    from app.services.canal_abonado import (
+        _elige_pago_o_tecnico,
+        _intencion_es_tecnica,
+        _texto_aviso_deuda_tecnico,
+    )
+
+    assert _intencion_es_tecnica("internet") is True
+    assert _intencion_es_tecnica("internet_ftth") is True
+    assert _intencion_es_tecnica("facturacion") is False
+    assert _elige_pago_o_tecnico("quiero pagar") == "pago"
+    assert _elige_pago_o_tecnico("seguimos con internet") == "tecnico"
+    assert _elige_pago_o_tecnico("después pago, seguí con el diagnóstico") == "tecnico"
+    abo = SimpleNamespace(deuda_monto="86479.89")
+    txt = _texto_aviso_deuda_tecnico(abo, "internet")
+    assert "86.479,89" in txt or "86479" in txt
+    assert "pagar" in txt.lower()
+    assert "diagnóstico" in txt.lower() or "diagnostico" in txt.lower()
+
+
 def test_declara_solo_movil_sin_fijo():
     from app.domain.flujos_abonado import clasificar_intencion, declara_solo_movil_sin_fijo
 
@@ -212,3 +234,45 @@ def test_declara_solo_movil_sin_fijo():
     assert declara_solo_movil_sin_fijo("no tengo internet") is False  # corte ambiguo
     assert clasificar_intencion("no tengo internet solo tengo imowi", "internet") == "movil"
     assert clasificar_intencion("hola", "internet") == "internet"
+
+
+def test_pon_verde_no_pide_cable_amarillo(monkeypatch):
+    from app.services.diagnostico_n1 import (
+        detectar_enlace_optico_ok,
+        diagnosticar_turno,
+    )
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "¿la luz PON está en verde fijo y la luz LOS está apagada? "
+                "Contame qué colores ves."
+            ),
+        }
+    ]
+    assert detectar_enlace_optico_ok("sisi, luz verde fija", hist) is True
+    assert detectar_enlace_optico_ok("tengo luz roja de los", hist) is False
+
+    def _boom(*_a, **_k):
+        raise AssertionError("no debería llamar al LLM con PON verde clara")
+
+    monkeypatch.setattr("app.llm.chat_completion", _boom)
+    out = diagnosticar_turno(
+        intencion="internet_ftth",
+        checklist=[
+            {"id": "luces_los", "pregunta": "¿PON?"},
+            {"id": "cable_fibra", "pregunta": "¿Cable amarillo?"},
+            {"id": "wifi_vs_cable_ftth", "pregunta": "¿Solo WiFi?"},
+        ],
+        historial_mensajes=hist,
+        mensaje_cliente="sisi, luz verde fija",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["reinicio_ont"],
+    )
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "pon_verde_enlace_ok"
+    assert "amarillo" not in (out.get("mensaje") or "").lower()
+    assert "anda internet" in (out.get("mensaje") or "").lower() or "servicio" in (
+        out.get("mensaje") or ""
+    ).lower()

@@ -145,6 +145,95 @@ def _tiene_dano_fibra(texto: str) -> bool:
     return any(k in tl for k in _DANO_FIBRA)
 
 
+def _bot_pregunta_pon_los(texto: str) -> bool:
+    tl = (texto or "").lower()
+    return any(
+        k in tl
+        for k in (
+            "luz pon",
+            "la pon",
+            "pon está",
+            "pon esta",
+            "pon en verde",
+            "los apagada",
+            "los está",
+            "los esta",
+            "qué colores",
+            "que colores",
+            "qué luces",
+            "que luces",
+        )
+    ) or (_bot_menciona_los(texto) and "pon" in tl)
+
+
+def _cliente_confirma_pon_verde(texto: str) -> bool:
+    """True si reporta PON/enlace en verde (capa óptica OK)."""
+    t = (texto or "").lower()
+    if any(k in t for k in ("roja", "rojo")) and "verde" not in t:
+        return False
+    if "los" in t and any(k in t for k in ("roja", "rojo", "prendida", "encendida")):
+        return False
+    return any(
+        k in t
+        for k in (
+            "verde fija",
+            "verde fijo",
+            "luz verde",
+            "pon verde",
+            "verde la pon",
+            "pon en verde",
+            "todo verde",
+            "luces verdes",
+            "luz pon verde",
+            "está verde",
+            "esta verde",
+            "verde ok",
+            "verde bien",
+        )
+    )
+
+
+def _afirmacion_corta_ok(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    if t in _AFIRMACIONES or t in ("sisi", "sipi", "ok", "dale", "listo", "perfecto"):
+        return True
+    return _es_afirmacion(texto)
+
+
+def detectar_enlace_optico_ok(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None,
+) -> bool:
+    """True si el cliente confirmó PON verde / enlace óptico bien (no hay LOS roja)."""
+    if detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes):
+        return False
+    parts = [_autor_texto(m) for m in (historial_mensajes or [])]
+    last = (mensaje_cliente or "").strip()
+    if last and (not parts or parts[-1][1].strip() != last):
+        parts.append(("cliente", last))
+    recent = parts[-14:]
+    if not recent:
+        return False
+    if _cliente_confirma_pon_verde(last):
+        return True
+    for i, (autor, texto) in enumerate(recent):
+        if autor != "bot" or not _bot_pregunta_pon_los(texto):
+            continue
+        for autor2, texto2 in recent[i + 1 :]:
+            if autor2 != "cliente":
+                continue
+            t2 = (texto2 or "").lower()
+            if any(k in t2 for k in ("roja", "rojo")) and "verde" not in t2:
+                return False
+            if "los" in t2 and any(k in t2 for k in ("roja", "rojo", "prendida")):
+                return False
+            if _cliente_confirma_pon_verde(t2) or _afirmacion_corta_ok(texto2):
+                return True
+            break
+    return False
+
+
 def detectar_falla_optica_escalar(
     mensaje_cliente: str,
     historial_mensajes: list[Any] | None,
@@ -307,6 +396,9 @@ def _fallback_ask(
         ):
             continue
         if _parece_dump_pagos(preg) and not _cliente_pide_pagar(mensaje_cliente):
+            continue
+        # Si la óptica ya está OK (PON verde), no pedir cable amarillo
+        if pid in ("cable_fibra",) and "luces_los" in done:
             continue
         return {
             "accion": "ask",
@@ -844,6 +936,18 @@ def diagnosticar_turno(
             "motivo": motivo_optico,
         }
 
+    # PON verde fijo = enlace óptico OK → no preguntar cable amarillo
+    if detectar_enlace_optico_ok(mensaje_cliente, historial_mensajes):
+        return {
+            "accion": "ask",
+            "mensaje": (
+                "Perfecto: con la PON en verde fijo el enlace de fibra está bien. "
+                "¿Ya te anda internet o sigue sin servicio?"
+            ),
+            "paso_cubierto": "luces_los",
+            "motivo": "pon_verde_enlace_ok",
+        }
+
     from app.services.eco_voice import (
         HISTORIAL_CHAT_MAX_MSGS,
         TEMPERATURE_N1,
@@ -1051,6 +1155,26 @@ def diagnosticar_turno(
                     fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                     mensaje = fb["mensaje"]
                     paso = fb.get("paso_cubierto") or paso
+
+        # Si la IA pregunta cable amarillo con PON ya verde → saltar a WiFi/cable
+        if (
+            accion == "ask"
+            and any(
+                k in mensaje.lower()
+                for k in ("cable amarillo", "dobleces", "daños visibles", "danos visibles")
+            )
+            and (
+                "luces_los" in {str(x) for x in (pasos_cubiertos or [])}
+                or detectar_enlace_optico_ok(mensaje_cliente, historial_mensajes)
+            )
+        ):
+            accion = "ask"
+            motivo = "bloqueado_cable_post_pon_verde"
+            mensaje = (
+                "Con la PON en verde el enlace de fibra está bien. "
+                "¿El problema es solo WiFi o también falla por cable al router?"
+            )
+            paso = "wifi_vs_cable_ftth"
 
         # Facturación: no soltar manual de pagos si el cliente no pidió pagar
         if (
