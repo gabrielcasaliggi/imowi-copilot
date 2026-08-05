@@ -253,8 +253,8 @@ export function InboxPanel() {
             {isAdmin
               ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
               : can("tickets.reassign")
-                ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} y abonados. La asignación de trabajo N2 se hace en Cola.`
-                : "Canal en vivo: ves lo que entra. Si hay ticket N2, podés tomarlo y abrir Consola desde acá."}
+                ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} y abonados. Visitantes se atienden acá (Tomar chat). La Cola es solo tickets N2.`
+                : "Canal en vivo: tomá chats de abonados y visitantes acá. La Cola es solo para tickets N2 técnicos."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -373,6 +373,9 @@ export function InboxPanel() {
                 {c.ticket_id && (
                   <p className="text-[10px] font-mono text-amber-400/90 mt-1">{c.ticket_id}</p>
                 )}
+                {(c.es_visitante || c.cola_prioridad === "baja") && !c.ticket_id && (
+                  <p className="text-[10px] text-slate-500 mt-1">Atender en Bandeja · no es N2</p>
+                )}
               </button>
             ))
           )}
@@ -424,27 +427,28 @@ export function InboxPanel() {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {!isAdmin && detail.ticket_id && detail.estado !== "cerrado" && (
+                  {/* Canal en vivo (visitantes / handoff sin N2): tomar en Bandeja */}
+                  {(detail.estado === "espera_agente" || detail.estado === "bot") && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void onClaimChannel()}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50 transition-all duration-200 ease-in-out"
+                    >
+                      Tomar chat
+                    </button>
+                  )}
+                  {/* Ticket N2 armado: tomar + Consola (Cola) */}
+                  {detail.ticket_id && detail.estado !== "cerrado" && (
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void onClaimAndOpenConsole()}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50 transition-all duration-200 ease-in-out"
+                      className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-ecolan-brand/45 text-ecolan-brand hover:bg-ecolan-brand/10 disabled:opacity-50 transition-all duration-200 ease-in-out"
                     >
                       Tomar y abrir Consola
                     </button>
                   )}
-                  {isAdmin &&
-                    (detail.estado === "espera_agente" || detail.estado === "bot") && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onClaimChannel()}
-                        className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50 transition-all duration-200 ease-in-out"
-                      >
-                        Tomar
-                      </button>
-                    )}
                   {isAdmin && detail.estado !== "cerrado" && (
                     <button
                       type="button"
@@ -455,7 +459,7 @@ export function InboxPanel() {
                       Reasignar (admin)
                     </button>
                   )}
-                  {isAdmin && detail.estado !== "cerrado" && (
+                  {detail.estado !== "cerrado" && (
                     <button
                       type="button"
                       onClick={() => setConfirmClose(true)}
@@ -481,16 +485,6 @@ export function InboxPanel() {
                         : `Ver en Cola (${detail.ticket_id})`}
                     </Link>
                   )}
-                  {!isAdmin &&
-                    !detail.ticket_id &&
-                    detail.estado === "espera_agente" && (
-                      <Link
-                        href="/tickets"
-                        className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-ecolan-brand/40 text-ecolan-brand hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
-                      >
-                        Ir a Cola
-                      </Link>
-                    )}
                 </div>
               </div>
               <div
@@ -505,7 +499,7 @@ export function InboxPanel() {
                 )}
                 <div ref={bottomRef} />
               </div>
-              {isAdmin && detail.estado !== "cerrado" && (
+              {detail.estado !== "cerrado" && (
                 <form onSubmit={onSend} className="chat-composer px-4 py-3.5 flex gap-2.5">
                   <label className="sr-only" htmlFor="inbox-reply">
                     Respuesta al abonado
@@ -514,7 +508,11 @@ export function InboxPanel() {
                     id="inbox-reply"
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
-                    placeholder="Escribí la respuesta al abonado…"
+                    placeholder={
+                      detail.es_visitante || detail.cola_prioridad === "baja"
+                        ? "Respuesta al visitante…"
+                        : "Escribí la respuesta al abonado…"
+                    }
                     className="flex-1 bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 disabled:opacity-50 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
                     disabled={busy || !puedeEscribir}
                   />
@@ -528,24 +526,16 @@ export function InboxPanel() {
                   </button>
                 </form>
               )}
-              {!isAdmin && (
-                <p className="px-4 py-3 text-[11px] text-slate-400 border-t border-slate-800/80">
-                  {detail.ticket_id
-                    ? "Monitoreo del canal. Usá “Tomar y abrir Consola” para atender al abonado."
-                    : (
-                      <>
-                        Solo monitoreo. Cuando {getBranding().botDisplayName} arme el ticket N2, podés tomarlo acá o en{" "}
-                        <Link href="/tickets" className="text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200">
-                          Cola
-                        </Link>
-                        .
-                      </>
-                    )}
+              {detail.estado === "espera_agente" && (
+                <p className="px-4 pb-3 text-[11px] text-slate-500">
+                  {detail.es_visitante || detail.cola_prioridad === "baja"
+                    ? "Visitante comercial/consulta: tomá el chat acá en Bandeja (no va a Cola N2)."
+                    : `Handoff de ${getBranding().botDisplayName}: tomá el chat acá. Si hay ticket N2, también podés abrir Consola.`}
                 </p>
               )}
-              {isAdmin && detail.estado === "bot" && (
+              {detail.estado === "bot" && (
                 <p className="px-4 pb-3 text-[11px] text-slate-500">
-                  {getBranding().botDisplayName} (N1) está atendiendo. Podés pulsar Tomar o escribir y se te asigna el caso.
+                  {getBranding().botDisplayName} (N1) está atendiendo. Podés pulsar Tomar chat o escribir y se te asigna el caso.
                 </p>
               )}
             </>

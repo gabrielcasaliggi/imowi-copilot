@@ -125,7 +125,11 @@ def release_conversation(
     c = crepo.get_conversacion(db, _org_id(ctx), conv_id)
     if not c:
         raise HTTPException(404, "Conversación no encontrada")
-    c.estado = "espera_agente" if c.ticket_id else "bot"
+    ctx_c = crepo.get_contexto(c)
+    if c.ticket_id or ctx_c.get("visitante") or ctx_c.get("cola_prioridad") == "baja":
+        c.estado = "espera_agente"
+    else:
+        c.estado = "bot"
     c.agente_id = ""
     db.commit()
     return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
