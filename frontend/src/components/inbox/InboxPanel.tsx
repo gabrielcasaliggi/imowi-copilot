@@ -43,6 +43,9 @@ function estadoLabel(estado: string): string {
   }
 }
 
+const POLL_LIST_MS = 4000;
+const POLL_LIVE_MS = 1500;
+
 export function InboxPanel() {
   const { tenantSlug, isAdmin, can, selectTicket } = useApp();
   const router = useRouter();
@@ -59,28 +62,70 @@ export function InboxPanel() {
   const [injectText, setInjectText] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [livePulse, setLivePulse] = useState(false);
   const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
   const detailSeq = useRef(0);
   const claimingRef = useRef(false);
+  const prevEstadosRef = useRef<Record<string, string>>({});
+  const handoffNotifiedRef = useRef<Set<string>>(new Set());
+  const selectedRef = useRef<string | null>(null);
+  const detailEstadoRef = useRef<string>("");
+
+  selectedRef.current = selected;
+  detailEstadoRef.current = detail?.estado || "";
 
   const refreshList = useCallback(async () => {
     const res = await api.inboxConversations(
       filtro ? { estado: filtro } : undefined,
       slug,
     );
-    setConvs(res.conversaciones || []);
-  }, [filtro, slug]);
+    const next = res.conversaciones || [];
+    const prev = prevEstadosRef.current;
+    for (const c of next) {
+      const before = prev[c.id];
+      if (
+        before &&
+        before !== "espera_agente" &&
+        c.estado === "espera_agente" &&
+        !handoffNotifiedRef.current.has(c.id)
+      ) {
+        handoffNotifiedRef.current.add(c.id);
+        const quien = c.abonado?.nombre || c.telefono || "Cliente";
+        toast(
+          `${quien} · ${canalLabel(c)} espera agente`,
+          "warning",
+        );
+      }
+      prev[c.id] = c.estado;
+    }
+    prevEstadosRef.current = prev;
+    setConvs(next);
+  }, [filtro, slug, toast]);
 
-  const openConv = useCallback(
-    async (id: string) => {
+  const refreshDetail = useCallback(
+    async (id: string, opts?: { select?: boolean }) => {
       const seq = ++detailSeq.current;
-      setSelected(id);
+      if (opts?.select) setSelected(id);
       const res = await api.inboxConversation(id, slug);
       if (seq !== detailSeq.current) return;
       setDetail(res.conversacion);
-      setMensajes(res.mensajes || []);
+      setMensajes((prev) => {
+        const next = res.mensajes || [];
+        if (next.length > prev.length) {
+          setLivePulse(true);
+          window.setTimeout(() => setLivePulse(false), 600);
+        }
+        return next;
+      });
     },
     [slug],
+  );
+
+  const openConv = useCallback(
+    async (id: string) => {
+      await refreshDetail(id, { select: true });
+    },
+    [refreshDetail],
   );
 
   const closeDetail = () => {
@@ -97,19 +142,25 @@ export function InboxPanel() {
     setSelected(null);
     setDetail(null);
     setMensajes([]);
+    handoffNotifiedRef.current.clear();
   }, [slug]);
 
   useEffect(() => {
+    const watchingLive =
+      Boolean(selected) &&
+      (detailEstadoRef.current === "bot" || detailEstadoRef.current === "espera_agente");
+    const intervalMs = watchingLive ? POLL_LIVE_MS : POLL_LIST_MS;
     const tick = () => {
       if (claimingRef.current) return;
       void refreshList().catch(() => {});
-      if (selected) {
-        void openConv(selected).catch(() => {});
+      const id = selectedRef.current;
+      if (id) {
+        void refreshDetail(id).catch(() => {});
       }
     };
-    const id = window.setInterval(tick, 3000);
+    const id = window.setInterval(tick, intervalMs);
     return () => window.clearInterval(id);
-  }, [selected, refreshList, openConv]);
+  }, [selected, detail?.estado, refreshList, refreshDetail]);
 
   useEffect(() => {
     forceStick();
@@ -252,9 +303,9 @@ export function InboxPanel() {
           <h2 className="text-xl font-semibold text-slate-50 tracking-tight">Bandeja</h2>
           <p className="text-sm text-slate-400 max-w-xl">
             {isAdmin
-              ? "Canal en vivo (WhatsApp / portal). Monitoreo y herramientas de canal."
+              ? `Canal en vivo (portal / WhatsApp / Telegram). Filtrá por ${getBranding().botDisplayName} (N1) para monitorear al bot.`
               : can("tickets.reassign")
-                ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} y abonados. Visitantes se atienden acá (Tomar chat). La Cola es solo tickets N2.`
+                ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} (filtro N1) y tomá handoffs. Visitantes se atienden acá. La Cola es solo tickets N2.`
                 : "Canal en vivo: tomá chats de abonados y visitantes acá. La Cola es solo para tickets N2 técnicos."}
           </p>
         </div>
@@ -348,7 +399,11 @@ export function InboxPanel() {
                 className={`w-full text-left px-3 py-3.5 rounded-lg border transition-all duration-200 ease-in-out ${
                   selected === c.id
                     ? "border-ecolan-brand/45 bg-ecolan-brand/10 shadow-sm"
-                    : "border-transparent hover:bg-slate-50/5 hover:border-slate-700/60"
+                    : c.estado === "bot"
+                      ? "border-emerald-500/25 bg-emerald-500/[0.06] hover:border-emerald-500/40"
+                      : c.estado === "espera_agente"
+                        ? "border-amber-500/20 bg-amber-500/[0.04] hover:border-amber-500/35"
+                        : "border-transparent hover:bg-slate-50/5 hover:border-slate-700/60"
                 }`}
               >
                 <div className="flex justify-between gap-2 items-center">
@@ -356,6 +411,12 @@ export function InboxPanel() {
                     {c.telefono}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {c.estado === "bot" && (
+                      <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        En vivo
+                      </span>
+                    )}
                     {(c.es_visitante || c.cola_prioridad === "baja") && (
                       <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-slate-600/80 text-slate-400">
                         Visitante
@@ -414,6 +475,16 @@ export function InboxPanel() {
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <StatusBadge value={estadoLabel(detail.estado)} />
+                      {detail.estado === "bot" && (
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-300 transition-opacity ${
+                            livePulse ? "opacity-100" : "opacity-80"
+                          }`}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Monitoreo en vivo
+                        </span>
+                      )}
                       <span className="text-[10px] font-mono text-slate-400">
                         {canalLabel(detail)}
                         {detail.agente_id ? ` · ${detail.agente_id}` : ""}
@@ -535,8 +606,9 @@ export function InboxPanel() {
                 </p>
               )}
               {detail.estado === "bot" && (
-                <p className="px-4 pb-3 text-[11px] text-slate-500">
-                  {getBranding().botDisplayName} (N1) está atendiendo. Podés pulsar Tomar chat o escribir y se te asigna el caso.
+                <p className="px-4 pb-3 text-[11px] text-emerald-400/80">
+                  Monitoreo en vivo · {getBranding().botDisplayName} (N1) está atendiendo
+                  (actualización ~1,5 s). Podés pulsar Tomar chat o escribir y se te asigna el caso.
                 </p>
               )}
             </>

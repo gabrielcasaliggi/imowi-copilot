@@ -108,10 +108,10 @@ if PUBLIC_URL and not PUBLIC_URL.startswith("http"):
     PUBLIC_URL = f"https://{PUBLIC_URL}"
 
 # Branding — asistente abonado (N1 canal). No confundir con Copilot NOC.
-BOT_DISPLAY_NAME = (os.getenv("BOT_DISPLAY_NAME", "Eco") or "Eco").strip() or "Eco"
+BOT_DISPLAY_NAME = (os.getenv("BOT_DISPLAY_NAME", "Eko") or "Eko").strip() or "Eko"
 BOT_DISPLAY_NAME_SHORT = (
     os.getenv("BOT_DISPLAY_NAME_SHORT", "") or BOT_DISPLAY_NAME
-).strip().upper() or "ECO"
+).strip().upper() or "EKO"
 # Producto abonado (portal / WhatsApp). Consola ops sigue siendo APP_TITLE (Operations Hub).
 PRODUCT_DISPLAY_NAME = (
     os.getenv("PRODUCT_DISPLAY_NAME", "Soporte Batán") or "Soporte Batán"

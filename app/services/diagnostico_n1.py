@@ -7,6 +7,7 @@ import logging
 import re
 from typing import Any
 
+from app.config import BOT_DISPLAY_NAME
 from app.domain.flujos_abonado import PasoPlaybook
 
 logger = logging.getLogger("operations_hub")
@@ -259,7 +260,7 @@ def _historial_texto(mensajes: list[Any], *, limit: int = 16) -> str:
     for m in (mensajes or [])[-limit:]:
         autor = getattr(m, "autor", None) or (m.get("autor") if isinstance(m, dict) else "x")
         texto = getattr(m, "texto", None) or (m.get("texto") if isinstance(m, dict) else "")
-        rol = "Cliente" if autor == "cliente" else ("Eco" if autor == "bot" else str(autor))
+        rol = "Cliente" if autor == "cliente" else (BOT_DISPLAY_NAME if autor == "bot" else str(autor))
         t = (texto or "").strip()
         if t:
             lines.append(f"{rol}: {t[:400]}")

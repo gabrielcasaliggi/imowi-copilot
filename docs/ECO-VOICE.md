@@ -40,7 +40,7 @@ API técnica sin cambios: `autor="bot"`, `estado="bot"`.
 ## Ejemplos
 
 **Saludo (sin identificar)**  
-> Hola, soy Eco, de Soporte Batán (Cooperativa Batán / Ecolan). Para identificarte, enviame tu DNI o N.º de socio. Si preferís, escribí *agente*.
+> Hola, soy Eko, de Soporte Batán (Cooperativa Batán / Ecolan). Para identificarte, enviame tu DNI o N.º de socio. Si preferís, escribí *agente*.
 
 **Diagnóstico**  
 > Perfecto. ¿La luz del módem de fibra está fija en verde o parpadea?

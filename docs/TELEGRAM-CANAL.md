@@ -2,7 +2,7 @@
 
 ## Producto
 
-Bot N1 (Eco) + bandeja de agentes, mismo motor que WhatsApp/portal, vía **Telegram Bot API**.
+Bot N1 (Eko) + bandeja de agentes, mismo motor que WhatsApp/portal, vía **Telegram Bot API**.
 
 ## Configuración
 
@@ -37,7 +37,7 @@ curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
 Telegram update (texto)
   → POST /api/v1/telegram/webhook
   → procesar_mensaje_entrante(canal=telegram, chat_id)
-  → Eco N1 / handoff → Inbox
+  → Eko N1 / handoff → Inbox
   → Reply agente → sendMessage(chat_id)
 ```
 
@@ -50,6 +50,6 @@ Telegram update (texto)
 - [ ] Bot creado en BotFather y token cargado
 - [ ] `TELEGRAM_WEBHOOK_SECRET` seteado y pasado a `setWebhook`
 - [ ] Org slug correcta
-- [ ] Mensaje real → respuesta Eco en Telegram
+- [ ] Mensaje real → respuesta Eko en Telegram
 - [ ] Handoff visible en bandeja con label **Telegram**
 - [ ] Reply del agente llega al chat de Telegram

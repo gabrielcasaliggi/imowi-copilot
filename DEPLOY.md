@@ -4,7 +4,7 @@ Ver también: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) (auth dua
 
 ## Producción nativa (ibot.ecolan.com)
 
-Marca abonado: **Soporte Batán** / asistente **Eco**. Dominio futuro recomendado: `soporte.batan.coop` (ver [docs/ECO-VOICE.md](docs/ECO-VOICE.md)); no migrar DNS en este paso.
+Marca abonado: **Soporte Batán** / asistente **Eko**. Dominio futuro recomendado: `soporte.batan.coop` (ver [docs/ECO-VOICE.md](docs/ECO-VOICE.md)); no migrar DNS en este paso.
 
 ```bash
 # 1) Backup

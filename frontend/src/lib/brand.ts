@@ -11,11 +11,11 @@ export type Branding = {
 };
 
 const DEFAULTS: Branding = {
-  botDisplayName: process.env.NEXT_PUBLIC_BOT_DISPLAY_NAME?.trim() || "Eco",
+  botDisplayName: process.env.NEXT_PUBLIC_BOT_DISPLAY_NAME?.trim() || "Eko",
   botDisplayNameShort: (
     process.env.NEXT_PUBLIC_BOT_DISPLAY_NAME_SHORT?.trim() ||
     process.env.NEXT_PUBLIC_BOT_DISPLAY_NAME?.trim() ||
-    "Eco"
+    "Eko"
   ).toUpperCase(),
   orgHint: "Cooperativa Batán",
   productDisplayName:
