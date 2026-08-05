@@ -575,23 +575,24 @@ def _enviar_respuesta(
 
 
 def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
-    """Copy elegante: sin cuenta → agente; disuade saltear la cola de abonados."""
+    """Copy cálido para quien no tiene cuenta identificada (sin tono de 'cola inferior')."""
     motivo_l = (motivo or "").lower()
     if "dni" in motivo_l:
         return (
             "No te encuentro como abonado en el padrón con ese dato. "
-            f"Puede ser un DNI distinto o que todavía no seas cliente de {PRODUCT_DISPLAY_NAME}. "
-            "Te derivo con un agente para ayudarte (alta, consulta comercial u otro trámite). "
+            f"Puede ser otro DNI o que todavía no seas cliente de {PRODUCT_DISPLAY_NAME}. "
+            "Igual te derivo con un agente para ayudarte (alta, consulta comercial u otro trámite). "
             "Te van a responder por este mismo chat. "
-            "Si sos abonado, volvé a intentar con el DNI correcto: los clientes tienen prioridad en la cola."
+            "Si ya sos abonado, podés volver a intentar con el DNI del titular "
+            "así vemos tu cuenta al instante."
         )
     return (
         f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-        "Como no pudimos identificar una cuenta de abonado, no puedo consultar saldos "
-        "ni hacer un diagnóstico automático. "
-        "Te derivo con un agente: te van a responder por este mismo chat. "
-        "Si sos abonado, te atienden antes identificándote con DNI "
-        "(los clientes tienen prioridad en la cola)."
+        "Como todavía no identificamos tu cuenta, no puedo ver saldos ni diagnosticar "
+        "tu servicio de forma automática. "
+        "Te derivo con un agente y te van a responder por este mismo chat. "
+        "Si sos abonado, identificáte con el DNI del titular cuando puedas: "
+        "así te ayudo más rápido con tu cuenta."
     )
 
 

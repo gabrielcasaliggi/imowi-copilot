@@ -64,7 +64,8 @@ def test_portal_session_guest():
     assert len(data["mensajes"]) >= 1
     saludo = (data["mensajes"][0].get("texto") or "").lower()
     assert "agente" in saludo
-    assert "prioridad" in saludo
+    assert "prioridad" not in saludo
+    assert "dni" in saludo or "cuenta" in saludo
 
 
 def test_portal_chat_y_agente_ve_cola():

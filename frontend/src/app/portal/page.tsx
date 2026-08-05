@@ -402,7 +402,7 @@ export default function PortalPage() {
               No soy abonado / consulta general
             </button>
             <p className="text-[10px] text-slate-500 text-center -mt-1">
-              Te atenderá un agente (los abonados con DNI tienen prioridad).
+              Te conectamos con un agente. Si sos abonado, el DNI nos deja ver tu cuenta al instante.
             </p>
 
             {showDemo && (
@@ -511,8 +511,8 @@ export default function PortalPage() {
 
             {modoInvitado && (
               <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                Ingresaste sin cuenta de abonado. Te estamos derivando a un agente. Si sos cliente,
-                volvé e identificáte con DNI: los abonados tienen prioridad en la cola.
+                Estás en modo visitante: te conectamos con un agente. Si sos abonado, podés
+                identificarte con el DNI del titular para que veamos tu cuenta al instante.
               </p>
             )}
 
