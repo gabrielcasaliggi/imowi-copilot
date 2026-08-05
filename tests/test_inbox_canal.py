@@ -116,6 +116,36 @@ def test_whatsapp_webhook_exige_firma_cuando_hay_secret(monkeypatch):
     assert ok.json()["status"] == "ok"
 
 
+def test_whatsapp_dni_desconocido_deriva_visitante():
+    headers = _admin_headers()
+    tel = "5492235599988"
+    _cerrar_convs_telefono(tel)
+    r1 = client.post(
+        "/api/v1/inbox/simulate",
+        headers=headers,
+        json={"telefono": tel, "texto": "Hola", "usar_llama": False},
+    )
+    assert r1.status_code == 200
+    assert r1.json()["estado"] == "bot"
+    assert "dni" in (r1.json().get("respuesta") or "").lower()
+
+    r2 = client.post(
+        "/api/v1/inbox/simulate",
+        headers=headers,
+        json={"telefono": tel, "texto": "99887766", "usar_llama": False},
+    )
+    assert r2.status_code == 200
+    data = r2.json()
+    assert data["estado"] == "espera_agente"
+    assert not data.get("ticket_id")
+    assert "agente" in (data.get("respuesta") or "").lower()
+
+    listed = client.get("/api/v1/inbox/conversations", headers=headers)
+    sample = next(c for c in listed.json()["conversaciones"] if c["id"] == data["conversacion_id"])
+    assert sample.get("es_visitante") is True
+    assert sample.get("cola_prioridad") == "baja"
+
+
 def test_batan_no_puede_inyectar():
     headers = _batan_headers()
     r = client.post(

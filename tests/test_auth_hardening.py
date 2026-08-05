@@ -142,6 +142,26 @@ def test_portal_otp_flow_and_cross_token():
 
 def test_portal_anti_enum():
     """DNIs inexistentes deben fallar con el mismo mensaje genérico (sin filtrar existencia)."""
+    from sqlalchemy import select
+
+    from app.estate.database import get_session_factory
+    from app.estate.models import AuthLockout
+    from app.services import auth_security as aseg
+
+    Session = get_session_factory()
+    with Session() as db:
+        for dni in ("00000001", "00000002"):
+            aseg.clear_failures(
+                db, superficie="portal", actor=f"coop-batan:{dni}", ip="testclient"
+            )
+            for row in db.scalars(
+                select(AuthLockout).where(AuthLockout.superficie == "portal")
+            ).all():
+                if dni in (row.actor_key or ""):
+                    row.locked_until = None
+                    row.failures = 0
+        db.commit()
+
     r1 = client.post(
         "/api/v1/portal/auth/start",
         json={"dni": "00000001", "org_slug": "coop-batan"},

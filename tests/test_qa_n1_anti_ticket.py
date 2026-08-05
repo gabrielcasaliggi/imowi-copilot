@@ -32,6 +32,56 @@ def _guest_portal() -> str:
     return r.json()["portal_token"]
 
 
+def _identified_portal(dni: str = "30111222") -> str:
+    start = client.post(
+        "/api/v1/portal/auth/start",
+        json={"dni": dni, "org_slug": "coop-batan"},
+    )
+    assert start.status_code == 200, start.text
+    otp = start.json()["debug_otp"]
+    verify = client.post(
+        "/api/v1/portal/auth/verify",
+        json={
+            "challenge_id": start.json()["challenge_id"],
+            "otp": otp,
+            "org_slug": "coop-batan",
+        },
+    )
+    assert verify.status_code == 200, verify.text
+    data = verify.json()
+    # Aislar casos N1: reabrir hilo en bot aunque un test previo lo haya derivado
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import ConversacionCanal
+
+    conv_id = data["conversacion"]["id"]
+    Session = get_session_factory()
+    with Session() as db:
+        c = db.get(ConversacionCanal, conv_id)
+        if c:
+            c.estado = "bot"
+            c.ticket_id = ""
+            c.agente_id = ""
+            ctx = crepo.get_contexto(c)
+            for k in (
+                "visitante",
+                "cola_prioridad",
+                "motivo_derivacion",
+                "invitado",
+                "intencion",
+                "paso_idx",
+                "diag_turnos",
+                "pidio_humano",
+                "pedido_humano_count",
+            ):
+                ctx.pop(k, None)
+            ctx["identificado"] = True
+            ctx["saludo"] = True
+            crepo.set_contexto(c, ctx)
+            db.commit()
+    return data["portal_token"]
+
+
 def _portal_msg(token: str, texto: str, *, usar_hint: bool = False) -> dict:
     # Portal messages always go through canal; usar_llama resolved server-side.
     r = client.post(
@@ -93,11 +143,11 @@ def test_typo_internet_clasifica():
 
 
 # ---------------------------------------------------------------------------
-# Portal / canal
+# Portal / canal — N1 con abonado identificado
 # ---------------------------------------------------------------------------
 
 def test_pedido_humano_sin_sintoma_no_crea_ticket_inmediato():
-    token = _guest_portal()
+    token = _identified_portal()
     data = _portal_msg(token, "Quiero hablar con una persona, pasame con un operador")
     assert data.get("ok") is True
     assert data.get("estado") == "bot"
@@ -108,7 +158,7 @@ def test_pedido_humano_sin_sintoma_no_crea_ticket_inmediato():
 
 
 def test_escape_agente_explicito_crea_ticket():
-    token = _guest_portal()
+    token = _identified_portal()
     _portal_msg(token, "Hola")
     data = _portal_msg(token, "*agente*")
     assert data.get("ok") is True
@@ -117,7 +167,7 @@ def test_escape_agente_explicito_crea_ticket():
 
 
 def test_segunda_insistencia_humano_crea_ticket():
-    token = _guest_portal()
+    token = _identified_portal()
     r1 = _portal_msg(token, "Quiero hablar con un agente humano")
     assert not r1.get("ticket_id")
     r2 = _portal_msg(token, "Pasame con un operador ya")
@@ -127,7 +177,7 @@ def test_segunda_insistencia_humano_crea_ticket():
 
 def test_humano_con_sintoma_entra_n1():
     """Pedido de operador + síntoma: entra a N1 (no crea ticket en el primer turno sin *agente*)."""
-    token = _guest_portal()
+    token = _identified_portal()
     data = _portal_msg(
         token,
         "No me anda internet desde ayer, se corta todo el tiempo",
@@ -140,7 +190,7 @@ def test_humano_con_sintoma_entra_n1():
 
 
 def test_reiteracion_temprana_no_ticket():
-    token = _guest_portal()
+    token = _identified_portal()
     r1 = _portal_msg(token, "No tengo internet")
     assert r1.get("estado") == "bot"
     assert not r1.get("ticket_id")
@@ -152,15 +202,21 @@ def test_reiteracion_temprana_no_ticket():
     assert not r3.get("ticket_id")
 
 
-def test_corte_deuda_invitado_pide_dni():
-    """Invitado con corte/pago: pedir DNI; no inventar saldo ni soltar QR a ciegas."""
-    token = _guest_portal()
+def test_visitante_portal_deriva_sin_ticket_n2():
+    """Guest: cola de agente con prioridad baja; sin ticket N2 ni N1."""
+    r = client.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})
+    assert r.status_code == 200
+    sess = r.json()
+    assert sess["conversacion"]["estado"] == "espera_agente"
+    assert sess["conversacion"].get("cola_prioridad") == "baja"
+    assert not sess["conversacion"].get("ticket_id")
+    token = sess["portal_token"]
     data = _portal_msg(token, "Me cortaron el servicio por falta de pago, como pago?")
     assert data.get("ok") is True
-    resp = (data.get("respuesta") or "").lower()
-    assert "dni" in resp
-    assert "fiserv" not in resp
+    assert data.get("estado") == "espera_agente"
     assert not data.get("ticket_id")
+    resp = (data.get("respuesta") or "").lower()
+    assert "fiserv" not in resp
 
 
 def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
@@ -195,7 +251,7 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
 
 
 def test_wifi_parcial_no_cierra_resuelto():
-    token = _guest_portal()
+    token = _identified_portal()
     _portal_msg(token, "El WiFi no llega a la habitación del fondo")
     data = _portal_msg(token, "En el living anda bien, lejos no")
     assert data.get("estado") != "cerrado"

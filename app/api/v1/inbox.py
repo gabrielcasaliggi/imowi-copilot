@@ -44,7 +44,16 @@ def list_inbox(
     for c in rows:
         abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
         out.append(crepo.conversacion_to_dict(c, abonado=abo))
-    return {"tenant": ctx.organizacion_slug, "conversaciones": out}
+
+    # Clientes / prioridad alta primero; visitantes (cola baja) al final
+    def _es_baja(item: dict) -> bool:
+        return bool(item.get("es_visitante") or item.get("cola_prioridad") == "baja")
+
+    alta = [d for d in out if not _es_baja(d)]
+    baja = [d for d in out if _es_baja(d)]
+    alta.sort(key=lambda d: d.get("updated_at") or "", reverse=True)
+    baja.sort(key=lambda d: d.get("updated_at") or "", reverse=True)
+    return {"tenant": ctx.organizacion_slug, "conversaciones": alta + baja}
 
 
 @router.get("/inbox/conversations/{conv_id}")

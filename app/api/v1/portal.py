@@ -42,7 +42,7 @@ from app.estate.security import (
 from app.services import auth_security as aseg
 from app.services import email as email_svc
 from app.services.billtrack import lookup_abonado_por_dni
-from app.services.canal_abonado import procesar_mensaje_entrante
+from app.services.canal_abonado import marcar_cola_visitante, mensaje_derivacion_visitante, procesar_mensaje_entrante
 from app.services.platform_settings import resolve_canal_usar_llama
 
 router = APIRouter(tags=["Portal"])
@@ -252,8 +252,19 @@ def _abrir_conversacion_identificada(
     if hit and hit.get("fuente"):
         ctx["padron_fuente"] = hit.get("fuente")
     ctx.pop("invitado", None)
+    ctx.pop("visitante", None)
+    ctx.pop("cola_prioridad", None)
+    ctx.pop("motivo_derivacion", None)
+    ctx.pop("pidio_humano", None)
     crepo.set_contexto(conv, ctx)
     db.commit()
+
+    # Re-login identificado: si no hay agente activo, volver a modo bot N1
+    if conv.estado in ("espera_agente", "cerrado") and not conv.agente_id:
+        conv.estado = "bot"
+        conv.ticket_id = ""
+        db.commit()
+        db.refresh(conv)
 
     if not msgs_previos:
         from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
@@ -597,14 +608,12 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
     db.refresh(conv)
 
     ctx = crepo.get_contexto(conv)
-    ctx["saludo"] = True
-    ctx["invitado"] = True
-    ctx.pop("identificado", None)
-    # No persistir dni_intentado como identidad
     if body.dni:
         ctx["dni_hint_ignored"] = True
-    crepo.set_contexto(conv, ctx)
+    # Visitante: sin bot N1 — cola de agente con prioridad baja (clientes primero)
+    marcar_cola_visitante(conv, ctx, motivo="portal_invitado")
     db.commit()
+    db.refresh(conv)
 
     token = _crear_portal_token(
         org_id=org.id,
@@ -616,12 +625,7 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
     )
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
     if not mensajes:
-        saludo = (
-            f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-            "Estás en modo invitado (sin datos de cuenta). "
-            "Para identificarte usá tu DNI en el acceso seguro. "
-            "¿En qué podemos ayudarte?"
-        )
+        saludo = mensaje_derivacion_visitante(motivo="portal_invitado")
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
 
@@ -633,6 +637,8 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
         "abonado_identificado": False,
         "modo_invitado": True,
         "auth_required_for_account": True,
+        "es_visitante": True,
+        "cola_prioridad": "baja",
     }
 
 

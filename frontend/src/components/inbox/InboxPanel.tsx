@@ -354,10 +354,21 @@ export function InboxPanel() {
                   <span className="font-mono text-[11px] font-medium text-ecolan-brand">
                     {c.telefono}
                   </span>
-                  <StatusBadge value={estadoLabel(c.estado)} />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {(c.es_visitante || c.cola_prioridad === "baja") && (
+                      <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-slate-600/80 text-slate-400">
+                        Visitante
+                      </span>
+                    )}
+                    <StatusBadge value={estadoLabel(c.estado)} />
+                  </div>
                 </div>
                 <p className="text-[11px] text-slate-400 truncate mt-1">
-                  {c.abonado?.nombre || "Sin identificar"} · {canalLabel(c)}
+                  {c.abonado?.nombre ||
+                    (c.es_visitante || c.cola_prioridad === "baja"
+                      ? "Visitante (prioridad baja)"
+                      : "Sin identificar")}{" "}
+                  · {canalLabel(c)}
                 </p>
                 {c.ticket_id && (
                   <p className="text-[10px] font-mono text-amber-400/90 mt-1">{c.ticket_id}</p>

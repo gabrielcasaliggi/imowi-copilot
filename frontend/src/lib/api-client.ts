@@ -1163,6 +1163,8 @@ export interface InboxConversation {
   session_id: string;
   servicio_detectado: string;
   ticket_id: string;
+  es_visitante?: boolean;
+  cola_prioridad?: "alta" | "baja" | string;
   created_at: string;
   updated_at: string;
 }

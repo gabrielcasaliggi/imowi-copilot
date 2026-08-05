@@ -461,6 +461,71 @@ def _enviar_respuesta(
     return texto
 
 
+def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
+    """Copy elegante: sin cuenta → agente; disuade saltear la cola de abonados."""
+    motivo_l = (motivo or "").lower()
+    if "dni" in motivo_l:
+        return (
+            "No te encuentro como abonado en el padrón con ese dato. "
+            f"Puede ser un DNI distinto o que todavía no seas cliente de {PRODUCT_DISPLAY_NAME}. "
+            "Te derivo con un agente para ayudarte (alta, consulta comercial u otro trámite). "
+            "Te van a responder por este mismo chat. "
+            "Si sos abonado, volvé a intentar con el DNI correcto: los clientes tienen prioridad en la cola."
+        )
+    return (
+        f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+        "Como no pudimos identificar una cuenta de abonado, no puedo consultar saldos "
+        "ni hacer un diagnóstico automático. "
+        "Te derivo con un agente: te van a responder por este mismo chat. "
+        "Si sos abonado, te atienden antes identificándote con DNI "
+        "(los clientes tienen prioridad en la cola)."
+    )
+
+
+def marcar_cola_visitante(conv: ConversacionCanal, ctx: dict | None, *, motivo: str) -> dict:
+    """Marca visitante / prioridad baja y deja la conversación en espera de agente (sin ticket N2)."""
+    out = dict(ctx) if isinstance(ctx, dict) else {}
+    out["invitado"] = True
+    out["visitante"] = True
+    out["cola_prioridad"] = "baja"
+    out["motivo_derivacion"] = motivo
+    out["saludo"] = True
+    out.pop("identificado", None)
+    crepo.set_contexto(conv, out)
+    if not (conv.servicio_detectado or "").strip():
+        conv.servicio_detectado = "comercial"
+    conv.estado = "espera_agente"
+    return out
+
+
+def _derivar_visitante(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    *,
+    canal: str,
+    ctx: dict,
+    motivo: str = "visitante_sin_cuenta",
+    enviar_mensaje: bool = True,
+    mensaje: str | None = None,
+) -> dict:
+    """Visitante sin padrón: mensaje breve + cola de agente (prioridad baja)."""
+    ctx = marcar_cola_visitante(conv, ctx, motivo=motivo)
+    db.commit()
+    resp = (mensaje or mensaje_derivacion_visitante(motivo=motivo)).strip()
+    if enviar_mensaje and resp:
+        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+    return {
+        "ok": True,
+        "modo": "espera_agente",
+        "conversacion_id": conv.id,
+        "respuesta": resp if enviar_mensaje else "",
+        "estado": conv.estado,
+        "es_visitante": True,
+        "cola_prioridad": "baja",
+    }
+
+
 def _mensaje_cierre_escalamiento(
     tid: str,
     *,
@@ -881,7 +946,7 @@ def procesar_mensaje_entrante(
             "estado": conv.estado,
         }
 
-    # Identificación — portal/web continúa como invitado si no hay match
+    # Identificación — sin abonado: pedir DNI (WA) o derivar visitante a agente
     if not abonado:
         dni = _extraer_dni(texto)
         abonado = _intentar_identificar_por_dni(db, org_id, texto)
@@ -890,11 +955,27 @@ def procesar_mensaje_entrante(
             ctx["identificado"] = True
             ctx["dni"] = abonado.dni
             ctx.pop("invitado", None)
+            ctx.pop("visitante", None)
+            ctx.pop("cola_prioridad", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
 
         if not abonado:
-            # WhatsApp: pedir DNI una sola vez; después seguir como invitado
+            # Ya enviaron un DNI/socio y no hay match → visitante (sin repreguntar)
+            if dni:
+                ctx["dni_intentado"] = dni
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                return _derivar_visitante(
+                    db,
+                    org_id,
+                    conv,
+                    canal=canal,
+                    ctx=ctx,
+                    motivo="dni_no_encontrado",
+                )
+
+            # WhatsApp: una chance de DNI antes de derivar
             if canal != "web" and not ctx.get("pidio_dni") and not ctx.get("invitado"):
                 ctx["pidio_dni"] = True
                 crepo.set_contexto(conv, ctx)
@@ -922,36 +1003,22 @@ def procesar_mensaje_entrante(
                     "estado": conv.estado,
                 }
 
-            if not ctx.get("invitado"):
-                ctx["invitado"] = True
-                if dni:
-                    ctx["dni_intentado"] = dni
-                crepo.set_contexto(conv, ctx)
-                db.commit()
-
-            if dni and not ctx.get("aviso_invitado"):
-                ctx["aviso_invitado"] = True
-                crepo.set_contexto(conv, ctx)
-                db.commit()
-                resp = (
-                    "No figurás todavía en el padrón local. Igual te atiendo: "
-                    "¿tu consulta es por internet (fibra, radio o ADSL), móvil IMOWI, "
-                    "telefonía fija, factura/pago, o un servicio Ecolan empresa?"
-                )
-                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
-                return {
-                    "ok": True,
-                    "modo": "bot",
-                    "conversacion_id": conv.id,
-                    "respuesta": resp,
-                    "estado": conv.estado,
-                }
+            return _derivar_visitante(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                ctx=ctx,
+                motivo="visitante_sin_cuenta",
+            )
 
     if abonado:
         conv.abonado_id = abonado.id
         if not ctx.get("saludo"):
             ctx["saludo"] = True
             ctx.pop("invitado", None)
+            ctx.pop("visitante", None)
+            ctx.pop("cola_prioridad", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
             saludo = (

@@ -398,8 +398,11 @@ export default function PortalPage() {
               disabled={busy}
               className="w-full text-xs text-slate-400 hover:text-slate-300 py-2"
             >
-              Continuar como invitado (sin datos de cuenta)
+              No soy abonado / consulta general
             </button>
+            <p className="text-[10px] text-slate-500 text-center -mt-1">
+              Te atenderá un agente (los abonados con DNI tienen prioridad).
+            </p>
 
             {showDemo && (
               <p className="text-[10px] font-mono text-slate-500">
@@ -507,7 +510,8 @@ export default function PortalPage() {
 
             {modoInvitado && (
               <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                Modo invitado: no vemos tu cuenta. Identificate con DNI para consultas personalizadas.
+                Ingresaste sin cuenta de abonado. Te estamos derivando a un agente. Si sos cliente,
+                volvé e identificáte con DNI: los abonados tienen prioridad en la cola.
               </p>
             )}
 

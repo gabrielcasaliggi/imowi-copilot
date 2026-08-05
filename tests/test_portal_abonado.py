@@ -58,7 +58,13 @@ def test_portal_session_guest():
     assert data["abonado_identificado"] is False
     assert data["conversacion"]["canal"] == "web"
     assert data["conversacion"]["canal_display"] == "Web"
+    assert data["conversacion"]["estado"] == "espera_agente"
+    assert data.get("es_visitante") is True or data["conversacion"].get("es_visitante") is True
+    assert data["conversacion"].get("cola_prioridad") == "baja"
     assert len(data["mensajes"]) >= 1
+    saludo = (data["mensajes"][0].get("texto") or "").lower()
+    assert "agente" in saludo
+    assert "prioridad" in saludo
 
 
 def test_portal_chat_y_agente_ve_cola():
@@ -96,7 +102,7 @@ def test_portal_pide_agente():
 
 
 def test_portal_guest_mensaje_deuda_no_500(monkeypatch):
-    """Regresión: invitado + consulta deuda no debe NameError por dni."""
+    """Visitante en espera_agente: no corre N1/LLM; no 500."""
     from unittest.mock import patch
 
     from fastapi.testclient import TestClient
@@ -106,11 +112,12 @@ def test_portal_guest_mensaje_deuda_no_500(monkeypatch):
     client = TestClient(app)
 
     def fake_llm(*_a, **_k):
-        raise AssertionError("invitado+deuda no debería necesitar LLM")
+        raise AssertionError("visitante en cola no debería necesitar LLM")
 
     r = client.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})
     assert r.status_code == 200
     token = r.json()["portal_token"]
+    assert r.json()["conversacion"]["estado"] == "espera_agente"
 
     with patch("app.llm.chat_completion", side_effect=fake_llm):
         msg = client.post(
@@ -121,14 +128,7 @@ def test_portal_guest_mensaje_deuda_no_500(monkeypatch):
     assert msg.status_code == 200, msg.text
     body = msg.json()
     assert body.get("ok") is True
-    resp = (body.get("respuesta") or "").lower()
-    if not resp:
-        bots = [
-            m.get("texto", "")
-            for m in (body.get("mensajes") or [])
-            if m.get("autor") == "bot"
-        ]
-        resp = (bots[-1] if bots else "").lower()
-    assert "dni" in resp
-    assert "fiserv" not in resp
-    assert "internal server" not in resp
+    assert body.get("estado") == "espera_agente" or (
+        (body.get("conversacion") or {}).get("estado") == "espera_agente"
+    )
+    assert "internal server" not in (body.get("respuesta") or "").lower()

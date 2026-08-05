@@ -231,6 +231,13 @@ def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None
         canal_display = "Web"
     else:
         canal_display = canal_raw
+    ctx = get_contexto(c)
+    es_visitante = bool(
+        ctx.get("visitante")
+        or (ctx.get("cola_prioridad") == "baja" and not c.abonado_id)
+        or (ctx.get("invitado") and not c.abonado_id and c.estado in ("espera_agente", "con_agente"))
+    )
+    cola_prioridad = str(ctx.get("cola_prioridad") or ("baja" if es_visitante else "alta"))
     return {
         "id": c.id,
         "canal": canal_raw,
@@ -244,7 +251,9 @@ def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None
         "session_id": c.session_id,
         "servicio_detectado": c.servicio_detectado,
         "ticket_id": c.ticket_id,
-        "contexto": get_contexto(c),
+        "contexto": ctx,
+        "es_visitante": es_visitante,
+        "cola_prioridad": cola_prioridad,
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
