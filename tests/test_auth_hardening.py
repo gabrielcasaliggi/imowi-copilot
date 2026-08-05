@@ -88,6 +88,15 @@ def test_portal_guest_no_identifica_por_dni():
     assert r.json()["modo_invitado"] is True
 
 
+def test_portal_guest_bloqueado_cuando_allow_guest_false(monkeypatch):
+    monkeypatch.setattr("app.api.v1.portal.PORTAL_ALLOW_GUEST", False)
+    r = client.post(
+        "/api/v1/portal/session",
+        json={"org_slug": "coop-batan"},
+    )
+    assert r.status_code == 401
+
+
 def test_portal_otp_flow_and_cross_token():
     email_svc.clear_outbox()
     start = client.post(

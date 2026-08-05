@@ -583,7 +583,7 @@ def abrir_sesion_portal(body: PortalSessionIn, db: Session = Depends(get_db)):
     if not org:
         raise HTTPException(404, f"Organización '{slug}' no encontrada")
 
-    if not PORTAL_ALLOW_GUEST and (body.dni or body.telefono):
+    if not PORTAL_ALLOW_GUEST:
         raise HTTPException(
             401,
             "Iniciá sesión con DNI y verificación. Usá /api/v1/portal/auth/start",

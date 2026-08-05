@@ -20,6 +20,8 @@ from app.config import (
     APP_TITLE,
     AUTH_SECRET,
     CORS_ORIGINS,
+    ENABLE_API_DOCS,
+    ENABLE_LEGACY_API,
     database_url_enmascarada,
     es_postgres,
     es_produccion,
@@ -111,6 +113,9 @@ app = FastAPI(
     description="Plataforma Agentic AI multitenant — NOC autónomo OSS/BSS",
     version="3.0.0",
     lifespan=lifespan,
+    docs_url="/docs" if ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_API_DOCS else None,
 )
 
 app.add_middleware(
@@ -123,12 +128,14 @@ app.add_middleware(
 
 app.include_router(api_v1)
 app.include_router(auth_router.router)
-app.include_router(chat_router.router)
+# tickets_router: endpoints con JWT (compat listar/crear). chat_router: Copilot HTML legacy.
 app.include_router(tickets_router.router)
+if ENABLE_LEGACY_API:
+    app.include_router(chat_router.router)
 
 _ROOT = Path(__file__).resolve().parent
 _STATIC = _ROOT / "static"
-if _STATIC.is_dir():
+if _STATIC.is_dir() and ENABLE_LEGACY_API:
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
 
@@ -171,15 +178,17 @@ async def config_js():
 
 @app.get("/")
 async def root():
-    for candidate in (_ROOT / "index.html", _ROOT / "public" / "index.html"):
-        if candidate.exists():
-            return FileResponse(candidate)
+    if ENABLE_LEGACY_API:
+        for candidate in (_ROOT / "index.html", _ROOT / "public" / "index.html"):
+            if candidate.exists():
+                return FileResponse(candidate)
     kb = estadisticas()
     return {
         "app": APP_TITLE,
         "version": "3.0.0",
-        "docs": "/docs",
+        "docs": "/docs" if ENABLE_API_DOCS else None,
         "health": "/health",
         "knowledge": kb,
-        "api_only": "Frontend en Netlify: configurá IMOWI_API_URL (legacy) o la URL de la API",
+        "frontend": "Next.js (puerto 3000 / nginx)",
+        "api_v1": "/api/v1",
     }

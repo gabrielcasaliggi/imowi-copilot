@@ -42,4 +42,43 @@ else
 fi
 
 echo ""
+echo "==> Superficie pública (hardening)"
+DOCS_CODE="$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/docs" || true)"
+OPENAPI_CODE="$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/openapi.json" || true)"
+GUEST_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/v1/portal/session" \
+  -H 'Content-Type: application/json' \
+  -d '{"org_slug":"coop-batan"}' || true)"
+CHAT_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/chat" \
+  -H 'Content-Type: application/json' \
+  -d '{}' || true)"
+
+echo "  /docs HTTP $DOCS_CODE"
+echo "  /openapi.json HTTP $OPENAPI_CODE"
+echo "  POST /api/v1/portal/session (guest) HTTP $GUEST_CODE"
+echo "  POST /api/chat (legacy) HTTP $CHAT_CODE"
+
+ENV_NAME="$(echo "$BODY" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("env",""))')"
+if [[ "${EXPECT_HARDENED:-}" == "1" || "$ENV_NAME" == "production" ]]; then
+  [[ "$DOCS_CODE" == "404" ]] || { echo "FAIL: /docs debería ser 404 en production"; exit 1; }
+  [[ "$GUEST_CODE" == "401" || "$GUEST_CODE" == "403" ]] || {
+    echo "WARN: guest session HTTP $GUEST_CODE (esperado 401 si PORTAL_ALLOW_GUEST=false)"
+  }
+  [[ "$CHAT_CODE" == "404" || "$CHAT_CODE" == "405" ]] || {
+    echo "WARN: legacy /api/chat HTTP $CHAT_CODE (esperado 404 si ENABLE_LEGACY_API=false)"
+  }
+fi
+
+echo ""
+echo "==> HSTS (solo HTTPS)"
+if [[ "$API_URL" == https://* ]]; then
+  if curl -sI "$API_URL/" | grep -qi 'strict-transport-security'; then
+    echo "  HSTS: presente"
+  else
+    echo "  WARN: HSTS no detectado en headers"
+  fi
+else
+  echo "  (omitido — URL no es https)"
+fi
+
+echo ""
 echo "Despliegue verificado."

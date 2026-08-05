@@ -64,12 +64,29 @@ PORTAL_AUTH_SECRET = os.getenv("PORTAL_AUTH_SECRET", "").strip()
 PORTAL_JWT_AUD = os.getenv("PORTAL_JWT_AUD", "ops-hub-portal")
 PORTAL_TOKEN_HOURS = float(os.getenv("PORTAL_TOKEN_HOURS", "4"))
 PORTAL_AUTH_MODE = os.getenv("PORTAL_AUTH_MODE", "dni_otp").strip().lower()
-PORTAL_ALLOW_GUEST = os.getenv("PORTAL_ALLOW_GUEST", "true").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
+# Guest anónimo: en production off por defecto (forzá true solo si lo necesitás en piloto)
+_raw_portal_guest = os.getenv("PORTAL_ALLOW_GUEST")
+if _raw_portal_guest is None:
+    PORTAL_ALLOW_GUEST = APP_ENV not in ("production", "prod")
+else:
+    PORTAL_ALLOW_GUEST = _raw_portal_guest.strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+# UI/API Copilot HTML legacy (/api/chat sin auth). Off en production salvo override.
+_raw_legacy = os.getenv("ENABLE_LEGACY_API")
+if _raw_legacy is None:
+    ENABLE_LEGACY_API = APP_ENV not in ("production", "prod")
+else:
+    ENABLE_LEGACY_API = _raw_legacy.strip().lower() in ("1", "true", "yes", "on")
+# Swagger/OpenAPI público
+_raw_api_docs = os.getenv("ENABLE_API_DOCS")
+if _raw_api_docs is None:
+    ENABLE_API_DOCS = APP_ENV not in ("production", "prod")
+else:
+    ENABLE_API_DOCS = _raw_api_docs.strip().lower() in ("1", "true", "yes", "on")
 DISABLE_DEMO_USERS = os.getenv("DISABLE_DEMO_USERS", "").strip().lower() in (
     "1",
     "true",
@@ -314,5 +331,13 @@ def validar_config_produccion() -> list[str]:
         avisos.append("MOCK_USERS activos en production — set DISABLE_DEMO_USERS=true")
     if not SMTP_HOST:
         avisos.append("SMTP_HOST no configurado — invites/OTP por email no funcionarán")
+    if PORTAL_ALLOW_GUEST:
+        avisos.append("PORTAL_ALLOW_GUEST=true — guest anónimo habilitado en production")
+    if ENABLE_LEGACY_API:
+        avisos.append("ENABLE_LEGACY_API=true — /api/chat legacy expuesto sin endurecer")
+    if ENABLE_API_DOCS:
+        avisos.append("ENABLE_API_DOCS=true — /docs y OpenAPI públicos")
+    if WHATSAPP_TOKEN and not WHATSAPP_APP_SECRET:
+        avisos.append("WHATSAPP_APP_SECRET vacío con token WA — webhook sin firma HMAC")
 
     return avisos

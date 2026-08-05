@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
-from app.config import WHATSAPP_DEFAULT_ORG_SLUG, WHATSAPP_VERIFY_TOKEN
+from app.config import WHATSAPP_DEFAULT_ORG_SLUG, WHATSAPP_VERIFY_TOKEN, es_produccion
 from app.estate import repository as repo
 from app.estate.database import get_db
 from app.services.canal_abonado import procesar_mensaje_entrante
@@ -17,6 +20,16 @@ from app.services.platform_settings import resolve_whatsapp
 logger = logging.getLogger("operations_hub")
 
 router = APIRouter(tags=["WhatsApp"])
+
+
+def _firma_valida(raw_body: bytes, signature_header: str | None, app_secret: str) -> bool:
+    if not app_secret or not signature_header:
+        return False
+    if not signature_header.startswith("sha256="):
+        return False
+    expected = hmac.new(app_secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    received = signature_header.removeprefix("sha256=")
+    return hmac.compare_digest(expected, received)
 
 
 @router.get("/whatsapp/webhook")
@@ -34,8 +47,24 @@ def verify_webhook(
 
 @router.post("/whatsapp/webhook")
 async def receive_webhook(request: Request, db: Session = Depends(get_db)):
-    payload = await request.json()
-    org_slug = resolve_whatsapp(db).get("default_org_slug") or WHATSAPP_DEFAULT_ORG_SLUG
+    raw = await request.body()
+    wa = resolve_whatsapp(db)
+    secret = (wa.get("app_secret") or "").strip()
+
+    if secret:
+        sig = request.headers.get("x-hub-signature-256")
+        if not _firma_valida(raw, sig, secret):
+            raise HTTPException(403, "Firma inválida")
+    elif es_produccion():
+        logger.error("WhatsApp webhook sin WHATSAPP_APP_SECRET en production")
+        raise HTTPException(503, "Webhook WhatsApp no configurado")
+
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(400, "JSON inválido") from None
+
+    org_slug = wa.get("default_org_slug") or WHATSAPP_DEFAULT_ORG_SLUG
     org = repo.get_org_by_slug(db, org_slug)
     if not org:
         logger.error("Org WhatsApp no encontrada: %s", org_slug)

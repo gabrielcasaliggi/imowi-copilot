@@ -76,6 +76,46 @@ def test_whatsapp_webhook_verify_reject():
     assert r.status_code == 403
 
 
+def test_whatsapp_webhook_exige_firma_cuando_hay_secret(monkeypatch):
+    import hashlib
+    import hmac
+    import json
+
+    secret = "meta-test-app-secret"
+
+    def _wa(_db=None):
+        return {
+            "token": "",
+            "phone_number_id": "",
+            "verify_token": "ops-hub-wa-verify",
+            "app_secret": secret,
+            "default_org_slug": "coop-batan",
+        }
+
+    monkeypatch.setattr("app.api.v1.whatsapp.resolve_whatsapp", _wa)
+    body = {"object": "whatsapp_business_account", "entry": []}
+    raw = json.dumps(body).encode("utf-8")
+
+    bad = client.post(
+        "/api/v1/whatsapp/webhook",
+        content=raw,
+        headers={"Content-Type": "application/json"},
+    )
+    assert bad.status_code == 403
+
+    sig = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+    ok = client.post(
+        "/api/v1/whatsapp/webhook",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": sig,
+        },
+    )
+    assert ok.status_code == 200
+    assert ok.json()["status"] == "ok"
+
+
 def test_batan_no_puede_inyectar():
     headers = _batan_headers()
     r = client.post(
