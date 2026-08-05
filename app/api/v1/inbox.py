@@ -45,15 +45,25 @@ def list_inbox(
         abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
         out.append(crepo.conversacion_to_dict(c, abonado=abo))
 
-    # Clientes / prioridad alta primero; visitantes (cola baja) al final
-    def _es_baja(item: dict) -> bool:
-        return bool(item.get("es_visitante") or item.get("cola_prioridad") == "baja")
+    # Cola accionable primero: espera_agente → con_agente → bot.
+    # Dentro de espera_agente: abonados antes que visitantes (prioridad baja).
+    _estado_rank = {"espera_agente": 0, "con_agente": 1, "bot": 2, "cerrado": 3}
 
-    alta = [d for d in out if not _es_baja(d)]
-    baja = [d for d in out if _es_baja(d)]
-    alta.sort(key=lambda d: d.get("updated_at") or "", reverse=True)
-    baja.sort(key=lambda d: d.get("updated_at") or "", reverse=True)
-    return {"tenant": ctx.organizacion_slug, "conversaciones": alta + baja}
+    def _bucket(item: dict) -> tuple[int, int]:
+        est = str(item.get("estado") or "bot")
+        baja = 1 if item.get("es_visitante") or item.get("cola_prioridad") == "baja" else 0
+        baja_eff = baja if est == "espera_agente" else 0
+        return (_estado_rank.get(est, 9), baja_eff)
+
+    out.sort(key=lambda d: (*_bucket(d),), reverse=False)
+    from itertools import groupby
+
+    ordered: list[dict] = []
+    for _, chunk in groupby(out, key=_bucket):
+        block = list(chunk)
+        block.sort(key=lambda d: d.get("updated_at") or "", reverse=True)
+        ordered.extend(block)
+    return {"tenant": ctx.organizacion_slug, "conversaciones": ordered}
 
 
 @router.get("/inbox/conversations/{conv_id}")
