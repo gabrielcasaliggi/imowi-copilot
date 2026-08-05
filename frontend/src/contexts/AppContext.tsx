@@ -195,7 +195,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTicketExistente(null);
     setIntencionPendiente(null);
     setReady(true);
-    window.location.replace("/login");
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.replace("/login");
+    }
   }, []);
 
   useEffect(() => {
@@ -361,19 +363,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      // Intentar sesión por cookie (same-origin / credentials)
+      // Probe por cookie: NO disparar logout en 401 (evita loop en /login)
       void api
-        .me()
-        .then((me) => boot({
-          token: "",
-          usuario: me.usuario,
-          rol: me.rol,
-          cooperativa: me.cooperativa,
-          nombre: me.nombre,
-          org_slug: me.org_slug,
-          permisos: me.permisos,
-          must_change_password: me.must_change_password,
-        } as LoginResponse))
+        .me({ suppressUnauthorized: true })
+        .then((me) =>
+          boot({
+            token: "",
+            usuario: me.usuario,
+            rol: me.rol,
+            cooperativa: me.cooperativa,
+            nombre: me.nombre,
+            org_slug: me.org_slug,
+            permisos: me.permisos,
+            must_change_password: me.must_change_password,
+          } as LoginResponse),
+        )
         .catch(() => {
           setReady(true);
         });
@@ -381,9 +385,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore session
     void boot().catch(() => {
-      logout();
+      clearToken();
+      setUser(null);
+      setReady(true);
+      // Sin hard reload: si estamos en /login no reentrar el loop
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.replace("/login");
+      }
     });
-  }, [boot, logout]);
+    // Solo al montar el provider
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap único
+  }, []);
 
   const login = useCallback(
     async (usuario: string, password: string) => {

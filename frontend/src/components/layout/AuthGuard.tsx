@@ -2,14 +2,13 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useApp } from "@/contexts/AppContext";
-import { getToken } from "@/lib/storage";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { ready, user } = useApp();
 
   useEffect(() => {
     if (!ready) return;
-    if (!getToken() || !user) window.location.replace("/login");
+    if (!user) window.location.replace("/login");
   }, [ready, user]);
 
   if (!ready) {
@@ -26,7 +25,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!getToken() || !user) {
+  if (!user) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-slate-500 font-mono text-sm">Redirigiendo…</p>

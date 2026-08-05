@@ -40,6 +40,8 @@ export class ApiError extends Error {
 type RequestOpts = RequestInit & {
   tenantSlug?: string;
   skipAuth?: boolean;
+  /** Si true, un 401 no limpia sesión ni dispara logout (p. ej. probe de cookie en /login). */
+  suppressUnauthorized?: boolean;
   timeoutMs?: number;
 };
 
@@ -100,8 +102,10 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
             : "";
       throw new ApiError(detail || "Usuario o contraseña incorrectos", 401);
     }
-    clearToken();
-    onUnauthorized?.();
+    if (!opts.suppressUnauthorized) {
+      clearToken();
+      onUnauthorized?.();
+    }
     throw new ApiError("Sesión expirada", 401);
   }
 
@@ -327,8 +331,8 @@ export const api = {
     });
   },
 
-  me() {
-    return request<MeResponse>("/api/me");
+  me(opts?: { suppressUnauthorized?: boolean }) {
+    return request<MeResponse>("/api/me", opts);
   },
 
   tenants() {
