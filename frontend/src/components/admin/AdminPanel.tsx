@@ -11,6 +11,7 @@ import {
   StatusPill,
 } from "@/components/ui/GlassCard";
 import { PlatformSettingsPanel } from "@/components/admin/PlatformSettingsPanel";
+import { LlmMetricsPanel } from "@/components/admin/LlmMetricsPanel";
 import { inputCls } from "@/components/ui/forms";
 
 const COOP_ROLES = [
@@ -19,7 +20,7 @@ const COOP_ROLES = [
   { value: "ejecutivo", label: "Ejecutivo" },
 ] as const;
 
-type HubTab = "cooperativas" | "seguridad" | "config" | "roles";
+type HubTab = "cooperativas" | "seguridad" | "config" | "ia" | "roles";
 
 export function AdminPanel() {
   const [hubTab, setHubTab] = useState<HubTab>("cooperativas");
@@ -340,13 +341,14 @@ export function AdminPanel() {
     <div className="admin-hub-page p-4 space-y-5 overflow-y-auto min-h-0">
       <SectionHeader
         title="Admin Hub"
-        subtitle="Cooperativas · usuarios · seguridad"
+        subtitle="Cooperativas · usuarios · seguridad · IA"
       />
 
       <div className="flex flex-wrap gap-2">
         {tabBtn("cooperativas", "Cooperativas")}
         {tabBtn("seguridad", "Seguridad")}
         {tabBtn("config", "Config")}
+        {tabBtn("ia", "IA / LLM")}
         {tabBtn("roles", "Roles")}
       </div>
 
@@ -410,6 +412,8 @@ export function AdminPanel() {
       )}
 
       {hubTab === "config" && <PlatformSettingsPanel onMessage={setMessage} />}
+
+      {hubTab === "ia" && <LlmMetricsPanel />}
 
       {hubTab === "roles" && (
         <div className="space-y-4">

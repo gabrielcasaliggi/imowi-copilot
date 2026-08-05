@@ -906,6 +906,10 @@ export const api = {
     return request<PlatformSettingsResponse>("/api/v1/admin/settings");
   },
 
+  llmMetrics(recent = 20) {
+    return request<LlmMetricsResponse>(`/api/v1/metrics/llm?recent=${recent}`);
+  },
+
   updateAdminSettings(settings: Record<string, unknown>) {
     return request<PlatformSettingsResponse>("/api/v1/admin/settings", {
       method: "PUT",
@@ -1187,4 +1191,23 @@ export interface InboxMessage {
   texto: string;
   meta_message_id: string;
   created_at: string;
+}
+export interface LlmMetricsResponse {
+  status: string;
+  calls_ok: number;
+  calls_error: number;
+  calls_total: number;
+  avg_latency_ms_ok: number;
+  window_size: number;
+  by_model: Record<string, number>;
+  recent: {
+    ts: number;
+    ok: boolean;
+    latency_ms: number;
+    model: string;
+    error: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  }[];
 }

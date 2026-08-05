@@ -15,6 +15,8 @@ TOKEN=...  # login
 curl -fsS -H "Authorization: Bearer $TOKEN" https://ibot.ecolan.com/api/v1/metrics/llm | python3 -m json.tool
 ```
 
+También en UI: **Admin → IA / LLM** (KPIs + últimas llamadas, auto-refresh).
+
 ### 2. Smoke Playwright
 ```bash
 .venv/bin/pip install playwright httpx
