@@ -2,8 +2,9 @@
 
 Harness de auditoría conversacional contra producción:
 
-- Portal UI: https://ibot.ecolan.com/portal (Playwright, modo Invitado)
+- Portal UI: https://ibot.ecolan.com/portal (Playwright, modo Invitado / visitante)
 - API: `POST /api/v1/portal/session` + `POST /api/v1/portal/messages` (org `coop-batan`)
+- Smoke Fase C: `python -m qa_bot.smoke_fase_c` (login consola + guest) — ver `docs/FASE-C.md`
 
 ## Uso
 

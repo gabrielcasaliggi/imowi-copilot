@@ -10,6 +10,7 @@ from app.api.v1 import (
     inbox,
     jsc,
     kb,
+    metrics,
     portal,
     rbac_api,
     telemetry,
@@ -26,6 +27,7 @@ api_v1.include_router(demo.router)
 api_v1.include_router(jsc.router)
 api_v1.include_router(kb.router)
 api_v1.include_router(telemetry.router)
+api_v1.include_router(metrics.router)
 api_v1.include_router(tickets.router)
 api_v1.include_router(templates.router)
 api_v1.include_router(inbox.router)

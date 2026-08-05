@@ -69,6 +69,19 @@ if [[ "${EXPECT_HARDENED:-}" == "1" || "$ENV_NAME" == "production" ]]; then
 fi
 
 echo ""
+echo "==> WhatsApp webhook (HMAC)"
+WA_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/v1/whatsapp/webhook" \
+  -H 'Content-Type: application/json' \
+  -d '{}' || true)"
+echo "  POST /api/v1/whatsapp/webhook sin firma HTTP $WA_CODE"
+if [[ "$ENV_NAME" == "production" ]]; then
+  # Con secret: 403. Sin secret en prod: 503. 200 solo si no hay secret y no es prod (no debería).
+  if [[ "$WA_CODE" != "403" && "$WA_CODE" != "503" && "$WA_CODE" != "400" ]]; then
+    echo "  WARN: webhook abierto sin firma (HTTP $WA_CODE) — revisá WHATSAPP_APP_SECRET"
+  fi
+fi
+
+echo ""
 echo "==> HSTS (solo HTTPS)"
 if [[ "$API_URL" == https://* ]]; then
   if curl -sI "$API_URL/" | grep -qi 'strict-transport-security'; then

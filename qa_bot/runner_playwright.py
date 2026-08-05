@@ -18,13 +18,17 @@ ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 def _login_guest(page: Page) -> None:
     page.goto(DEFAULT_PORTAL, wait_until="domcontentloaded", timeout=60_000)
     btn = page.get_by_role(
-        "button", name=re.compile(r"Continuar como invitado", re.I)
+        "button",
+        name=re.compile(
+            r"(Continuar como invitado|No soy abonado|consulta general)",
+            re.I,
+        ),
     )
     btn.click()
-    page.get_by_placeholder(re.compile(r"Escribí tu consulta|Tu mensaje|consulta", re.I)).wait_for(
-        state="visible", timeout=60_000
-    )
-    # Esperar saludo del bot
+    page.get_by_placeholder(
+        re.compile(r"Escribí tu consulta|Tu mensaje|consulta|visitante", re.I)
+    ).wait_for(state="visible", timeout=60_000)
+    # Esperar saludo del bot / handoff
     page.wait_for_timeout(800)
 
 
