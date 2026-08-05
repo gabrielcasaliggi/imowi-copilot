@@ -42,7 +42,11 @@ from app.estate.security import (
 from app.services import auth_security as aseg
 from app.services import email as email_svc
 from app.services.billtrack import lookup_abonado_por_dni
-from app.services.canal_abonado import marcar_cola_visitante, mensaje_derivacion_visitante, procesar_mensaje_entrante
+from app.services.canal_abonado import (
+    marcar_cola_visitante,
+    mensaje_derivacion_visitante,
+    procesar_mensaje_entrante,
+)
 from app.services.platform_settings import resolve_canal_usar_llama
 
 router = APIRouter(tags=["Portal"])
