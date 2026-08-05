@@ -31,6 +31,28 @@ def normalizar_telefono(raw: str) -> str:
     return digitos
 
 
+def normalizar_identidad(canal: str, raw: str) -> str:
+    """Identidad por canal: E.164 (WA/web) o chat_id (Telegram)."""
+    s = (raw or "").strip()
+    if (canal or "") == "telegram":
+        if s.startswith("tg:"):
+            s = s[3:].strip()
+        # chat_id puede ser negativo (grupos); preservar signo
+        if re.fullmatch(r"-?\d+", s):
+            return s
+        return s[:40]
+    return normalizar_telefono(s)
+
+
+def _session_prefix(canal: str) -> str:
+    return {
+        "whatsapp": "wa",
+        "simulate": "wa",
+        "telegram": "tg",
+        "web": "web",
+    }.get(canal or "whatsapp", "ch")
+
+
 def normalizar_dni(raw: str) -> str:
     return re.sub(r"\D", "", raw or "")
 
@@ -85,12 +107,16 @@ def get_or_create_conversacion(
     canal: str = "whatsapp",
     wa_id: str = "",
 ) -> ConversacionCanal:
-    tel = normalizar_telefono(telefono)
-    wa = wa_id or tel
+    canal_norm = (canal or "whatsapp").strip() or "whatsapp"
+    tel = normalizar_identidad(canal_norm, telefono)
+    wa = (wa_id or "").strip() or tel
+    if canal_norm == "telegram":
+        wa = normalizar_identidad("telegram", wa)
     existing = db.scalar(
         select(ConversacionCanal)
         .where(
             ConversacionCanal.organizacion_id == org_id,
+            ConversacionCanal.canal == canal_norm,
             ConversacionCanal.telefono == tel,
             ConversacionCanal.estado != "cerrado",
         )
@@ -108,12 +134,13 @@ def get_or_create_conversacion(
                 existing = None
     if existing:
         return existing
+    prefix = _session_prefix(canal_norm)
     conv = ConversacionCanal(
         organizacion_id=org_id,
-        canal=canal,
+        canal=canal_norm,
         wa_id=wa,
         telefono=tel,
-        session_id=f"wa:{org_id}:{tel}",
+        session_id=f"{prefix}:{org_id}:{tel}",
         estado="bot",
         contexto_json="{}",
         ticket_id="",
@@ -227,6 +254,8 @@ def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None
     canal_raw = c.canal or "whatsapp"
     if canal_raw in ("whatsapp", "simulate"):
         canal_display = "WhatsApp"
+    elif canal_raw == "telegram":
+        canal_display = "Telegram"
     elif canal_raw == "web":
         canal_display = "Web"
     else:

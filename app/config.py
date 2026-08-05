@@ -179,6 +179,11 @@ WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "").strip()
 # Org por defecto para webhook (slug cooperativa)
 WHATSAPP_DEFAULT_ORG_SLUG = os.getenv("WHATSAPP_DEFAULT_ORG_SLUG", "coop-batan").strip()
 
+# Telegram Bot API
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
+TELEGRAM_DEFAULT_ORG_SLUG = os.getenv("TELEGRAM_DEFAULT_ORG_SLUG", "coop-batan").strip()
+
 ESTADOS_TICKET_VALIDOS = ("Abierto", "En Revisión", "Cerrado")
 
 _DEFAULT_MOCK_USERS = {
@@ -339,5 +344,7 @@ def validar_config_produccion() -> list[str]:
         avisos.append("ENABLE_API_DOCS=true — /docs y OpenAPI públicos")
     if WHATSAPP_TOKEN and not WHATSAPP_APP_SECRET:
         avisos.append("WHATSAPP_APP_SECRET vacío con token WA — webhook sin firma HMAC")
+    if TELEGRAM_BOT_TOKEN and not TELEGRAM_WEBHOOK_SECRET:
+        avisos.append("TELEGRAM_WEBHOOK_SECRET vacío con bot token — webhook sin secret token")
 
     return avisos

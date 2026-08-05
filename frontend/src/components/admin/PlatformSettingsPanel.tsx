@@ -13,7 +13,7 @@ import {
 
 const labelCls = "block text-xs text-slate-400 mb-1";
 
-type SettingsSection = "ai" | "whatsapp" | "database" | "billtrack" | "knowledge" | "playbooks";
+type SettingsSection = "ai" | "whatsapp" | "telegram" | "database" | "billtrack" | "knowledge" | "playbooks";
 
 export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string) => void }) {
   const botName = getBranding().botDisplayName;
@@ -28,6 +28,11 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     phone_number_id: "",
     verify_token: "",
     app_secret: "",
+    default_org_slug: "",
+  });
+  const [tg, setTg] = useState({
+    bot_token: "",
+    webhook_secret: "",
     default_org_slug: "",
   });
   const [dbCfg, setDbCfg] = useState({ url: "", sslmode: "require", nota: "" });
@@ -62,6 +67,11 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       verify_token: s.whatsapp?.verify_token || "",
       app_secret: s.whatsapp?.app_secret || "",
       default_org_slug: s.whatsapp?.default_org_slug || "",
+    });
+    setTg({
+      bot_token: s.telegram?.bot_token || "",
+      webhook_secret: s.telegram?.webhook_secret || "",
+      default_org_slug: s.telegram?.default_org_slug || "",
     });
     setDbCfg({
       url: s.database?.url || res.database_url_masked || "",
@@ -109,6 +119,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       const res = await api.updateAdminSettings({
         ai,
         whatsapp: wa,
+        telegram: tg,
         database: dbCfg,
         billtrack,
         knowledge: kb,
@@ -146,6 +157,22 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       );
     } catch (err) {
       onMessage?.(err instanceof Error ? err.message : "Error test WhatsApp");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testTg = async () => {
+    setBusy(true);
+    try {
+      const r = await api.testAdminTelegram();
+      onMessage?.(
+        r.ok
+          ? `Telegram OK · @${r.bot_username || "bot"} · org ${r.default_org_slug}`
+          : `Telegram falló: ${r.error || "falta bot_token"}`,
+      );
+    } catch (err) {
+      onMessage?.(err instanceof Error ? err.message : "Error test Telegram");
     } finally {
       setBusy(false);
     }
@@ -210,6 +237,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
   const tabs: { id: SettingsSection; label: string }[] = [
     { id: "ai", label: "API IA" },
     { id: "whatsapp", label: "WhatsApp" },
+    { id: "telegram", label: "Telegram" },
     { id: "billtrack", label: "Clientes (BillTrack)" },
     { id: "database", label: "Data Estate" },
     { id: "knowledge", label: "Conocimiento" },
@@ -240,6 +268,10 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
             <StatusPill
               label={data.whatsapp_configured ? "WA OK" : "WA pendiente"}
               tone={data.whatsapp_configured ? "available" : "soon"}
+            />
+            <StatusPill
+              label={data.telegram_configured ? "TG OK" : "TG pendiente"}
+              tone={data.telegram_configured ? "available" : "soon"}
             />
             <StatusPill
               label={
@@ -367,6 +399,55 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
               >
                 Validar configuración WhatsApp
+              </button>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+
+      {section === "telegram" && (
+        <GlassCard title="Telegram Bot API" accent="cyan" variant="secondary">
+          <div className="grid gap-3 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs text-slate-400">
+              Webhook: <code className="text-slate-300">POST /api/v1/telegram/webhook</code>
+              {" "}· header <code className="text-slate-300">X-Telegram-Bot-Api-Secret-Token</code>
+            </p>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Bot token</label>
+              <input
+                className={inputCls}
+                type="password"
+                value={tg.bot_token}
+                onChange={(e) => setTg({ ...tg, bot_token: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Webhook secret</label>
+              <input
+                className={inputCls}
+                type="password"
+                value={tg.webhook_secret}
+                onChange={(e) => setTg({ ...tg, webhook_secret: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Org slug por defecto (webhook)</label>
+              <input
+                className={inputCls}
+                value={tg.default_org_slug}
+                onChange={(e) => setTg({ ...tg, default_org_slug: e.target.value })}
+                placeholder="coop-batan"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void testTg()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
+              >
+                Validar bot (getMe)
               </button>
             </div>
           </div>

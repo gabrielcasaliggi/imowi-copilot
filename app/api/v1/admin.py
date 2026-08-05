@@ -489,7 +489,7 @@ def update_platform_settings(
     if not isinstance(patch, dict):
         raise HTTPException(400, "Body inválido")
     # Solo secciones conocidas
-    allowed = {"ai", "whatsapp", "database", "billtrack", "knowledge", "canal", "playbooks"}
+    allowed = {"ai", "whatsapp", "telegram", "database", "billtrack", "knowledge", "canal", "playbooks"}
     clean = {k: v for k, v in patch.items() if k in allowed}
     save_settings(db, clean, actor=admin.usuario)
     org = repo.get_org_by_slug(db, "imowi")
@@ -565,6 +565,36 @@ def test_whatsapp_config(
         "verify_token": cfg.get("verify_token") or "",
         "default_org_slug": cfg.get("default_org_slug") or "",
         "nota": "No envía mensaje real; solo valida que token y phone_number_id estén configurados.",
+    }
+
+
+@router.post("/admin/settings/test-telegram")
+def test_telegram_config(
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.platform_settings import resolve_telegram
+    from app.services.telegram_client import get_me, telegram_configurado
+
+    cfg = resolve_telegram(db)
+    if not telegram_configurado():
+        return {
+            "ok": False,
+            "token_set": False,
+            "default_org_slug": cfg.get("default_org_slug") or "",
+            "webhook_secret_set": bool(cfg.get("webhook_secret")),
+            "nota": "Falta TELEGRAM_BOT_TOKEN / bot_token en settings.",
+        }
+    me = get_me()
+    return {
+        "ok": bool(me.get("ok")),
+        "token_set": True,
+        "webhook_secret_set": bool(cfg.get("webhook_secret")),
+        "default_org_slug": cfg.get("default_org_slug") or "",
+        "bot_username": me.get("username") or "",
+        "bot_id": me.get("id"),
+        "error": me.get("detail") or me.get("reason") or "",
+        "nota": "Valida el token con getMe. Configurá el webhook en BotFather/API apuntando a /api/v1/telegram/webhook.",
     }
 
 

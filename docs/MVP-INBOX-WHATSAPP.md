@@ -2,7 +2,7 @@
 
 ## Producto
 
-Consola de **Cooperativa Batán**: bandeja de conversaciones (portal web hoy; WhatsApp después), bot N1, tickets N2 y conocimiento.
+Consola de **Cooperativa Batán**: bandeja de conversaciones (portal web, WhatsApp, Telegram), bot N1, tickets N2 y conocimiento.
 
 ## Roles
 
@@ -16,4 +16,4 @@ Consola de **Cooperativa Batán**: bandeja de conversaciones (portal web hoy; Wh
 2. Si no resuelve / pide agente → hilo en **Bandeja** (`espera_agente`)  
 3. Agente toma, responde, cierra; ticket N2 en consola de tickets  
 
-WhatsApp Cloud API: fase 2 (ver config plataforma). No es el canal prioritario de la UX actual.
+WhatsApp Cloud API y Telegram Bot API: ver config de plataforma / `docs/TELEGRAM-CANAL.md`. El portal web sigue siendo el canal prioritario de UX.

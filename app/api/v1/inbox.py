@@ -1,4 +1,4 @@
-"""Inbox de agentes — conversaciones canal abonado (Web / WhatsApp)."""
+"""Inbox de agentes — conversaciones canal abonado (Web / WhatsApp / Telegram)."""
 
 from __future__ import annotations
 
@@ -12,15 +12,17 @@ from app.estate import canal_repo as crepo
 from app.estate.database import get_db
 from app.estate.models import Abonado
 from app.services.canal_abonado import procesar_mensaje_entrante
-from app.services.whatsapp_client import enviar_texto
+from app.services.telegram_client import enviar_texto as enviar_texto_tg
+from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
 
 router = APIRouter(tags=["Inbox"])
 
 
 class SimulateIn(BaseModel):
-    telefono: str = Field(..., min_length=8, max_length=40)
+    telefono: str = Field(..., min_length=1, max_length=40)
     texto: str = Field(..., min_length=1, max_length=4000)
     usar_llama: bool = False
+    canal: str = Field(default="whatsapp", max_length=20)
 
 
 class AgentMessageIn(BaseModel):
@@ -160,11 +162,23 @@ def agent_send_message(
         autor="agente",
         texto=texto,
     )
-    wa = enviar_texto(c.telefono, texto) if c.canal == "whatsapp" else {"ok": True, "simulated": True}
-    if wa.get("meta_message_id"):
-        m.meta_message_id = wa["meta_message_id"]
+    delivery: dict
+    if c.canal == "whatsapp":
+        delivery = enviar_texto_wa(c.telefono, texto)
+    elif c.canal == "telegram":
+        delivery = enviar_texto_tg(c.wa_id or c.telefono, texto)
+    else:
+        delivery = {"ok": True, "simulated": True}
+    if delivery.get("meta_message_id"):
+        m.meta_message_id = delivery["meta_message_id"]
         db.commit()
-    return {"status": "ok", "mensaje": crepo.mensaje_to_dict(m), "whatsapp": wa}
+    return {
+        "status": "ok",
+        "mensaje": crepo.mensaje_to_dict(m),
+        "whatsapp": delivery if c.canal == "whatsapp" else None,
+        "telegram": delivery if c.canal == "telegram" else None,
+        "delivery": delivery,
+    }
 
 
 @router.post("/inbox/conversations/{conv_id}/close")
@@ -230,15 +244,21 @@ def simulate_inbound(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    """Inyecta un mensaje entrante (solo admin plataforma · sin Meta)."""
+    """Inyecta un mensaje entrante (solo admin plataforma · sin Meta/Telegram real)."""
     if not ctx.es_admin_imowi:
         raise HTTPException(403, "Solo administración puede inyectar entradas de canal")
+    canal = (body.canal or "whatsapp").strip().lower()
+    if canal not in ("whatsapp", "telegram", "web", "simulate"):
+        raise HTTPException(400, "canal inválido (whatsapp|telegram|web|simulate)")
+    if canal == "simulate":
+        canal = "whatsapp"
     result = procesar_mensaje_entrante(
         db,
         _org_id(ctx),
         telefono=body.telefono,
         texto=body.texto,
-        canal="whatsapp",
+        canal=canal,
+        wa_id=body.telefono if canal == "telegram" else "",
         usar_llama=body.usar_llama,
     )
     return {"tenant": ctx.organizacion_slug, **result}

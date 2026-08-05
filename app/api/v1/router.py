@@ -13,6 +13,7 @@ from app.api.v1 import (
     metrics,
     portal,
     rbac_api,
+    telegram,
     telemetry,
     templates,
     tenants,
@@ -33,6 +34,7 @@ api_v1.include_router(templates.router)
 api_v1.include_router(inbox.router)
 api_v1.include_router(portal.router)
 api_v1.include_router(whatsapp.router)
+api_v1.include_router(telegram.router)
 api_v1.include_router(tenants.router)
 api_v1.include_router(analytics.router)
 api_v1.include_router(admin.router)

@@ -954,6 +954,19 @@ export const api = {
     }>("/api/v1/admin/settings/test-whatsapp", { method: "POST" });
   },
 
+  testAdminTelegram() {
+    return request<{
+      ok: boolean;
+      token_set?: boolean;
+      webhook_secret_set?: boolean;
+      default_org_slug?: string;
+      bot_username?: string;
+      bot_id?: number;
+      error?: string;
+      nota?: string;
+    }>("/api/v1/admin/settings/test-telegram", { method: "POST" });
+  },
+
   testAdminDatabase() {
     return request<{
       ok: boolean;
@@ -1132,7 +1145,7 @@ export const api = {
   },
 
   inboxSimulate(
-    body: { telefono: string; texto: string; usar_llama?: boolean },
+    body: { telefono: string; texto: string; usar_llama?: boolean; canal?: string },
     tenantSlug?: string,
   ) {
     return request<{

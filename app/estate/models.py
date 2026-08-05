@@ -371,15 +371,15 @@ class Abonado(Base):
 
 
 class ConversacionCanal(Base):
-    """Hilo WhatsApp / simulador para inbox de agentes."""
+    """Hilo canal abonado (WhatsApp / Telegram / web / simulador) para inbox."""
 
     __tablename__ = "conversaciones_canal"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
-    canal: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp|simulate
-    wa_id: Mapped[str] = mapped_column(String(40), default="", index=True)
-    telefono: Mapped[str] = mapped_column(String(20), default="", index=True)
+    canal: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp|telegram|web|simulate
+    wa_id: Mapped[str] = mapped_column(String(40), default="", index=True)  # wa_id o chat_id TG
+    telefono: Mapped[str] = mapped_column(String(40), default="", index=True)  # E.164 o chat_id TG
     abonado_id: Mapped[str] = mapped_column(String(36), default="", index=True)
     estado: Mapped[str] = mapped_column(String(24), default="bot", index=True)  # bot|espera_agente|con_agente|cerrado
     agente_id: Mapped[str] = mapped_column(String(120), default="")

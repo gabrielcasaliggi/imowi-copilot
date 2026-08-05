@@ -83,6 +83,7 @@ export interface AuditEvent {
 export interface PlatformSettingsResponse {
   ai_configured: boolean;
   whatsapp_configured: boolean;
+  telegram_configured?: boolean;
   database_driver: string;
   database_url_masked: string;
   billtrack_configured?: boolean;
@@ -100,6 +101,13 @@ export interface PlatformSettingsResponse {
       default_org_slug?: string;
       token_configured?: boolean;
       app_secret_configured?: boolean;
+    };
+    telegram?: {
+      bot_token?: string;
+      webhook_secret?: string;
+      default_org_slug?: string;
+      bot_token_configured?: boolean;
+      webhook_secret_configured?: boolean;
     };
     database?: { url?: string; sslmode?: string; nota?: string; url_configured?: boolean };
     billtrack?: {

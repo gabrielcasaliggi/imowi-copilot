@@ -25,6 +25,9 @@ from app.config import (
     KNOWLEDGE_MAX_FRAGMENT_CHARS,
     KNOWLEDGE_MIN_SCORE,
     KNOWLEDGE_TOP_K,
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_DEFAULT_ORG_SLUG,
+    TELEGRAM_WEBHOOK_SECRET,
     WHATSAPP_APP_SECRET,
     WHATSAPP_DEFAULT_ORG_SLUG,
     WHATSAPP_PHONE_NUMBER_ID,
@@ -41,6 +44,8 @@ _SECRET_KEYS = {
     ("ai", "api_key"),
     ("whatsapp", "token"),
     ("whatsapp", "app_secret"),
+    ("telegram", "bot_token"),
+    ("telegram", "webhook_secret"),
     ("billtrack", "password"),
 }
 
@@ -63,6 +68,11 @@ def _default_payload() -> dict[str, Any]:
             "verify_token": WHATSAPP_VERIFY_TOKEN or "ops-hub-wa-verify",
             "app_secret": WHATSAPP_APP_SECRET,
             "default_org_slug": WHATSAPP_DEFAULT_ORG_SLUG or "coop-batan",
+        },
+        "telegram": {
+            "bot_token": TELEGRAM_BOT_TOKEN,
+            "webhook_secret": TELEGRAM_WEBHOOK_SECRET,
+            "default_org_slug": TELEGRAM_DEFAULT_ORG_SLUG or "coop-batan",
         },
         "database": {
             "url": DATABASE_URL,
@@ -227,6 +237,19 @@ def resolve_whatsapp(db: Session | None = None) -> dict[str, str]:
     }
 
 
+def resolve_telegram(db: Session | None = None) -> dict[str, str]:
+    s = get_merged_settings(db).get("telegram") or {}
+    if not isinstance(s, dict):
+        s = {}
+    return {
+        "bot_token": str(s.get("bot_token") or TELEGRAM_BOT_TOKEN),
+        "webhook_secret": str(s.get("webhook_secret") or TELEGRAM_WEBHOOK_SECRET),
+        "default_org_slug": str(
+            s.get("default_org_slug") or TELEGRAM_DEFAULT_ORG_SLUG or "coop-batan"
+        ),
+    }
+
+
 def resolve_billtrack(db: Session | None = None) -> dict[str, Any]:
     """Credenciales del Postgres externo BillTrack (consulta de clientes)."""
     from app.services.billtrack import connection_params, parse_postgres_url
@@ -364,6 +387,7 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     """Estado no sensible para el panel (sin secretos)."""
     s = mask_settings(get_merged_settings(db))
     wa = resolve_whatsapp(db)
+    tg = resolve_telegram(db)
     ai = resolve_ai(db)
     bt = resolve_billtrack(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
@@ -371,6 +395,7 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     return {
         "ai_configured": bool(ai.get("base_url") and ai.get("model")),
         "whatsapp_configured": bool(wa.get("token") and wa.get("phone_number_id")),
+        "telegram_configured": bool(tg.get("bot_token")),
         "database_driver": "postgresql" if "postgresql" in (DATABASE_URL or "") else "sqlite",
         "database_url_masked": database_url_enmascarada(),
         "billtrack_configured": bool(bt_url or (bt.get("host") and bt.get("user"))),

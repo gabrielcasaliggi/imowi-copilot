@@ -1,4 +1,4 @@
-"""Motor N1 del canal abonado (WhatsApp / simulador) + escalamiento N2."""
+"""Motor N1 del canal abonado (WhatsApp / Telegram / web / simulador) + escalamiento N2."""
 
 from __future__ import annotations
 
@@ -36,7 +36,8 @@ from app.services import ticket_bridge
 from app.services.diagnostico_n1 import diagnosticar_turno, es_intencion_diagnostico
 from app.services.eco_voice import mensaje_saldo_padron
 from app.services.platform_settings import playbooks_as_pasos, resolve_canal_diagnostico_ia
-from app.services.whatsapp_client import enviar_texto
+from app.services.telegram_client import enviar_texto as enviar_texto_tg
+from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
 
 logger = logging.getLogger("operations_hub")
 
@@ -313,7 +314,7 @@ def _crear_ticket_n2(
         linea=linea,
         dispositivo="Canal abonado",
         descripcion_falla=descripcion[:2000],
-        origen="WhatsApp" if conv.canal == "whatsapp" else "Portal",
+        origen=_origen_ticket(conv.canal),
         categoria=str(intent).replace("_", " ").title() if intent else "Canal Abonado",
         creado_por=f"bot:{conv.telefono}",
         nivel="N2",
@@ -417,7 +418,7 @@ def _responder_espera_agente(
             "junto a lo de la conexión. El agente lo ve en el mismo caso; "
             "te van a responder por este chat."
         )
-        _enviar_respuesta(db, org_id, conv, aviso, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -436,7 +437,7 @@ def _responder_espera_agente(
             f"Tu caso ya está derivado (ticket {tid}). "
             f"También quedó anotado: {labels}. Te responden por este chat."
         )
-    _enviar_respuesta(db, org_id, conv, aviso, enviar_wa=(canal == "whatsapp"))
+    _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=(canal != "web"))
     return {
         "ok": True,
         "modo": "espera_agente",
@@ -447,17 +448,40 @@ def _responder_espera_agente(
     }
 
 
+def _es_canal_externo(canal: str) -> bool:
+    return (canal or "") in ("whatsapp", "telegram", "simulate")
+
+
+def _origen_ticket(canal: str) -> str:
+    return {
+        "whatsapp": "WhatsApp",
+        "simulate": "WhatsApp",
+        "telegram": "Telegram",
+        "web": "Portal",
+    }.get(canal or "", "Canal")
+
+
+def _dispatch_outbound(conv: ConversacionCanal, texto: str) -> dict:
+    canal = conv.canal or ""
+    if canal == "whatsapp":
+        return enviar_texto_wa(conv.telefono, texto)
+    if canal == "telegram":
+        dest = conv.wa_id or conv.telefono
+        return enviar_texto_tg(dest, texto)
+    return {"ok": True, "simulated": True}
+
+
 def _enviar_respuesta(
     db: Session,
     org_id: str,
     conv: ConversacionCanal,
     texto: str,
     *,
-    enviar_wa: bool = True,
+    enviar_externo: bool = True,
 ) -> str:
     crepo.add_mensaje(db, org_id, conv.id, direccion="out", autor="bot", texto=texto)
-    if enviar_wa and conv.canal == "whatsapp":
-        enviar_texto(conv.telefono, texto)
+    if enviar_externo and _es_canal_externo(conv.canal):
+        _dispatch_outbound(conv, texto)
     return texto
 
 
@@ -514,7 +538,7 @@ def _derivar_visitante(
     db.commit()
     resp = (mensaje or mensaje_derivacion_visitante(motivo=motivo)).strip()
     if enviar_mensaje and resp:
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
     return {
         "ok": True,
         "modo": "espera_agente",
@@ -654,7 +678,7 @@ def _aplicar_diagnostico_ia(
             mensaje_ia=mensaje,
             nota_temas=_nota_temas_pendientes(ctx),
         )
-        _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -674,7 +698,7 @@ def _aplicar_diagnostico_ia(
                 "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
                 "escribime de nuevo. ¡Gracias!"
             )
-        _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "cerrado",
@@ -687,7 +711,7 @@ def _aplicar_diagnostico_ia(
 
     if not mensaje:
         mensaje = "Contame un poco más del problema para seguir el diagnóstico."
-    _enviar_respuesta(db, org_id, conv, mensaje, enviar_wa=(canal == "whatsapp"))
+    _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
     return {
         "ok": True,
         "modo": "bot",
@@ -808,7 +832,7 @@ def procesar_mensaje_entrante(
                 ctx["saludo"] = True
                 crepo.set_contexto(conv, ctx)
                 db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -837,7 +861,7 @@ def procesar_mensaje_entrante(
             f"Entiendo la molestia. Te derivo con un agente con el historial. "
             f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -874,7 +898,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "bot",
@@ -911,7 +935,7 @@ def procesar_mensaje_entrante(
             f"Dale, te derivo con un agente y le paso lo que charlamos. "
             f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -937,7 +961,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "bot",
@@ -994,7 +1018,7 @@ def procesar_mensaje_entrante(
                         org_id=org_id,
                         consulta=texto,
                     )
-                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
                 return {
                     "ok": True,
                     "modo": "bot",
@@ -1034,7 +1058,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, saludo, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, saludo, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1070,7 +1094,7 @@ def procesar_mensaje_entrante(
             ctx.pop("invitado", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1088,7 +1112,7 @@ def procesar_mensaje_entrante(
             ctx.pop("invitado", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1110,7 +1134,7 @@ def procesar_mensaje_entrante(
             resp = (
                 "Decime por cuál empezamos: ¿el internet o el aumento de la factura?"
             )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1169,7 +1193,7 @@ def procesar_mensaje_entrante(
                     "Veo dos cosas: el móvil IMOWI y el tema de la factura. "
                     "¿Arrancamos por el móvil o por el aumento?"
                 )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1216,7 +1240,7 @@ def procesar_mensaje_entrante(
                     "Pasame tu DNI (solo el número) y te digo si hay saldo pendiente "
                     "y cómo abonar."
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1248,7 +1272,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "bot",
@@ -1299,7 +1323,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1344,7 +1368,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1389,7 +1413,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1417,7 +1441,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "bot",
@@ -1463,7 +1487,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1508,7 +1532,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, pregunta, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "bot",
@@ -1545,7 +1569,7 @@ def procesar_mensaje_entrante(
             )
             if tid not in resp:
                 resp = f"{resp.rstrip('.')} Ticket {tid}."
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -1564,7 +1588,7 @@ def procesar_mensaje_entrante(
             "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
             "escribime de nuevo y te ayudo. ¡Gracias!"
         )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
         return {
             "ok": True,
             "modo": "cerrado",
@@ -1586,7 +1610,7 @@ def procesar_mensaje_entrante(
                     "Entendido, no te derivo por ahora. Si más adelante necesitás "
                     "ayuda o querés hablar con un agente, escribí *agente*."
                 )
-                _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
                 return {
                     "ok": True,
                     "modo": "bot",
@@ -1616,7 +1640,7 @@ def procesar_mensaje_entrante(
                 "¡Genial! Parece resuelto en N1. Si vuelve el problema, escribime de nuevo. "
                 "¡Gracias!"
             )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
                 "modo": "cerrado",
@@ -1650,7 +1674,7 @@ def procesar_mensaje_entrante(
             org_id=org_id,
             consulta=texto,
         )
-    _enviar_respuesta(db, org_id, conv, resp, enviar_wa=(canal == "whatsapp"))
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
     return {
         "ok": True,
         "modo": "bot",
