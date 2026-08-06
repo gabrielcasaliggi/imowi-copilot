@@ -646,6 +646,7 @@ def _mensaje_cierre_escalamiento(
     motivo: str = "",
     mensaje_ia: str = "",
     nota_temas: str = "",
+    intencion: str = "",
 ) -> str:
     """Cierre empático al derivar: no reemplazar un mensaje bueno por plantilla fría."""
     nota = (nota_temas or "").strip()
@@ -653,6 +654,19 @@ def _mensaje_cierre_escalamiento(
         nota = " " + nota
     motivo_l = (motivo or "").lower()
     ia = (mensaje_ia or "").strip()
+    from app.services.diagnostico_n1 import (
+        _parece_diagnostico_optica_fuera_de_lugar,
+        es_intencion_optica,
+    )
+
+    aplica_optica = es_intencion_optica(intencion)
+    # No reutilizar plantilla/tono de fibra si la intención no es óptica
+    if not aplica_optica and (
+        any(k in motivo_l for k in ("los", "fibra", "optica", "óptica", "wifi_post_los"))
+        or _parece_diagnostico_optica_fuera_de_lugar(ia)
+    ):
+        ia = ""
+        motivo_l = "handoff"
 
     # Si la IA / detector ya explicó el caso, conservar tono y solo sumar ticket
     if ia and "ticket" not in ia.lower():
@@ -671,7 +685,9 @@ def _mensaje_cierre_escalamiento(
             "Te van a responder por este mismo chat."
         )
 
-    if any(k in motivo_l for k in ("los", "fibra", "optica", "óptica", "wifi_post_los")):
+    if aplica_optica and any(
+        k in motivo_l for k in ("los", "fibra", "optica", "óptica", "wifi_post_los")
+    ):
         return (
             f"La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
             f"Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
@@ -774,6 +790,7 @@ def _aplicar_diagnostico_ia(
             motivo=str(result.get("motivo") or ""),
             mensaje_ia=mensaje,
             nota_temas=_nota_temas_pendientes(ctx),
+            intencion=intencion,
         )
         _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
         return {
@@ -1813,6 +1830,7 @@ def procesar_mensaje_entrante(
             motivo=motivo,
             mensaje_ia="",
             nota_temas=_nota_temas_pendientes(ctx),
+            intencion=intencion,
         )
         if usar_llama:
             resp = _redactar_con_llama(

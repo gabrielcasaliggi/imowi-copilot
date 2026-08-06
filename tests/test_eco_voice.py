@@ -195,12 +195,89 @@ def test_cierre_escalamiento_los_no_es_cortante():
             "Te derivo con un agente para coordinarla."
         ),
         nota_temas=" También dejé anotado el tema de aumento/factura para el agente.",
+        intencion="internet_ftth",
     )
     assert "Avancé todo lo posible" not in msg
     assert "LOS" in msg or "fibra" in msg.lower()
     assert "IBOT-1016" in msg
     assert "visita" in msg.lower()
     assert "factura" in msg.lower() or "aumento" in msg.lower()
+
+
+def test_cierre_escalamiento_tv_sensa_no_usa_plantilla_fibra():
+    from app.services.canal_abonado import _mensaje_cierre_escalamiento
+
+    msg = _mensaje_cierre_escalamiento(
+        "IBOT-1022",
+        motivo="los_confirmada",
+        mensaje_ia=(
+            "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
+            "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
+            "Te derivo con un agente para coordinarla."
+        ),
+        intencion="tv_sensa",
+    )
+    assert "LOS" not in msg
+    assert "fibra" not in msg.lower()
+    assert "cajita" not in msg.lower()
+    assert "IBOT-1022" in msg
+    assert "agente" in msg.lower()
+
+
+def test_tv_sensa_no_escala_optica_con_historial_ftth(monkeypatch):
+    """Regresión: error de cuenta Sensa no debe terminar en visita por LOS/fibra."""
+    from app.domain.flujos_abonado import PLAYBOOKS
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    def _fake_llm(*_a, **_k):
+        return (
+            '{"accion":"escalate","mensaje":"La luz LOS en rojo indica que la fibra '
+            'no está llegando bien a la cajita.","paso_cubierto":"","motivo":"los_confirmada"}'
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake_llm)
+    historial = [
+        {"autor": "bot", "texto": "Dale, vamos con Sensa. ¿Tenés internet en el equipo?"},
+        {"autor": "cliente", "texto": "Si"},
+        {"autor": "bot", "texto": "¿Desde qué equipo: Smart TV, celular, tablet o PC?"},
+        {"autor": "cliente", "texto": "Smart tv"},
+        {"autor": "bot", "texto": "¿Navegás internet en ese Smart TV?"},
+        {"autor": "cliente", "texto": "Si"},
+        {"autor": "bot", "texto": "¿La app de Sensa abre o tira error?"},
+        {"autor": "cliente", "texto": "Un error"},
+        {"autor": "bot", "texto": "¿Qué error te aparece?"},
+        {"autor": "cliente", "texto": "Usuario incorrecto"},
+        {
+            "autor": "bot",
+            "texto": (
+                "¿Confirmás si usás el usuario y la contraseña que te enviamos "
+                "por mail o por WhatsApp?"
+            ),
+        },
+        # Historial contaminado de un tema FTTH previo en la misma conversación
+        {"autor": "bot", "texto": "¿La luz PON está verde y la LOS apagada?"},
+        {"autor": "cliente", "texto": "no, roja"},
+    ]
+    out = diagnosticar_turno(
+        intencion="tv_sensa",
+        checklist=PLAYBOOKS["tv_sensa"],
+        historial_mensajes=historial,
+        mensaje_cliente="Si",
+        turnos_diagnostico=6,
+        pasos_cubiertos=[
+            "internet_en_disp",
+            "dispositivo_sensa",
+            "navega_en_disp",
+            "app_sensa",
+        ],
+    )
+    assert out["accion"] == "escalate"
+    assert out["motivo"] == "bloqueado_optica_fuera_de_intencion"
+    msg = (out.get("mensaje") or "").lower()
+    assert "los" not in msg
+    assert "fibra" not in msg
+    assert "cajita" not in msg
+    assert "sensa" in msg or "cuenta" in msg or "usuario" in msg
 
 
 def test_aviso_deuda_elige_pago_o_tecnico():

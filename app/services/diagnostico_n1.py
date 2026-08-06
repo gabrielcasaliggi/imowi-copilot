@@ -30,6 +30,21 @@ INTENCIONES_DIAGNOSTICO = frozenset({
     "facturacion",
 })
 
+# Heurísticas PON/LOS / cable amarillo: solo fibra. Nunca en TV OTT, móvil, factura, etc.
+INTENCIONES_OPTICAS = frozenset({
+    "internet_ftth",
+    "internet",
+})
+
+_MOTIVOS_OPTICOS = frozenset({
+    "fibra_danada",
+    "los_con_chequeo_fibra",
+    "los_y_fibra_danada",
+    "los_confirmada",
+    "bloqueado_wifi_post_los",
+    "pon_verde_enlace_ok",
+})
+
 MIN_TURNOS_ANTES_ESCALAR = 4
 
 _AFIRMACIONES = (
@@ -80,6 +95,44 @@ _WIFI_MARKERS = (
 
 def es_intencion_diagnostico(intencion: str) -> bool:
     return (intencion or "").strip() in INTENCIONES_DIAGNOSTICO
+
+
+def es_intencion_optica(intencion: str) -> bool:
+    """True si aplica detección/escalado de fibra (PON/LOS), no TV/móvil/etc."""
+    return (intencion or "").strip() in INTENCIONES_OPTICAS
+
+
+def _parece_diagnostico_optica_fuera_de_lugar(mensaje: str) -> bool:
+    """True si el texto parece diagnóstico FTTH (LOS/fibra/cajita) fuera de contexto."""
+    tl = (mensaje or "").lower()
+    if any(
+        k in tl
+        for k in (
+            "luz los",
+            "los en rojo",
+            "los apagada",
+            "los prendida",
+            "cable amarillo",
+            "cajita blanca",
+            "enlace óptico",
+            "enlace optico",
+            "pon en verde",
+            "luz pon",
+        )
+    ):
+        return True
+    return "fibra" in tl and any(
+        k in tl for k in ("cajita", "ont", "los", "pon", "óptic", "optic", "visita")
+    )
+
+
+def _motivo_es_optico(motivo: str) -> bool:
+    m = (motivo or "").strip().lower()
+    if not m:
+        return False
+    if m in _MOTIVOS_OPTICOS:
+        return True
+    return any(k in m for k in ("los", "fibra", "optic", "óptic", "pon_verde"))
 
 
 def _autor_texto(m: Any) -> tuple[str, str]:
@@ -917,7 +970,9 @@ def diagnosticar_turno(
             "motivo": "pedido_humano",
         }
 
-    motivo_optico = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
+    motivo_optico = None
+    if es_intencion_optica(intencion):
+        motivo_optico = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
     if motivo_optico:
         if motivo_optico == "fibra_danada" and "los" not in (mensaje_cliente or "").lower():
             msg_optico = (
@@ -938,7 +993,9 @@ def diagnosticar_turno(
         }
 
     # PON verde fijo = enlace óptico OK → no preguntar cable amarillo
-    if detectar_enlace_optico_ok(mensaje_cliente, historial_mensajes):
+    if es_intencion_optica(intencion) and detectar_enlace_optico_ok(
+        mensaje_cliente, historial_mensajes
+    ):
         return {
             "accion": "ask",
             "mensaje": (
@@ -974,6 +1031,8 @@ def diagnosticar_turno(
     turnos = max(0, int(turnos_diagnostico or 0))
     msg_safe = sanitize_user_text(mensaje_cliente)
     es_facturacion = (intencion or "").strip() == "facturacion"
+    es_tv_sensa = (intencion or "").strip() == "tv_sensa"
+    aplica_optica = es_intencion_optica(intencion)
 
     if es_facturacion:
         det = _facturacion_deterministica(
@@ -1007,12 +1066,28 @@ def diagnosticar_turno(
             "- escalate cuando ya pediste el detalle y hace falta sistema interno, o si pide agente.\n"
         )
 
+    reglas_tv = ""
+    if es_tv_sensa:
+        reglas_tv = (
+            "\nReglas EXTRA — TV OTT Sensa (prioridad alta):\n"
+            "- Sensa corre sobre internet del dispositivo. Si NO hay internet → enfocá "
+            "conectividad; si HAY internet y navega, el problema es de la app/cuenta Sensa.\n"
+            "- NUNCA menciones luz LOS, PON, ONT, cable amarillo, cajita blanca ni visita "
+            "por fibra. Eso es otro servicio.\n"
+            "- Error de usuario/cuenta/credenciales: pedí confirmar usuario/contraseña y "
+            "dispositivo; no inventes si el servicio está habilitado en CRM. "
+            "Si ya confirmó credenciales y sigue el error → escalate (agente con acceso interno).\n"
+            "- Al escalate por cuenta: mencioná dispositivo + mensaje de error; no digas "
+            "falla de fibra ni visita técnica de obras.\n"
+            "- Buffering/calidad: WiFi/velocidad en ese equipo; no inventes potencias ONT.\n"
+        )
+
     system = with_anti_injection(
         system_prompt_eco_n1(
             intencion=intencion,
             turnos=turnos,
             min_turnos_antes_escalar=MIN_TURNOS_ANTES_ESCALAR,
-            reglas_extra=reglas_facturacion,
+            reglas_extra=reglas_facturacion + reglas_tv,
             contexto_abonado=contexto_abonado,
         )
     )
@@ -1061,16 +1136,20 @@ def diagnosticar_turno(
         paso = str(data.get("paso_cubierto") or "").strip()
         motivo = str(data.get("motivo") or "ia").strip()[:200]
         forzar_optico = bool(
-            detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
-            or (
-                los_confirmada_en_historial(mensaje_cliente, historial_mensajes)
-                and any(k in mensaje.lower() for k in _WIFI_MARKERS)
+            aplica_optica
+            and (
+                detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
+                or (
+                    los_confirmada_en_historial(mensaje_cliente, historial_mensajes)
+                    and any(k in mensaje.lower() for k in _WIFI_MARKERS)
+                )
             )
         )
 
         # Si la IA pregunta WiFi con LOS ya confirmada → forzar escalate óptico
         if (
-            accion == "ask"
+            aplica_optica
+            and accion == "ask"
             and los_confirmada_en_historial(mensaje_cliente, historial_mensajes)
             and any(k in mensaje.lower() for k in _WIFI_MARKERS)
         ):
@@ -1130,16 +1209,43 @@ def diagnosticar_turno(
                     mensaje = fb["mensaje"]
                     paso = fb.get("paso_cubierto") or paso
 
-        # Re-chequeo óptico por si la IA ignoró evidencia
-        opt2 = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
-        if opt2 and accion != "escalate":
-            accion = "escalate"
-            motivo = opt2
-            mensaje = (
-                "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
-                "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
-                "Te derivo con un agente para coordinarla."
-            )
+        # Re-chequeo óptico por si la IA ignoró evidencia (solo FTTH/internet)
+        if aplica_optica:
+            opt2 = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
+            if opt2 and accion != "escalate":
+                accion = "escalate"
+                motivo = opt2
+                mensaje = (
+                    "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
+                    "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
+                    "Te derivo con un agente para coordinarla."
+                )
+
+        # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)
+        if not aplica_optica and (
+            _motivo_es_optico(motivo)
+            or _parece_diagnostico_optica_fuera_de_lugar(mensaje)
+        ):
+            if accion == "escalate" or _motivo_es_optico(motivo):
+                accion = "escalate"
+                motivo = "bloqueado_optica_fuera_de_intencion"
+                if es_tv_sensa:
+                    mensaje = (
+                        "Con ese error de usuario/cuenta de Sensa hace falta revisarlo "
+                        "adentro. Te derivo con un agente; le paso el dispositivo y el "
+                        "mensaje que te aparece."
+                    )
+                else:
+                    mensaje = (
+                        "Con lo que me contaste hace falta un agente con acceso interno. "
+                        "Te derivo y le paso el historial."
+                    )
+            else:
+                motivo = "bloqueado_optica_fuera_de_intencion"
+                fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso
+                accion = "ask"
 
         if accion == "resolved":
             t = (mensaje_cliente or "").lower()
@@ -1159,7 +1265,8 @@ def diagnosticar_turno(
 
         # Si la IA pregunta cable amarillo con PON ya verde → saltar a WiFi/cable
         if (
-            accion == "ask"
+            aplica_optica
+            and accion == "ask"
             and any(
                 k in mensaje.lower()
                 for k in ("cable amarillo", "dobleces", "daños visibles", "danos visibles")
