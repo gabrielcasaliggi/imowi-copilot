@@ -72,7 +72,12 @@ export function SidebarNav() {
   const canSee = (permission: string | null) => {
     if (!permission) return true;
     if (permission === "stats.any") {
-      return can("stats.global") || can("stats.bot") || can("stats.agents");
+      return (
+        can("stats.global") ||
+        can("stats.bot") ||
+        can("stats.agents") ||
+        can("stats.self")
+      );
     }
     return can(permission);
   };

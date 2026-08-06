@@ -16,6 +16,8 @@ import type {
   PilotMetricas,
   PlatformSettingsResponse,
   StatsResponse,
+  OpsAnalytics,
+  MeAnalytics,
   TelemetryElement,
   TenantContext,
   Ticket,
@@ -711,6 +713,22 @@ export const api = {
       total_agentes: number;
       tickets_abiertos: number;
     }>("/api/v1/analytics/agents", { tenantSlug });
+  },
+
+  opsAnalytics(params?: { desde?: string; hasta?: string }, tenantSlug?: string) {
+    const qs = new URLSearchParams();
+    if (params?.desde) qs.set("desde", params.desde);
+    if (params?.hasta) qs.set("hasta", params.hasta);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<OpsAnalytics>(`/api/v1/analytics/ops${suffix}`, { tenantSlug });
+  },
+
+  meAnalytics(params?: { desde?: string; hasta?: string }, tenantSlug?: string) {
+    const qs = new URLSearchParams();
+    if (params?.desde) qs.set("desde", params.desde);
+    if (params?.hasta) qs.set("hasta", params.hasta);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<MeAnalytics>(`/api/v1/analytics/me${suffix}`, { tenantSlug });
   },
 
   prioritizedTickets(tenantSlug?: string) {

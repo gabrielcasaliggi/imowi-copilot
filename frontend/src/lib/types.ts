@@ -70,6 +70,72 @@ export interface AgentPerformanceRow {
   tickets_cerrados: number;
 }
 
+export interface OpsAgentRow {
+  email: string;
+  nombre: string;
+  disponibilidad: string;
+  tickets_abiertos: number;
+  tickets_cerrados: number;
+  tickets_con_resolucion: number;
+  pct_resolucion: number;
+  chats_activos: number;
+  claims: number;
+  cierres_canal: number;
+}
+
+export interface OpsAnalytics {
+  tenant: string;
+  desde: string;
+  hasta: string;
+  canal: {
+    abiertas_por_estado: {
+      bot: number;
+      espera_agente: number;
+      con_agente: number;
+    };
+    espera_count: number;
+    espera_minutos_mediana: number | null;
+    espera_minutos_p95: number | null;
+    por_canal: { label: string; count: number }[];
+    claims_en_rango: number;
+    cierres_en_rango: number;
+    cierres_con_nota: number;
+    pct_cierres_con_nota: number;
+    first_response_minutos_mediana: number | null;
+  };
+  tickets: {
+    creados: number;
+    cerrados: number;
+    abiertos_ahora: number;
+    con_resolucion: number;
+    pct_resolucion_documentada: number;
+    sla_vencidos_abiertos: number;
+    cerrados_con_breach: number;
+    por_nivel: { label: string; count: number }[];
+    top_categorias: { label: string; count: number }[];
+  };
+  agentes: OpsAgentRow[];
+  me?: OpsAgentRow | null;
+}
+
+export interface MeAnalytics {
+  tenant: string;
+  desde: string;
+  hasta: string;
+  canal: {
+    claims_en_rango: number;
+    cierres_en_rango: number;
+    chats_activos: number;
+  };
+  tickets: {
+    abiertos: number;
+    cerrados: number;
+    con_resolucion: number;
+    pct_resolucion: number;
+  };
+  me: OpsAgentRow;
+}
+
 export interface AuditEvent {
   id: string;
   organizacion_id: string;

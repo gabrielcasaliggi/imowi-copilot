@@ -8,7 +8,11 @@ import { useApp } from "@/contexts/AppContext";
 export default function EstadisticasPage() {
   const { can } = useApp();
   const router = useRouter();
-  const allowed = can("stats.global") || can("stats.bot") || can("stats.agents");
+  const allowed =
+    can("stats.global") ||
+    can("stats.bot") ||
+    can("stats.agents") ||
+    can("stats.self");
 
   useEffect(() => {
     if (!allowed) router.replace("/inbox");

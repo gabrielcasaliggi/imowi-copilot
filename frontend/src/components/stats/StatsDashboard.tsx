@@ -1,14 +1,30 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
 import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
-import type { ExecutiveAnalytics } from "@/lib/types";
+import type { ExecutiveAnalytics, MeAnalytics, OpsAnalytics, StatsResponse } from "@/lib/types";
 
-const PALETTE = ["#2298A6", "#1A7985", "#34d399", "#f59e0b", "#f43f5e", "#64748b"];
+function defaultDesde(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().slice(0, 10);
+}
+
+function defaultHasta(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function fmtMin(v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return "—";
+  if (v < 60) return `${Math.round(v)} min`;
+  const h = Math.floor(v / 60);
+  const m = Math.round(v % 60);
+  return `${h}h ${m}m`;
+}
 
 function EmptyState({ label }: { label: string }) {
   return (
@@ -34,8 +50,7 @@ function ColumnChart({
       <div className="absolute inset-x-0 top-0 bottom-7 pointer-events-none bg-[linear-gradient(to_bottom,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:100%_25%]" />
       {data.map((x, i) => {
         const h = Math.max((x.count / max) * 100, x.count ? 8 : 2);
-        const showLabel =
-          !compactLabels || i % 5 === 0 || i === data.length - 1;
+        const showLabel = !compactLabels || i % 5 === 0 || i === data.length - 1;
         return (
           <div
             key={`${x.label}-${i}`}
@@ -100,248 +115,247 @@ function BarList({
   );
 }
 
-function AvgList({
+function MeActivityBlock({
   data,
+  loading,
 }: {
-  data: { label: string; count: number; avg_hours: number }[];
+  data: MeAnalytics | null;
+  loading: boolean;
 }) {
-  if (!data.length) return <EmptyState label="Sin datos." />;
-  const max = Math.max(...data.map((x) => x.avg_hours), 1);
+  if (loading && !data) return <EmptyState label="Cargando mi actividad..." />;
+  if (!data) return <EmptyState label="No se pudo cargar tu actividad." />;
+  const t = data.tickets;
+  const c = data.canal;
   return (
-    <div className="space-y-3">
-      {data.slice(0, 8).map((x) => {
-        const w = Math.max((x.avg_hours / max) * 100, 4);
-        return (
-          <div key={x.label}>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-300 truncate">{x.label}</span>
-              <span className="font-mono text-slate-500">
-                {x.avg_hours} hs · {x.count} casos
-              </span>
-            </div>
-            <div className="h-2 rounded bg-slate-800 overflow-hidden">
-              <div
-                className="h-full rounded bg-amber-400/70"
-                style={{ width: `${w}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CoopKpiList({
-  data,
-}: {
-  data: {
-    label: string;
-    count: number;
-    abiertos: number;
-    n2: number;
-    tasa_cierre: number;
-    promedio_horas: number;
-  }[];
-}) {
-  if (!data.length) return <EmptyState label="Sin cooperativas para comparar." />;
-  return (
-    <div className="space-y-3">
-      {data.map((x) => (
-        <div key={x.label} className="p-3 rounded-xl border border-slate-800 bg-slate-950/50 hover:border-ecolan-brand/25 transition-colors">
-          <div className="flex justify-between text-xs mb-1">
-            <span className="text-slate-300 truncate">{x.label}</span>
-            <span className="font-mono text-slate-500">{x.count} tickets</span>
-          </div>
-          <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
-            <span>{x.abiertos} abiertos</span>
-            <span>{x.n2} N2</span>
-            <span>{x.tasa_cierre}% cierre</span>
-            <span>{x.promedio_horas} hs prom.</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DonutChart({
-  data,
-  centerLabel,
-}: {
-  data: { label: string; count: number }[];
-  centerLabel: string;
-}) {
-  const total = data.reduce((acc, x) => acc + x.count, 0);
-  if (!total) return <EmptyState label="Sin distribución disponible." />;
-
-  const gradient = data
-    .slice(0, 6)
-    .reduce(
-      (acc, x, idx) => {
-        const start = acc.cursor;
-        const end = start + (x.count / total) * 100;
-        return {
-          cursor: end,
-          stops: [
-            ...acc.stops,
-            `${PALETTE[idx % PALETTE.length]} ${start}% ${end}%`,
-          ],
-        };
-      },
-      { cursor: 0, stops: [] as string[] },
-    )
-    .stops.join(", ");
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center gap-5">
-      <div
-        className="relative h-40 w-40 shrink-0 rounded-full border border-slate-800 shadow-2xl"
-        style={{ background: `conic-gradient(${gradient})` }}
-      >
-        <div className="absolute inset-5 rounded-full bg-slate-950 border border-slate-800 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold text-slate-100 tabular-nums">{total}</span>
-          <span className="text-[10px] font-mono text-slate-500 uppercase">{centerLabel}</span>
-        </div>
-      </div>
-      <div className="space-y-2 w-full">
-        {data.slice(0, 6).map((x, idx) => (
-          <div key={x.label} className="flex items-center justify-between gap-3 text-xs">
-            <span className="flex items-center gap-2 min-w-0 text-slate-300">
-              <span
-                className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ background: PALETTE[idx % PALETTE.length] }}
-              />
-              <span className="truncate">{x.label}</span>
-            </span>
-            <span className="font-mono text-slate-500">
-              {x.count} · {Math.round((x.count / total) * 100)}%
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ExecutivePanel({ data }: { data: ExecutiveAnalytics | null }) {
-  if (!data) {
-    return (
+    <div className="space-y-4">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-        <h3 className="text-xs font-mono uppercase text-slate-500 mb-2">
-          Resumen ejecutivo
-        </h3>
-        <p className="text-sm text-slate-500">Cargando lectura ejecutiva...</p>
-      </div>
-    );
-  }
-
-  const topRisk = data.ranking_riesgo?.[0];
-  const criticalAlerts = data.alertas.filter((a) => a.severidad !== "info").slice(0, 3);
-
-  return (
-    <div className="rounded-2xl border border-ecolan-brand/20 bg-[radial-gradient(circle_at_top_left,rgba(34,152,166,0.16),rgba(15,23,42,0.55)_45%,rgba(2,6,23,0.45))] p-5 shadow-2xl shadow-ecolan-dark/40">
-      <div className="flex flex-wrap justify-between gap-4">
-        <div className="max-w-3xl">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand/80">
-            Resumen ejecutivo
-          </p>
-          <h3 className="mt-2 text-xl font-semibold text-slate-50 leading-snug">
-            {data.resumen_ejecutivo}
-          </h3>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="chip border-ecolan-brand/30 bg-ecolan-brand/10 text-ecolan-brand">
-              {data.ahorro_operativo.horas_ahorradas_estimadas} hs ahorradas estimadas
-            </span>
-            <span className="chip border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
-              {data.ahorro_operativo.escalaciones_evitadas_estimadas} escalaciones evitadas
-            </span>
-            {topRisk && (
-              <span className="chip border-amber-500/30 bg-amber-500/10 text-amber-200">
-                Mayor riesgo: {topRisk.label}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="min-w-56 rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-          <p className="text-[10px] font-mono uppercase text-slate-500 mb-2">Alertas</p>
-          {criticalAlerts.length ? (
-            <div className="space-y-2">
-              {criticalAlerts.map((a) => (
-                <p key={a.mensaje} className="text-xs text-amber-200">
-                  {a.mensaje}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-emerald-300">Sin alertas críticas.</p>
-          )}
+        <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">Mi actividad</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <KpiCard label="Claims" value={c.claims_en_rango} tone="cyan" helper="chats tomados" />
+          <KpiCard label="Cierres canal" value={c.cierres_en_rango} tone="emerald" helper="en el período" />
+          <KpiCard label="Chats activos" value={c.chats_activos} tone="amber" helper="ahora" />
+          <KpiCard label="Tickets abiertos" value={t.abiertos} tone="amber" helper="asignados" />
+          <KpiCard label="Tickets cerrados" value={t.cerrados} tone="emerald" helper="en el período" />
+          <KpiCard
+            label="% resolución"
+            value={t.pct_resolucion}
+            tone={t.pct_resolucion >= 80 ? "emerald" : "amber"}
+            helper={`${t.con_resolucion}/${t.cerrados} documentados`}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function RiskRanking({ data }: { data: ExecutiveAnalytics["ranking_riesgo"] }) {
-  if (!data.length) return <EmptyState label="Sin ranking de riesgo." />;
-  const max = Math.max(...data.map((x) => x.score_riesgo), 1);
+function OpsSections({
+  ops,
+  canTeam,
+}: {
+  ops: OpsAnalytics;
+  canTeam: boolean;
+}) {
+  const canal = ops.canal;
+  const tickets = ops.tickets;
+  const estados = canal.abiertas_por_estado;
+
   return (
-    <div className="space-y-3">
-      {data.slice(0, 6).map((x, idx) => {
-        const width = Math.max((x.score_riesgo / max) * 100, 6);
-        return (
-          <div key={x.org_id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="flex items-center justify-between gap-3 text-xs mb-2">
-              <span className="text-slate-200 truncate">
-                {idx + 1}. {x.label}
-              </span>
-              <span className="font-mono text-slate-500">
-                {x.score_riesgo}/{x.score_max}
-              </span>
-            </div>
-            <div className="h-2 rounded bg-slate-800 overflow-hidden">
-              <div
-                className="h-full rounded"
-                style={{
-                  width: `${width}%`,
-                  background: `linear-gradient(90deg, ${PALETTE[idx % PALETTE.length]}, #f59e0b)`,
-                }}
-              />
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
-              <span>{x.backlog} backlog</span>
-              <span>{x.n2} N2</span>
-              <span>{x.tickets_criticos} críticos</span>
-            </div>
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">Canal en vivo</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Snapshot de bandeja + actividad del rango seleccionado.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <KpiCard
+            label="En espera"
+            value={canal.espera_count}
+            tone={canal.espera_count ? "amber" : "emerald"}
+            helper={`p50 ${fmtMin(canal.espera_minutos_mediana)} · p95 ${fmtMin(canal.espera_minutos_p95)}`}
+          />
+          <KpiCard label="Con agente" value={estados.con_agente || 0} tone="cyan" helper="abiertas" />
+          <KpiCard label="Bot" value={estados.bot || 0} tone="default" helper="abiertas" />
+          <KpiCard label="Handoffs" value={canal.claims_en_rango} tone="cyan" helper="tomados en rango" />
+          <KpiCard
+            label="Cierres c/ nota"
+            value={canal.cierres_con_nota}
+            tone={canal.pct_cierres_con_nota >= 80 ? "emerald" : "amber"}
+            helper={`${canal.pct_cierres_con_nota}% de ${canal.cierres_en_rango}`}
+          />
+          <KpiCard
+            label="1ª respuesta"
+            value={canal.first_response_minutos_mediana != null ? Math.round(canal.first_response_minutos_mediana) : "—"}
+            tone="default"
+            helper="mediana min (aprox.)"
+          />
+        </div>
+        {!!canal.por_canal.length && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 max-w-xl">
+            <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Mix de canal</h4>
+            <BarList data={canal.por_canal} unit="abiertas" color="#2298A6" />
           </div>
-        );
-      })}
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">Tickets N1 / N2</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Volumen y calidad de cierre documentado en el período.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <KpiCard label="Creados" value={tickets.creados} tone="cyan" helper="en rango" />
+          <KpiCard label="Cerrados" value={tickets.cerrados} tone="emerald" helper="en rango" />
+          <KpiCard label="Abiertos" value={tickets.abiertos_ahora} tone="amber" helper="ahora" />
+          <KpiCard
+            label="% resolución"
+            value={tickets.pct_resolucion_documentada}
+            tone={tickets.pct_resolucion_documentada >= 80 ? "emerald" : "amber"}
+            helper={`${tickets.con_resolucion}/${tickets.cerrados} con nota técnica`}
+          />
+          <KpiCard
+            label="SLA vencido"
+            value={tickets.sla_vencidos_abiertos}
+            tone={tickets.sla_vencidos_abiertos ? "red" : "emerald"}
+            helper="abiertos ahora"
+          />
+          <KpiCard
+            label="Breach al cierre"
+            value={tickets.cerrados_con_breach}
+            tone={tickets.cerrados_con_breach ? "amber" : "emerald"}
+            helper="cerrados en rango"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Por nivel (creados)</h4>
+            <BarList data={tickets.por_nivel} unit="tickets" color="#1A7985" />
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Top categorías</h4>
+            <BarList data={tickets.top_categorias} unit="tickets" color="#f59e0b" />
+          </div>
+        </div>
+      </section>
+
+      {canTeam && (
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">Equipo</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Actividad por agente en la ventana de fechas.
+            </p>
+          </div>
+          {!ops.agentes.length ? (
+            <EmptyState label="Sin agentes activos en esta organización." />
+          ) : (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950/70 text-[10px] font-mono uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2.5">Agente</th>
+                      <th className="px-3 py-2.5">Disp.</th>
+                      <th className="px-3 py-2.5 text-right">Claims</th>
+                      <th className="px-3 py-2.5 text-right">Cierres canal</th>
+                      <th className="px-3 py-2.5 text-right">Chats</th>
+                      <th className="px-3 py-2.5 text-right">Tk abiertos</th>
+                      <th className="px-3 py-2.5 text-right">Tk cerrados</th>
+                      <th className="px-3 py-2.5 text-right">% resolución</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ops.agentes.map((a) => (
+                      <tr
+                        key={a.email}
+                        className="border-t border-slate-800/80 hover:bg-slate-950/40"
+                      >
+                        <td className="px-3 py-2.5">
+                          <div className="text-slate-200 truncate max-w-[14rem]">{a.nombre}</div>
+                          <div className="font-mono text-[10px] text-slate-500 truncate">
+                            {a.email}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-400">{a.disponibilidad || "—"}</td>
+                        <td className="px-3 py-2.5 text-right font-mono text-slate-300">{a.claims}</td>
+                        <td className="px-3 py-2.5 text-right font-mono text-slate-300">
+                          {a.cierres_canal}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-slate-300">
+                          {a.chats_activos}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-amber-200/90">
+                          {a.tickets_abiertos}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-emerald-300/90">
+                          {a.tickets_cerrados}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-slate-300">
+                          {a.pct_resolucion}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
 
 export function StatsDashboard() {
-  const { stats, loadStats, selectTicket, tenantSlug, can } = useApp();
+  const { selectTicket, tenantSlug, can, loadStats, stats } = useApp();
+  const canOps = can("stats.global") || can("stats.bot") || can("stats.agents");
+  const canTeam = can("stats.agents") || can("stats.global");
+  const selfOnly = can("stats.self") && !canOps;
+
+  const [desde, setDesde] = useState(defaultDesde);
+  const [hasta, setHasta] = useState(defaultHasta);
+  const [ops, setOps] = useState<OpsAnalytics | null>(null);
+  const [me, setMe] = useState<MeAnalytics | null>(null);
   const [executive, setExecutive] = useState<ExecutiveAnalytics | null>(null);
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [ticketStats, setTicketStats] = useState<StatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const onFilter = (e: FormEvent) => {
-    e.preventDefault();
-    loadStats(desde || undefined, hasta || undefined);
-  };
-
-  const r = stats?.resumen;
-  const slaVencidos = useMemo(
-    () => stats?.backlog?.filter((t) => t.estado_sla === "Vencido").length ?? 0,
-    [stats?.backlog],
-  );
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      if (selfOnly) {
+        const data = await api.meAnalytics({ desde, hasta }, tenantSlug);
+        setMe(data);
+        setOps(null);
+      } else {
+        const [opsData, tStats] = await Promise.all([
+          api.opsAnalytics({ desde, hasta }, tenantSlug),
+          api.stats({ desde, hasta }, tenantSlug).catch(() => null),
+        ]);
+        setOps(opsData);
+        setTicketStats(tStats);
+        setMe(null);
+        void loadStats(desde, hasta);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cargar estadísticas");
+    } finally {
+      setLoading(false);
+    }
+  }, [desde, hasta, tenantSlug, selfOnly, loadStats]);
 
   useEffect(() => {
-    void loadStats(desde || undefined, hasta || undefined);
-  }, [tenantSlug, loadStats]); // eslint-disable-line react-hooks/exhaustive-deps -- solo al cambiar tenant
+    void load();
+  }, [load]);
 
   useEffect(() => {
+    if (!canOps || !can("stats.bot")) return;
     let mounted = true;
     api
       .executiveAnalytics(tenantSlug)
@@ -354,48 +368,19 @@ export function StatsDashboard() {
     return () => {
       mounted = false;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, canOps, can]);
 
-  const exportCsv = () => {
-    if (!stats) return;
-    const rows: string[][] = [
-      ["metrica", "valor"],
-      ["tenant", tenantSlug || ""],
-      ["total", String(stats.resumen?.total ?? 0)],
-      ["abiertos", String(stats.resumen?.abiertos ?? 0)],
-      ["cerrados", String(stats.resumen?.cerrados ?? 0)],
-      ["n2", String(stats.resumen?.n2 ?? 0)],
-      ["promedio_horas", String(stats.resumen?.promedio_horas ?? 0)],
-      ["sla_vencido", String(slaVencidos)],
-      ["tasa_cierre", String(stats.resumen?.tasa_cierre ?? "")],
-      ["resumen_ejecutivo", executive?.resumen_ejecutivo || ""],
-      [
-        "horas_ahorradas_est",
-        String(executive?.ahorro_operativo?.horas_ahorradas_estimadas ?? ""),
-      ],
-      [
-        "escalaciones_evitadas_est",
-        String(executive?.ahorro_operativo?.escalaciones_evitadas_estimadas ?? ""),
-      ],
-    ];
-    (stats.distribuciones?.categoria || []).forEach((c) => {
-      rows.push([`categoria:${c.label}`, String(c.count)]);
-    });
-    (stats.backlog || []).forEach((t) => {
-      rows.push([
-        `backlog:${t.id}`,
-        `${t.linea}|${t.estado}|${t.estado_sla || ""}|${t.priority_score ?? ""}`,
-      ]);
-    });
-    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ops-hub-stats-${tenantSlug || "tenant"}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const onFilter = (e: FormEvent) => {
+    e.preventDefault();
+    void load();
   };
+
+  const series = ticketStats || stats;
+
+  const slaVencidos = useMemo(
+    () => series?.backlog?.filter((t) => t.estado_sla === "Vencido").length ?? 0,
+    [series?.backlog],
+  );
 
   return (
     <div className="p-4 space-y-5 overflow-y-auto">
@@ -403,169 +388,171 @@ export function StatsDashboard() {
         <div className="flex flex-wrap justify-between gap-3 items-end">
           <div>
             <p className="text-[10px] font-mono uppercase tracking-widest text-ecolan-brand/80">
-              Tablero de gestión
+              {selfOnly ? "Rendimiento personal" : "Operaciones"}
             </p>
-            <h2 className="mt-1 text-2xl font-semibold text-slate-50">Estadísticas</h2>
+            <h2 className="mt-1 text-2xl font-semibold text-slate-50">
+              {selfOnly ? "Mi actividad" : "Estadísticas"}
+            </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Análisis y reportes. La operación diaria está en Cola / Consola.
+              {selfOnly
+                ? "Tu actividad de canal y tickets en el período."
+                : "Canal, tickets y equipo — con ventana de fechas real."}
             </p>
           </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            {stats && can("reports.export") && (
-              <button
-                type="button"
-                onClick={exportCsv}
-                className="text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800/60"
-              >
-                Exportar CSV
-              </button>
-            )}
-            <form onSubmit={onFilter} className="flex gap-2 items-center flex-wrap">
-              <input
-                type="date"
-                value={desde}
-                onChange={(e) => setDesde(e.target.value)}
-                className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-ecolan-brand focus:border-transparent outline-none"
-              />
-              <input
-                type="date"
-                value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
-                className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-ecolan-brand focus:border-transparent outline-none"
-              />
-              <button
-                type="submit"
-                className="text-xs px-3 py-1.5 rounded-lg border border-ecolan-brand/30 bg-ecolan-brand/10 text-ecolan-brand hover:bg-ecolan-brand/15"
-              >
-                Filtrar
-              </button>
-            </form>
-          </div>
+          <form onSubmit={onFilter} className="flex gap-2 items-center flex-wrap">
+            <input
+              type="date"
+              value={desde}
+              onChange={(e) => setDesde(e.target.value)}
+              className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-ecolan-brand focus:border-transparent outline-none"
+            />
+            <input
+              type="date"
+              value={hasta}
+              onChange={(e) => setHasta(e.target.value)}
+              className="bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-ecolan-brand focus:border-transparent outline-none"
+            />
+            <button
+              type="submit"
+              className="text-xs px-3 py-1.5 rounded-lg border border-ecolan-brand/30 bg-ecolan-brand/10 text-ecolan-brand hover:bg-ecolan-brand/15"
+            >
+              Filtrar
+            </button>
+          </form>
         </div>
       </div>
 
-      {!stats ? (
+      {error && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+          {error}
+        </div>
+      )}
 
+      {selfOnly ? (
+        <MeActivityBlock data={me} loading={loading} />
+      ) : loading && !ops ? (
         <EmptyState label="Cargando tablero operativo..." />
-      ) : (
+      ) : ops ? (
         <>
-          <ExecutivePanel data={executive} />
+          <OpsSections ops={ops} canTeam={canTeam} />
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            <KpiCard label="Reclamos" value={r?.total || 0} tone="cyan" helper="volumen total" />
-            <KpiCard label="Abiertos" value={r?.abiertos || 0} tone="amber" helper="requieren gestión" />
-            <KpiCard label="SLA vencido" value={slaVencidos} tone={slaVencidos ? "red" : "emerald"} helper="backlog actual" />
-            <KpiCard label="N2" value={r?.n2 || 0} tone="violet" helper="escalados" />
-            <KpiCard label="Cerrados" value={r?.cerrados || 0} tone="emerald" helper="resueltos" />
-            <KpiCard label="Prom. hs" value={r?.promedio_horas || 0} tone="default" helper="tiempo abierto" />
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-xl shadow-slate-950/20">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Evolución diaria
-              </h3>
-              <ColumnChart data={(stats.series?.diaria || []).slice(-30)} compactLabels color="#2298A6" />
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-xl shadow-slate-950/20">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Distribución por estado
-              </h3>
-              <DonutChart data={stats.distribuciones?.estado || []} centerLabel="tickets" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr_0.9fr] gap-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Por categoría
-              </h3>
-              <BarList data={stats.distribuciones?.categoria || []} unit="reclamos" color="#1A7985" />
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Por nivel
-              </h3>
-              <BarList data={stats.distribuciones?.nivel || []} unit="tickets" color="#2298A6" />
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Riesgo por cooperativa
-              </h3>
-              <RiskRanking data={executive?.ranking_riesgo || []} />
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Reclamos mensuales
-              </h3>
-              <ColumnChart data={stats.series?.mensual || []} color="#60a5fa" />
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-              <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                Promedio por categoría
-              </h3>
-              <AvgList data={stats.promedios?.por_categoria || []} />
-            </div>
-            {(stats.promedios?.por_cooperativa?.length ?? 0) > 0 && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
-                  KPI por cooperativa
-                </h3>
-                <CoopKpiList data={stats.promedios?.por_cooperativa || []} />
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-amber-500/20 bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(69,26,3,0.18))] p-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
+          {series && (
+            <section className="space-y-3">
               <div>
-                <h3 className="text-xs font-mono uppercase text-amber-300/80">
-                  Top riesgo (muestra)
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Los 3 más urgentes. La cola completa y filtros están en Tickets.
-                </p>
+                <h3 className="text-sm font-semibold text-slate-100">Series de tickets</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Volumen diario y distribución.</p>
               </div>
-              <Link
-                href="/tickets"
-                className="text-[11px] font-mono text-ecolan-brand hover:text-ecolan-brand shrink-0"
-              >
-                Ir a cola →
-              </Link>
-            </div>
-            {!stats.backlog?.length ? (
-              <EmptyState label="Sin backlog abierto." />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {stats.backlog.slice(0, 3).map((t) => (
+              <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+                  <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Evolución diaria</h4>
+                  <ColumnChart
+                    data={(series.series?.diaria || []).slice(-30)}
+                    compactLabels
+                    color="#2298A6"
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+                  <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Por categoría</h4>
+                  <BarList
+                    data={series.distribuciones?.categoria || []}
+                    unit="reclamos"
+                    color="#1A7985"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-500/20 bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(69,26,3,0.18))] p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h4 className="text-xs font-mono uppercase text-amber-300/80">Top riesgo</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Los 3 más urgentes. Cola completa en Tickets.
+                    </p>
+                  </div>
                   <Link
-                    key={t.id}
-                    href={`/soporte?ticket=${encodeURIComponent(t.id)}`}
-                    onClick={() => selectTicket(t.id)}
-                    className="block p-3 rounded-xl border border-slate-800 bg-slate-950/55 hover:border-ecolan-brand/40 hover:bg-slate-950/80 transition-colors"
+                    href="/tickets"
+                    className="text-[11px] font-mono text-ecolan-brand hover:text-ecolan-brand shrink-0"
                   >
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="font-mono text-ecolan-brand text-[11px]">{t.id}</span>
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {t.priority_score != null ? `${t.priority_score} pts` : `${t.horas_abierto} hs`}
+                    Ir a cola →
+                  </Link>
+                </div>
+                {!series.backlog?.length ? (
+                  <EmptyState label="Sin backlog abierto." />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {series.backlog.slice(0, 3).map((t) => (
+                      <Link
+                        key={t.id}
+                        href={`/soporte?ticket=${encodeURIComponent(t.id)}`}
+                        onClick={() => selectTicket(t.id)}
+                        className="block p-3 rounded-xl border border-slate-800 bg-slate-950/55 hover:border-ecolan-brand/40 hover:bg-slate-950/80 transition-colors"
+                      >
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="font-mono text-ecolan-brand text-[11px]">{t.id}</span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {t.priority_score != null
+                              ? `${t.priority_score} pts`
+                              : `${t.horas_abierto} hs`}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 mt-2 flex-wrap">
+                          <StatusBadge value={t.nivel} />
+                          <StatusBadge value={t.estado} />
+                          {t.estado_sla && (
+                            <SlaBadge label={t.estado_sla} estado={t.estado_sla} />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1 truncate">
+                          {t.linea || ""} · {t.categoria || ""}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {(can("stats.bot") || can("stats.global")) && (
+            <details
+              className="rounded-2xl border border-slate-800 bg-slate-900/30"
+              open={showAdvanced}
+              onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}
+            >
+              <summary className="cursor-pointer px-4 py-3 text-xs font-mono uppercase text-slate-500 select-none">
+                Avanzado — lectura ejecutiva (ilustrativo)
+              </summary>
+              <div className="px-4 pb-4 space-y-3 border-t border-slate-800">
+                {executive ? (
+                  <>
+                    <p className="text-sm text-slate-300 mt-3">{executive.resumen_ejecutivo}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="chip border-slate-600/40 bg-slate-800/40 text-slate-400">
+                        {executive.ahorro_operativo.horas_ahorradas_estimadas} hs ahorradas
+                        (estimación)
+                      </span>
+                      <span className="chip border-slate-600/40 bg-slate-800/40 text-slate-400">
+                        {executive.ahorro_operativo.escalaciones_evitadas_estimadas} escalaciones
+                        evitadas (estimación)
+                      </span>
+                      <span className="chip border-amber-500/20 bg-amber-500/5 text-amber-200/80">
+                        SLA backlog vencido: {slaVencidos}
                       </span>
                     </div>
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      <StatusBadge value={t.nivel} />
-                      <StatusBadge value={t.estado} />
-                      {t.estado_sla && (
-                        <SlaBadge label={t.estado_sla} estado={t.estado_sla} />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-1 truncate">
-                      {t.linea || ""} · {t.categoria || ""}
+                    <p className="text-[11px] text-slate-600">
+                      Estas métricas de ahorro son ilustrativas / heurísticas; no son KPIs formales
+                      de producción.
                     </p>
-                  </Link>
-                ))}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500 mt-3">Sin lectura ejecutiva disponible.</p>
+                )}
               </div>
-            )}
-          </div>
+            </details>
+          )}
         </>
+      ) : (
+        <EmptyState label="Sin datos operativos." />
       )}
     </div>
   );
