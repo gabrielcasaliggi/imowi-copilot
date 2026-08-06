@@ -52,6 +52,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
   } | null>(null);
   const [kb, setKb] = useState({ min_score: 0.15, top_k: 1, max_fragment_chars: 1800 });
   const [playbooks, setPlaybooks] = useState<PlaybookMap>({});
+  const [playbooksResetToken, setPlaybooksResetToken] = useState(0);
 
   const applyResponse = useCallback((res: PlatformSettingsResponse) => {
     setData(res);
@@ -126,7 +127,15 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         playbooks,
       });
       applyResponse(res);
-      onMessage?.("Configuración de plataforma guardada.");
+      if (section === "playbooks") {
+        setPlaybooksResetToken((n) => n + 1);
+        const n = Object.keys(playbooks).length;
+        onMessage?.(
+          `Playbooks guardados (${n} flujo${n === 1 ? "" : "s"}). El panel de importación quedó listo para otro documento.`,
+        );
+      } else {
+        onMessage?.("Configuración de plataforma guardada.");
+      }
     } catch (err) {
       onMessage?.(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -659,6 +668,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
           onChange={setPlaybooks}
           onMessage={onMessage}
           busy={busy}
+          resetToken={playbooksResetToken}
         />
       )}
 

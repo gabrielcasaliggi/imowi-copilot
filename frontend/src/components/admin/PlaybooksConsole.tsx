@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { inputCls } from "@/components/ui/forms";
@@ -13,6 +13,8 @@ type Props = {
   onChange: (next: PlaybookMap) => void;
   onMessage?: (msg: string) => void;
   busy?: boolean;
+  /** Se incrementa tras guardar: limpia el panel de importación (vuelve al estado inicial). */
+  resetToken?: number;
 };
 
 function cloneMap(m: PlaybookMap): PlaybookMap {
@@ -32,7 +34,13 @@ function slugify(raw: string, fallback: string): string {
   return s || fallback;
 }
 
-export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
+export function PlaybooksConsole({
+  value,
+  onChange,
+  onMessage,
+  busy,
+  resetToken = 0,
+}: Props) {
   const [draftText, setDraftText] = useState("");
   const [converting, setConverting] = useState(false);
   const [importMap, setImportMap] = useState<PlaybookMap>({});
@@ -43,6 +51,10 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
   const [advancedJson, setAdvancedJson] = useState("");
   const [convertInfo, setConvertInfo] = useState<string>("");
   const [hasConverted, setHasConverted] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
+  const [flashActuales, setFlashActuales] = useState(false);
+  const actualesRef = useRef<HTMLDivElement | null>(null);
+  const lastResetToken = useRef(resetToken);
 
   const flowKeys = useMemo(() => Object.keys(value).sort(), [value]);
   const importKeys = useMemo(() => Object.keys(importMap).sort(), [importMap]);
@@ -50,6 +62,37 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
     () => importKeys.filter((k) => selected[k]).length,
     [importKeys, selected],
   );
+
+  const clearImportStaging = useCallback((opts?: { keepPendingSave?: boolean }) => {
+    setDraftText("");
+    setImportMap({});
+    setSelected({});
+    setActiveImportFlow("");
+    setConvertInfo("");
+    setHasConverted(false);
+    setShowAdvanced(false);
+    if (!opts?.keepPendingSave) setPendingSave(false);
+  }, []);
+
+  const focusActuales = useCallback((flow?: string) => {
+    if (flow) setActiveFlow(flow);
+    setFlashActuales(true);
+    window.setTimeout(() => setFlashActuales(false), 1800);
+    window.requestAnimationFrame(() => {
+      actualesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (resetToken === lastResetToken.current) return;
+    lastResetToken.current = resetToken;
+    clearImportStaging();
+    setFlashActuales(true);
+    window.setTimeout(() => setFlashActuales(false), 1800);
+    window.requestAnimationFrame(() => {
+      actualesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [resetToken, clearImportStaging]);
 
   useEffect(() => {
     if (!activeFlow && flowKeys.length) {
@@ -68,6 +111,7 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
       const next = cloneMap(value);
       next[flow] = pasos;
       onChange(next);
+      setPendingSave(true);
     },
     [onChange, value],
   );
@@ -154,9 +198,11 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
       next[k] = importMap[k].map((p) => ({ ...p }));
     }
     onChange(next);
-    if (keys[0]) setActiveFlow(keys[0]);
+    clearImportStaging({ keepPendingSave: true });
+    setPendingSave(true);
+    focusActuales(keys[0]);
     onMessage?.(
-      `Aplicado en borrador: ${keys.join(", ")}. Pulsá «Guardar configuración» para persistir.`,
+      `Aplicado en borrador: ${keys.join(", ")}. Revisá «Playbooks actuales» y pulsá «Guardar configuración».`,
     );
   };
 
@@ -220,6 +266,9 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
         return;
       }
       onChange(parsed);
+      setPendingSave(true);
+      const first = Object.keys(parsed).sort()[0];
+      if (first) focusActuales(first);
       onMessage?.("JSON aplicado. Pulsá «Guardar configuración» para persistir.");
     } catch {
       onMessage?.("JSON inválido");
@@ -453,44 +502,59 @@ export function PlaybooksConsole({ value, onChange, onMessage, busy }: Props) {
         </GlassCard>
       )}
 
-      <GlassCard title="Playbooks actuales" accent="cyan" variant="secondary">
-        <p className="text-xs text-slate-500 mb-3">
-          Editor de los flujos ya cargados. Buscá{" "}
-          <code className="font-mono text-ecolan-brand">no_tecnico</code> tras guardar.
-          Los cambios se persisten con «Guardar configuración».
-        </p>
-        <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
-          <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
-            {flowKeys.map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setActiveFlow(k)}
-                className={`text-left text-[11px] font-mono px-2 py-1.5 rounded-md ${
-                  activeFlow === k
-                    ? "bg-slate-800 text-ecolan-brand"
-                    : "text-slate-400 hover:bg-slate-900"
-                }`}
-              >
-                {k}
-                <span className="text-slate-600 ml-1">({value[k]?.length || 0})</span>
-              </button>
-            ))}
+      <div ref={actualesRef}>
+        <GlassCard
+          title="Playbooks actuales"
+          accent="cyan"
+          variant="secondary"
+        >
+          <p className="text-xs text-slate-500 mb-3">
+            Flujos activos del bot. Tras aplicar un documento, revisá acá el flujo
+            marcado y pulsá «Guardar configuración» al final de la página.
+          </p>
+          {pendingSave && (
+            <p className="text-xs text-amber-300/90 mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+              Hay cambios en borrador que todavía no se guardaron. Pulsá «Guardar
+              configuración» para persistirlos.
+            </p>
+          )}
+          <div
+            className={`grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3 rounded-lg transition-shadow duration-500 ${
+              flashActuales ? "ring-2 ring-ecolan-brand/50 shadow-[0_0_0_4px_rgba(34,152,166,0.12)]" : ""
+            }`}
+          >
+            <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
+              {flowKeys.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setActiveFlow(k)}
+                  className={`text-left text-[11px] font-mono px-2 py-1.5 rounded-md ${
+                    activeFlow === k
+                      ? "bg-slate-800 text-ecolan-brand"
+                      : "text-slate-400 hover:bg-slate-900"
+                  }`}
+                >
+                  {k}
+                  <span className="text-slate-600 ml-1">({value[k]?.length || 0})</span>
+                </button>
+              ))}
+            </div>
+            <div>
+              {activeFlow && value[activeFlow] ? (
+                <>
+                  <p className="text-[11px] font-mono text-slate-500 mb-2">
+                    Editando · {activeFlow}
+                  </p>
+                  {renderPasoEditor(activeFlow, value[activeFlow], "current")}
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">Sin flujos cargados.</p>
+              )}
+            </div>
           </div>
-          <div>
-            {activeFlow && value[activeFlow] ? (
-              <>
-                <p className="text-[11px] font-mono text-slate-500 mb-2">
-                  Editando · {activeFlow}
-                </p>
-                {renderPasoEditor(activeFlow, value[activeFlow], "current")}
-              </>
-            ) : (
-              <p className="text-xs text-slate-500">Sin flujos cargados.</p>
-            )}
-          </div>
-        </div>
-      </GlassCard>
+        </GlassCard>
+      </div>
 
       <div>
         <button
