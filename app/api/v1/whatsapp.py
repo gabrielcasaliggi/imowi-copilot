@@ -32,6 +32,49 @@ def _firma_valida(raw_body: bytes, signature_header: str | None, app_secret: str
     return hmac.compare_digest(expected, received)
 
 
+def _extraer_texto_mensaje(msg: dict) -> str:
+    """Extrae texto útil de distintos tipos de mensaje Cloud API."""
+    tipo = (msg.get("type") or "").strip().lower()
+
+    if tipo in ("text", "") or msg.get("text"):
+        body = ((msg.get("text") or {}).get("body") or "").strip()
+        if body:
+            return body[:4000]
+
+    if tipo == "button":
+        body = ((msg.get("button") or {}).get("text") or "").strip()
+        if body:
+            return body[:4000]
+
+    if tipo == "interactive":
+        inter = msg.get("interactive") or {}
+        sub = (inter.get("type") or "").strip().lower()
+        if sub == "button_reply":
+            body = ((inter.get("button_reply") or {}).get("title") or "").strip()
+            if body:
+                return body[:4000]
+        if sub == "list_reply":
+            lr = inter.get("list_reply") or {}
+            body = (lr.get("title") or lr.get("description") or "").strip()
+            if body:
+                return body[:4000]
+        if sub == "nfm_reply":
+            nfm = inter.get("nfm_reply") or {}
+            body = (nfm.get("body") or nfm.get("response_json") or "").strip()
+            if body:
+                return body[:4000]
+
+    # Captions de media
+    for key in ("image", "video", "document", "audio"):
+        if msg.get(key):
+            cap = ((msg.get(key) or {}).get("caption") or "").strip()
+            if cap:
+                return cap[:4000]
+            return f"[{key}]"
+
+    return ""
+
+
 @router.get("/whatsapp/webhook")
 def verify_webhook(
     hub_mode: str | None = Query(None, alias="hub.mode"),
@@ -75,18 +118,28 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
         for entry in entries:
             for change in entry.get("changes") or []:
                 value = change.get("value") or {}
+                # statuses = receipts (sent/delivered/read), sin texto de usuario
+                if value.get("statuses") and not value.get("messages"):
+                    continue
                 messages = value.get("messages") or []
                 for msg in messages:
-                    if msg.get("type") != "text":
-                        continue
                     from_wa = msg.get("from") or ""
-                    text = ((msg.get("text") or {}).get("body") or "")[:4000]
+                    text = _extraer_texto_mensaje(msg)
                     mid = msg.get("id") or ""
-                    if not from_wa or not text:
+                    if not from_wa:
+                        continue
+                    if not text:
+                        logger.info(
+                            "WhatsApp msg sin texto usable type=%s id=%s",
+                            msg.get("type"),
+                            mid[:40] if mid else "",
+                        )
                         continue
                     from app.services.prompt_safety import clamp_message
 
                     text = clamp_message(text, max_chars=4000)
+                    if not text.strip():
+                        continue
                     procesar_mensaje_entrante(
                         db,
                         org.id,

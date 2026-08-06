@@ -141,16 +141,18 @@ def get_or_create_conversacion(
     conv = ConversacionCanal(
         organizacion_id=org_id,
         canal=canal_norm,
-        wa_id=wa,
-        telefono=tel,
-        session_id=f"{prefix}:{org_id}:{tel}",
+        wa_id=wa[:40],
+        telefono=tel[:40],
+        session_id=f"{prefix}:{org_id}:{tel}"[:80],
         estado="bot",
         contexto_json="{}",
         ticket_id="",
         agente_id="",
     )
     db.add(conv)
-    db.commit()
+    # flush (no commit): el commit lo hace add_mensaje / caller.
+    # Evita hilos vacíos si falla el insert del primer mensaje (p.ej. wamid largo).
+    db.flush()
     db.refresh(conv)
     return conv
 
@@ -170,8 +172,8 @@ def add_mensaje(
         conversacion_id=conversacion_id,
         direccion=direccion,
         autor=autor,
-        texto=texto,
-        meta_message_id=meta_message_id,
+        texto=texto or "",
+        meta_message_id=(meta_message_id or "")[:191],
     )
     db.add(m)
     conv = db.get(ConversacionCanal, conversacion_id)

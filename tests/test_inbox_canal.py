@@ -79,6 +79,26 @@ def _admin_headers() -> dict[str, str]:
     }
 
 
+def test_extraer_texto_mensaje_wa():
+    from app.api.v1.whatsapp import _extraer_texto_mensaje
+
+    assert _extraer_texto_mensaje({"type": "text", "text": {"body": "hola"}}) == "hola"
+    assert (
+        _extraer_texto_mensaje(
+            {
+                "type": "interactive",
+                "interactive": {
+                    "type": "button_reply",
+                    "button_reply": {"id": "1", "title": "Sí"},
+                },
+            }
+        )
+        == "Sí"
+    )
+    assert _extraer_texto_mensaje({"type": "image", "image": {"caption": "foto"}}) == "foto"
+    assert _extraer_texto_mensaje({"type": "audio", "audio": {"id": "x"}}) == "[audio]"
+
+
 def test_whatsapp_webhook_verify():
     r = client.get(
         "/api/v1/whatsapp/webhook",

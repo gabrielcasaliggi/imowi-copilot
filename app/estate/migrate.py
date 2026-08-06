@@ -150,9 +150,35 @@ def migrate_schema(engine: Engine) -> list[str]:
                 cambios.append(f"conversaciones_canal.{col}")
                 logger.info("Migración: columna agregada conversaciones_canal.%s", col)
 
+    if insp.has_table("mensajes_canal"):
+        widened = _widen_varchar(engine, "mensajes_canal", "meta_message_id", 191)
+        if widened:
+            cambios.append("mensajes_canal.meta_message_id→191")
+
     insp = inspect(engine)
     cambios.extend(_ensure_auth_tables(engine, insp))
     return cambios
+
+
+def _widen_varchar(engine: Engine, tabla: str, col: str, length: int) -> bool:
+    """Amplía VARCHAR en PostgreSQL si el tamaño actual es menor. SQLite: no-op (affinidad)."""
+    if engine.dialect.name != "postgresql":
+        return False
+    insp = inspect(engine)
+    cols = {c["name"]: c for c in insp.get_columns(tabla)}
+    info = cols.get(col)
+    if not info:
+        return False
+    typ = info.get("type")
+    current = getattr(typ, "length", None)
+    if current is not None and int(current) >= length:
+        return False
+    with engine.begin() as conn:
+        conn.execute(
+            text(f"ALTER TABLE {tabla} ALTER COLUMN {col} TYPE VARCHAR({length})")
+        )
+    logger.info("Migración: %s.%s ampliado a VARCHAR(%s)", tabla, col, length)
+    return True
 
 
 def _ensure_auth_tables(engine: Engine, insp) -> list[str]:

@@ -853,20 +853,29 @@ def procesar_mensaje_entrante(
     if not texto:
         return {"ok": False, "error": "mensaje vacío"}
 
-    conv = crepo.get_or_create_conversacion(
-        db, org_id, telefono=telefono, canal=canal, wa_id=wa_id
-    )
-    crepo.add_mensaje(
-        db,
-        org_id,
-        conv.id,
-        direccion="in",
-        autor="cliente",
-        texto=texto,
-        meta_message_id=meta_message_id,
-    )
+    try:
+        conv = crepo.get_or_create_conversacion(
+            db, org_id, telefono=telefono, canal=canal, wa_id=wa_id
+        )
+        crepo.add_mensaje(
+            db,
+            org_id,
+            conv.id,
+            direccion="in",
+            autor="cliente",
+            texto=texto,
+            meta_message_id=meta_message_id,
+        )
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "No se pudo persistir mensaje entrante canal=%s tel=%s",
+            canal,
+            (telefono or "")[:20],
+        )
+        raise
 
-        # Si ya está con agente o en espera, no responde el bot N1
+    # Si ya está con agente o en espera, no responde el bot N1
     if conv.estado in ("con_agente", "espera_agente"):
         if conv.estado == "con_agente":
             return {

@@ -410,7 +410,8 @@ class MensajeCanal(Base):
     direccion: Mapped[str] = mapped_column(String(8), default="in")  # in|out
     autor: Mapped[str] = mapped_column(String(16), default="cliente")  # cliente|bot|agente
     texto: Mapped[str] = mapped_column(Text, default="")
-    meta_message_id: Mapped[str] = mapped_column(String(80), default="")
+    # wamid de Meta puede superar 80 chars; truncamos al persistir por seguridad
+    meta_message_id: Mapped[str] = mapped_column(String(191), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     conversacion: Mapped[ConversacionCanal] = relationship(back_populates="mensajes")
