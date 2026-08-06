@@ -46,6 +46,7 @@ export function ChatPanel() {
   const [loadingConv, setLoadingConv] = useState(false);
   const [confirmResolve, setConfirmResolve] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
+  const [resolveNote, setResolveNote] = useState("");
   const [pollOffline, setPollOffline] = useState(false);
   const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
   const seq = useRef(0);
@@ -186,14 +187,20 @@ export function ChatPanel() {
   };
 
   const onMarcarResuelto = async () => {
+    const note = resolveNote.trim();
+    if (!note) {
+      toast("Escribí qué se hizo para cerrar el ticket", "warning");
+      return;
+    }
     setBusy(true);
     try {
       await updateTicket({
         estado: "Cerrado",
-        resolucion_tecnica: "Resuelto en consola N2",
+        resolucion_tecnica: note,
       });
-      toast("Ticket cerrado. Si aplica, proponé una mejora a la KB en el panel derecho.", "success");
+      toast("Ticket cerrado y documentado. Si aplica, proponé mejora a KB a la derecha.", "success");
       setConfirmResolve(false);
+      setResolveNote("");
     } catch (err) {
       toast(err instanceof Error ? err.message : "No se pudo cerrar", "danger");
     } finally {
@@ -278,7 +285,10 @@ export function ChatPanel() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => setConfirmResolve(true)}
+              onClick={() => {
+                setResolveNote(ticketFormacion.resolucion_tecnica || "");
+                setConfirmResolve(true);
+              }}
               className="text-xs font-medium px-3.5 py-2 rounded-lg border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/12 disabled:opacity-50 transition-all duration-200 ease-in-out"
             >
               Resolver ticket
@@ -379,15 +389,61 @@ export function ChatPanel() {
         </form>
       )}
 
-      <ConfirmDialog
-        open={confirmResolve}
-        title="¿Resolver y cerrar el ticket?"
-        description="El ticket pasará a Cerrado. Podés proponer una mejora a la KB después desde el panel de contexto."
-        confirmLabel="Resolver ticket"
-        busy={busy}
-        onCancel={() => setConfirmResolve(false)}
-        onConfirm={() => void onMarcarResuelto()}
-      />
+      {confirmResolve && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70"
+          role="presentation"
+          onClick={() => !busy && setConfirmResolve(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="resolve-dialog-title"
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1.5">
+              <h2 id="resolve-dialog-title" className="text-base font-semibold text-slate-50">
+                Resolver y cerrar el ticket
+              </h2>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Documentá qué se hizo. Ese texto queda como resolución del ticket.
+              </p>
+            </div>
+            <label className="sr-only" htmlFor="resolve-note">
+              Resolución
+            </label>
+            <textarea
+              id="resolve-note"
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+              rows={4}
+              disabled={busy}
+              placeholder="Ej: Se reinició ONT y el abonado confirmó servicio OK…"
+              className="w-full bg-slate-950 border border-slate-600/80 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-ecolan-brand disabled:opacity-50"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmResolve(false)}
+                disabled={busy}
+                className="text-xs px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800/60 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void onMarcarResuelto()}
+                disabled={busy || !resolveNote.trim()}
+                className="text-xs px-3.5 py-2 rounded-lg font-semibold bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50"
+              >
+                {busy ? "…" : "Cerrar con resolución"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <ConfirmDialog
         open={confirmRelease}
         title="¿Liberar el chat?"

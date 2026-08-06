@@ -346,21 +346,43 @@ function TicketAdminForm({
   onUpdate: (body: Record<string, string>) => Promise<void>;
   onExplain: () => Promise<string | null>;
 }) {
+  const { push: toast } = useToast();
   const [nivel, setNivel] = useState(ticket.nivel || "N1");
   const [estado, setEstado] = useState(ticket.estado || "Abierto");
   const [proveedor, setProveedor] = useState(ticket.proveedor || "");
-  const [resolucion, setResolucion] = useState("");
+  const [resolucion, setResolucion] = useState(ticket.resolucion_tecnica || "");
   const [explicacion, setExplicacion] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const onSubmit = (e: FormEvent) => {
+  useEffect(() => {
+    setNivel(ticket.nivel || "N1");
+    setEstado(ticket.estado || "Abierto");
+    setProveedor(ticket.proveedor || "");
+    setResolucion(ticket.resolucion_tecnica || "");
+  }, [ticket.id, ticket.nivel, ticket.estado, ticket.proveedor, ticket.resolucion_tecnica]);
+
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    onUpdate({
-      nivel,
-      estado,
-      proveedor,
-      resolucion_tecnica: resolucion,
-      destino: nivel === "N2" ? "n2_soporte" : "cooperativa",
-    });
+    const note = resolucion.trim();
+    if (estado === "Cerrado" && !note) {
+      toast("Para cerrar el ticket escribí la resolución", "warning");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onUpdate({
+        nivel,
+        estado,
+        proveedor,
+        resolucion_tecnica: note,
+        destino: nivel === "N2" ? "n2_soporte" : "cooperativa",
+      });
+      toast("Seguimiento actualizado", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo guardar", "danger");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onExplainClick = async () => {
@@ -369,11 +391,12 @@ function TicketAdminForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="pt-2 mt-2 border-t border-slate-800 space-y-2">
+    <form onSubmit={(e) => void onSubmit(e)} className="pt-2 mt-2 border-t border-slate-800 space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <select
           value={nivel}
           onChange={(e) => setNivel(e.target.value)}
+          disabled={saving}
           className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px]"
         >
           <option value="N1">N1</option>
@@ -382,6 +405,7 @@ function TicketAdminForm({
         <select
           value={estado}
           onChange={(e) => setEstado(e.target.value)}
+          disabled={saving}
           className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px]"
         >
           {["Abierto", "En Revisión", "Escalado", "Pendiente Cliente", "Cerrado"].map(
@@ -397,23 +421,31 @@ function TicketAdminForm({
         value={proveedor}
         onChange={(e) => setProveedor(e.target.value)}
         placeholder="Proveedor sugerido / referencia"
+        disabled={saving}
         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px]"
       />
       <textarea
         value={resolucion}
         onChange={(e) => setResolucion(e.target.value)}
-        placeholder="Agregar avance visible para la cooperativa..."
+        placeholder={
+          estado === "Cerrado"
+            ? "Resolución obligatoria…"
+            : "Agregar avance visible para la cooperativa..."
+        }
+        required={estado === "Cerrado"}
+        disabled={saving}
         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px] min-h-[54px]"
       />
       <button
         type="submit"
-        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
+        disabled={saving}
+        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out disabled:opacity-50"
       >
-        Actualizar seguimiento
+        {saving ? "Guardando…" : "Actualizar seguimiento"}
       </button>
       <button
         type="button"
-        onClick={onExplainClick}
+        onClick={() => void onExplainClick()}
         className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out text-[11px]"
       >
         Explicar escalamiento
@@ -434,22 +466,46 @@ function TicketAgentForm({
   ticket: NonNullable<ReturnType<typeof useApp>["ticketFormacion"]>;
   onUpdate: (body: Record<string, string>) => Promise<void>;
 }) {
+  const { push: toast } = useToast();
   const [estado, setEstado] = useState(ticket.estado || "Abierto");
   const [resolucion, setResolucion] = useState(ticket.resolucion_tecnica || "");
+  const [saving, setSaving] = useState(false);
 
-  const onSubmit = (e: FormEvent) => {
+  useEffect(() => {
+    setEstado(ticket.estado || "Abierto");
+    setResolucion(ticket.resolucion_tecnica || "");
+  }, [ticket.id, ticket.estado, ticket.resolucion_tecnica]);
+
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    onUpdate({
-      estado,
-      resolucion_tecnica: resolucion,
-    });
+    const note = resolucion.trim();
+    if (estado === "Cerrado" && !note) {
+      toast("Para cerrar el ticket escribí qué se hizo / la resolución", "warning");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onUpdate({
+        estado,
+        resolucion_tecnica: note,
+      });
+      toast(
+        estado === "Cerrado" ? "Ticket cerrado y documentado" : "Seguimiento guardado",
+        "success",
+      );
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo guardar", "danger");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <form onSubmit={onSubmit} className="pt-2 mt-2 border-t border-slate-800 space-y-2">
+    <form onSubmit={(e) => void onSubmit(e)} className="pt-2 mt-2 border-t border-slate-800 space-y-2">
       <select
         value={estado}
         onChange={(e) => setEstado(e.target.value)}
+        disabled={saving}
         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px]"
       >
         {["Abierto", "En Revisión", "Pendiente Cliente", "Cerrado"].map((e) => (
@@ -461,18 +517,25 @@ function TicketAgentForm({
       <textarea
         value={resolucion}
         onChange={(e) => setResolucion(e.target.value)}
-        placeholder="Qué hiciste / resolución del caso…"
+        placeholder={
+          estado === "Cerrado"
+            ? "Resolución obligatoria: qué se hizo…"
+            : "Qué hiciste / resolución del caso…"
+        }
+        required={estado === "Cerrado"}
+        disabled={saving}
         className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px] min-h-[54px]"
       />
       <button
         type="submit"
-        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out"
+        disabled={saving}
+        className="w-full py-2 rounded-lg border border-ecolan-brand/40 text-ecolan-brand font-medium hover:bg-ecolan-brand/10 transition-all duration-200 ease-in-out disabled:opacity-50"
       >
-        Guardar seguimiento
+        {saving ? "Guardando…" : "Guardar seguimiento"}
       </button>
       <p className="text-[10px] text-slate-500 leading-relaxed">
-        Si resolviste bien, proponé una mejora a KB abajo. Si no, dejá el caso documentado para
-        ticket externo (JSAT) más adelante.
+        Al cerrar, el comentario de resolución queda guardado en el ticket. Después podés proponer
+        mejora a KB abajo.
       </p>
     </form>
   );
@@ -538,6 +601,16 @@ function TicketFormacionCard() {
         </div>
         {t.motivo_escalamiento && (
           <p className="text-slate-400 text-[11px] leading-relaxed">{t.motivo_escalamiento}</p>
+        )}
+        {t.resolucion_tecnica && (
+          <div className="p-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5">
+            <p className="text-[10px] uppercase tracking-wide text-emerald-300/80 mb-0.5">
+              Resolución guardada
+            </p>
+            <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap">
+              {t.resolucion_tecnica}
+            </p>
+          </div>
         )}
         {isAdmin ? (
           <TicketAdminForm
