@@ -133,12 +133,19 @@ grn "    Copia: ${ENV_FILE}.bak.${STAMP}"
 # Forzar flags de hardening
 env_set "APP_ENV" "production"
 env_set "DISABLE_DEMO_USERS" "true"
+env_set "ENABLE_DEMO_RESET" "false"
+env_set "ENABLE_LEGACY_API" "false"
+env_set "ENABLE_API_DOCS" "false"
 env_set "AUTH_TOKEN_HOURS" "12"
 env_set "PORTAL_TOKEN_HOURS" "4"
 env_set "CONSOLE_JWT_AUD" "ops-hub-console"
 env_set "PORTAL_JWT_AUD" "ops-hub-portal"
 env_set "PORTAL_AUTH_MODE" "dni_otp"
-env_set "PORTAL_ALLOW_GUEST" "true"
+# Guest: no forzar true (piloto puede pedirlo; default seguro es false)
+# Solo setear si falta la clave
+if ! grep -qE '^PORTAL_ALLOW_GUEST=' "$ENV_FILE"; then
+  env_set "PORTAL_ALLOW_GUEST" "false"
+fi
 env_set "PUBLIC_URL" "https://ibot.ecolan.com"
 env_set "CORS_ORIGINS" "https://ibot.ecolan.com"
 

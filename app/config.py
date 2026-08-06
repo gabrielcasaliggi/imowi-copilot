@@ -93,6 +93,17 @@ DISABLE_DEMO_USERS = os.getenv("DISABLE_DEMO_USERS", "").strip().lower() in (
     "yes",
     "on",
 )
+# POST /api/v1/demo/reset — en production OFF por defecto (destruye tickets del tenant)
+_raw_demo_reset = os.getenv("ENABLE_DEMO_RESET")
+if _raw_demo_reset is None:
+    ENABLE_DEMO_RESET = APP_ENV not in ("production", "prod")
+else:
+    ENABLE_DEMO_RESET = _raw_demo_reset.strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 DNI_PEPPER = os.getenv("DNI_PEPPER", "").strip() or AUTH_SECRET or "dev-dni-pepper"
 
 # SMTP (invites consola + OTP portal)
@@ -338,13 +349,25 @@ def validar_config_produccion() -> list[str]:
         avisos.append("SMTP_HOST no configurado — invites/OTP por email no funcionarán")
     if PORTAL_ALLOW_GUEST:
         avisos.append("PORTAL_ALLOW_GUEST=true — guest anónimo habilitado en production")
+    if ENABLE_DEMO_RESET:
+        avisos.append(
+            "ENABLE_DEMO_RESET=true — POST /api/v1/demo/reset puede borrar tickets del tenant"
+        )
     if ENABLE_LEGACY_API:
         avisos.append("ENABLE_LEGACY_API=true — /api/chat legacy expuesto sin endurecer")
     if ENABLE_API_DOCS:
         avisos.append("ENABLE_API_DOCS=true — /docs y OpenAPI públicos")
     if WHATSAPP_TOKEN and not WHATSAPP_APP_SECRET:
         avisos.append("WHATSAPP_APP_SECRET vacío con token WA — webhook sin firma HMAC")
+    if WHATSAPP_TOKEN and not WHATSAPP_VERIFY_TOKEN:
+        avisos.append("WHATSAPP_VERIFY_TOKEN vacío — Meta no podrá verificar el webhook")
+    if not WHATSAPP_TOKEN:
+        avisos.append(
+            "WHATSAPP_TOKEN vacío — canal WhatsApp no operativo (OK si aún no lo usan)"
+        )
     if TELEGRAM_BOT_TOKEN and not TELEGRAM_WEBHOOK_SECRET:
         avisos.append("TELEGRAM_WEBHOOK_SECRET vacío con bot token — webhook sin secret token")
+    if not (os.getenv("SENTRY_DSN") or "").strip():
+        avisos.append("SENTRY_DSN vacío — errores de prod no se reportan a Sentry")
 
     return avisos

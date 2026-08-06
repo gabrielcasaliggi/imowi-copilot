@@ -21,6 +21,7 @@ from app.config import (
     AUTH_SECRET,
     CORS_ORIGINS,
     ENABLE_API_DOCS,
+    ENABLE_DEMO_RESET,
     ENABLE_LEGACY_API,
     database_url_enmascarada,
     es_postgres,
@@ -39,12 +40,12 @@ from app.estate.seed import (
     seed_lineas_jsc,
 )
 from app.knowledge import cargar_base_conocimiento, estadisticas
-from app.observability import init_sentry
+from app.observability import init_sentry, sentry_activo
 from app.routers import auth_router, chat_router, tickets_router
 
 logger = logging.getLogger("operations_hub")
 
-init_sentry()
+_SENTRY_OK = init_sentry()
 
 
 @asynccontextmanager
@@ -164,6 +165,8 @@ async def health():
         "supabase_mirror": supabase_configurado() and not es_postgres(),
         "auth": "jwt",
         "auth_secret_configured": bool(AUTH_SECRET),
+        "sentry_configured": bool(_SENTRY_OK) or sentry_activo(),
+        "demo_reset_enabled": ENABLE_DEMO_RESET,
         "api_v1": "/api/v1",
         "frontend_recomendado": "Next.js",
     }

@@ -6,9 +6,12 @@ Ver también: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) (auth dua
 
 Marca abonado: **Soporte Batán** / asistente **Eko**. Dominio futuro recomendado: `soporte.batan.coop` (ver [docs/ECO-VOICE.md](docs/ECO-VOICE.md)); no migrar DNS en este paso.
 
+**Fase 1 (Batán operable):** [docs/FASE-1-BATAN.md](docs/FASE-1-BATAN.md).
+
 ```bash
 # 1) Backup
 sudo bash scripts/backup-estate.sh
+# Cron diario (una vez): sudo bash scripts/install-backup-cron.sh
 
 # 2) Código
 cd /ruta/al/repo && git pull
@@ -20,15 +23,18 @@ pip install -r requirements.txt
 # esquema versionado (baseline): alembic stamp head  (ver docs/QA-PILOTO.md / alembic/)
 sudo systemctl restart operations-hub-api
 
-# 4) Frontend
+# 4) Frontend (solo si cambió UI)
 cd frontend && npm ci && npm run build
 sudo systemctl restart operations-hub-frontend   # ajustar unit
 
 # 5) Nginx
 sudo nginx -t && sudo systemctl reload nginx
+
+# 6) Smoke Fase 1
+./scripts/fase1-smoke-batan.sh https://ibot.ecolan.com
 ```
 
-Plantilla env: `.env.server.example` (`DISABLE_DEMO_USERS`, `SMTP_*`, `PORTAL_AUTH_SECRET`, `BILLTRACK_LOOKUP_*`).
+Plantilla env: `.env.server.example` (`DISABLE_DEMO_USERS`, `ENABLE_DEMO_RESET=false`, `SMTP_*` con comillas, `SENTRY_DSN`, `PORTAL_AUTH_SECRET`).
 
 ### Checklist
 

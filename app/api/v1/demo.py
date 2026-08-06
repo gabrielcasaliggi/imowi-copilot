@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context
 from app.api.v1.schemas import TenantContext
+from app.config import ENABLE_DEMO_RESET, es_produccion
 from app.domain.demo_validacion import (
     CHECKLIST_GENERAL_IMOWI,
     listar_escenarios_demo,
@@ -32,6 +33,26 @@ class DemoEventoRequest(BaseModel):
     paso_id: str = ""
     ticket_id: str = ""
     detalle: dict = Field(default_factory=dict)
+
+
+def _exigir_demo_reset_permitido(ctx: TenantContext) -> None:
+    """En prod el reset está off; fuera de prod solo admin / orgs.manage."""
+    if not ENABLE_DEMO_RESET:
+        raise HTTPException(
+            403,
+            "Reset demo deshabilitado. En production usá ENABLE_DEMO_RESET=true "
+            "solo de forma temporal y consciente.",
+        )
+    if es_produccion() and not (
+        ctx.es_admin_imowi or ctx.puede("orgs.manage") or ctx.rol == "admin"
+    ):
+        raise HTTPException(403, "Solo admin puede ejecutar reset demo en production")
+    if not (
+        ctx.es_admin_imowi
+        or ctx.puede("orgs.manage")
+        or ctx.rol in ("admin", "supervisor")
+    ):
+        raise HTTPException(403, "Se requiere rol admin/supervisor para reset demo")
 
 
 @router.get("/escenarios")
@@ -98,6 +119,7 @@ def reset_demo_validacion(
     db: Session = Depends(get_db),
 ):
     """Limpia casos conversacionales y tickets de la cooperativa para reintentar escenarios."""
+    _exigir_demo_reset_permitido(ctx)
     resultado = repo.reset_demo_validacion(
         db,
         ctx.organizacion_id,

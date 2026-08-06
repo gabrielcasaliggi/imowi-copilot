@@ -7,9 +7,12 @@ import os
 
 logger = logging.getLogger("operations_hub")
 
+_SENTRY_INIT = False
+
 
 def init_sentry() -> bool:
     """Inicializa Sentry si hay DSN. Retorna True si quedó activo."""
+    global _SENTRY_INIT
     dsn = (os.getenv("SENTRY_DSN") or "").strip()
     if not dsn:
         return False
@@ -35,5 +38,22 @@ def init_sentry() -> bool:
             LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
         ],
     )
+    _SENTRY_INIT = True
     logger.info("Sentry activo (env=%s, traces=%.2f)", env, traces)
     return True
+
+
+def sentry_activo() -> bool:
+    """True si Sentry quedó inicializado en este proceso."""
+    if _SENTRY_INIT:
+        return True
+    try:
+        import sentry_sdk
+
+        get_client = getattr(sentry_sdk, "get_client", None)
+        if callable(get_client):
+            client = get_client()
+            return bool(client) and getattr(client, "dsn", None) is not None
+        return False
+    except Exception:
+        return False

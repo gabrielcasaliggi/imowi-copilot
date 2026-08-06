@@ -82,6 +82,25 @@ if [[ "$ENV_NAME" == "production" ]]; then
 fi
 
 echo ""
+echo "==> Demo reset (Fase 1)"
+RESET_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/v1/demo/reset" \
+  -H 'Content-Type: application/json' \
+  -d '{"incluir_tickets":false}' || true)"
+echo "  POST /api/v1/demo/reset sin auth HTTP $RESET_CODE"
+DEMO_RESET="$(echo "$BODY" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("demo_reset_enabled"))')"
+SENTRY_CFG="$(echo "$BODY" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sentry_configured"))')"
+echo "  health.demo_reset_enabled=$DEMO_RESET"
+echo "  health.sentry_configured=$SENTRY_CFG"
+if [[ "${EXPECT_HARDENED:-}" == "1" || "$ENV_NAME" == "production" ]]; then
+  [[ "$RESET_CODE" == "401" || "$RESET_CODE" == "403" ]] || {
+    echo "FAIL: demo/reset debería exigir auth"; exit 1
+  }
+  [[ "$DEMO_RESET" == "False" || "$DEMO_RESET" == "false" ]] || {
+    echo "WARN: demo_reset_enabled=$DEMO_RESET (en prod preferí false / ENABLE_DEMO_RESET=false)"
+  }
+fi
+
+echo ""
 echo "==> HSTS (solo HTTPS)"
 if [[ "$API_URL" == https://* ]]; then
   if curl -sI "$API_URL/" | grep -qi 'strict-transport-security'; then
@@ -95,3 +114,5 @@ fi
 
 echo ""
 echo "Despliegue verificado."
+echo "Smoke N1 Batán: ./scripts/fase1-smoke-batan.sh $API_URL"
+echo "Runbook Fase 1: docs/FASE-1-BATAN.md"
