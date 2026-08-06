@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.estate.models import Abonado, ConversacionCanal, MensajeCanal
 
+_ULTIMO_MSG_PREVIEW_LEN = 120
+
 
 def _now():
     return datetime.now(UTC)
@@ -185,20 +187,48 @@ def list_conversaciones(
     *,
     estado: str = "",
     agente_id: str = "",
-    limit: int = 50,
+    limit: int = 100,
 ) -> list[ConversacionCanal]:
     stmt = (
         select(ConversacionCanal)
         .where(ConversacionCanal.organizacion_id == org_id)
         .order_by(ConversacionCanal.updated_at.desc())
-        .limit(limit)
     )
-    rows = list(db.scalars(stmt).all())
     if estado:
-        rows = [c for c in rows if c.estado == estado]
+        stmt = stmt.where(ConversacionCanal.estado == estado)
     if agente_id:
-        rows = [c for c in rows if c.agente_id == agente_id]
-    return rows
+        stmt = stmt.where(ConversacionCanal.agente_id == agente_id)
+    stmt = stmt.limit(limit)
+    return list(db.scalars(stmt).all())
+
+
+def last_messages_by_conversacion(
+    db: Session,
+    conversacion_ids: list[str],
+) -> dict[str, MensajeCanal]:
+    """Último mensaje por conversación (1 query, compatible SQLite/Postgres)."""
+    ids = [cid for cid in conversacion_ids if cid]
+    if not ids:
+        return {}
+    rows = list(
+        db.scalars(
+            select(MensajeCanal)
+            .where(MensajeCanal.conversacion_id.in_(ids))
+            .order_by(MensajeCanal.conversacion_id.asc(), MensajeCanal.created_at.desc())
+        ).all()
+    )
+    out: dict[str, MensajeCanal] = {}
+    for m in rows:
+        if m.conversacion_id not in out:
+            out[m.conversacion_id] = m
+    return out
+
+
+def _truncate_preview(texto: str, max_len: int = _ULTIMO_MSG_PREVIEW_LEN) -> str:
+    t = (texto or "").strip().replace("\n", " ")
+    if len(t) <= max_len:
+        return t
+    return t[: max_len - 1].rstrip() + "…"
 
 
 def get_conversacion(db: Session, org_id: str, conv_id: str) -> ConversacionCanal | None:
@@ -250,7 +280,12 @@ def abonado_to_dict(a: Abonado | None) -> dict | None:
     }
 
 
-def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None) -> dict:
+def conversacion_to_dict(
+    c: ConversacionCanal,
+    *,
+    abonado: Abonado | None = None,
+    ultimo: MensajeCanal | None = None,
+) -> dict:
     canal_raw = c.canal or "whatsapp"
     if canal_raw in ("whatsapp", "simulate"):
         canal_display = "WhatsApp"
@@ -267,6 +302,13 @@ def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None
         or (ctx.get("invitado") and not c.abonado_id and c.estado in ("espera_agente", "con_agente"))
     )
     cola_prioridad = str(ctx.get("cola_prioridad") or ("baja" if es_visitante else "alta"))
+    ultimo_texto = _truncate_preview(ultimo.texto) if ultimo else ""
+    ultimo_autor = (ultimo.autor if ultimo else "") or ""
+    ultimo_at = ""
+    if ultimo and ultimo.created_at:
+        ultimo_at = ultimo.created_at.isoformat()
+    elif c.updated_at:
+        ultimo_at = c.updated_at.isoformat()
     return {
         "id": c.id,
         "canal": canal_raw,
@@ -285,6 +327,9 @@ def conversacion_to_dict(c: ConversacionCanal, *, abonado: Abonado | None = None
         "cola_prioridad": cola_prioridad,
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
+        "ultimo_mensaje_texto": ultimo_texto,
+        "ultimo_mensaje_autor": ultimo_autor,
+        "ultimo_mensaje_at": ultimo_at,
     }
 
 

@@ -1198,6 +1198,9 @@ export interface InboxConversation {
   cola_prioridad?: "alta" | "baja" | string;
   created_at: string;
   updated_at: string;
+  ultimo_mensaje_texto?: string;
+  ultimo_mensaje_autor?: string;
+  ultimo_mensaje_at?: string;
 }
 
 export interface InboxMessage {

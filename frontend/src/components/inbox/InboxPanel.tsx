@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
@@ -19,6 +19,16 @@ import {
 } from "@/components/ui/ChatMessageBubble";
 import { botEstadoLabel, getBranding } from "@/lib/brand";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
+import {
+  formatDateTime,
+  formatRelative,
+  formatWaitChip,
+} from "@/lib/formatTime";
+import {
+  isInboxSoundEnabled,
+  playHandoffBeep,
+  setInboxSoundEnabled,
+} from "@/lib/inboxSound";
 
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
@@ -43,6 +53,13 @@ function estadoLabel(estado: string): string {
   }
 }
 
+function autorPreviewLabel(autor: string | undefined): string {
+  if (autor === "cliente") return "Cliente";
+  if (autor === "agente") return "Agente";
+  if (autor === "bot") return getBranding().botDisplayNameShort || getBranding().botDisplayName;
+  return "";
+}
+
 const POLL_LIST_MS = 4000;
 const POLL_LIVE_MS = 1500;
 
@@ -56,6 +73,11 @@ export function InboxPanel() {
   const [mensajes, setMensajes] = useState<InboxMessage[]>([]);
   const [detail, setDetail] = useState<InboxConversation | null>(null);
   const [filtro, setFiltro] = useState("");
+  const [soloMias, setSoloMias] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [soundOn, setSoundOn] = useState(true);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const [reply, setReply] = useState("");
   const [injectOpen, setInjectOpen] = useState(false);
   const [injectTel, setInjectTel] = useState("");
@@ -74,9 +96,26 @@ export function InboxPanel() {
   selectedRef.current = selected;
   detailEstadoRef.current = detail?.estado || "";
 
+  useEffect(() => {
+    setSoundOn(isInboxSoundEnabled());
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setSearchDebounced(search.trim().toLowerCase()), 200);
+    return () => window.clearTimeout(id);
+  }, [search]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const refreshList = useCallback(async () => {
+    const params: { estado?: string; mias?: boolean } = {};
+    if (filtro) params.estado = filtro;
+    if (soloMias) params.mias = true;
     const res = await api.inboxConversations(
-      filtro ? { estado: filtro } : undefined,
+      Object.keys(params).length ? params : undefined,
       slug,
     );
     const next = res.conversaciones || [];
@@ -95,12 +134,13 @@ export function InboxPanel() {
           `${quien} · ${canalLabel(c)} espera agente`,
           "warning",
         );
+        playHandoffBeep();
       }
       prev[c.id] = c.estado;
     }
     prevEstadosRef.current = prev;
     setConvs(next);
-  }, [filtro, slug, toast]);
+  }, [filtro, soloMias, slug, toast]);
 
   const refreshDetail = useCallback(
     async (id: string, opts?: { select?: boolean }) => {
@@ -287,11 +327,39 @@ export function InboxPanel() {
     }
   };
 
-  const openConvs = convs.filter((c) => c.estado !== "cerrado");
-  const visible = filtro ? convs : openConvs;
+  const openConvs = useMemo(
+    () => convs.filter((c) => c.estado !== "cerrado"),
+    [convs],
+  );
+  const baseVisible = filtro ? convs : openConvs;
+  const visible = useMemo(() => {
+    if (!searchDebounced) return baseVisible;
+    return baseVisible.filter((c) => {
+      const hay = [
+        c.telefono,
+        c.abonado?.nombre,
+        c.ticket_id,
+        c.ultimo_mensaje_texto,
+        c.agente_id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(searchDebounced);
+    });
+  }, [baseVisible, searchDebounced]);
+
+  const countAbiertas = openConvs.length;
+  const countEspera = openConvs.filter((c) => c.estado === "espera_agente").length;
   const puedeEscribir = Boolean(detail && detail.estado !== "cerrado");
   const showList = !selected;
   const showDetail = Boolean(selected);
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setInboxSoundEnabled(next);
+  };
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-4 overflow-hidden">
@@ -308,8 +376,23 @@ export function InboxPanel() {
                 ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} (filtro N1) y tomá handoffs. Visitantes se atienden acá. La Cola es solo tickets N2.`
                 : "Canal en vivo: tomá chats de abonados y visitantes acá. La Cola es solo para tickets N2 técnicos."}
           </p>
+          <p className="text-[11px] font-mono text-slate-500">
+            {countAbiertas} abiertas
+            {countEspera > 0 ? ` · ${countEspera} en espera` : ""}
+            {soloMias ? " · mis chats" : ""}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <label className="sr-only" htmlFor="inbox-search">
+            Buscar conversaciones
+          </label>
+          <input
+            id="inbox-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar teléfono, nombre, ticket…"
+            className="w-44 sm:w-56 bg-slate-950 border border-slate-600/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent transition-all duration-200 ease-in-out"
+          />
           <label className="sr-only" htmlFor="inbox-filtro">
             Filtrar conversaciones
           </label>
@@ -325,6 +408,30 @@ export function InboxPanel() {
             <option value="con_agente">Con agente</option>
             <option value="cerrado">Cerradas</option>
           </select>
+          <button
+            type="button"
+            onClick={() => setSoloMias((v) => !v)}
+            className={`text-[11px] px-3 py-2 rounded-lg border transition-all duration-200 ease-in-out ${
+              soloMias
+                ? "border-ecolan-brand/50 bg-ecolan-brand/15 text-ecolan-brand"
+                : "border-slate-600/80 text-slate-400 hover:border-slate-500 hover:bg-slate-800/40"
+            }`}
+            title="Solo chats asignados a vos"
+          >
+            Mis chats
+          </button>
+          <button
+            type="button"
+            onClick={toggleSound}
+            className={`text-[11px] px-3 py-2 rounded-lg border transition-all duration-200 ease-in-out ${
+              soundOn
+                ? "border-slate-600/80 text-slate-300 hover:bg-slate-800/40"
+                : "border-slate-700 text-slate-500 hover:bg-slate-800/40"
+            }`}
+            title={soundOn ? "Silenciar alerta de handoff" : "Activar alerta de handoff"}
+          >
+            {soundOn ? "Sonido" : "Mute"}
+          </button>
           {isAdmin && (
             <button
               type="button"
@@ -377,7 +484,7 @@ export function InboxPanel() {
         </form>
       )}
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-3 overflow-hidden">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 overflow-hidden">
         <div
           className={`rounded-xl border border-slate-700/80 bg-slate-950/40 overflow-y-auto p-2 space-y-1 shadow-sm ${
             showDetail ? "hidden lg:block" : ""
@@ -387,59 +494,96 @@ export function InboxPanel() {
             <div className="flex flex-col items-center gap-2 p-6 text-center">
               <MessagesEmptyIcon className="h-8 w-8 text-slate-600" />
               <p className="text-xs text-slate-400">
-                No hay conversaciones abiertas. Los mensajes entrantes aparecerán aquí.
+                {searchDebounced
+                  ? "Ninguna conversación coincide con la búsqueda."
+                  : "No hay conversaciones abiertas. Los mensajes entrantes aparecerán aquí."}
               </p>
             </div>
           ) : (
-            visible.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => void openConv(c.id)}
-                className={`w-full text-left px-3 py-3.5 rounded-lg border transition-all duration-200 ease-in-out ${
-                  selected === c.id
-                    ? "border-ecolan-brand/45 bg-ecolan-brand/10 shadow-sm"
-                    : c.estado === "bot"
-                      ? "border-emerald-500/25 bg-emerald-500/[0.06] hover:border-emerald-500/40"
-                      : c.estado === "espera_agente"
-                        ? "border-amber-500/20 bg-amber-500/[0.04] hover:border-amber-500/35"
-                        : "border-transparent hover:bg-slate-50/5 hover:border-slate-700/60"
-                }`}
-              >
-                <div className="flex justify-between gap-2 items-center">
-                  <span className="font-mono text-[11px] font-medium text-ecolan-brand">
-                    {c.telefono}
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {c.estado === "bot" && (
-                      <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        En vivo
-                      </span>
-                    )}
-                    {(c.es_visitante || c.cola_prioridad === "baja") && (
-                      <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-slate-600/80 text-slate-400">
-                        Visitante
-                      </span>
-                    )}
-                    <StatusBadge value={estadoLabel(c.estado)} />
+            visible.map((c) => {
+              const whenIso = c.ultimo_mensaje_at || c.updated_at;
+              const rel = formatRelative(whenIso, nowTs);
+              const abs = formatDateTime(whenIso);
+              const previewAutor = autorPreviewLabel(c.ultimo_mensaje_autor);
+              const preview = c.ultimo_mensaje_texto || "";
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => void openConv(c.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-200 ease-in-out ${
+                    selected === c.id
+                      ? "border-ecolan-brand/45 bg-ecolan-brand/10 shadow-sm"
+                      : c.estado === "bot"
+                        ? "border-emerald-500/25 bg-emerald-500/[0.06] hover:border-emerald-500/40"
+                        : c.estado === "espera_agente"
+                          ? "border-amber-500/25 bg-amber-500/[0.06] hover:border-amber-500/40"
+                          : "border-transparent hover:bg-slate-50/5 hover:border-slate-700/60"
+                  }`}
+                >
+                  <div className="flex justify-between gap-2 items-start">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] font-medium text-ecolan-brand truncate">
+                        {c.telefono}
+                      </p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {c.abonado?.nombre ||
+                          (c.es_visitante || c.cola_prioridad === "baja"
+                            ? "Visitante"
+                            : "Sin identificar")}{" "}
+                        · {canalLabel(c)}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {rel && (
+                        <time
+                          className="text-[10px] font-mono text-slate-500 tabular-nums"
+                          dateTime={whenIso}
+                          title={abs || undefined}
+                        >
+                          {rel}
+                        </time>
+                      )}
+                      <div className="flex items-center gap-1">
+                        {c.estado === "bot" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-300">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            En vivo
+                          </span>
+                        )}
+                        {(c.es_visitante || c.cola_prioridad === "baja") && (
+                          <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-slate-600/80 text-slate-400">
+                            Visitante
+                          </span>
+                        )}
+                        <StatusBadge value={estadoLabel(c.estado)} />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <p className="text-[11px] text-slate-400 truncate mt-1">
-                  {c.abonado?.nombre ||
-                    (c.es_visitante || c.cola_prioridad === "baja"
-                      ? "Visitante (prioridad baja)"
-                      : "Sin identificar")}{" "}
-                  · {canalLabel(c)}
-                </p>
-                {c.ticket_id && (
-                  <p className="text-[10px] font-mono text-amber-400/90 mt-1">{c.ticket_id}</p>
-                )}
-                {(c.es_visitante || c.cola_prioridad === "baja") && !c.ticket_id && (
-                  <p className="text-[10px] text-slate-500 mt-1">Atender en Bandeja · no es N2</p>
-                )}
-              </button>
-            ))
+                  {preview && (
+                    <p className="text-[11px] text-slate-500 truncate mt-1.5">
+                      {previewAutor ? (
+                        <span className="text-slate-400">{previewAutor}: </span>
+                      ) : null}
+                      {preview}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {c.estado === "espera_agente" && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/45 bg-amber-500/15 text-amber-200">
+                        {formatWaitChip(c.updated_at || whenIso, nowTs)}
+                      </span>
+                    )}
+                    {c.ticket_id && (
+                      <span className="text-[10px] font-mono text-amber-400/90">{c.ticket_id}</span>
+                    )}
+                    {(c.es_visitante || c.cola_prioridad === "baja") && !c.ticket_id && (
+                      <span className="text-[10px] text-slate-500">Atender acá · no es N2</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
 

@@ -41,11 +41,18 @@ def list_inbox(
     db: Session = Depends(get_db),
 ):
     agente = ctx.usuario_email if mias else ""
-    rows = crepo.list_conversaciones(db, _org_id(ctx), estado=estado, agente_id=agente)
+    rows = crepo.list_conversaciones(
+        db, _org_id(ctx), estado=estado, agente_id=agente, limit=100
+    )
+    ultimos = crepo.last_messages_by_conversacion(db, [c.id for c in rows])
     out = []
     for c in rows:
         abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
-        out.append(crepo.conversacion_to_dict(c, abonado=abo))
+        out.append(
+            crepo.conversacion_to_dict(
+                c, abonado=abo, ultimo=ultimos.get(c.id)
+            )
+        )
 
     # Cola accionable primero: espera_agente → con_agente → bot.
     # Dentro de espera_agente: abonados antes que visitantes (prioridad baja).
