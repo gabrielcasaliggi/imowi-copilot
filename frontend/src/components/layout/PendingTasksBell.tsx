@@ -84,7 +84,7 @@ export function PendingTasksBell() {
       }
 
       const unread = (notifications || []).filter((n) => n.leida !== "Sí");
-      for (const n of unread.slice(0, 8)) {
+      for (const n of unread.slice(0, 6)) {
         next.push({
           id: `notif-${n.id}`,
           kind: "ticket_notif",
@@ -96,6 +96,35 @@ export function PendingTasksBell() {
           createdAt: n.created_at,
           notificationId: n.id,
         });
+      }
+
+      const slug = isAdmin ? tenantSlug : undefined;
+      const inbox = await api.inboxConversations({ limit: 40, offset: 0 }, slug);
+      let inboxAdded = 0;
+      for (const c of inbox.conversaciones || []) {
+        if (inboxAdded >= 8) break;
+        const quien = c.abonado?.nombre || c.telefono || "Cliente";
+        if (c.estado === "espera_agente") {
+          next.push({
+            id: `inbox-wait-${c.id}`,
+            kind: "inbox",
+            title: "Cliente espera agente",
+            detail: `${quien}${c.ultimo_mensaje_texto ? ` · ${c.ultimo_mensaje_texto.slice(0, 80)}` : ""}`,
+            href: `/inbox?conv=${encodeURIComponent(c.id)}`,
+            createdAt: c.updated_at || c.ultimo_mensaje_at,
+          });
+          inboxAdded += 1;
+        } else if (c.tiene_no_leidos && c.estado === "con_agente") {
+          next.push({
+            id: `inbox-unread-${c.id}`,
+            kind: "inbox",
+            title: `Nuevo mensaje · ${quien}`,
+            detail: c.ultimo_mensaje_texto?.slice(0, 100) || c.telefono,
+            href: `/inbox?conv=${encodeURIComponent(c.id)}`,
+            createdAt: c.ultimo_mensaje_at || c.updated_at,
+          });
+          inboxAdded += 1;
+        }
       }
     } catch {
       // silencioso: la campana no debe romper el header
@@ -162,8 +191,8 @@ export function PendingTasksBell() {
               <p className="text-xs font-semibold text-slate-100">Pendientes</p>
               <p className="text-[10px] text-slate-400">
                 {isAdmin
-                  ? "Revisiones KB y novedades de tickets"
-                  : "Novedades operativas de tus tickets"}
+                  ? "KB, bandeja y tickets"
+                  : "Bandeja y novedades de tickets"}
               </p>
             </div>
             <button

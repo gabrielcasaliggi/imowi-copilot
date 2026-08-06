@@ -387,6 +387,9 @@ class ConversacionCanal(Base):
     servicio_detectado: Mapped[str] = mapped_column(String(20), default="")
     ticket_id: Mapped[str] = mapped_column(String(32), default="")
     contexto_json: Mapped[str] = mapped_column(Text, default="{}")
+    agente_last_read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 

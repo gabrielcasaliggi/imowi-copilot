@@ -18,6 +18,7 @@ const ESTADOS = ["", "Abierto", "En Revisión", "Escalado", "Pendiente Cliente",
 const NIVELES = ["", "N1", "N2"];
 const SLA_OPTS = ["", "Vencido", "Crítico", "En riesgo", "En tiempo"];
 const POLL_MS = 5000;
+const PAGE_SIZE = 50;
 
 function isMine(t: Ticket, keys: Set<string>) {
   const a = (t.asignado_a || "").trim().toLowerCase();
@@ -177,8 +178,10 @@ export function TicketQueuePanel() {
   const { isAdmin, can, tenantSlug, user, selectTicket } = useApp();
 
   const [items, setItems] = useState<Ticket[]>([]);
+  const [listTotal, setListTotal] = useState(0);
   const [agents, setAgents] = useState<{ email: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [hint, setHint] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
@@ -192,6 +195,7 @@ export function TicketQueuePanel() {
   const [soloTomables, setSoloTomables] = useState(!(isAdmin || can("tickets.reassign")));
   const claimingRef = useRef(false);
   const hasItemsRef = useRef(false);
+  const loadedCountRef = useRef(PAGE_SIZE);
 
   const canReassign = can("tickets.reassign");
   const canClaim = can("tickets.queue.view") && !can("orgs.manage");
@@ -213,6 +217,7 @@ export function TicketQueuePanel() {
       const silent = Boolean(opts?.silent && hasItemsRef.current);
       if (!silent) setLoading(true);
       try {
+        const lim = Math.min(100, Math.max(PAGE_SIZE, loadedCountRef.current));
         const res = await api.tickets(
           {
             estado,
@@ -221,11 +226,15 @@ export function TicketQueuePanel() {
             categoria,
             q,
             solo_abiertos: soloAbiertos,
+            limit: lim,
+            offset: 0,
           },
           slug,
         );
         const next = res.tickets || [];
+        loadedCountRef.current = next.length;
         setItems(next);
+        setListTotal(res.total ?? next.length);
         hasItemsRef.current = next.length > 0;
         setUpdatedAt(new Date());
         if (!silent) setHint("");
@@ -239,6 +248,39 @@ export function TicketQueuePanel() {
     },
     [estado, nivel, sla, categoria, q, soloAbiertos, slug],
   );
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || items.length >= listTotal) return;
+    setLoadingMore(true);
+    try {
+      const res = await api.tickets(
+        {
+          estado,
+          nivel,
+          sla,
+          categoria,
+          q,
+          solo_abiertos: soloAbiertos,
+          limit: PAGE_SIZE,
+          offset: items.length,
+        },
+        slug,
+      );
+      const more = res.tickets || [];
+      setItems((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        const merged = [...prev];
+        for (const t of more) {
+          if (!seen.has(t.id)) merged.push(t);
+        }
+        loadedCountRef.current = merged.length;
+        return merged;
+      });
+      setListTotal(res.total ?? listTotal);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, items.length, listTotal, estado, nivel, sla, categoria, q, soloAbiertos, slug]);
 
   const canQueue = can("tickets.queue.view");
 
@@ -332,6 +374,7 @@ export function TicketQueuePanel() {
 
   const onFilter = (e: FormEvent) => {
     e.preventDefault();
+    loadedCountRef.current = PAGE_SIZE;
     void load();
   };
 
@@ -373,6 +416,9 @@ export function TicketQueuePanel() {
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950/60 text-slate-300">
           En vista <strong className="font-mono text-slate-100 ml-1">{visible.length}</strong>
+          {listTotal > visible.length ? (
+            <span className="text-slate-500 font-mono"> / {listTotal}</span>
+          ) : null}
         </span>
         <span className="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
           Libres <strong className="font-mono ml-1">{libres}</strong>
@@ -482,6 +528,18 @@ export function TicketQueuePanel() {
               onReassign={(id, email) => void onReassign(id, email)}
             />
           ))}
+          {items.length < listTotal && (
+            <button
+              type="button"
+              disabled={loadingMore}
+              onClick={() => void loadMore()}
+              className="w-full text-[11px] py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 disabled:opacity-50"
+            >
+              {loadingMore
+                ? "Cargando…"
+                : `Cargar más (${items.length}/${listTotal})`}
+            </button>
+          )}
         </div>
       )}
     </div>

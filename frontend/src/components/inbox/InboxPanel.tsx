@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import {
   api,
@@ -62,13 +62,16 @@ function autorPreviewLabel(autor: string | undefined): string {
 
 const POLL_LIST_MS = 4000;
 const POLL_LIVE_MS = 1500;
+const PAGE_SIZE = 50;
 
 export function InboxPanel() {
   const { tenantSlug, isAdmin, can, selectTicket } = useApp();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { push: toast } = useToast();
   const slug = isAdmin ? tenantSlug : undefined;
   const [convs, setConvs] = useState<InboxConversation[]>([]);
+  const [listTotal, setListTotal] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<InboxMessage[]>([]);
   const [detail, setDetail] = useState<InboxConversation | null>(null);
@@ -85,6 +88,7 @@ export function InboxPanel() {
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [livePulse, setLivePulse] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
   const detailSeq = useRef(0);
   const claimingRef = useRef(false);
@@ -92,6 +96,8 @@ export function InboxPanel() {
   const handoffNotifiedRef = useRef<Set<string>>(new Set());
   const selectedRef = useRef<string | null>(null);
   const detailEstadoRef = useRef<string>("");
+  const loadedCountRef = useRef(PAGE_SIZE);
+  const deepLinkedRef = useRef<string | null>(null);
 
   selectedRef.current = selected;
   detailEstadoRef.current = detail?.estado || "";
@@ -110,15 +116,30 @@ export function InboxPanel() {
     return () => window.clearInterval(id);
   }, []);
 
+  const listParams = useCallback(
+    (opts?: { limit?: number; offset?: number }) => {
+      const params: {
+        estado?: string;
+        mias?: boolean;
+        limit?: number;
+        offset?: number;
+      } = {
+        limit: opts?.limit ?? Math.min(100, Math.max(PAGE_SIZE, loadedCountRef.current)),
+        offset: opts?.offset ?? 0,
+      };
+      if (filtro) params.estado = filtro;
+      if (soloMias) params.mias = true;
+      return params;
+    },
+    [filtro, soloMias],
+  );
+
   const refreshList = useCallback(async () => {
-    const params: { estado?: string; mias?: boolean } = {};
-    if (filtro) params.estado = filtro;
-    if (soloMias) params.mias = true;
-    const res = await api.inboxConversations(
-      Object.keys(params).length ? params : undefined,
-      slug,
-    );
+    const params = listParams();
+    const res = await api.inboxConversations(params, slug);
     const next = res.conversaciones || [];
+    loadedCountRef.current = next.length;
+    setListTotal(res.total ?? next.length);
     const prev = prevEstadosRef.current;
     for (const c of next) {
       const before = prev[c.id];
@@ -140,7 +161,31 @@ export function InboxPanel() {
     }
     prevEstadosRef.current = prev;
     setConvs(next);
-  }, [filtro, soloMias, slug, toast]);
+  }, [listParams, slug, toast]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || convs.length >= listTotal) return;
+    setLoadingMore(true);
+    try {
+      const res = await api.inboxConversations(
+        listParams({ limit: PAGE_SIZE, offset: convs.length }),
+        slug,
+      );
+      const more = res.conversaciones || [];
+      setConvs((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        const merged = [...prev];
+        for (const c of more) {
+          if (!seen.has(c.id)) merged.push(c);
+        }
+        loadedCountRef.current = merged.length;
+        return merged;
+      });
+      setListTotal(res.total ?? listTotal);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, convs.length, listTotal, listParams, slug]);
 
   const refreshDetail = useCallback(
     async (id: string, opts?: { select?: boolean }) => {
@@ -157,6 +202,14 @@ export function InboxPanel() {
         }
         return next;
       });
+      // GET detail ya marca leído en backend
+      setConvs((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? { ...c, ...res.conversacion, tiene_no_leidos: false }
+            : c,
+        ),
+      );
     },
     [slug],
   );
@@ -175,14 +228,27 @@ export function InboxPanel() {
   };
 
   useEffect(() => {
+    loadedCountRef.current = PAGE_SIZE;
+  }, [filtro, soloMias]);
+
+  useEffect(() => {
     refreshList().catch(() => setConvs([]));
   }, [refreshList]);
+
+  useEffect(() => {
+    const convId = searchParams.get("conv");
+    if (!convId || deepLinkedRef.current === convId) return;
+    deepLinkedRef.current = convId;
+    void openConv(convId);
+  }, [searchParams, openConv]);
 
   useEffect(() => {
     setSelected(null);
     setDetail(null);
     setMensajes([]);
     handoffNotifiedRef.current.clear();
+    loadedCountRef.current = PAGE_SIZE;
+    deepLinkedRef.current = null;
   }, [slug]);
 
   useEffect(() => {
@@ -349,8 +415,9 @@ export function InboxPanel() {
     });
   }, [baseVisible, searchDebounced]);
 
-  const countAbiertas = openConvs.length;
+  const countAbiertas = !filtro && !searchDebounced ? listTotal || openConvs.length : openConvs.length;
   const countEspera = openConvs.filter((c) => c.estado === "espera_agente").length;
+  const canLoadMore = !searchDebounced && convs.length < listTotal;
   const puedeEscribir = Boolean(detail && detail.estado !== "cerrado");
   const showList = !selected;
   const showDetail = Boolean(selected);
@@ -500,7 +567,8 @@ export function InboxPanel() {
               </p>
             </div>
           ) : (
-            visible.map((c) => {
+            <>
+              {visible.map((c) => {
               const whenIso = c.ultimo_mensaje_at || c.updated_at;
               const rel = formatRelative(whenIso, nowTs);
               const abs = formatDateTime(whenIso);
@@ -514,6 +582,8 @@ export function InboxPanel() {
                   className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-200 ease-in-out ${
                     selected === c.id
                       ? "border-ecolan-brand/45 bg-ecolan-brand/10 shadow-sm"
+                      : c.tiene_no_leidos
+                        ? "border-amber-500/30 bg-amber-500/[0.05] hover:border-amber-500/45"
                       : c.estado === "bot"
                         ? "border-emerald-500/25 bg-emerald-500/[0.06] hover:border-emerald-500/40"
                         : c.estado === "espera_agente"
@@ -545,6 +615,13 @@ export function InboxPanel() {
                         </time>
                       )}
                       <div className="flex items-center gap-1">
+                        {c.tiene_no_leidos && (
+                          <span
+                            className="h-2 w-2 rounded-full bg-amber-400 shrink-0"
+                            title="Mensaje nuevo del cliente"
+                            aria-label="Sin leer"
+                          />
+                        )}
                         {c.estado === "bot" && (
                           <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-300">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -583,7 +660,18 @@ export function InboxPanel() {
                   </div>
                 </button>
               );
-            })
+            })}
+              {canLoadMore && (
+                <button
+                  type="button"
+                  disabled={loadingMore}
+                  onClick={() => void loadMore()}
+                  className="w-full text-[11px] py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 disabled:opacity-50"
+                >
+                  {loadingMore ? "Cargando…" : `Cargar más (${convs.length}/${listTotal})`}
+                </button>
+              )}
+            </>
           )}
         </div>
 

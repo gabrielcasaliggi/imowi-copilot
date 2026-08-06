@@ -42,6 +42,10 @@ _INVITE_COLUMNS: dict[str, str] = {
     "purpose": "VARCHAR(32) DEFAULT 'invite'",
 }
 
+_CONVERSACION_CANAL_COLUMNS: dict[str, str] = {
+    "agente_last_read_at": "DATETIME",
+}
+
 _SLA_COLUMNS: dict[str, str] = {
     "sla_policy": "VARCHAR(32) DEFAULT ''",
     "sla_due_at": "DATETIME",
@@ -136,6 +140,15 @@ def migrate_schema(engine: Engine) -> list[str]:
             getattr(m, model_name).__table__.create(bind=engine)
             cambios.append(tabla)
             logger.info("Migración: tabla creada %s", tabla)
+
+    insp = inspect(engine)
+    if insp.has_table("conversaciones_canal"):
+        existentes_conv = {c["name"] for c in insp.get_columns("conversaciones_canal")}
+        for col, ddl in _CONVERSACION_CANAL_COLUMNS.items():
+            if col not in existentes_conv:
+                _add_column(engine, "conversaciones_canal", col, ddl)
+                cambios.append(f"conversaciones_canal.{col}")
+                logger.info("Migración: columna agregada conversaciones_canal.%s", col)
 
     insp = inspect(engine)
     cambios.extend(_ensure_auth_tables(engine, insp))

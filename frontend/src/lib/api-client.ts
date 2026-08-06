@@ -370,6 +370,8 @@ export const api = {
       solo_abiertos?: boolean;
       asignacion?: string;
       asignado_a?: string;
+      limit?: number;
+      offset?: number;
     } | string,
     tenantSlug?: string,
   ) {
@@ -382,6 +384,8 @@ export const api = {
       solo_abiertos?: boolean;
       asignacion?: string;
       asignado_a?: string;
+      limit?: number;
+      offset?: number;
     } | undefined;
     let slug = tenantSlug;
     if (typeof paramsOrTenant === "string") {
@@ -398,8 +402,16 @@ export const api = {
     if (params?.solo_abiertos) qs.set("solo_abiertos", "true");
     if (params?.asignacion) qs.set("asignacion", params.asignacion);
     if (params?.asignado_a) qs.set("asignado_a", params.asignado_a);
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    if (params?.offset != null) qs.set("offset", String(params.offset));
     const suffix = qs.toString() ? `?${qs}` : "";
-    return request<{ tenant: string; tickets: Ticket[] }>(`/api/v1/tickets${suffix}`, {
+    return request<{
+      tenant: string;
+      tickets: Ticket[];
+      total?: number;
+      limit?: number;
+      offset?: number;
+    }>(`/api/v1/tickets${suffix}`, {
       tenantSlug: slug,
     });
   },
@@ -1014,16 +1026,26 @@ export const api = {
   },
 
   inboxConversations(
-    params?: { estado?: string; mias?: boolean },
+    params?: {
+      estado?: string;
+      mias?: boolean;
+      limit?: number;
+      offset?: number;
+    },
     tenantSlug?: string,
   ) {
     const qs = new URLSearchParams();
     if (params?.estado) qs.set("estado", params.estado);
     if (params?.mias) qs.set("mias", "true");
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    if (params?.offset != null) qs.set("offset", String(params.offset));
     const suffix = qs.toString() ? `?${qs}` : "";
     return request<{
       tenant: string;
       conversaciones: InboxConversation[];
+      total?: number;
+      limit?: number;
+      offset?: number;
     }>(`/api/v1/inbox/conversations${suffix}`, { tenantSlug });
   },
 
@@ -1033,6 +1055,13 @@ export const api = {
       conversacion: InboxConversation;
       mensajes: InboxMessage[];
     }>(`/api/v1/inbox/conversations/${id}`, { tenantSlug });
+  },
+
+  inboxMarkRead(id: string, tenantSlug?: string) {
+    return request<{ status: string; conversacion: InboxConversation }>(
+      `/api/v1/inbox/conversations/${encodeURIComponent(id)}/read`,
+      { method: "POST", tenantSlug },
+    );
   },
 
   inboxClaim(id: string, tenantSlug?: string) {
@@ -1201,6 +1230,8 @@ export interface InboxConversation {
   ultimo_mensaje_texto?: string;
   ultimo_mensaje_autor?: string;
   ultimo_mensaje_at?: string;
+  agente_last_read_at?: string;
+  tiene_no_leidos?: boolean;
 }
 
 export interface InboxMessage {

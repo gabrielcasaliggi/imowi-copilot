@@ -125,6 +125,8 @@ def list_tickets(
     solo_abiertos: bool = False,
     asignacion: str = "",
     asignado_a: str = "",
+    limit: int = 50,
+    offset: int = 0,
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
@@ -148,6 +150,10 @@ def list_tickets(
     open_ids = {t.id for t, _ in scored}
     rest = [t for t in tickets if t.id not in open_ids]
     ordered = [t for t, _ in scored] + rest
+    lim = max(1, min(int(limit or 50), 100))
+    off = max(0, int(offset or 0))
+    total = len(ordered)
+    page = ordered[off : off + lim]
     return {
         "tenant": ctx.organizacion_slug,
         "filtros": {
@@ -160,7 +166,10 @@ def list_tickets(
             "asignacion": asignacion,
             "asignado_a": asignado_a,
         },
-        "tickets": [_ticket_out(t, pool=pool, db=db) for t in ordered],
+        "tickets": [_ticket_out(t, pool=pool, db=db) for t in page],
+        "total": total,
+        "limit": lim,
+        "offset": off,
     }
 
 

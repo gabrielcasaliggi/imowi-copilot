@@ -37,20 +37,42 @@ def _org_id(ctx: TenantContext) -> str:
 def list_inbox(
     estado: str = "",
     mias: bool = False,
+    limit: int = 50,
+    offset: int = 0,
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
     agente = ctx.usuario_email if mias else ""
+    lim = max(1, min(int(limit or 50), 100))
+    off = max(0, int(offset or 0))
+    excluir_cerrado = not bool(estado)
+    total = crepo.count_conversaciones(
+        db,
+        _org_id(ctx),
+        estado=estado,
+        agente_id=agente,
+        excluir_cerrado=excluir_cerrado,
+    )
     rows = crepo.list_conversaciones(
-        db, _org_id(ctx), estado=estado, agente_id=agente, limit=100
+        db,
+        _org_id(ctx),
+        estado=estado,
+        agente_id=agente,
+        excluir_cerrado=excluir_cerrado,
+        limit=lim,
+        offset=off,
     )
     ultimos = crepo.last_messages_by_conversacion(db, [c.id for c in rows])
+    unread = crepo.unread_flags_by_conversacion(db, rows)
     out = []
     for c in rows:
         abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
         out.append(
             crepo.conversacion_to_dict(
-                c, abonado=abo, ultimo=ultimos.get(c.id)
+                c,
+                abonado=abo,
+                ultimo=ultimos.get(c.id),
+                tiene_no_leidos=unread.get(c.id, False),
             )
         )
 
@@ -72,7 +94,13 @@ def list_inbox(
         block = list(chunk)
         block.sort(key=lambda d: d.get("updated_at") or "", reverse=True)
         ordered.extend(block)
-    return {"tenant": ctx.organizacion_slug, "conversaciones": ordered}
+    return {
+        "tenant": ctx.organizacion_slug,
+        "conversaciones": ordered,
+        "total": total,
+        "limit": lim,
+        "offset": off,
+    }
 
 
 @router.get("/inbox/conversations/{conv_id}")
@@ -84,12 +112,29 @@ def get_inbox_conversation(
     c = crepo.get_conversacion(db, _org_id(ctx), conv_id)
     if not c:
         raise HTTPException(404, "Conversación no encontrada")
+    c = crepo.mark_conversacion_read(db, _org_id(ctx), conv_id) or c
     abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, c.id)]
     return {
         "tenant": ctx.organizacion_slug,
-        "conversacion": crepo.conversacion_to_dict(c, abonado=abo),
+        "conversacion": crepo.conversacion_to_dict(c, abonado=abo, tiene_no_leidos=False),
         "mensajes": mensajes,
+    }
+
+
+@router.post("/inbox/conversations/{conv_id}/read")
+def mark_inbox_read(
+    conv_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    c = crepo.mark_conversacion_read(db, _org_id(ctx), conv_id)
+    if not c:
+        raise HTTPException(404, "Conversación no encontrada")
+    abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
+    return {
+        "status": "ok",
+        "conversacion": crepo.conversacion_to_dict(c, abonado=abo, tiene_no_leidos=False),
     }
 
 

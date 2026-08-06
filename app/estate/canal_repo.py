@@ -6,12 +6,13 @@ import json
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.estate.models import Abonado, ConversacionCanal, MensajeCanal
 
 _ULTIMO_MSG_PREVIEW_LEN = 120
+_ESTADOS_UNREAD = frozenset({"espera_agente", "con_agente"})
 
 
 def _now():
@@ -187,7 +188,9 @@ def list_conversaciones(
     *,
     estado: str = "",
     agente_id: str = "",
-    limit: int = 100,
+    excluir_cerrado: bool = False,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[ConversacionCanal]:
     stmt = (
         select(ConversacionCanal)
@@ -196,10 +199,36 @@ def list_conversaciones(
     )
     if estado:
         stmt = stmt.where(ConversacionCanal.estado == estado)
+    elif excluir_cerrado:
+        stmt = stmt.where(ConversacionCanal.estado != "cerrado")
     if agente_id:
         stmt = stmt.where(ConversacionCanal.agente_id == agente_id)
-    stmt = stmt.limit(limit)
+    if offset:
+        stmt = stmt.offset(max(0, offset))
+    stmt = stmt.limit(max(1, min(limit, 100)))
     return list(db.scalars(stmt).all())
+
+
+def count_conversaciones(
+    db: Session,
+    org_id: str,
+    *,
+    estado: str = "",
+    agente_id: str = "",
+    excluir_cerrado: bool = False,
+) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(ConversacionCanal)
+        .where(ConversacionCanal.organizacion_id == org_id)
+    )
+    if estado:
+        stmt = stmt.where(ConversacionCanal.estado == estado)
+    elif excluir_cerrado:
+        stmt = stmt.where(ConversacionCanal.estado != "cerrado")
+    if agente_id:
+        stmt = stmt.where(ConversacionCanal.agente_id == agente_id)
+    return int(db.scalar(stmt) or 0)
 
 
 def last_messages_by_conversacion(
@@ -222,6 +251,68 @@ def last_messages_by_conversacion(
         if m.conversacion_id not in out:
             out[m.conversacion_id] = m
     return out
+
+
+def unread_flags_by_conversacion(
+    db: Session,
+    convs: list[ConversacionCanal],
+) -> dict[str, bool]:
+    """True si hay mensaje del cliente posterior a agente_last_read_at."""
+    actionable = [c for c in convs if c.estado in _ESTADOS_UNREAD]
+    if not actionable:
+        return {}
+    ids = [c.id for c in actionable]
+    last_read = {c.id: c.agente_last_read_at for c in actionable}
+    rows = list(
+        db.scalars(
+            select(MensajeCanal)
+            .where(
+                MensajeCanal.conversacion_id.in_(ids),
+                MensajeCanal.autor == "cliente",
+            )
+            .order_by(MensajeCanal.conversacion_id.asc(), MensajeCanal.created_at.desc())
+        ).all()
+    )
+    last_cliente: dict[str, datetime] = {}
+    for m in rows:
+        if m.conversacion_id not in last_cliente and m.created_at:
+            last_cliente[m.conversacion_id] = m.created_at
+
+    out: dict[str, bool] = {}
+    for c in actionable:
+        msg_at = last_cliente.get(c.id)
+        if not msg_at:
+            out[c.id] = False
+            continue
+        lr = last_read.get(c.id)
+        if lr is None:
+            out[c.id] = True
+        else:
+            # normalizar naive/aware
+            lr_cmp = lr
+            msg_cmp = msg_at
+            if lr_cmp.tzinfo is None and msg_cmp.tzinfo is not None:
+                lr_cmp = lr_cmp.replace(tzinfo=UTC)
+            if msg_cmp.tzinfo is None and lr_cmp.tzinfo is not None:
+                msg_cmp = msg_cmp.replace(tzinfo=UTC)
+            out[c.id] = msg_cmp > lr_cmp
+    return out
+
+
+def mark_conversacion_read(
+    db: Session,
+    org_id: str,
+    conv_id: str,
+    *,
+    when: datetime | None = None,
+) -> ConversacionCanal | None:
+    c = get_conversacion(db, org_id, conv_id)
+    if not c:
+        return None
+    c.agente_last_read_at = when or _now()
+    db.commit()
+    db.refresh(c)
+    return c
 
 
 def _truncate_preview(texto: str, max_len: int = _ULTIMO_MSG_PREVIEW_LEN) -> str:
@@ -285,6 +376,7 @@ def conversacion_to_dict(
     *,
     abonado: Abonado | None = None,
     ultimo: MensajeCanal | None = None,
+    tiene_no_leidos: bool = False,
 ) -> dict:
     canal_raw = c.canal or "whatsapp"
     if canal_raw in ("whatsapp", "simulate"):
@@ -309,6 +401,7 @@ def conversacion_to_dict(
         ultimo_at = ultimo.created_at.isoformat()
     elif c.updated_at:
         ultimo_at = c.updated_at.isoformat()
+    last_read = getattr(c, "agente_last_read_at", None)
     return {
         "id": c.id,
         "canal": canal_raw,
@@ -330,6 +423,8 @@ def conversacion_to_dict(
         "ultimo_mensaje_texto": ultimo_texto,
         "ultimo_mensaje_autor": ultimo_autor,
         "ultimo_mensaje_at": ultimo_at,
+        "agente_last_read_at": last_read.isoformat() if last_read else "",
+        "tiene_no_leidos": bool(tiene_no_leidos),
     }
 
 
