@@ -74,6 +74,7 @@ export interface OpsAgentRow {
   email: string;
   nombre: string;
   disponibilidad: string;
+  organizacion?: string;
   tickets_abiertos: number;
   tickets_cerrados: number;
   tickets_con_resolucion: number;
@@ -87,6 +88,7 @@ export interface OpsAnalytics {
   tenant: string;
   desde: string;
   hasta: string;
+  alcance?: "global" | "organizacion";
   canal: {
     abiertas_por_estado: {
       bot: number;

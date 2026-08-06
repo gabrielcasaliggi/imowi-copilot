@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.estate.models import ConversacionCanal, MensajeCanal, Ticket, User
+from app.estate.models import ConversacionCanal, MensajeCanal, Organization, Ticket, User
 
 
 def _now() -> datetime:
@@ -93,27 +93,45 @@ def build_ops_analytics(
     desde: datetime | None = None,
     hasta: datetime | None = None,
     agent_filter: str | None = None,
+    admin_global: bool = False,
 ) -> dict[str, Any]:
-    """Agregados ops. Si agent_filter (email), reduce sección agentes/`me` a ese usuario."""
+    """Agregados ops. Si agent_filter (email), reduce sección agentes/`me` a ese usuario.
+
+    Con admin_global=True (plataforma imowi) agrega canal/tickets/agentes de todas las orgs,
+    igual que /analytics/tickets.
+    """
     now = _now()
     if not hasta:
         hasta = now
     if not desde:
         desde = hasta - timedelta(days=7)
 
-    convs = list(
-        db.scalars(
-            select(ConversacionCanal).where(ConversacionCanal.organizacion_id == org_id)
-        ).all()
+    conv_q = select(ConversacionCanal)
+    ticket_q = select(Ticket)
+    user_q = select(User)
+    msg_q = select(MensajeCanal).where(
+        MensajeCanal.created_at >= desde,
+        MensajeCanal.created_at <= hasta,
     )
-    tickets = list(
-        db.scalars(select(Ticket).where(Ticket.organizacion_id == org_id)).all()
-    )
+    if not admin_global:
+        conv_q = conv_q.where(ConversacionCanal.organizacion_id == org_id)
+        ticket_q = ticket_q.where(Ticket.organizacion_id == org_id)
+        user_q = user_q.where(User.organizacion_id == org_id)
+        msg_q = msg_q.where(MensajeCanal.organizacion_id == org_id)
+
+    convs = list(db.scalars(conv_q).all())
+    tickets = list(db.scalars(ticket_q).all())
     users = [
         u
-        for u in db.scalars(select(User).where(User.organizacion_id == org_id)).all()
+        for u in db.scalars(user_q).all()
         if (u.rol or "").lower() in ("agente", "supervisor") and (u.activo or "Sí") != "No"
     ]
+    org_names: dict[str, str] = {}
+    if admin_global:
+        org_names = {
+            o.id: (o.nombre or o.slug or "")
+            for o in db.scalars(select(Organization)).all()
+        }
 
     # ---- Canal snapshot ----
     abiertas = [c for c in convs if c.estado != "cerrado"]
@@ -135,17 +153,7 @@ def build_ops_analytics(
         por_canal[label] = por_canal.get(label, 0) + 1
 
     # Mensajes en rango (para claims / cierres / first response)
-    msgs = list(
-        db.scalars(
-            select(MensajeCanal)
-            .where(
-                MensajeCanal.organizacion_id == org_id,
-                MensajeCanal.created_at >= desde,
-                MensajeCanal.created_at <= hasta,
-            )
-            .order_by(MensajeCanal.created_at.asc())
-        ).all()
-    )
+    msgs = list(db.scalars(msg_q.order_by(MensajeCanal.created_at.asc())).all())
 
     claims = 0
     cierres = 0
@@ -305,24 +313,25 @@ def build_ops_analytics(
         claim_n = sum(claims_by_agent.get(k, 0) for k in keys) or claims_by_agent.get(email, 0)
         cierre_n = sum(cierres_by_agent.get(k, 0) for k in keys) or cierres_by_agent.get(email, 0)
 
-        agentes_rows.append(
-            {
-                "email": u.email or "",
-                "nombre": u.nombre or u.email or "",
-                "disponibilidad": getattr(u, "disponibilidad", "") or "disponible",
-                "tickets_abiertos": len(t_asignados_abiertos),
-                "tickets_cerrados": len(t_cerrados),
-                "tickets_con_resolucion": len(t_cerrados_doc),
-                "pct_resolucion": round(
-                    (len(t_cerrados_doc) / len(t_cerrados)) * 100, 1
-                )
-                if t_cerrados
-                else 0.0,
-                "chats_activos": len(chats_abiertos),
-                "claims": claim_n,
-                "cierres_canal": cierre_n,
-            }
-        )
+        row: dict[str, Any] = {
+            "email": u.email or "",
+            "nombre": u.nombre or u.email or "",
+            "disponibilidad": getattr(u, "disponibilidad", "") or "disponible",
+            "tickets_abiertos": len(t_asignados_abiertos),
+            "tickets_cerrados": len(t_cerrados),
+            "tickets_con_resolucion": len(t_cerrados_doc),
+            "pct_resolucion": round(
+                (len(t_cerrados_doc) / len(t_cerrados)) * 100, 1
+            )
+            if t_cerrados
+            else 0.0,
+            "chats_activos": len(chats_abiertos),
+            "claims": claim_n,
+            "cierres_canal": cierre_n,
+        }
+        if admin_global:
+            row["organizacion"] = org_names.get(u.organizacion_id, "")
+        agentes_rows.append(row)
 
     agentes_rows.sort(key=lambda r: (-r["tickets_cerrados"], -r["claims"], r["email"]))
 
@@ -344,6 +353,7 @@ def build_ops_analytics(
     return {
         "desde": desde.isoformat(),
         "hasta": hasta.isoformat(),
+        "alcance": "global" if admin_global else "organizacion",
         "canal": canal_block,
         "tickets": tickets_block,
         "agentes": agentes_rows,

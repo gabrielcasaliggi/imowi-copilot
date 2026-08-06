@@ -258,6 +258,9 @@ function OpsSections({
                   <thead className="bg-slate-950/70 text-[10px] font-mono uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2.5">Agente</th>
+                      {ops.alcance === "global" && (
+                        <th className="px-3 py-2.5">Org</th>
+                      )}
                       <th className="px-3 py-2.5">Disp.</th>
                       <th className="px-3 py-2.5 text-right">Claims</th>
                       <th className="px-3 py-2.5 text-right">Cierres canal</th>
@@ -270,7 +273,7 @@ function OpsSections({
                   <tbody>
                     {ops.agentes.map((a) => (
                       <tr
-                        key={a.email}
+                        key={`${a.email}-${a.organizacion || ""}`}
                         className="border-t border-slate-800/80 hover:bg-slate-950/40"
                       >
                         <td className="px-3 py-2.5">
@@ -279,6 +282,11 @@ function OpsSections({
                             {a.email}
                           </div>
                         </td>
+                        {ops.alcance === "global" && (
+                          <td className="px-3 py-2.5 text-slate-400 truncate max-w-[10rem]">
+                            {a.organizacion || "—"}
+                          </td>
+                        )}
                         <td className="px-3 py-2.5 text-slate-400">{a.disponibilidad || "—"}</td>
                         <td className="px-3 py-2.5 text-right font-mono text-slate-300">{a.claims}</td>
                         <td className="px-3 py-2.5 text-right font-mono text-slate-300">
@@ -396,7 +404,9 @@ export function StatsDashboard() {
             <p className="mt-1 text-sm text-slate-400">
               {selfOnly
                 ? "Tu actividad de canal y tickets en el período."
-                : "Canal, tickets y equipo — con ventana de fechas real."}
+                : ops?.alcance === "global"
+                  ? "Alcance global (todas las cooperativas) — canal, tickets y equipo."
+                  : "Canal, tickets y equipo — con ventana de fechas real."}
             </p>
           </div>
           <form onSubmit={onFilter} className="flex gap-2 items-center flex-wrap">

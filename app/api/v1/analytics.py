@@ -83,6 +83,7 @@ def ops_analytics(
         or ctx.puede("stats.agents")
     ):
         raise HTTPException(403, "Sin permiso para ver estadísticas operativas")
+    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
     data = build_ops_analytics(
@@ -90,6 +91,7 @@ def ops_analytics(
         ctx.organizacion_id,
         desde=desde_dt,
         hasta=hasta_dt,
+        admin_global=admin_global,
     )
     return {
         "tenant": ctx.organizacion_slug,
