@@ -603,6 +603,49 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             ),
         ),
 
+        # ==================== TV OTT SENSA ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="TV OTT Sensa — sin reproducción o no abre",
+            categoria="TV",
+            contenido=(
+                "Cooperativa Batán — Sensa es el servicio de TV por internet (OTT). "
+                "Depende de una conexión a internet estable en el dispositivo.\n\n"
+                "Diagnóstico N1 (checklist para Eco / agente):\n"
+                "1) Confirmar internet en el mismo dispositivo. Si no hay internet → "
+                "   aplicar flujo de internet antes de seguir con Sensa.\n"
+                "2) Registrar dispositivo: Smart TV, celular/tablet, PC/notebook o Android TV Box.\n"
+                "3) ¿Navega internet en ese equipo? Si no → WiFi/cable/router (no es falla de Sensa).\n"
+                "4) ¿Abre la app/web de Sensa? Si no → reinstalar, actualizar SO, chequear "
+                "   compatibilidad del equipo.\n"
+                "5) Síntoma al ver contenido:\n"
+                "   - No reproduce: velocidad (>5 Mbps orientativo), probar otro dispositivo "
+                "     u otra red (datos 4G). Si en otra red anda → red local.\n"
+                "   - Buffering infinito: estabilidad WiFi + speed test; si velocidad baja → "
+                "     flujo de internet lento.\n"
+                "   - Error de cuenta/usuario: credenciales, servicio habilitado (CRM — agente), "
+                "     dispositivos autorizados. N1 no inventa estado de cuenta.\n"
+                "   - Calidad baja / se detiene: cable si es posible, otros equipos saturando, QoS.\n"
+                "6) Acciones rápidas: cerrar apps que consuman red, reiniciar router/ONT y "
+                "   dispositivo, actualizar app Sensa.\n"
+                "Escalar con: dispositivo, captura/error, velocidad medida, usuario afectado, "
+                "fecha/hora de la falla. No afirmar habilitación en CRM sin acceso al sistema."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="TV OTT Sensa — requisitos y escalamiento",
+            categoria="TV",
+            contenido=(
+                "Sensa corre sobre la conexión del abonado (WiFi o cable al router).\n"
+                "- Velocidad orientativa mínima para reproducción estable: ~5 Mbps "
+                "  (más si hay varios streams en paralelo).\n"
+                "- Si el equipo cumple requisitos, hay internet OK y el síntoma sigue → N2.\n"
+                "- Temas de alta/baja del servicio Sensa o autorización de dispositivos → "
+                "  derivar a área con acceso a CRM (no resolver solo con el bot)."
+            ),
+        ),
+
         # ==================== GENERAL ====================
         KnowledgeArticle(
             organizacion_id=org_id,
@@ -610,7 +653,8 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             categoria="General",
             contenido=(
                 "Cooperativa de Provisión de Servicios Telefónicos y Otros Batán Ltda.\n"
-                "Servicios: Internet (FTTH, radio/wireless, ADSL), Telefonía móvil (IMOWI).\n"
+                "Servicios: Internet (FTTH, radio/wireless, ADSL), Telefonía móvil (IMOWI), "
+                "TV OTT (Sensa).\n"
                 "Marca internet: Ecolan.\n"
                 "Planes internet: desde 25Mb hasta 300Mb según tecnología y zona.\n"
                 "Planes IMOWI: desde 3GB hasta 50GB con minutos ilimitados nacionales.\n"
@@ -671,7 +715,7 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
 
 
 def seed_kb_batan_servicios(db: Session) -> dict:
-    """Asegura artículos KB de radio/ADSL/IMOWI (idempotente por título).
+    """Asegura artículos KB de radio/ADSL/IMOWI/Sensa (idempotente por título).
 
     También corrige el typo histórico IMOVI → IMOWI en títulos/contenido ya seedados.
     """

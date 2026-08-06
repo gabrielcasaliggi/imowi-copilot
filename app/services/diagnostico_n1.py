@@ -24,6 +24,7 @@ INTENCIONES_DIAGNOSTICO = frozenset({
     "movil_datos",
     "movil_llamadas",
     "telefono_fija",
+    "tv_sensa",
     "no_tecnico",
     "ecolan_b2b",
     "facturacion",

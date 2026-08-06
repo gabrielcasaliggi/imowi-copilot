@@ -2,6 +2,7 @@
 
 Catálogo:
 - Internet FTTH (fibra), Wireless/radio, ADSL
+- TV OTT Sensa
 - Telefonía móvil IMOWI y telefonía fija
 - Ecolan B2B (Data Center, VMs, enlaces dedicados, housing/hosting)
 - Facturación / pagos QR Fiserv
@@ -44,6 +45,7 @@ TAG_POR_INTENCION: dict[str, str] = {
     "movil_datos": "[TEL_MOVIL]",
     "movil_llamadas": "[TEL_MOVIL]",
     "telefono_fija": "[TEL_FIJA]",
+    "tv_sensa": "[TEC_TV_SENSA]",
     "ecolan_b2b": "[ECOLAN_B2B]",
     "alta_plan": "[HANDOFF_HUMANO]",
     "portal_tramites": "[HANDOFF_HUMANO]",
@@ -202,6 +204,37 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("cableado_fija", "¿El cable está bien en la toma?"),
         PasoPlaybook("derivar_fija", "Si no hay tono, ¿querés que te derive?"),
     ],
+    "tv_sensa": [
+        PasoPlaybook(
+            "internet_en_disp",
+            "Dale, vamos con Sensa. En el equipo donde querés verla, ¿tenés internet funcionando?",
+        ),
+        PasoPlaybook(
+            "dispositivo_sensa",
+            "¿Desde qué equipo: Smart TV, celular/tablet, PC o TV Box?",
+        ),
+        PasoPlaybook(
+            "navega_en_disp",
+            "En ese mismo equipo, ¿abrís alguna página de internet sin problema?",
+        ),
+        PasoPlaybook(
+            "app_sensa",
+            "¿La app o la web de Sensa abre bien, o ni llega a entrar?",
+        ),
+        PasoPlaybook(
+            "sintoma_sensa",
+            "Cuando querés ver algo: ¿no reproduce, se queda cargando, error de cuenta o calidad baja?",
+        ),
+        PasoPlaybook(
+            "acciones_sensa",
+            "Probá reiniciar ese equipo y el router, cerrar otras apps que usen mucha red "
+            "y actualizar Sensa. ¿Mejoró?",
+        ),
+        PasoPlaybook(
+            "derivar_sensa",
+            "Si sigue igual te derivo con dispositivo, síntoma y lo que ya probamos. ¿Abrimos el ticket?",
+        ),
+    ],
     "ecolan_b2b": [
         PasoPlaybook(
             "tipo_ecolan",
@@ -211,7 +244,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("derivar_ecolan", "Estos casos los toma un especialista. ¿Te derivo?"),
     ],
     "alta_plan": [
-        PasoPlaybook("tipo_alta", "¿Alta nueva o cambio de plan? ¿Internet, móvil u otro?"),
+        PasoPlaybook("tipo_alta", "¿Alta nueva o cambio de plan? ¿Internet, móvil, Sensa u otro?"),
         PasoPlaybook("zona_comercial", "¿En qué barrio o localidad lo necesitás?"),
         PasoPlaybook("derivar_comercial", "Te paso con comercial. ¿Te derivo?"),
     ],
@@ -227,7 +260,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook(
             "menu_servicio",
             f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-            "¿En qué te ayudo: internet, móvil, factura o algo más?",
+            "¿En qué te ayudo: internet, móvil, Sensa/TV, factura o algo más?",
         ),
         PasoPlaybook(
             "detalle_problema",
@@ -324,6 +357,48 @@ def declara_solo_movil_sin_fijo(texto: str) -> bool:
     return bool(afirma_movil and niega_fijo)
 
 
+def _menciona_tv_sensa(texto: str) -> bool:
+    """True si el mensaje apunta a TV OTT Sensa (no cable genérico ambiguo)."""
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "sensa",
+            "televisión ott",
+            "television ott",
+            "tv ott",
+            "ott sensa",
+            "smart tv",
+            "tv box",
+            "android tv",
+            "televisor",
+            "televisión",
+            "television",
+            "ver la tele",
+            "ver tele",
+            "ver la tv",
+            "ver tv",
+            "no anda la tele",
+            "no funciona la tele",
+            "no puedo ver tele",
+            "no puedo ver la tele",
+            "no veo la tele",
+            "no veo tele",
+            "la tele no",
+            "la tv no",
+        )
+    ):
+        return True
+    # "tv" / "t.v." como palabra (evitar matching dentro de otras)
+    return bool(
+        re.search(
+            r"(?<![a-záéíóúüñ0-9])t\.?v\.?(?![a-záéíóúüñ0-9])",
+            t,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
 def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     t = (texto or "").lower().replace("fatura", "factura")
 
@@ -379,6 +454,24 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "telefonia fija", "telefonía fija", "sin tono",
     )):
         return "telefono_fija"
+
+    # TV OTT Sensa — antes de internet genérico. Si además niega internet fijo,
+    # priorizar el árbol de conectividad (dependencia de Sensa).
+    if _menciona_tv_sensa(t):
+        if any(
+            k in t
+            for k in (
+                "sin internet",
+                "no tengo internet",
+                "no anda internet",
+                "no funciona internet",
+                "internet cortado",
+                "me quedé sin internet",
+                "me quede sin internet",
+            )
+        ):
+            return "internet"
+        return "tv_sensa"
 
     if any(k in t for k in (
         "adsl", "par de cobre", "modem adsl", "módem adsl", "splitter",
@@ -798,9 +891,15 @@ def detectar_temas_duales(texto: str) -> list[str]:
             "sin internet",
             "se corta",
             "reiniciar",
+            "sensa",
+            "televisión",
+            "television",
+            "televisor",
+            "smart tv",
+            "tv box",
         )
     )
-    # Mención de "internet"/IMOWI solo cuenta como técnico si hay síntoma
+    # Mención de "internet"/IMOWI/Sensa solo cuenta como técnico si hay síntoma
     # o si NO hay marco de factura/pago.
     menciona_servicio = any(
         k in t
@@ -816,6 +915,9 @@ def detectar_temas_duales(texto: str) -> list[str]:
             "chip",
             "4g",
             "5g",
+            "sensa",
+            "televisión",
+            "television",
         )
     )
     tecnico = sintomas_tecnicos or (menciona_servicio and not factura)
@@ -858,6 +960,12 @@ def resolver_prioridad_tema(texto: str) -> str | None:
             "celular",
             "por el móvil",
             "por el movil",
+            "sensa",
+            "televisión",
+            "television",
+            "la tele",
+            "por la tele",
+            "por sensa",
         )
     ):
         return "tecnico"
@@ -937,6 +1045,12 @@ def contiene_sintoma_canal(texto: str) -> bool:
             "movil",
             "tono",
             "fijo",
+            "sensa",
+            "televisión",
+            "television",
+            "televisor",
+            "smart tv",
+            "tv box",
             "no anda",
             "no funciona",
             "sin servicio",
@@ -1007,6 +1121,7 @@ def resumen_handoff(
         "movil_datos": "Móvil datos",
         "movil_llamadas": "Móvil llamadas",
         "telefono_fija": "Telefonía fija",
+        "tv_sensa": "TV Sensa",
         "ecolan_b2b": "Ecolan B2B",
         "corte_deuda": "Facturación/Pagos",
         "facturacion": "Facturación",

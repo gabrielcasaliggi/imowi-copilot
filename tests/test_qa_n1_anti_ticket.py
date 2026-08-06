@@ -142,6 +142,23 @@ def test_typo_internet_clasifica():
     assert clasificar_intencion("Me cortaron por falta de pago, como pago") == "corte_deuda"
 
 
+def test_clasifica_tv_sensa():
+    from app.domain.flujos_abonado import PLAYBOOKS, tag_para_intencion
+    from app.services.diagnostico_n1 import es_intencion_diagnostico
+
+    assert clasificar_intencion("No puedo ver televisión OTT (Sensa)") == "tv_sensa"
+    assert clasificar_intencion("no funciona sensa") == "tv_sensa"
+    assert clasificar_intencion("no anda la tele en la smart tv") == "tv_sensa"
+    assert clasificar_intencion("la tv no reproduce nada") == "tv_sensa"
+    # Sin internet + Sensa → primero conectividad
+    assert clasificar_intencion("no tengo internet y no anda sensa") == "internet"
+    assert "tv_sensa" in PLAYBOOKS
+    assert len(PLAYBOOKS["tv_sensa"]) >= 5
+    assert tag_para_intencion("tv_sensa") == "[TEC_TV_SENSA]"
+    assert es_intencion_diagnostico("tv_sensa") is True
+    assert contiene_sintoma_canal("no anda sensa, quiero un agente") is True
+
+
 # ---------------------------------------------------------------------------
 # Portal / canal — N1 con abonado identificado
 # ---------------------------------------------------------------------------
