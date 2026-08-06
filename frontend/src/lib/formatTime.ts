@@ -51,3 +51,46 @@ export function formatWaitChip(iso: string | undefined | null, now = Date.now())
   const rest = m % 60;
   return rest ? `Espera · ${h}h ${rest}m` : `Espera · ${h}h`;
 }
+
+/**
+ * Countdown SLA restante.
+ * Acepta ISO due_at o horas restantes numéricas (puede ser negativo si venció).
+ */
+export function formatSlaRemaining(
+  opts: {
+    slaDueAt?: string | null;
+    horasRestantes?: number | null;
+  },
+  now = Date.now(),
+): string {
+  const due = parseWhen(opts.slaDueAt);
+  if (due) {
+    const diffMs = due.getTime() - now;
+    const absMin = Math.floor(Math.abs(diffMs) / 60_000);
+    if (diffMs < 0) {
+      if (absMin < 60) return `SLA −${absMin}m`;
+      const h = Math.floor(absMin / 60);
+      const m = absMin % 60;
+      return m ? `SLA −${h}h ${m}m` : `SLA −${h}h`;
+    }
+    if (absMin < 1) return "SLA <1m";
+    if (absMin < 60) return `SLA ${absMin}m`;
+    const h = Math.floor(absMin / 60);
+    const m = absMin % 60;
+    return m ? `SLA ${h}h ${m}m` : `SLA ${h}h`;
+  }
+  const hr = opts.horasRestantes;
+  if (hr == null || Number.isNaN(hr)) return "";
+  const absMin = Math.round(Math.abs(hr) * 60);
+  if (hr < 0) {
+    if (absMin < 60) return `SLA −${absMin}m`;
+    const h = Math.floor(absMin / 60);
+    return `SLA −${h}h`;
+  }
+  if (absMin < 1) return "SLA <1m";
+  if (absMin < 60) return `SLA ${absMin}m`;
+  const h = Math.floor(absMin / 60);
+  const m = absMin % 60;
+  return m ? `SLA ${h}h ${m}m` : `SLA ${h}h`;
+}
+

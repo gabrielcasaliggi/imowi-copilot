@@ -572,18 +572,21 @@ export function SupportSidebar() {
     addTicketNote,
     publishTicketKb,
     appendTrace,
+    insertConsoleReply,
   } = useApp();
 
   const isSupervisor = can("tickets.reassign");
   const { push: toast } = useToast();
 
   const onPickPlantilla = async (contenido: string, nombre: string) => {
+    insertConsoleReply(contenido);
     try {
       await navigator.clipboard?.writeText(contenido);
-      toast(`Plantilla «${nombre}» copiada`, "success");
-      appendTrace([`Plantilla «${nombre}» copiada al portapapeles`]);
+      toast(`Plantilla «${nombre}» insertada`, "success");
+      appendTrace([`Plantilla «${nombre}» insertada en el composer`]);
     } catch {
-      toast("No se pudo copiar la plantilla", "danger");
+      toast(`Plantilla «${nombre}» insertada`, "success");
+      appendTrace([`Plantilla «${nombre}» insertada en el composer`]);
     }
   };
 
@@ -641,6 +644,10 @@ export function SupportSidebar() {
       <div className="flex flex-col min-h-0 h-full overflow-y-auto p-3 gap-5">
         <SidebarSection title="Caso que estás atendiendo" sticky defaultOpen>
           <TicketFormacionCard />
+          <PlantillasRespuesta
+            categoria={ticketFormacion?.categoria}
+            onPick={onPickPlantilla}
+          />
           {ticketFormacion && (
             <GlassCard title="Notas internas" variant="secondary">
               <NotaInternaForm onSubmit={(d) => addTicketNote(d, true)} />

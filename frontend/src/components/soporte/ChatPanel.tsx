@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
 import {
@@ -9,6 +9,7 @@ import {
   type InboxMessage,
 } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { SlaBadge } from "@/components/ui/GlassCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -18,13 +19,22 @@ import {
 } from "@/components/ui/ChatMessageBubble";
 import { getBranding } from "@/lib/brand";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
+import { formatRelative, formatSlaRemaining } from "@/lib/formatTime";
+
+const SILENT_FAIL_BANNER_AFTER = 3;
 
 /**
  * Consola del agente: mesa de trabajo sobre el ticket tomado.
  * El chat es el hilo del canal (abonado), no el asistente N1.
  */
 export function ChatPanel() {
-  const { isAdmin, ticketFormacion, tenantSlug, updateTicket } = useApp();
+  const {
+    isAdmin,
+    ticketFormacion,
+    tenantSlug,
+    updateTicket,
+    registerConsoleComposer,
+  } = useApp();
   const { push: toast } = useToast();
   const botName = getBranding().botDisplayName;
   const slug = isAdmin ? tenantSlug : undefined;
@@ -35,8 +45,12 @@ export function ChatPanel() {
   const [busy, setBusy] = useState(false);
   const [loadingConv, setLoadingConv] = useState(false);
   const [confirmResolve, setConfirmResolve] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
+  const [pollOffline, setPollOffline] = useState(false);
   const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
   const seq = useRef(0);
+  const silentFails = useRef(0);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
 
   const loadCanal = useCallback(async (opts?: { silent?: boolean }) => {
     const tid = ticketFormacion?.id;
@@ -52,12 +66,19 @@ export function ChatPanel() {
       if (n !== seq.current) return;
       setConv(res.conversacion);
       setMensajes(res.mensajes || []);
+      silentFails.current = 0;
+      setPollOffline(false);
     } catch (err) {
       if (n !== seq.current) return;
       if (!opts?.silent) {
         toast(err instanceof Error ? err.message : "No se pudo cargar el chat del canal", "danger");
         setConv(null);
         setMensajes([]);
+      } else {
+        silentFails.current += 1;
+        if (silentFails.current >= SILENT_FAIL_BANNER_AFTER) {
+          setPollOffline(true);
+        }
       }
     } finally {
       if (n === seq.current && !opts?.silent) setLoadingConv(false);
@@ -79,6 +100,24 @@ export function ChatPanel() {
   useEffect(() => {
     forceStick();
   }, [ticketFormacion?.id, forceStick]);
+
+  useEffect(() => {
+    const insert = (text: string) => {
+      const chunk = (text || "").trim();
+      if (!chunk) return;
+      setReply((prev) => (prev.trim() ? `${prev.trimEnd()}\n${chunk}` : chunk));
+      window.setTimeout(() => {
+        replyRef.current?.focus();
+        const el = replyRef.current;
+        if (el) {
+          const len = el.value.length;
+          el.setSelectionRange(len, len);
+        }
+      }, 0);
+    };
+    registerConsoleComposer(insert);
+    return () => registerConsoleComposer(null);
+  }, [registerConsoleComposer]);
 
   if (isAdmin) return null;
 
@@ -116,8 +155,8 @@ export function ChatPanel() {
     );
   }
 
-  const onSend = async (e: FormEvent) => {
-    e.preventDefault();
+  const onSend = async (e?: FormEvent) => {
+    e?.preventDefault();
     if (!conv?.id || !reply.trim()) return;
     setBusy(true);
     forceStick();
@@ -139,6 +178,13 @@ export function ChatPanel() {
     }
   };
 
+  const onComposerKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void onSend();
+    }
+  };
+
   const onMarcarResuelto = async () => {
     setBusy(true);
     try {
@@ -155,7 +201,27 @@ export function ChatPanel() {
     }
   };
 
+  const onLiberar = async () => {
+    if (!conv?.id) return;
+    setBusy(true);
+    try {
+      await api.inboxRelease(conv.id, slug);
+      toast("Chat liberado · volvió a la cola del canal", "success");
+      setConfirmRelease(false);
+      await loadCanal();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo liberar", "danger");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const puedeEscribir = Boolean(conv && conv.estado !== "cerrado");
+  const slaEstado = ticketFormacion.estado_sla || ticketFormacion.intelligence?.sla?.estado_sla;
+  const slaRem = formatSlaRemaining({
+    slaDueAt: ticketFormacion.sla_due_at || ticketFormacion.intelligence?.sla?.sla_due_at,
+    horasRestantes: ticketFormacion.intelligence?.sla?.horas_restantes,
+  });
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -175,15 +241,39 @@ export function ChatPanel() {
           <div className="flex flex-wrap gap-1.5 items-center">
             {ticketFormacion.nivel && <StatusBadge value={ticketFormacion.nivel} />}
             <StatusBadge value={ticketFormacion.estado} />
+            <SlaBadge label={ticketFormacion.sla_label} estado={slaEstado} />
+            {slaRem && (
+              <span className="text-[10px] font-mono text-slate-400 tabular-nums">{slaRem}</span>
+            )}
+            {ticketFormacion.created_at && (
+              <span className="text-[10px] font-mono text-slate-500">
+                Abierto {formatRelative(ticketFormacion.created_at)}
+              </span>
+            )}
             {conv && (
               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-400 px-2.5 py-0.5 rounded-full border border-slate-600/60 bg-slate-900/40">
                 <span className="h-1.5 w-1.5 rounded-full bg-ecolan-brand/80" aria-hidden />
                 Canal · {conv.abonado?.nombre || conv.telefono || "abonado"}
               </span>
             )}
+            {conv?.estado === "espera_agente" && (
+              <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/45 bg-amber-500/15 text-amber-200">
+                Espera · {formatRelative(conv.updated_at) || "ahora"}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {conv?.estado === "con_agente" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmRelease(true)}
+              className="text-xs font-medium px-3.5 py-2 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/12 disabled:opacity-50 transition-all duration-200 ease-in-out"
+            >
+              Liberar chat
+            </button>
+          )}
           {ticketFormacion.estado !== "Cerrado" && (
             <button
               type="button"
@@ -202,6 +292,15 @@ export function ChatPanel() {
           </Link>
         </div>
       </div>
+
+      {pollOffline && (
+        <p
+          className="mx-5 mt-2 text-[11px] text-amber-200 border border-amber-500/30 bg-amber-500/10 rounded-lg px-3 py-2"
+          role="status"
+        >
+          Sin conexión con el canal · reintentando…
+        </p>
+      )}
 
       {/* Thread */}
       <div
@@ -254,17 +353,20 @@ export function ChatPanel() {
 
       {/* Composer */}
       {conv && conv.estado !== "cerrado" && (
-        <form onSubmit={onSend} className="chat-composer px-5 py-4 flex gap-2.5 shrink-0">
+        <form onSubmit={(e) => void onSend(e)} className="chat-composer px-5 py-4 flex gap-2.5 shrink-0 items-end">
           <label className="sr-only" htmlFor="console-reply">
             Responder al abonado
           </label>
-          <input
+          <textarea
             id="console-reply"
+            ref={replyRef}
             value={reply}
             onChange={(e) => setReply(e.target.value)}
-            placeholder="Responder al abonado…"
+            onKeyDown={onComposerKeyDown}
+            rows={2}
+            placeholder="Responder al abonado… (Enter envía · Shift+Enter línea nueva)"
             disabled={busy || !puedeEscribir}
-            className="flex-1 bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 disabled:opacity-50 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
+            className="flex-1 min-h-[2.75rem] max-h-36 resize-y bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 disabled:opacity-50 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
           />
           <button
             type="submit"
@@ -285,6 +387,15 @@ export function ChatPanel() {
         busy={busy}
         onCancel={() => setConfirmResolve(false)}
         onConfirm={() => void onMarcarResuelto()}
+      />
+      <ConfirmDialog
+        open={confirmRelease}
+        title="¿Liberar el chat?"
+        description="La conversación vuelve a la cola del canal (espera agente). Podés volver a tomarla desde Bandeja."
+        confirmLabel="Liberar chat"
+        busy={busy}
+        onCancel={() => setConfirmRelease(false)}
+        onConfirm={() => void onLiberar()}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -109,12 +110,15 @@ interface AppContextValue {
   }) => Promise<void>;
   appendTrace: (lines: string[]) => void;
   clearTraces: () => void;
+  registerConsoleComposer: (fn: ((text: string) => void) | null) => void;
+  insertConsoleReply: (text: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const consoleComposerRef = useRef<((text: string) => void) | null>(null);
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<MeResponse | null>(null);
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -760,6 +764,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [tenantSlug, appendTrace],
   );
 
+  const registerConsoleComposer = useCallback((fn: ((text: string) => void) | null) => {
+    consoleComposerRef.current = fn;
+  }, []);
+
+  const insertConsoleReply = useCallback((text: string) => {
+    consoleComposerRef.current?.(text);
+  }, []);
+
   const value = useMemo<AppContextValue>(
     () => ({
       ready,
@@ -814,6 +826,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       publishTicketKb,
       appendTrace,
       clearTraces,
+      registerConsoleComposer,
+      insertConsoleReply,
     }),
     [
       ready,
@@ -868,6 +882,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       publishTicketKb,
       appendTrace,
       clearTraces,
+      registerConsoleComposer,
+      insertConsoleReply,
     ],
   );
 

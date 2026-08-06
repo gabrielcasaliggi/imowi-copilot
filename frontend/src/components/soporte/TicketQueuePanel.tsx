@@ -1,17 +1,23 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import { SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { api } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 import type { Ticket } from "@/lib/types";
+import {
+  formatDateTime,
+  formatRelative,
+  formatSlaRemaining,
+} from "@/lib/formatTime";
 
 const ESTADOS = ["", "Abierto", "En Revisión", "Escalado", "Pendiente Cliente", "Cerrado"];
 const NIVELES = ["", "N1", "N2"];
 const SLA_OPTS = ["", "Vencido", "Crítico", "En riesgo", "En tiempo"];
+const POLL_MS = 5000;
 
 function isMine(t: Ticket, keys: Set<string>) {
   const a = (t.asignado_a || "").trim().toLowerCase();
@@ -30,6 +36,7 @@ function TicketRow({
   canReassign,
   agents,
   claiming,
+  nowTs,
   onOpen,
   onClaim,
   onReassign,
@@ -41,34 +48,73 @@ function TicketRow({
   canReassign: boolean;
   agents: { email: string; nombre: string }[];
   claiming: string | null;
+  nowTs: number;
   onOpen: (id: string) => void;
   onClaim: (id: string) => void;
   onReassign: (ticketId: string, asignado_a: string) => void;
 }) {
   const intel = t.intelligence;
+  const age = formatRelative(t.created_at, nowTs);
+  const ageAbs = formatDateTime(t.created_at);
+  const slaRem = formatSlaRemaining(
+    {
+      slaDueAt: t.sla_due_at || intel?.sla?.sla_due_at,
+      horasRestantes: intel?.sla?.horas_restantes,
+    },
+    nowTs,
+  );
+  const slaEstado = t.estado_sla || intel?.sla?.estado_sla || "";
+
   return (
-    <div className="w-full text-left py-3.5 px-4 rounded-xl border border-slate-700/80 bg-slate-950/60 hover:bg-slate-50/5 hover:border-ecolan-brand/35 shadow-sm transition-all duration-200 ease-in-out">
+    <div className="w-full text-left py-2.5 px-3 rounded-lg border border-slate-700/80 bg-slate-950/60 hover:bg-slate-50/5 hover:border-ecolan-brand/35 transition-all duration-200 ease-in-out">
       <button type="button" onClick={() => onOpen(t.id)} className="w-full text-left">
         <div className="flex justify-between items-start gap-2">
-          <span className="font-mono text-ecolan-brand text-xs">{t.id}</span>
-          <span className="text-[10px] font-mono text-amber-400">
-            {intel?.priority_score ?? 0}
-          </span>
+          <div className="min-w-0 flex items-center gap-2">
+            <span className="font-mono text-ecolan-brand text-xs shrink-0">{t.id}</span>
+            {age && (
+              <time
+                className="text-[10px] font-mono text-slate-500 tabular-nums"
+                dateTime={t.created_at}
+                title={ageAbs || undefined}
+              >
+                {age}
+              </time>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {slaRem && (
+              <span
+                className={`text-[10px] font-mono tabular-nums ${
+                  slaEstado === "Vencido" || slaEstado === "Crítico"
+                    ? "text-rose-300"
+                    : slaEstado === "En riesgo"
+                      ? "text-amber-300"
+                      : "text-slate-400"
+                }`}
+                title={t.sla_due_at || intel?.sla?.sla_due_at || undefined}
+              >
+                {slaRem}
+              </span>
+            )}
+            <span className="text-[10px] font-mono text-amber-400">
+              {intel?.priority_score ?? 0}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-1 mt-1.5">
+        <div className="flex flex-wrap gap-1 mt-1.5 items-center">
           {t.nivel && <StatusBadge value={t.nivel} />}
           <StatusBadge value={t.estado} />
           {mine && (
-            <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-full border border-ecolan-brand/40 text-slate-200 bg-ecolan-brand/10">
+            <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded-full border border-ecolan-brand/40 text-slate-200 bg-ecolan-brand/10">
               Mío
             </span>
           )}
           {free && t.estado !== "Cerrado" && (
-            <span className="px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-full border border-emerald-500/40 text-emerald-200 bg-emerald-500/10">
+            <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded-full border border-emerald-500/40 text-emerald-200 bg-emerald-500/10">
               Libre
             </span>
           )}
-          <SlaBadge label={t.sla_label} estado={t.estado_sla || intel?.sla?.estado_sla} />
+          <SlaBadge label={t.sla_label} estado={slaEstado} />
         </div>
         <p className="text-[11px] text-slate-400 mt-1 truncate">
           {t.organizacion ? `${t.organizacion} · ` : ""}
@@ -135,6 +181,8 @@ export function TicketQueuePanel() {
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [hint, setHint] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const [estado, setEstado] = useState("");
   const [nivel, setNivel] = useState(isAdmin || can("tickets.reassign") ? "" : "N2");
   const [sla, setSla] = useState("");
@@ -142,6 +190,8 @@ export function TicketQueuePanel() {
   const [q, setQ] = useState("");
   const [soloAbiertos, setSoloAbiertos] = useState(true);
   const [soloTomables, setSoloTomables] = useState(!(isAdmin || can("tickets.reassign")));
+  const claimingRef = useRef(false);
+  const hasItemsRef = useRef(false);
 
   const canReassign = can("tickets.reassign");
   const canClaim = can("tickets.queue.view") && !can("orgs.manage");
@@ -158,31 +208,57 @@ export function TicketQueuePanel() {
     return s;
   }, [user]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.tickets(
-        {
-          estado,
-          nivel,
-          sla,
-          categoria,
-          q,
-          solo_abiertos: soloAbiertos,
-        },
-        slug,
-      );
-      setItems(res.tickets || []);
-    } finally {
-      setLoading(false);
-    }
-  }, [estado, nivel, sla, categoria, q, soloAbiertos, slug]);
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent && hasItemsRef.current);
+      if (!silent) setLoading(true);
+      try {
+        const res = await api.tickets(
+          {
+            estado,
+            nivel,
+            sla,
+            categoria,
+            q,
+            solo_abiertos: soloAbiertos,
+          },
+          slug,
+        );
+        const next = res.tickets || [];
+        setItems(next);
+        hasItemsRef.current = next.length > 0;
+        setUpdatedAt(new Date());
+        if (!silent) setHint("");
+      } catch (err) {
+        if (!silent) {
+          setHint(err instanceof Error ? err.message : "No se pudo cargar la cola");
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [estado, nivel, sla, categoria, q, soloAbiertos, slug],
+  );
 
   const canQueue = can("tickets.queue.view");
 
   useEffect(() => {
-    if (canQueue) load();
+    if (canQueue) void load();
   }, [canQueue, load]);
+
+  useEffect(() => {
+    if (!canQueue) return;
+    const id = window.setInterval(() => {
+      if (claimingRef.current) return;
+      void load({ silent: true });
+    }, POLL_MS);
+    return () => window.clearInterval(id);
+  }, [canQueue, load]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!canReassign) return;
@@ -213,23 +289,39 @@ export function TicketQueuePanel() {
   );
 
   const onReassign = async (ticketId: string, asignado_a: string) => {
-    await api.reassignTicket(ticketId, { asignado_a }, slug);
-    await load();
+    setHint("");
+    try {
+      await api.reassignTicket(ticketId, { asignado_a }, slug);
+      await load({ silent: true });
+      setHint(`Reasignado a ${asignado_a}`);
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "No se pudo reasignar");
+    }
   };
 
   const onClaim = async (ticketId: string) => {
+    if (claimingRef.current) return;
+    claimingRef.current = true;
     setClaiming(ticketId);
     setHint("");
     try {
       const res = await api.claimTicket(ticketId, slug);
+      if (res.ya_asignado) {
+        setHint("Ya lo tenías asignado · abriendo Consola");
+      }
       await selectTicket(res.ticket.id);
-      await load();
+      await load({ silent: true });
       router.push(`/soporte?ticket=${encodeURIComponent(res.ticket.id)}`);
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "No se pudo tomar el ticket");
-      await load();
+      if (err instanceof ApiError && err.status === 409) {
+        setHint(err.message || "Otro agente ya tomó este ticket");
+      } else {
+        setHint(err instanceof Error ? err.message : "No se pudo tomar el ticket");
+      }
+      void load({ silent: true });
     } finally {
       setClaiming(null);
+      claimingRef.current = false;
     }
   };
 
@@ -240,7 +332,7 @@ export function TicketQueuePanel() {
 
   const onFilter = (e: FormEvent) => {
     e.preventDefault();
-    load();
+    void load();
   };
 
   if (!canQueue) {
@@ -263,6 +355,12 @@ export function TicketQueuePanel() {
             Tickets N2 ya armados que podés tomar. Al tomarlos quedan asignados a vos y se
             abren en Consola para atender al cliente.
           </p>
+          {updatedAt && (
+            <p className="text-[10px] font-mono text-slate-500 mt-1">
+              Actualizado {updatedAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}{" "}
+              · auto {POLL_MS / 1000}s
+            </p>
+          )}
         </div>
         <Link
           href="/soporte"
@@ -360,14 +458,14 @@ export function TicketQueuePanel() {
         </button>
       </form>
 
-      {loading ? (
+      {loading && !items.length ? (
         <p className="text-sm text-slate-500">Cargando cola…</p>
       ) : !visible.length ? (
         <p className="text-sm text-slate-500">
           No hay tickets tomables con esos filtros. Probá desmarcar “Solo libres + míos”.
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+        <div className="space-y-1 max-w-3xl">
           {visible.map((t) => (
             <TicketRow
               key={t.id}
@@ -378,6 +476,7 @@ export function TicketQueuePanel() {
               canReassign={canReassign}
               agents={agents}
               claiming={claiming}
+              nowTs={nowTs}
               onOpen={(id) => void onOpen(id)}
               onClaim={(id) => void onClaim(id)}
               onReassign={(id, email) => void onReassign(id, email)}
