@@ -1085,10 +1085,14 @@ export const api = {
     );
   },
 
-  inboxClose(id: string, tenantSlug?: string) {
+  inboxClose(id: string, nota: string, tenantSlug?: string) {
     return request<{ status: string; conversacion: InboxConversation }>(
       `/api/v1/inbox/conversations/${id}/close`,
-      { method: "POST", tenantSlug },
+      {
+        method: "POST",
+        body: JSON.stringify({ nota }),
+        tenantSlug,
+      },
     );
   },
 

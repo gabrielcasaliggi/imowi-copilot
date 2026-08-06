@@ -10,7 +10,6 @@ import {
   type InboxMessage,
 } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import {
   ChatMessageBubble,
@@ -87,6 +86,7 @@ export function InboxPanel() {
   const [injectText, setInjectText] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [closeNote, setCloseNote] = useState("");
   const [livePulse, setLivePulse] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const { threadRef, bottomRef, onScroll, forceStick } = useStickToBottom([mensajes]);
@@ -379,13 +379,19 @@ export function InboxPanel() {
 
   const onCloseConfirmed = async () => {
     if (!selected) return;
+    const nota = closeNote.trim();
+    if (!nota) {
+      toast("Escribí un comentario de cierre (qué se hizo)", "warning");
+      return;
+    }
     setBusy(true);
     try {
-      await api.inboxClose(selected, slug);
+      await api.inboxClose(selected, nota, slug);
       await openConv(selected);
       await refreshList();
-      toast("Conversación cerrada", "success");
+      toast("Conversación cerrada y documentada", "success");
       setConfirmClose(false);
+      setCloseNote("");
     } catch (err) {
       toast(err instanceof Error ? err.message : "No se pudo cerrar", "danger");
     } finally {
@@ -766,7 +772,10 @@ export function InboxPanel() {
                   {detail.estado !== "cerrado" && (
                     <button
                       type="button"
-                      onClick={() => setConfirmClose(true)}
+                      onClick={() => {
+                        setCloseNote("");
+                        setConfirmClose(true);
+                      }}
                       className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 transition-all duration-200 ease-in-out"
                     >
                       Cerrar
@@ -848,16 +857,62 @@ export function InboxPanel() {
         </div>
       </div>
 
-      <ConfirmDialog
-        open={confirmClose}
-        title="¿Cerrar conversación?"
-        description="El abonado no podrá seguir escribiendo en este hilo. Esta acción no se puede deshacer desde la bandeja."
-        confirmLabel="Cerrar conversación"
-        danger
-        busy={busy}
-        onCancel={() => setConfirmClose(false)}
-        onConfirm={() => void onCloseConfirmed()}
-      />
+      {confirmClose && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70"
+          role="presentation"
+          onClick={() => !busy && setConfirmClose(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inbox-close-title"
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1.5">
+              <h2 id="inbox-close-title" className="text-base font-semibold text-slate-50">
+                Cerrar conversación
+              </h2>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Dejá un comentario de cierre (qué se hizo o por qué se cierra). Queda en el
+                historial del chat.
+              </p>
+            </div>
+            <label className="sr-only" htmlFor="inbox-close-note">
+              Comentario de cierre
+            </label>
+            <textarea
+              id="inbox-close-note"
+              value={closeNote}
+              onChange={(e) => setCloseNote(e.target.value)}
+              rows={4}
+              disabled={busy}
+              placeholder="Ej: Visitante confirmó que ya veía el servicio / se resolvió por chat…"
+              className="w-full bg-slate-950 border border-slate-600/80 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-ecolan-brand disabled:opacity-50"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmClose(false)}
+                disabled={busy}
+                className="text-xs px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800/60 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void onCloseConfirmed()}
+                disabled={busy || !closeNote.trim()}
+                className="text-xs px-3.5 py-2 rounded-lg font-semibold border border-rose-500/40 text-rose-200 hover:bg-rose-500/15 disabled:opacity-50"
+              >
+                {busy ? "…" : "Cerrar con comentario"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

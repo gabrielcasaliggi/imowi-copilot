@@ -233,16 +233,30 @@ def agent_send_message(
     }
 
 
+class CloseIn(BaseModel):
+    nota: str = Field(default="", max_length=4000)
+
+
 @router.post("/inbox/conversations/{conv_id}/close")
 def close_conversation(
     conv_id: str,
+    body: CloseIn | None = None,
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
     c = crepo.get_conversacion(db, _org_id(ctx), conv_id)
     if not c:
         raise HTTPException(404, "Conversación no encontrada")
+    if c.estado == "cerrado":
+        raise HTTPException(400, "La conversación ya está cerrada")
+    nota = (body.nota if body else "").strip()
+    if not nota:
+        raise HTTPException(400, "Indicá un comentario de cierre (qué se hizo / por qué se cierra)")
     c.estado = "cerrado"
+    ctx_c = crepo.get_contexto(c)
+    ctx_c["cierre_nota"] = nota
+    ctx_c["cierre_por"] = ctx.usuario_email
+    crepo.set_contexto(c, ctx_c)
     db.commit()
     crepo.add_mensaje(
         db,
@@ -250,8 +264,18 @@ def close_conversation(
         c.id,
         direccion="out",
         autor="agente",
-        texto="[Sistema] Conversación cerrada por el agente.",
+        texto=f"[Sistema] Conversación cerrada por el agente.\nNota: {nota}",
     )
+    # Si hay ticket N2 ligado, documentar resolución (no fuerza cerrado del ticket aquí)
+    if c.ticket_id:
+        from app.estate import repository as repo
+
+        t = repo.get_ticket(db, _org_id(ctx), c.ticket_id, admin_global=False)
+        if t and t.estado != "Cerrado":
+            prev = (t.resolucion_tecnica or "").strip()
+            if not prev:
+                t.resolucion_tecnica = nota
+                db.commit()
     return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
 
 
