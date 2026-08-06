@@ -16,17 +16,23 @@ warn() { printf 'WARN %s\n' "$*"; }
 echo "==> Fase 1 smoke → $API_URL"
 
 BODY="$(curl -sf "$API_URL/health")" || { red "health no responde"; exit 1; }
-echo "$BODY" | python3 -c '
+python3 -c '
 import json, sys
-d = json.load(sys.stdin)
+d = json.loads(sys.argv[1])
 assert d.get("status") in ("ok", "degraded"), d
-print(f"  status={d.get(\"status\")} env={d.get(\"env\")} db={d.get(\"database\")} connected={d.get(\"database_connected\")}")
-print(f"  sentry_configured={d.get(\"sentry_configured\")} demo_reset_enabled={d.get(\"demo_reset_enabled\")}")
+print(
+    "  status=%s env=%s db=%s connected=%s"
+    % (d.get("status"), d.get("env"), d.get("database"), d.get("database_connected"))
+)
+print(
+    "  sentry_configured=%s demo_reset_enabled=%s"
+    % (d.get("sentry_configured"), d.get("demo_reset_enabled"))
+)
 if d.get("env") == "production" and d.get("demo_reset_enabled") is True:
     raise SystemExit("demo_reset_enabled=true en production — set ENABLE_DEMO_RESET=false")
 if d.get("env") == "production" and not d.get("database_connected"):
     raise SystemExit("database_connected=false en production")
-'
+' "$BODY"
 ok "health"
 
 RESET_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/v1/demo/reset" \
