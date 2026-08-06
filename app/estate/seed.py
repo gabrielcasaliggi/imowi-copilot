@@ -708,25 +708,31 @@ def seed_kb_batan_servicios(db: Session) -> dict:
 
 
 def seed_inbox_conversaciones(db: Session) -> dict:
-    """Hilos WhatsApp abiertos para operar la bandeja sin Meta (idempotente)."""
+    """Hilos WhatsApp abiertos para operar la bandeja sin Meta (solo 1ª vez).
+
+    No recrea demos si ya hubo conversaciones (aunque estén cerradas): así un restart/
+    redeploy no vuelve a llenar la bandeja después de que el equipo las cerró.
+    En production tampoco seedea demos de bandeja.
+    """
     import json
 
+    from app.config import es_produccion
     from app.estate.models import ConversacionCanal, MensajeCanal
+
+    if es_produccion():
+        return {"seeded": False, "conversaciones": 0, "reason": "production"}
 
     batan = _org(db, "coop-batan")
     if not batan:
         return {"seeded": False, "conversaciones": 0}
 
-    abiertas = db.scalar(
+    existentes = db.scalar(
         select(func.count())
         .select_from(ConversacionCanal)
-        .where(
-            ConversacionCanal.organizacion_id == batan.id,
-            ConversacionCanal.estado != "cerrado",
-        )
+        .where(ConversacionCanal.organizacion_id == batan.id)
     )
-    if abiertas and abiertas > 0:
-        return {"seeded": False, "conversaciones": abiertas}
+    if existentes and existentes > 0:
+        return {"seeded": False, "conversaciones": int(existentes), "reason": "ya_existen"}
 
     by_tel = {
         a.telefono_e164: a

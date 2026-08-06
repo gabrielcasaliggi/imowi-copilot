@@ -36,6 +36,34 @@ def _cerrar_todas_batan() -> None:
         db.commit()
 
 
+def _borrar_inbox_batan() -> None:
+    """Hard delete: deja la org sin conversaciones para poder reseedear demos en tests."""
+    from app.estate.models import MensajeCanal, Organization
+
+    Session = get_session_factory()
+    with Session() as db:
+        batan = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        if not batan:
+            return
+        ids = list(
+            db.scalars(
+                select(ConversacionCanal.id).where(
+                    ConversacionCanal.organizacion_id == batan.id
+                )
+            ).all()
+        )
+        if ids:
+            for m in db.scalars(
+                select(MensajeCanal).where(MensajeCanal.conversacion_id.in_(ids))
+            ).all():
+                db.delete(m)
+            for c in db.scalars(
+                select(ConversacionCanal).where(ConversacionCanal.id.in_(ids))
+            ).all():
+                db.delete(c)
+        db.commit()
+
+
 def _batan_headers() -> dict[str, str]:
     r = client.post("/api/login", json={"usuario": "batan", "password": "batan"})
     assert r.status_code == 200
@@ -257,7 +285,7 @@ def test_pide_agente_crea_ticket_n2():
 
 
 def test_batan_ve_conversaciones_y_puede_tomar():
-    _cerrar_todas_batan()
+    _borrar_inbox_batan()
     Session = get_session_factory()
     with Session() as db:
         info = seed_inbox_conversaciones(db)
@@ -277,6 +305,23 @@ def test_batan_ve_conversaciones_y_puede_tomar():
     )
     assert claim.status_code == 200
     assert claim.json()["conversacion"]["estado"] == "con_agente"
+
+
+def test_seed_inbox_no_recrea_si_solo_hay_cerradas():
+    """Cerrar todas no debe volver a abrir demos en el próximo seed (restart)."""
+    _borrar_inbox_batan()
+    Session = get_session_factory()
+    with Session() as db:
+        assert seed_inbox_conversaciones(db).get("seeded") is True
+    _cerrar_todas_batan()
+    with Session() as db:
+        info = seed_inbox_conversaciones(db)
+        assert info.get("seeded") is False
+        assert info.get("reason") == "ya_existen"
+    headers = _batan_headers()
+    listed = client.get("/api/v1/inbox/conversations", headers=headers)
+    abiertas = [c for c in listed.json()["conversaciones"] if c["estado"] != "cerrado"]
+    assert abiertas == []
 
 
 def test_abonados_seed():
