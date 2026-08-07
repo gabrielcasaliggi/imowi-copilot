@@ -43,6 +43,50 @@ logger = logging.getLogger("operations_hub")
 
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
+_INTENCIONES_PPPOE = frozenset({
+    "internet",
+    "internet_ftth",
+    "internet_adsl",
+    "internet_radio",
+    "internet_lento",
+    "wifi",
+})
+
+
+def _talvez_mensaje_pppoe(
+    db: Session,
+    abonado: Abonado | None,
+    ctx: dict,
+    intencion: str,
+) -> str | None:
+    """Consulta Radius una vez por conversación en reclamos de internet."""
+    if (intencion or "").strip() not in _INTENCIONES_PPPOE:
+        return None
+    if ctx.get("pppoe_informado"):
+        return None
+    if abonado is None or not str(getattr(abonado, "dni", "") or "").strip():
+        return None
+    try:
+        from app.services.conexion_pppoe import consultar_conexion_pppoe, mensaje_abonado_pppoe
+
+        estado = consultar_conexion_pppoe(
+            dni=str(abonado.dni),
+            client_number=str(getattr(abonado, "client_number", "") or ""),
+            db=db,
+        )
+        msg = mensaje_abonado_pppoe(estado)
+        if not msg:
+            logger.info(
+                "PPPoE sin mensaje útil dni=***%s err=%s online=%s",
+                str(abonado.dni)[-3:],
+                (estado.error or "")[:80],
+                estado.online,
+            )
+        return msg
+    except Exception:
+        logger.exception("PPPoE check falló en canal")
+        return None
+
 
 def _playbooks(db: Session):
     return playbooks_as_pasos(db)
@@ -738,6 +782,27 @@ def _aplicar_diagnostico_ia(
         return None
     if not es_intencion_diagnostico(intencion):
         return None
+
+    # Primer turno de internet: informar estado PPPoE real (no depender del LLM).
+    pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion)
+    if pppoe_msg:
+        turnos = int(ctx.get("diag_turnos") or 0)
+        ctx["diag_turnos"] = turnos + 1
+        ctx["pppoe_informado"] = True
+        ctx["intencion"] = intencion
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, pppoe_msg, enviar_externo=(canal != "web"))
+        return {
+            "ok": True,
+            "modo": "diagnostico",
+            "conversacion_id": conv.id,
+            "respuesta": pppoe_msg,
+            "estado": conv.estado,
+            "intencion": intencion,
+            "diagnostico_ia": True,
+            "pppoe": True,
+        }
 
     pb = _playbooks(db)
     checklist = pb.get(intencion) or pb.get("general") or []

@@ -114,6 +114,44 @@ def consultar_conexion_pppoe(
     )
 
 
+def mensaje_abonado_pppoe(estado: EstadoConexionPPPoE) -> str | None:
+    """Mensaje listo para el canal. None si no hay dato útil para el abonado."""
+    if not estado.servicio or not estado.servicio.login:
+        return None
+    if estado.sesion is None and estado.error:
+        # Sin sesión usable (API caída / NAS no hallado): no inventar
+        return None
+
+    tipo = (
+        estado.servicio.service_type_label
+        or estado.servicio.product
+        or "internet"
+    ).strip()
+    if estado.online is True and estado.sesion:
+        parts = [f"Revisé tu cuenta de {tipo}: la conexión está activa"]
+        detalles: list[str] = []
+        if estado.sesion.public_ip:
+            detalles.append(f"IP {estado.sesion.public_ip}")
+        if estado.sesion.uptime:
+            detalles.append(f"hace {estado.sesion.uptime}")
+        if detalles:
+            parts.append(f"({', '.join(detalles)})")
+        parts.append(
+            "Si igual no navegás, el problema suele estar en el router o el Wi‑Fi. "
+            "¿Reiniciaste el equipo (desenchufar 30 segundos)?"
+        )
+        return " ".join(parts)
+
+    if estado.online is False:
+        return (
+            f"Revisé tu cuenta de {tipo}: en este momento no hay sesión activa "
+            f"(tu usuario no figura conectado en la red). "
+            "¿Puedes reiniciar el router/ONT (desenchufar 30 segundos) y avisarme "
+            "si vuelve a conectar?"
+        )
+    return None
+
+
 def contexto_pppoe_para_abonado(
     abonado: Any | None,
     *,

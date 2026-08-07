@@ -162,6 +162,46 @@ def test_contexto_pppoe_conectado(monkeypatch):
     assert "conectado" in ctx["pppoe_resumen"]
 
 
+def test_mensaje_abonado_conectado_y_offline():
+    from app.services.conexion_pppoe import mensaje_abonado_pppoe
+
+    online = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="4640854",
+            service_type_label="Fibra Optica",
+            service_type_code="INTFO",
+        ),
+        sesion=SesionPPPoE(
+            username="4640854",
+            online=True,
+            public_ip="1.2.3.4",
+            uptime="2h",
+        ),
+    )
+    msg = mensaje_abonado_pppoe(online)
+    assert msg is not None
+    assert "activa" in msg.lower() or "conectado" in msg.lower() or "activa" in msg
+    assert "1.2.3.4" in msg
+
+    offline = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="4640854",
+            service_type_label="Fibra Optica",
+            service_type_code="INTFO",
+        ),
+        sesion=SesionPPPoE(username="4640854", online=False, nas="NAS-A"),
+    )
+    msg2 = mensaje_abonado_pppoe(offline)
+    assert msg2 is not None
+    assert "no hay sesión" in msg2.lower() or "no figura conectado" in msg2.lower()
+
+
+def test_mensaje_abonado_sin_dato():
+    from app.services.conexion_pppoe import mensaje_abonado_pppoe
+
+    assert mensaje_abonado_pppoe(EstadoConexionPPPoE(error="radius api no configurada")) is None
+
+
 def test_radius_client_headers_no_leak_empty():
     c = RadiusNasClient(api_key="", token="")
     assert c.configured() is False

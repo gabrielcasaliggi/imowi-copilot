@@ -314,7 +314,11 @@ def resolve_billtrack(db: Session | None = None) -> dict[str, Any]:
 
 
 def resolve_radius(db: Session | None = None) -> dict[str, Any]:
-    """Credenciales API Radius/NAS (solo lectura de sesión PPPoE)."""
+    """Credenciales API Radius/NAS (solo lectura de sesión PPPoE).
+
+    Las variables de entorno ganan si están definidas: en servers se configura
+    por .env y un save viejo del admin no debe apagarlo en silencio.
+    """
     s = get_merged_settings(db).get("radius") or {}
     if not isinstance(s, dict):
         s = {}
@@ -323,17 +327,32 @@ def resolve_radius(db: Session | None = None) -> dict[str, Any]:
         enabled = enabled_raw.strip().lower() in ("1", "true", "yes", "on")
     else:
         enabled = bool(enabled_raw) if enabled_raw is not None else RADIUS_API_ENABLED
+    # Env explícito manda (deploy / .env del server)
+    if RADIUS_API_ENABLED:
+        enabled = True
 
     try:
         timeout = float(s.get("timeout") if s.get("timeout") is not None else RADIUS_API_TIMEOUT)
     except (TypeError, ValueError):
         timeout = RADIUS_API_TIMEOUT
 
+    api_key = str(s.get("api_key") if s.get("api_key") is not None else "").strip()
+    token = str(s.get("token") if s.get("token") is not None else "").strip()
+    if not api_key:
+        api_key = RADIUS_API_KEY
+    if not token:
+        token = RADIUS_API_TOKEN
+    # Si el admin guardó vacío/máscara pero hay env, usar env
+    if (not api_key or "***" in api_key) and RADIUS_API_KEY:
+        api_key = RADIUS_API_KEY
+    if (not token or "***" in token) and RADIUS_API_TOKEN:
+        token = RADIUS_API_TOKEN
+
     return {
         "enabled": enabled,
         "base_url": str(s.get("base_url") or RADIUS_API_BASE_URL or "").strip(),
-        "api_key": str(s.get("api_key") if s.get("api_key") is not None else RADIUS_API_KEY).strip(),
-        "token": str(s.get("token") if s.get("token") is not None else RADIUS_API_TOKEN).strip(),
+        "api_key": api_key,
+        "token": token,
         "timeout": timeout,
         "nota": str(s.get("nota") or ""),
     }
