@@ -123,23 +123,40 @@ def enrich_contexto_desde_integraciones(
     *,
     org_id: str = "",
 ) -> dict[str, str]:
-    """Hook para ONT/OLT Huawei, pagos Fiserv y cortes de zona.
+    """Hook para ONT/OLT Huawei, pagos Fiserv, cortes de zona y PPPoE/Radius.
 
-    Hoy devuelve vacíos. Cuando conectes la DB/APIs, rellená estas claves:
-      - nro_asociado
-      - ont_estado
-      - olt_huawei
-      - pago_qr_reciente
-      - cortes_zona
+    Claves:
+      - nro_asociado, ont_estado, olt_huawei, pago_qr_reciente, cortes_zona
+      - pppoe_estado, pppoe_login, pppoe_tipo, pppoe_ip, pppoe_uptime, pppoe_nas, pppoe_resumen
     """
-    _ = (abonado, org_id)
-    return {
+    _ = org_id
+    out = {
         "nro_asociado": "",
         "ont_estado": "",
         "olt_huawei": "",
         "pago_qr_reciente": "",
         "cortes_zona": "",
+        "pppoe_estado": "",
+        "pppoe_login": "",
+        "pppoe_tipo": "",
+        "pppoe_ip": "",
+        "pppoe_uptime": "",
+        "pppoe_nas": "",
+        "pppoe_resumen": "",
     }
+    if abonado is None:
+        return out
+    try:
+        from app.services.conexion_pppoe import contexto_pppoe_para_abonado
+
+        pppoe = contexto_pppoe_para_abonado(abonado)
+        for k, v in pppoe.items():
+            if str(v or "").strip():
+                out[k] = str(v).strip()
+    except Exception:
+        # Nunca tumbar el prompt del bot por fallas de Radius/BillTrack
+        pass
+    return out
 
 
 def build_contexto_abonado(
@@ -155,6 +172,8 @@ def build_contexto_abonado(
             if str(v or "").strip():
                 integ[k] = str(v).strip()
 
+    pppoe_line = integ.get("pppoe_resumen") or "(sin dato — integrar Radius/NAS)"
+
     if not abonado:
         lines = [
             "CONTEXTO_ABONADO:",
@@ -167,7 +186,8 @@ def build_contexto_abonado(
             f"- olt_huawei: {integ.get('olt_huawei') or '(sin dato — integrar NMS)'}",
             f"- pago_qr_reciente: {integ.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
             f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
-            "- Regla: no inventes saldos, ONT/OLT ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
+            f"- pppoe: {pppoe_line}",
+            "- Regla: no inventes saldos, ONT/OLT, PPPoE ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
         ]
         return "\n".join(lines)
 
@@ -195,7 +215,9 @@ def build_contexto_abonado(
         f"- olt_huawei: {integ.get('olt_huawei') or '(sin dato — integrar NMS)'}",
         f"- pago_qr_reciente: {integ.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
         f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
+        f"- pppoe: {pppoe_line}",
         "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
+        "- Si pppoe indica conectado/desconectado, confirmalo al abonado con esos datos (IP/uptime) sin inventar.",
     ]
     return "\n".join(lines)
 

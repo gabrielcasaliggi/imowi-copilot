@@ -25,6 +25,11 @@ from app.config import (
     KNOWLEDGE_MAX_FRAGMENT_CHARS,
     KNOWLEDGE_MIN_SCORE,
     KNOWLEDGE_TOP_K,
+    RADIUS_API_BASE_URL,
+    RADIUS_API_ENABLED,
+    RADIUS_API_KEY,
+    RADIUS_API_TIMEOUT,
+    RADIUS_API_TOKEN,
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_DEFAULT_ORG_SLUG,
     TELEGRAM_WEBHOOK_SECRET,
@@ -47,6 +52,8 @@ _SECRET_KEYS = {
     ("telegram", "bot_token"),
     ("telegram", "webhook_secret"),
     ("billtrack", "password"),
+    ("radius", "api_key"),
+    ("radius", "token"),
 }
 
 _URL_SECRET_KEYS = {
@@ -95,6 +102,17 @@ def _default_payload() -> dict[str, Any]:
                 "Postgres externo de solo lectura: padrón de clientes para que el bot "
                 "valide acciones. Independiente del Data Estate. Este servidor suele "
                 "requerir sslmode=disable."
+            ),
+        },
+        "radius": {
+            "enabled": RADIUS_API_ENABLED,
+            "base_url": RADIUS_API_BASE_URL,
+            "api_key": RADIUS_API_KEY,
+            "token": RADIUS_API_TOKEN,
+            "timeout": RADIUS_API_TIMEOUT,
+            "nota": (
+                "API Radius/NAS Batan: get_nas + list_ppp_session. "
+                "Credenciales solo por env/admin — nunca en código."
             ),
         },
         "knowledge": {
@@ -295,6 +313,32 @@ def resolve_billtrack(db: Session | None = None) -> dict[str, Any]:
     return cfg
 
 
+def resolve_radius(db: Session | None = None) -> dict[str, Any]:
+    """Credenciales API Radius/NAS (solo lectura de sesión PPPoE)."""
+    s = get_merged_settings(db).get("radius") or {}
+    if not isinstance(s, dict):
+        s = {}
+    enabled_raw = s.get("enabled")
+    if isinstance(enabled_raw, str):
+        enabled = enabled_raw.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        enabled = bool(enabled_raw) if enabled_raw is not None else RADIUS_API_ENABLED
+
+    try:
+        timeout = float(s.get("timeout") if s.get("timeout") is not None else RADIUS_API_TIMEOUT)
+    except (TypeError, ValueError):
+        timeout = RADIUS_API_TIMEOUT
+
+    return {
+        "enabled": enabled,
+        "base_url": str(s.get("base_url") or RADIUS_API_BASE_URL or "").strip(),
+        "api_key": str(s.get("api_key") if s.get("api_key") is not None else RADIUS_API_KEY).strip(),
+        "token": str(s.get("token") if s.get("token") is not None else RADIUS_API_TOKEN).strip(),
+        "timeout": timeout,
+        "nota": str(s.get("nota") or ""),
+    }
+
+
 def resolve_knowledge(db: Session | None = None) -> dict[str, float | int]:
     s = get_merged_settings(db)["knowledge"]
     return {
@@ -390,6 +434,7 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     tg = resolve_telegram(db)
     ai = resolve_ai(db)
     bt = resolve_billtrack(db)
+    radius = resolve_radius(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
     bt_url = str(bt.get("url") or "")
     return {
@@ -401,6 +446,10 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
         "billtrack_configured": bool(bt_url or (bt.get("host") and bt.get("user"))),
         "billtrack_enabled": bool(bt.get("enabled") and (bt_url or bt.get("host"))),
         "billtrack_url_masked": database_url_enmascarada(bt_url) if bt_url else "",
+        "radius_configured": bool(
+            radius.get("base_url") and (radius.get("token") or radius.get("api_key"))
+        ),
+        "radius_enabled": bool(radius.get("enabled")),
         "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
         "updated_by": row.updated_by if row else "",
         "settings": s,

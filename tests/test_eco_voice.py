@@ -50,6 +50,33 @@ def test_enrich_hook_vacio_hasta_integracion():
     empty = enrich_contexto_desde_integraciones(None)
     assert empty["ont_estado"] == ""
     assert empty["pago_qr_reciente"] == ""
+    assert empty.get("pppoe_estado", "") == ""
+
+
+def test_contexto_incluye_pppoe_placeholder():
+    txt = build_contexto_abonado(None)
+    assert "pppoe" in txt.lower()
+
+
+def test_contexto_con_extras_pppoe():
+    abo = SimpleNamespace(
+        nombre="María Pérez",
+        dni="30111222",
+        servicio="internet",
+        plan="100Mb",
+        estado="activo",
+        deuda_monto="0",
+        linea_msisdn="2235551234",
+    )
+    txt = build_contexto_abonado(
+        abo,
+        extras={
+            "pppoe_resumen": "tipo=Fibra Optica; login=4640854; estado=conectado; ip=1.2.3.4",
+        },
+    )
+    assert "conectado" in txt
+    assert "1.2.3.4" in txt
+    assert "4640854" in txt
 
 
 def test_historial_a_chat_roles():

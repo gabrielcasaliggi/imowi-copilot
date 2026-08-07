@@ -315,6 +315,251 @@ def lookup_abonado_por_dni(
         engine.dispose()
 
 
+# Servicios de conectividad fijos (api_service.service_type_code)
+SERVICE_TYPE_CONECTIVIDAD = frozenset({"INTFO", "INTBA", "INTINA"})
+
+DEFAULT_SERVICES_SQL = """
+SELECT
+  s.id::text AS id,
+  COALESCE(NULLIF(TRIM(s.identifier), ''), '') AS login,
+  COALESCE(NULLIF(TRIM(s.label), ''), '') AS label,
+  COALESCE(NULLIF(TRIM(s.state), ''), '') AS state,
+  COALESCE(NULLIF(TRIM(s.account_name), ''), '') AS account_name,
+  COALESCE(NULLIF(TRIM(s.base_account_number), ''), '') AS base_account_number,
+  COALESCE(NULLIF(TRIM(s.product_code), ''), '') AS product_code,
+  COALESCE(NULLIF(TRIM(s.product), ''), '') AS product,
+  COALESCE(s.service_on::text, '') AS service_on,
+  COALESCE(NULLIF(TRIM(s.service_type_code), ''), '') AS service_type_code,
+  COALESCE(NULLIF(TRIM(s.service_type_label), ''), '') AS service_type_label,
+  COALESCE(NULLIF(TRIM(s.locality), ''), '') AS locality,
+  s.last_state_date,
+  s.effective_date_from,
+  s.effective_date_to
+FROM public.api_service s
+WHERE regexp_replace(COALESCE(s.base_account_number, ''), '[^0-9A-Za-z]', '', 'g')
+    = regexp_replace(CAST(:client_number AS text), '[^0-9A-Za-z]', '', 'g')
+  AND UPPER(TRIM(COALESCE(s.service_type_code, ''))) IN ('INTFO', 'INTBA', 'INTINA')
+ORDER BY
+  CASE
+    WHEN LOWER(COALESCE(s.service_on::text, '')) IN ('1', 't', 'true', 'yes', 'on', 'si', 'sí')
+      THEN 0
+    ELSE 1
+  END,
+  s.last_state_date DESC NULLS LAST,
+  s.id DESC
+""".strip()
+
+DEFAULT_SERVICES_BY_DNI_SQL = """
+SELECT
+  s.id::text AS id,
+  COALESCE(NULLIF(TRIM(s.identifier), ''), '') AS login,
+  COALESCE(NULLIF(TRIM(s.label), ''), '') AS label,
+  COALESCE(NULLIF(TRIM(s.state), ''), '') AS state,
+  COALESCE(NULLIF(TRIM(s.account_name), ''), '') AS account_name,
+  COALESCE(NULLIF(TRIM(s.base_account_number), ''), '') AS base_account_number,
+  COALESCE(NULLIF(TRIM(s.product_code), ''), '') AS product_code,
+  COALESCE(NULLIF(TRIM(s.product), ''), '') AS product,
+  COALESCE(s.service_on::text, '') AS service_on,
+  COALESCE(NULLIF(TRIM(s.service_type_code), ''), '') AS service_type_code,
+  COALESCE(NULLIF(TRIM(s.service_type_label), ''), '') AS service_type_label,
+  COALESCE(NULLIF(TRIM(s.locality), ''), '') AS locality,
+  s.last_state_date,
+  s.effective_date_from,
+  s.effective_date_to
+FROM public.api_person p
+INNER JOIN public.api_service s
+  ON regexp_replace(COALESCE(s.base_account_number, ''), '[^0-9A-Za-z]', '', 'g')
+   = regexp_replace(COALESCE(p.client_number::text, ''), '[^0-9A-Za-z]', '', 'g')
+WHERE (
+  regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g') = :dni
+  OR (
+    length(regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g')) = 11
+    AND substring(
+      regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g') FROM 3 FOR 8
+    ) = lpad(:dni, 8, '0')
+  )
+)
+  AND UPPER(TRIM(COALESCE(s.service_type_code, ''))) IN ('INTFO', 'INTBA', 'INTINA')
+ORDER BY
+  CASE
+    WHEN LOWER(COALESCE(s.service_on::text, '')) IN ('1', 't', 'true', 'yes', 'on', 'si', 'sí')
+      THEN 0
+    ELSE 1
+  END,
+  s.last_state_date DESC NULLS LAST,
+  s.id DESC
+""".strip()
+
+
+def _truthy_service_on(raw: Any) -> bool:
+    val = str(raw or "").strip().lower()
+    if not val:
+        return True
+    if val in ("0", "f", "false", "no", "off", "n"):
+        return False
+    return val in ("1", "t", "true", "yes", "on", "si", "sí", "y")
+
+
+def map_service_row(row: dict[str, Any]) -> Any:
+    """Normaliza fila api_service → ServicioConectividad."""
+    from app.radius.contract import ServicioConectividad
+
+    code = str(row.get("service_type_code") or "").strip().upper()
+    login = str(row.get("login") or row.get("identifier") or "").strip()
+    return ServicioConectividad(
+        login=login,
+        service_type_code=code,
+        service_type_label=str(row.get("service_type_label") or "").strip(),
+        product=str(row.get("product") or "").strip(),
+        label=str(row.get("label") or "").strip(),
+        state=str(row.get("state") or "").strip(),
+        service_on=_truthy_service_on(row.get("service_on")),
+        base_account_number=str(row.get("base_account_number") or "").strip(),
+        id=str(row.get("id") or "").strip(),
+        locality=str(row.get("locality") or "").strip(),
+    )
+
+
+def elegir_servicio_principal(servicios: list[Any]) -> Any | None:
+    """Prioriza service_on + login no vacío."""
+    with_login = [s for s in servicios if getattr(s, "login", "")]
+    if not with_login:
+        return None
+    on = [s for s in with_login if getattr(s, "service_on", True)]
+    return (on or with_login)[0]
+
+
+def _billtrack_engine(db: Session | None = None):
+    from app.config import BILLTRACK_ENABLED, es_produccion
+
+    params = resolve_connection(db)
+    enabled = bool(params.get("enabled")) or BILLTRACK_ENABLED
+    url = str(params.get("url") or "").strip()
+    if not (enabled and url) or _lookup_forced_off():
+        return None, params, es_produccion()
+    from sqlalchemy import create_engine
+
+    sslmode = str(params.get("sslmode") or "disable")
+    connect_args: dict[str, Any] = {"connect_timeout": 8, "sslmode": sslmode}
+    engine = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+    return engine, params, es_produccion()
+
+
+def _mock_servicios(client_number: str = "", dni: str = "") -> list[Any]:
+    """Servicios demo cuando BillTrack no está configurado (dev/tests)."""
+    from app.radius.contract import ServicioConectividad
+
+    key = (client_number or dni or "").strip()
+    catalog: dict[str, list[ServicioConectividad]] = {
+        "200": [
+            ServicioConectividad(
+                login="4640854",
+                service_type_code="INTFO",
+                service_type_label="Fibra Optica",
+                product="Fibra 100",
+                label="Internet Fibra",
+                service_on=True,
+                base_account_number="200",
+                id="svc-1",
+            )
+        ],
+        "30111222": [
+            ServicioConectividad(
+                login="4640854",
+                service_type_code="INTFO",
+                service_type_label="Fibra Optica",
+                product="Fibra 100",
+                label="Internet Fibra",
+                service_on=True,
+                base_account_number="200",
+                id="svc-1",
+            )
+        ],
+    }
+    return list(catalog.get(key, []))
+
+
+def lookup_servicios_conectividad(
+    *,
+    client_number: str,
+    db: Session | None = None,
+) -> list[Any]:
+    """Lista servicios INTFO/INTBA/INTINA de api_service por base_account_number."""
+    from sqlalchemy import text
+
+    cn = str(client_number or "").strip()
+    if not cn:
+        return []
+
+    engine, _params, prod = _billtrack_engine(db)
+    if engine is None:
+        if prod:
+            return []
+        return _mock_servicios(client_number=cn)
+
+    try:
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(text(DEFAULT_SERVICES_SQL), {"client_number": cn})
+                .mappings()
+                .all()
+            )
+            out = []
+            for row in rows:
+                svc = map_service_row(dict(row))
+                if svc.login and svc.service_type_code in SERVICE_TYPE_CONECTIVIDAD:
+                    out.append(svc)
+            return out
+    except Exception:
+        logger.exception("BillTrack api_service falló (client_number)")
+        if prod:
+            return []
+        return _mock_servicios(client_number=cn)
+    finally:
+        engine.dispose()
+
+
+def lookup_servicios_conectividad_por_dni(
+    *,
+    dni: str,
+    db: Session | None = None,
+) -> list[Any]:
+    """Servicios de conectividad vía join api_person.doc_cuit → api_service."""
+    from app.estate.security import normalizar_dni, valid_dni_ar
+    from sqlalchemy import text
+
+    dni_n = normalizar_dni(dni)
+    if not valid_dni_ar(dni_n):
+        return []
+
+    engine, _params, prod = _billtrack_engine(db)
+    if engine is None:
+        if prod:
+            return []
+        return _mock_servicios(dni=dni_n)
+
+    try:
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(text(DEFAULT_SERVICES_BY_DNI_SQL), {"dni": dni_n})
+                .mappings()
+                .all()
+            )
+            out = []
+            for row in rows:
+                svc = map_service_row(dict(row))
+                if svc.login and svc.service_type_code in SERVICE_TYPE_CONECTIVIDAD:
+                    out.append(svc)
+            return out
+    except Exception:
+        logger.exception("BillTrack api_service por DNI falló (dni=***%s)", dni_n[-3:])
+        if prod:
+            return []
+        return _mock_servicios(dni=dni_n)
+    finally:
+        engine.dispose()
+
+
 def ensure_local_abonado(
     db: Session,
     org_id: str,

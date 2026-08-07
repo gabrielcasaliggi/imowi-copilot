@@ -179,6 +179,23 @@ BILLTRACK_ENABLED = os.getenv("BILLTRACK_ENABLED", "false").strip().lower() in (
     "on",
 )
 
+# Radius / NAS API (Batan) — estado PPPoE para el bot
+RADIUS_API_BASE_URL = os.getenv(
+    "RADIUS_API_BASE_URL", "https://radius.api.batan.coop"
+).strip() or "https://radius.api.batan.coop"
+RADIUS_API_KEY = os.getenv("RADIUS_API_KEY", "").strip()
+RADIUS_API_TOKEN = os.getenv("RADIUS_API_TOKEN", "").strip()
+RADIUS_API_ENABLED = os.getenv("RADIUS_API_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+try:
+    RADIUS_API_TIMEOUT = float(os.getenv("RADIUS_API_TIMEOUT", "8") or "8")
+except (TypeError, ValueError):
+    RADIUS_API_TIMEOUT = 8.0
+
 KNOWLEDGE_MAX_FRAGMENT_CHARS = int(os.getenv("KNOWLEDGE_MAX_FRAGMENT_CHARS", "1800"))
 KNOWLEDGE_MAX_SYSTEM_TOKENS = int(os.getenv("KNOWLEDGE_MAX_SYSTEM_TOKENS", "4500"))
 
