@@ -555,16 +555,26 @@ def test_whatsapp_config(
     db: Session = Depends(get_db),
 ):
     from app.services.platform_settings import resolve_whatsapp
-    from app.services.whatsapp_client import whatsapp_configurado
+    from app.services.whatsapp_client import verificar_credenciales
 
     cfg = resolve_whatsapp(db)
+    live = verificar_credenciales()
     return {
-        "ok": whatsapp_configurado(),
+        "ok": bool(live.get("ok")),
         "phone_number_id_set": bool(cfg.get("phone_number_id")),
         "token_set": bool(cfg.get("token")),
         "verify_token": cfg.get("verify_token") or "",
         "default_org_slug": cfg.get("default_org_slug") or "",
-        "nota": "No envía mensaje real; solo valida que token y phone_number_id estén configurados.",
+        "display_phone_number": live.get("display_phone_number") or "",
+        "verified_name": live.get("verified_name") or "",
+        "quality_rating": live.get("quality_rating") or "",
+        "code_verification_status": live.get("code_verification_status") or "",
+        "error": live.get("error") or "",
+        "webhook_url": "/api/v1/whatsapp/webhook",
+        "nota": (
+            "Consulta Graph API al Phone Number ID (no envía mensaje). "
+            "Webhook público: https://<dominio>/api/v1/whatsapp/webhook"
+        ),
     }
 
 

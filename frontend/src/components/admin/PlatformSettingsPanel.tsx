@@ -159,11 +159,19 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     setBusy(true);
     try {
       const r = await api.testAdminWhatsapp();
-      onMessage?.(
-        r.ok
-          ? `WhatsApp listo · org ${r.default_org_slug} · verify «${r.verify_token}»`
-          : "WhatsApp incompleto: falta token o phone_number_id",
-      );
+      if (r.ok) {
+        const display = r.display_phone_number || "número OK";
+        const name = r.verified_name ? ` · ${r.verified_name}` : "";
+        onMessage?.(
+          `WhatsApp listo · ${display}${name} · org ${r.default_org_slug} · verify «${r.verify_token}»`,
+        );
+      } else {
+        onMessage?.(
+          r.error
+            ? `WhatsApp falló: ${r.error.slice(0, 180)}`
+            : "WhatsApp incompleto: falta token o phone_number_id",
+        );
+      }
     } catch (err) {
       onMessage?.(err instanceof Error ? err.message : "Error test WhatsApp");
     } finally {
@@ -357,6 +365,12 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       {section === "whatsapp" && (
         <GlassCard title="WhatsApp Cloud API (Meta)" accent="cyan" variant="secondary">
           <div className="grid gap-3 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs text-slate-400">
+              Webhook:{" "}
+              <code className="text-slate-300">https://ibot.ecolan.com/api/v1/whatsapp/webhook</code>
+              {" "}· suscribir campo <code className="text-slate-300">messages</code>
+              {" "}· Phone Number ID = ID del número <em>propio</em> (no el +1 555 de prueba)
+            </p>
             <div className="md:col-span-2">
               <label className={labelCls}>Token</label>
               <input

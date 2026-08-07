@@ -980,6 +980,12 @@ export const api = {
       token_set?: boolean;
       verify_token?: string;
       default_org_slug?: string;
+      display_phone_number?: string;
+      verified_name?: string;
+      quality_rating?: string;
+      code_verification_status?: string;
+      error?: string;
+      webhook_url?: string;
       nota?: string;
     }>("/api/v1/admin/settings/test-whatsapp", { method: "POST" });
   },

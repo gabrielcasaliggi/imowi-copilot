@@ -99,6 +99,15 @@ def test_extraer_texto_mensaje_wa():
     assert _extraer_texto_mensaje({"type": "audio", "audio": {"id": "x"}}) == "[audio]"
 
 
+def test_normalizar_destino_wa_argentina():
+    from app.services.whatsapp_client import normalizar_destino_wa
+
+    assert normalizar_destino_wa("+54 9 223 540-2690") == "5492235402690"
+    assert normalizar_destino_wa("542235402690") == "5492235402690"
+    assert normalizar_destino_wa("5492235402690") == "5492235402690"
+    assert normalizar_destino_wa("") == ""
+
+
 def test_whatsapp_webhook_verify():
     r = client.get(
         "/api/v1/whatsapp/webhook",

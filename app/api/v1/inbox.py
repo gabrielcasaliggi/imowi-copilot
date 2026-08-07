@@ -216,7 +216,7 @@ def agent_send_message(
     )
     delivery: dict
     if c.canal == "whatsapp":
-        delivery = enviar_texto_wa(c.telefono, texto)
+        delivery = enviar_texto_wa((c.wa_id or c.telefono or "").strip(), texto)
     elif c.canal == "telegram":
         delivery = enviar_texto_tg(c.wa_id or c.telefono, texto)
     else:

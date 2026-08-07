@@ -13,7 +13,7 @@ from app.config import (
 
 logger = logging.getLogger("operations_hub")
 
-_GRAPH = "https://graph.facebook.com/v21.0"
+_GRAPH = "https://graph.facebook.com/v22.0"
 
 
 def _wa_cfg() -> dict[str, str]:
@@ -41,9 +41,71 @@ def whatsapp_configurado() -> bool:
     return bool(cfg.get("token") and cfg.get("phone_number_id"))
 
 
+def normalizar_destino_wa(telefono: str) -> str:
+    """Destino para Cloud API: solo dígitos; móviles AR como 549…"""
+    to = "".join(c for c in (telefono or "") if c.isdigit())
+    if not to:
+        return ""
+    # 54 + 10 dígitos nacionales sin el 9 de móvil → insertar 9 (WhatsApp AR)
+    if to.startswith("54") and not to.startswith("549") and len(to) == 12:
+        to = "549" + to[2:]
+    return to
+
+
+def verificar_credenciales() -> dict:
+    """GET al Phone Number ID en Graph API (no envía mensaje)."""
+    cfg = _wa_cfg()
+    token = (cfg.get("token") or "").strip()
+    phone_id = (cfg.get("phone_number_id") or "").strip()
+    if not token or not phone_id:
+        return {
+            "ok": False,
+            "error": "faltan token o phone_number_id",
+            "phone_number_id_set": bool(phone_id),
+            "token_set": bool(token),
+        }
+    url = (
+        f"{_GRAPH}/{phone_id}"
+        f"?fields=display_phone_number,verified_name,quality_rating,code_verification_status"
+    )
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            r = client.get(url, headers={"Authorization": f"Bearer {token}"})
+        if r.status_code >= 400:
+            detail = r.text[:400]
+            logger.warning("WhatsApp verify creds error %s: %s", r.status_code, detail)
+            return {
+                "ok": False,
+                "status": r.status_code,
+                "error": detail,
+                "phone_number_id": phone_id,
+                "phone_number_id_set": True,
+                "token_set": True,
+            }
+        data = r.json()
+        return {
+            "ok": True,
+            "phone_number_id": phone_id,
+            "phone_number_id_set": True,
+            "token_set": True,
+            "display_phone_number": data.get("display_phone_number") or "",
+            "verified_name": data.get("verified_name") or "",
+            "quality_rating": data.get("quality_rating") or "",
+            "code_verification_status": data.get("code_verification_status") or "",
+        }
+    except Exception as e:
+        logger.exception("WhatsApp verify creds failed")
+        return {
+            "ok": False,
+            "error": str(e),
+            "phone_number_id_set": True,
+            "token_set": True,
+        }
+
+
 def enviar_texto(telefono_e164: str, texto: str) -> dict:
     """Envía mensaje de texto. telefono sin + preferido (solo dígitos)."""
-    to = "".join(c for c in (telefono_e164 or "") if c.isdigit())
+    to = normalizar_destino_wa(telefono_e164)
     if not to or not texto.strip():
         return {"ok": False, "reason": "destino_o_texto_vacio"}
     cfg = _wa_cfg()
@@ -66,15 +128,20 @@ def enviar_texto(telefono_e164: str, texto: str) -> dict:
         with httpx.Client(timeout=20.0) as client:
             r = client.post(url, json=payload, headers=headers)
         if r.status_code >= 400:
-            logger.warning("WhatsApp send error %s: %s", r.status_code, r.text[:300])
-            return {"ok": False, "status": r.status_code, "detail": r.text[:300]}
+            logger.warning(
+                "WhatsApp send error %s to=%s: %s",
+                r.status_code,
+                to,
+                r.text[:300],
+            )
+            return {"ok": False, "status": r.status_code, "detail": r.text[:300], "to": to}
         data = r.json()
         mid = ""
         try:
             mid = data["messages"][0]["id"]
         except (KeyError, IndexError, TypeError):
             pass
-        return {"ok": True, "meta_message_id": mid, "raw": data}
+        return {"ok": True, "meta_message_id": mid, "raw": data, "to": to}
     except Exception as e:
-        logger.exception("WhatsApp send failed")
-        return {"ok": False, "reason": str(e)}
+        logger.exception("WhatsApp send failed to=%s", to)
+        return {"ok": False, "reason": str(e), "to": to}

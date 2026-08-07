@@ -553,7 +553,9 @@ def _origen_ticket(canal: str) -> str:
 def _dispatch_outbound(conv: ConversacionCanal, texto: str) -> dict:
     canal = conv.canal or ""
     if canal == "whatsapp":
-        return enviar_texto_wa(conv.telefono, texto)
+        # Preferir wa_id (from de Meta); telefono puede diferir en formato AR
+        dest = (conv.wa_id or conv.telefono or "").strip()
+        return enviar_texto_wa(dest, texto)
     if canal == "telegram":
         dest = conv.wa_id or conv.telefono
         return enviar_texto_tg(dest, texto)
@@ -570,7 +572,16 @@ def _enviar_respuesta(
 ) -> str:
     crepo.add_mensaje(db, org_id, conv.id, direccion="out", autor="bot", texto=texto)
     if enviar_externo and _es_canal_externo(conv.canal):
-        _dispatch_outbound(conv, texto)
+        delivery = _dispatch_outbound(conv, texto)
+        if not delivery.get("ok") or delivery.get("simulated"):
+            logger.warning(
+                "Outbound canal=%s conv=%s ok=%s simulated=%s detail=%s",
+                conv.canal,
+                conv.id,
+                delivery.get("ok"),
+                delivery.get("simulated"),
+                (delivery.get("detail") or delivery.get("reason") or "")[:200],
+            )
     return texto
 
 
