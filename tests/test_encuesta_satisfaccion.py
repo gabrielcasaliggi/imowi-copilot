@@ -41,6 +41,7 @@ def test_parse_puntuacion():
     assert parse_puntuacion("1") == 1
     assert parse_puntuacion("csat:3") == 3
     assert parse_puntuacion("2 · Mala") == 2
+    assert parse_puntuacion("★★★☆☆") == 3
     assert parse_puntuacion("hola") is None
     assert parse_puntuacion("15") is None
 

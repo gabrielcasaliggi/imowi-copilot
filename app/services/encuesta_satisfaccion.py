@@ -33,13 +33,28 @@ _MENSAJE_GRACIAS = "¡Gracias por tu calificación! Nos ayuda a mejorar."
 _VENTANA_ENCUESTA = timedelta(hours=48)
 
 
+def estrellas_visual(n: int) -> str:
+    """★ encendidas + ☆ apagadas (1–5)."""
+    k = max(0, min(5, int(n)))
+    return ("★" * k) + ("☆" * (5 - k))
+
+
+def texto_encuesta_corto() -> str:
+    """Solo la pregunta — la UI de estrellas va en botones / widget."""
+    return PREGUNTA
+
+
 def texto_encuesta_plano() -> str:
-    lineas = [PREGUNTA, ""]
-    for n, estrellas, label in OPCIONES:
-        lineas.append(f"{estrellas} ({n}) {label}")
-    lineas.append("")
-    lineas.append("Respondé con un número del 1 al 5.")
-    return "\n".join(lineas)
+    """Fallback texto (web/simulate sin widget)."""
+    return (
+        f"{PREGUNTA}\n\n"
+        f"{estrellas_visual(0)}\n"
+        "Tocá o respondé con un número del 1 al 5."
+    )
+
+
+def texto_encuesta_confirmacion(puntuacion: int) -> str:
+    return f"{PREGUNTA}\n\n{estrellas_visual(puntuacion)}\n\n{_MENSAJE_GRACIAS}"
 
 
 def parse_puntuacion(texto: str) -> int | None:
@@ -55,6 +70,12 @@ def parse_puntuacion(texto: str) -> int | None:
 
     if re.fullmatch(r"[1-5]", raw):
         return int(raw)
+
+    # Solo estrellas: ★★★☆☆ o ☆☆☆☆☆ (Telegram/web)
+    if re.fullmatch(r"[★☆⭐]+", raw):
+        filled = raw.count("★") + raw.count("⭐")
+        if 1 <= filled <= 5:
+            return filled
 
     m = re.match(r"^([1-5])\s*[\.)\-]?\s", raw)
     if m:
@@ -185,7 +206,7 @@ def enviar_encuesta_cierre(
     crepo.set_contexto(conv, ctx)
     db.commit()
 
-    texto = texto_encuesta_plano()
+    texto = texto_encuesta_corto() if (conv.canal or "") in ("whatsapp", "telegram", "web") else texto_encuesta_plano()
     crepo.add_mensaje(
         db,
         conv.organizacion_id,

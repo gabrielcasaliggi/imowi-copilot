@@ -1260,6 +1260,7 @@ export interface InboxConversation {
   session_id: string;
   servicio_detectado: string;
   ticket_id: string;
+  contexto?: Record<string, unknown>;
   es_visitante?: boolean;
   cola_prioridad?: "alta" | "baja" | string;
   created_at: string;

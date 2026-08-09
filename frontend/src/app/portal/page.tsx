@@ -8,6 +8,7 @@ import {
   ChatTypingIndicator,
   SendIcon,
 } from "@/components/ui/ChatMessageBubble";
+import { StarRatingInput } from "@/components/ui/StarRatingInput";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { botEstadoLabel, getBranding } from "@/lib/brand";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
@@ -260,6 +261,22 @@ export default function PortalPage() {
     }
   };
 
+  const onCsatSelect = async (n: number) => {
+    if (!token || botTyping) return;
+    setError("");
+    forceStick();
+    setBotTyping(true);
+    try {
+      const res = await api.portalSend(String(n), token);
+      if (res.conversacion) setConv(res.conversacion);
+      setMensajes(res.mensajes || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo enviar la calificación");
+    } finally {
+      setBotTyping(false);
+    }
+  };
+
   const onExit = () => {
     void api.portalLogout().catch(() => {});
     saveStored(null);
@@ -274,6 +291,9 @@ export default function PortalPage() {
 
   const esperaAgente = conv?.estado === "espera_agente";
   const conAgente = conv?.estado === "con_agente";
+  const encuestaPendiente = Boolean(
+    conv?.contexto && (conv.contexto as { encuesta_pendiente?: boolean }).encuesta_pendiente,
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
@@ -564,7 +584,13 @@ export default function PortalPage() {
                 id="portal-mensaje"
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
-                placeholder={botTyping ? "Esperá la respuesta…" : "Escribí tu consulta…"}
+                placeholder={
+                  encuestaPendiente
+                    ? "O respondé con un número del 1 al 5…"
+                    : botTyping
+                      ? "Esperá la respuesta…"
+                      : "Escribí tu consulta…"
+                }
                 disabled={botTyping}
                 className="flex-1 bg-slate-950/80 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ecolan-brand focus:border-transparent"
               />
@@ -577,6 +603,9 @@ export default function PortalPage() {
                 {botTyping ? "Enviando…" : "Enviar"}
               </button>
             </form>
+            {encuestaPendiente && (
+              <StarRatingInput onSelect={onCsatSelect} disabled={botTyping} />
+            )}
           </>
         )}
 

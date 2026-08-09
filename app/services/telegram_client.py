@@ -82,20 +82,63 @@ def enviar_texto(chat_id: str, texto: str, *, reply_markup: dict | None = None) 
 
 
 def enviar_encuesta_csat(chat_id: str, texto: str) -> dict:
-    """InlineKeyboard en una sola fila: 1–5 estrellas."""
+    """Cinco ☆ en una fila (sutil). Al tocar N se iluminan 1…N vía edit del mensaje."""
     body = (texto or "").strip() or "¿Cómo calificarías la atención recibida hoy?"
+    # Una sola estrella apagada por botón — misma línea, sin números
     keyboard = {
         "inline_keyboard": [
             [
-                {"text": "⭐1", "callback_data": "csat:1"},
-                {"text": "⭐⭐2", "callback_data": "csat:2"},
-                {"text": "⭐⭐⭐3", "callback_data": "csat:3"},
-                {"text": "⭐⭐⭐⭐4", "callback_data": "csat:4"},
-                {"text": "⭐⭐⭐⭐⭐5", "callback_data": "csat:5"},
+                {"text": "☆", "callback_data": "csat:1"},
+                {"text": "☆", "callback_data": "csat:2"},
+                {"text": "☆", "callback_data": "csat:3"},
+                {"text": "☆", "callback_data": "csat:4"},
+                {"text": "☆", "callback_data": "csat:5"},
             ]
         ]
     }
     return enviar_texto(chat_id, body, reply_markup=keyboard)
+
+
+def edit_message_text(
+    chat_id: str,
+    message_id: int | str,
+    texto: str,
+    *,
+    reply_markup: dict | None = None,
+) -> dict:
+    """Edita un mensaje (p. ej. iluminar estrellas CSAT tras el voto)."""
+    cid = _normalize_chat_id(chat_id)
+    mid = str(message_id or "").strip()
+    if not cid or not mid or not (texto or "").strip():
+        return {"ok": False, "reason": "params_vacios"}
+    cfg = _tg_cfg()
+    token = (cfg.get("bot_token") or "").strip()
+    if not token:
+        return {"ok": True, "simulated": True}
+    url = f"{_API}/bot{token}/editMessageText"
+    payload: dict = {
+        "chat_id": cid,
+        "message_id": int(mid) if mid.isdigit() else mid,
+        "text": texto[:4096],
+        "disable_web_page_preview": True,
+    }
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    else:
+        payload["reply_markup"] = {"inline_keyboard": []}
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.post(url, json=payload)
+        data = r.json() if r.content else {}
+        if r.status_code >= 400 or not data.get("ok"):
+            return {
+                "ok": False,
+                "status": r.status_code,
+                "detail": str(data.get("description") or r.text)[:300],
+            }
+        return {"ok": True, "raw": data}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:240]}
 
 
 def answer_callback_query(callback_query_id: str, text: str = "") -> dict:

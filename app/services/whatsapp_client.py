@@ -156,19 +156,18 @@ def enviar_texto(telefono_e164: str, texto: str) -> dict:
 
 
 def enviar_encuesta_csat(telefono_e164: str, texto: str) -> dict:
-    """Lista interactiva 1–5 (WA permite máx. 3 reply buttons; lista soporta 5 filas)."""
+    """Lista sutil 1–5 (WA no permite hover; máximo 3 reply buttons)."""
     to = normalizar_destino_wa(telefono_e164)
     if not to:
         return {"ok": False, "reason": "destino_vacio"}
     body = (texto or "").strip() or "¿Cómo calificarías la atención recibida hoy?"
-    # Header/body de lista: body máx 1024
     body_short = body[:1024]
     rows = [
-        {"id": "1", "title": "1 · Muy mala", "description": "⭐"},
-        {"id": "2", "title": "2 · Mala", "description": "⭐⭐"},
-        {"id": "3", "title": "3 · Regular", "description": "⭐⭐⭐"},
-        {"id": "4", "title": "4 · Buena", "description": "⭐⭐⭐⭐"},
-        {"id": "5", "title": "5 · Excelente", "description": "⭐⭐⭐⭐⭐"},
+        {"id": "1", "title": "☆☆☆☆☆", "description": "1 estrella"},
+        {"id": "2", "title": "★★☆☆☆", "description": "2 estrellas"},
+        {"id": "3", "title": "★★★☆☆", "description": "3 estrellas"},
+        {"id": "4", "title": "★★★★☆", "description": "4 estrellas"},
+        {"id": "5", "title": "★★★★★", "description": "5 estrellas"},
     ]
     payload = {
         "messaging_product": "whatsapp",
@@ -178,14 +177,13 @@ def enviar_encuesta_csat(telefono_e164: str, texto: str) -> dict:
             "type": "list",
             "body": {"text": body_short},
             "action": {
-                "button": "Calificar",
-                "sections": [{"title": "Tu calificación", "rows": rows}],
+                "button": "☆ Calificar",
+                "sections": [{"title": "Elegí tu puntuación", "rows": rows}],
             },
         },
     }
     result = _post_messages(payload)
     if result.get("ok"):
         return result
-    # Fallback a texto plano si la lista falla (cuenta sin permiso interactive, etc.)
     logger.warning("WhatsApp lista CSAT falló; fallback texto to=%s", to)
     return enviar_texto(telefono_e164, texto)

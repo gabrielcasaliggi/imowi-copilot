@@ -54,7 +54,7 @@ async def receive_webhook(
         return {"status": "ok"}
 
     try:
-        # Botones inline CSAT
+        # Botones inline CSAT — al tocar, iluminar ★ de 1…N y quitar teclado
         cq = payload.get("callback_query")
         if isinstance(cq, dict):
             cq_id = str(cq.get("id") or "")
@@ -62,12 +62,24 @@ async def receive_webhook(
             msg = cq.get("message") or {}
             chat = msg.get("chat") or cq.get("from") or {}
             chat_id = chat.get("id")
-            answer_callback_query(cq_id, text="¡Gracias!")
+            message_id = msg.get("message_id")
+            from app.services.encuesta_satisfaccion import (
+                parse_puntuacion,
+                texto_encuesta_confirmacion,
+            )
+            from app.services.telegram_client import edit_message_text
+
+            puntuacion = parse_puntuacion(data)
+            if puntuacion:
+                answer_callback_query(cq_id, text=f"{'★' * puntuacion}")
+            else:
+                answer_callback_query(cq_id, text="¡Gracias!")
+
             if chat_id is not None and data:
                 from app.services.prompt_safety import clamp_message
 
                 text = clamp_message(data, max_chars=64)
-                procesar_mensaje_entrante(
+                result = procesar_mensaje_entrante(
                     db,
                     org.id,
                     telefono=str(chat_id),
@@ -77,6 +89,18 @@ async def receive_webhook(
                     meta_message_id=f"cq:{cq_id}"[:80],
                     usar_llama=True,
                 )
+                if (
+                    puntuacion
+                    and message_id is not None
+                    and isinstance(result, dict)
+                    and result.get("ok")
+                    and result.get("modo") == "encuesta"
+                ):
+                    edit_message_text(
+                        str(chat_id),
+                        message_id,
+                        texto_encuesta_confirmacion(puntuacion),
+                    )
             return {"status": "ok"}
 
         message = payload.get("message") or payload.get("edited_message")
