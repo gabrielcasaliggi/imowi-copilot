@@ -67,15 +67,31 @@ def _talvez_mensaje_pppoe(
     if abonado is None or not str(getattr(abonado, "dni", "") or "").strip():
         return None
     try:
-        from app.services.conexion_pppoe import consultar_conexion_pppoe, mensaje_abonado_pppoe
+        from app.services.conexion_pppoe import (
+            clasificar_rama_pppoe,
+            consultar_conexion_pppoe,
+            mensaje_abonado_pppoe,
+            triage_pppoe_para_prompt,
+        )
 
         estado = consultar_conexion_pppoe(
             dni=str(abonado.dni),
             client_number=str(getattr(abonado, "client_number", "") or ""),
             db=db,
         )
-        msg = mensaje_abonado_pppoe(estado)
-        if not msg:
+        msg = mensaje_abonado_pppoe(
+            estado,
+            deuda_positiva=_deuda_positiva(abonado),
+        )
+        if msg:
+            rama = clasificar_rama_pppoe(estado)
+            ctx["pppoe_rama"] = rama
+            ctx["pppoe_triage"] = triage_pppoe_para_prompt(estado)
+            ctx["pppoe_resumen"] = estado.resumen_prompt()
+            if estado.sesion:
+                ctx["pppoe_ip"] = estado.sesion.public_ip or ""
+                ctx["pppoe_uptime"] = estado.sesion.uptime or ""
+        else:
             logger.info(
                 "PPPoE sin mensaje útil dni=***%s err=%s online=%s",
                 str(abonado.dni)[-3:],
@@ -818,6 +834,12 @@ def _aplicar_diagnostico_ia(
 
     from app.services.eco_voice import build_contexto_abonado
 
+    extras_ctx: dict[str, str] = {}
+    if ctx.get("pppoe_resumen"):
+        extras_ctx["pppoe_resumen"] = str(ctx.get("pppoe_resumen") or "")
+    if ctx.get("pppoe_triage"):
+        extras_ctx["pppoe_triage"] = str(ctx.get("pppoe_triage") or "")
+
     result = diagnosticar_turno(
         intencion=intencion,
         checklist=checklist,
@@ -827,7 +849,9 @@ def _aplicar_diagnostico_ia(
         pasos_cubiertos=cubiertos,
         kb_fragmento=kb,
         forzar_agente=forzar,
-        contexto_abonado=build_contexto_abonado(abonado, org_id=org_id),
+        contexto_abonado=build_contexto_abonado(
+            abonado, org_id=org_id, extras=extras_ctx or None
+        ),
     )
 
     accion = result.get("accion") or "ask"

@@ -175,13 +175,16 @@ def test_mensaje_abonado_conectado_y_offline():
             username="4640854",
             online=True,
             public_ip="1.2.3.4",
-            uptime="2h",
+            uptime="4d4h44m58s",
         ),
     )
     msg = mensaje_abonado_pppoe(online)
     assert msg is not None
-    assert "activa" in msg.lower() or "conectado" in msg.lower() or "activa" in msg
+    assert "activa" in msg.lower()
     assert "1.2.3.4" in msg
+    assert "Wi‑Fi" in msg or "Wi-Fi" in msg or "wifi" in msg.lower()
+    assert "reinici" not in msg.lower()
+    assert "cable" in msg.lower()
 
     offline = EstadoConexionPPPoE(
         servicio=ServicioConectividad(
@@ -194,6 +197,72 @@ def test_mensaje_abonado_conectado_y_offline():
     msg2 = mensaje_abonado_pppoe(offline)
     assert msg2 is not None
     assert "no hay sesión" in msg2.lower() or "no figura conectado" in msg2.lower()
+    assert "reinici" in msg2.lower()
+
+
+def test_mensaje_abonado_uptime_corto():
+    from app.services.conexion_pppoe import mensaje_abonado_pppoe
+
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="1",
+            service_type_label="Fibra",
+            service_type_code="INTFO",
+        ),
+        sesion=SesionPPPoE(
+            username="1",
+            online=True,
+            public_ip="9.9.9.9",
+            uptime="5m12s",
+        ),
+    )
+    msg = mensaje_abonado_pppoe(estado)
+    assert msg is not None
+    assert "recién" in msg.lower() or "recien" in msg.lower() or "minuto" in msg.lower()
+
+
+def test_mensaje_abonado_online_con_deuda():
+    from app.services.conexion_pppoe import mensaje_abonado_pppoe
+
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="1",
+            service_type_label="ACCESO INTERNET FIBRA OPTICA",
+            service_type_code="INTFO",
+        ),
+        sesion=SesionPPPoE(
+            username="1",
+            online=True,
+            public_ip="181.41.252.68",
+            uptime="4d8h",
+        ),
+    )
+    msg = mensaje_abonado_pppoe(estado, deuda_positiva=True)
+    assert msg is not None
+    assert "mora" in msg.lower() or "saldo pendiente" in msg.lower()
+    assert "reinici" not in msg.lower()
+
+
+def test_mensaje_abonado_offline_con_deuda():
+    from app.services.conexion_pppoe import mensaje_abonado_pppoe
+
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(login="1", service_type_label="Fibra", service_type_code="INTFO"),
+        sesion=SesionPPPoE(username="1", online=False),
+    )
+    msg = mensaje_abonado_pppoe(estado, deuda_positiva=True)
+    assert msg is not None
+    assert "saldo pendiente" in msg.lower() or "corte" in msg.lower()
+
+
+def test_parse_uptime_mikrotik():
+    from app.services.conexion_pppoe import formatear_uptime_humano, parse_uptime_seconds
+
+    assert parse_uptime_seconds("4d4h44m58s") == 4 * 86400 + 4 * 3600 + 44 * 60 + 58
+    assert parse_uptime_seconds("5m") == 300
+    assert parse_uptime_seconds("2h31m") == 2 * 3600 + 31 * 60
+    assert formatear_uptime_humano("4d4h44m58s") == "4 días"
+    assert formatear_uptime_humano("5m12s") == "5 min"
 
 
 def test_mensaje_abonado_sin_dato():

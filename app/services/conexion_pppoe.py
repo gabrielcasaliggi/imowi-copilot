@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+import re
+from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,70 @@ from app.radius.client import RadiusNasClient
 from app.radius.contract import EstadoConexionPPPoE, ServicioConectividad
 
 logger = logging.getLogger("operations_hub")
+
+# Umbrales de triage N1 según uptime de sesión
+UPTIME_RECIENTE_SEG = 15 * 60  # < 15 min → recién reconectó
+UPTIME_ESTABLE_SEG = 60 * 60  # ≥ 1 h → línea estable; indagar LAN/Wi‑Fi
+
+RamaPPPoE = Literal["wifi_lan", "recien_conectado", "sin_sesion", ""]
+
+
+def parse_uptime_seconds(uptime: str) -> int | None:
+    """Parsea uptime estilo MikroTik: 4d4h44m58s, 1w2d, 2h31m, 45m, 10s."""
+    raw = (uptime or "").strip().lower().replace(" ", "")
+    if not raw:
+        return None
+    if re.fullmatch(r"\d+", raw):
+        return int(raw)
+    total = 0
+    matched = False
+    for amount, unit in re.findall(r"(\d+)([wdhms])", raw):
+        matched = True
+        n = int(amount)
+        if unit == "w":
+            total += n * 7 * 24 * 3600
+        elif unit == "d":
+            total += n * 24 * 3600
+        elif unit == "h":
+            total += n * 3600
+        elif unit == "m":
+            total += n * 60
+        else:
+            total += n
+    return total if matched else None
+
+
+def formatear_uptime_humano(uptime: str) -> str:
+    """Texto corto para el abonado: '4 días', '2 h', '10 min'."""
+    secs = parse_uptime_seconds(uptime)
+    raw = (uptime or "").strip()
+    if secs is None:
+        return raw
+    if secs >= 86400:
+        d = secs // 86400
+        return f"{d} día" if d == 1 else f"{d} días"
+    if secs >= 3600:
+        h = secs // 3600
+        return f"{h} h"
+    if secs >= 60:
+        m = secs // 60
+        return f"{m} min"
+    return f"{secs} s"
+
+
+def clasificar_rama_pppoe(estado: EstadoConexionPPPoE) -> RamaPPPoE:
+    if estado.online is False:
+        return "sin_sesion"
+    if estado.online is not True or not estado.sesion:
+        return ""
+    secs = parse_uptime_seconds(estado.sesion.uptime or "")
+    if secs is not None and secs < UPTIME_RECIENTE_SEG:
+        return "recien_conectado"
+    if secs is None or secs >= UPTIME_ESTABLE_SEG:
+        # Sin uptime parseable pero online → asumir estable (evitar reinicio genérico)
+        return "wifi_lan"
+    # Entre 15 min y 1 h: también LAN/Wi‑Fi
+    return "wifi_lan"
 
 
 def resolve_radius_client(db: Session | None = None) -> RadiusNasClient | None:
@@ -73,7 +138,6 @@ def consultar_conexion_pppoe(
             )
         login_n = servicio.login
     else:
-        # Igual intentamos enriquecer tipo de servicio si hay dni/client_number
         try:
             if (client_number or "").strip():
                 servicios = bt.lookup_servicios_conectividad(
@@ -114,42 +178,98 @@ def consultar_conexion_pppoe(
     )
 
 
-def mensaje_abonado_pppoe(estado: EstadoConexionPPPoE) -> str | None:
-    """Mensaje listo para el canal. None si no hay dato útil para el abonado."""
+def _tipo_servicio(estado: EstadoConexionPPPoE) -> str:
+    if not estado.servicio:
+        return "internet"
+    return (
+        estado.servicio.service_type_label
+        or estado.servicio.product
+        or estado.servicio.service_type_code
+        or "internet"
+    ).strip() or "internet"
+
+
+def _detalle_sesion(estado: EstadoConexionPPPoE) -> str:
+    if not estado.sesion:
+        return ""
+    bits: list[str] = []
+    if estado.sesion.public_ip:
+        bits.append(f"IP {estado.sesion.public_ip}")
+    if estado.sesion.uptime:
+        bits.append(f"hace {formatear_uptime_humano(estado.sesion.uptime)}")
+    if not bits:
+        return ""
+    return f" ({', '.join(bits)})"
+
+
+def mensaje_abonado_pppoe(
+    estado: EstadoConexionPPPoE,
+    *,
+    deuda_positiva: bool = False,
+) -> str | None:
+    """Mensaje N1 ramificado según online/offline + uptime (+ deuda). None si no hay dato útil."""
     if not estado.servicio or not estado.servicio.login:
         return None
     if estado.sesion is None and estado.error:
-        # Sin sesión usable (API caída / NAS no hallado): no inventar
         return None
 
-    tipo = (
-        estado.servicio.service_type_label
-        or estado.servicio.product
-        or "internet"
-    ).strip()
-    if estado.online is True and estado.sesion:
-        parts = [f"Revisé tu cuenta de {tipo}: la conexión está activa"]
-        detalles: list[str] = []
-        if estado.sesion.public_ip:
-            detalles.append(f"IP {estado.sesion.public_ip}")
-        if estado.sesion.uptime:
-            detalles.append(f"hace {estado.sesion.uptime}")
-        if detalles:
-            parts.append(f"({', '.join(detalles)})")
-        parts.append(
-            "Si igual no navegás, el problema suele estar en el router o el Wi‑Fi. "
-            "¿Reiniciaste el equipo (desenchufar 30 segundos)?"
-        )
-        return " ".join(parts)
+    tipo = _tipo_servicio(estado)
+    rama = clasificar_rama_pppoe(estado)
+    detalle = _detalle_sesion(estado)
 
-    if estado.online is False:
+    if rama == "wifi_lan" and estado.sesion:
+        if deuda_positiva:
+            nota_deuda = (
+                " Aunque figura saldo pendiente, tu sesión sigue activa: "
+                "no parece un corte por mora."
+            )
+        else:
+            nota_deuda = ""
+        return (
+            f"Revisé tu cuenta de {tipo}: la conexión está activa{detalle}. "
+            f"La línea hasta la red está bien.{nota_deuda} "
+            "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
+            "¿Probaste con cable al router?"
+        )
+
+    if rama == "recien_conectado" and estado.sesion:
+        return (
+            f"Revisé tu cuenta de {tipo}: la conexión está activa{detalle}. "
+            "Recién reconectó; dale uno o dos minutos y probá navegar. "
+            "¿Ya te anda o sigue igual?"
+        )
+
+    if rama == "sin_sesion" or estado.online is False:
+        if deuda_positiva:
+            return (
+                f"Revisé tu cuenta de {tipo}: en este momento no hay sesión activa "
+                "(no figurás conectado en la red). "
+                "Con saldo pendiente a veces hay corte; también puede ser el equipo apagado. "
+                "¿Reiniciaste el router/ONT (desenchufar 30 segundos)? "
+                "¿Las luces de la cajita están prendidas?"
+            )
         return (
             f"Revisé tu cuenta de {tipo}: en este momento no hay sesión activa "
-            f"(tu usuario no figura conectado en la red). "
-            "¿Puedes reiniciar el router/ONT (desenchufar 30 segundos) y avisarme "
-            "si vuelve a conectar?"
+            "(tu usuario no figura conectado en la red). "
+            "¿Podés reiniciar el router/ONT (desenchufar 30 segundos) y avisarme "
+            "si vuelve a conectar? ¿Las luces de la cajita están prendidas?"
         )
     return None
+
+
+def triage_pppoe_para_prompt(estado: EstadoConexionPPPoE) -> str:
+    """Hint corto para el system prompt en turnos siguientes."""
+    rama = clasificar_rama_pppoe(estado)
+    if rama == "wifi_lan":
+        return (
+            "triage=linea_ok_indagar_wifi_vs_cable; "
+            "NO pedir reinicio de ONT como primer paso"
+        )
+    if rama == "recien_conectado":
+        return "triage=recien_reconecto; pedir prueba de navegación"
+    if rama == "sin_sesion":
+        return "triage=sin_sesion_ppp; reinicio ONT/router y luces"
+    return ""
 
 
 def contexto_pppoe_para_abonado(
@@ -166,6 +286,7 @@ def contexto_pppoe_para_abonado(
         "pppoe_uptime": "",
         "pppoe_nas": "",
         "pppoe_resumen": "",
+        "pppoe_triage": "",
     }
     if abonado is None:
         return empty
@@ -175,7 +296,6 @@ def contexto_pppoe_para_abonado(
     if not dni and not client_number:
         return empty
 
-    # Evitar llamadas si radius está off
     if resolve_radius_client(db) is None:
         return empty
 
@@ -207,4 +327,5 @@ def contexto_pppoe_para_abonado(
     elif estado.error:
         out["pppoe_estado"] = "sin_dato"
     out["pppoe_resumen"] = estado.resumen_prompt()
+    out["pppoe_triage"] = triage_pppoe_para_prompt(estado)
     return out

@@ -143,6 +143,7 @@ def enrich_contexto_desde_integraciones(
         "pppoe_uptime": "",
         "pppoe_nas": "",
         "pppoe_resumen": "",
+        "pppoe_triage": "",
     }
     if abonado is None:
         return out
@@ -173,6 +174,7 @@ def build_contexto_abonado(
                 integ[k] = str(v).strip()
 
     pppoe_line = integ.get("pppoe_resumen") or "(sin dato — integrar Radius/NAS)"
+    triage = (integ.get("pppoe_triage") or "").strip()
 
     if not abonado:
         lines = [
@@ -216,9 +218,16 @@ def build_contexto_abonado(
         f"- pago_qr_reciente: {integ.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
         f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
         f"- pppoe: {pppoe_line}",
-        "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
-        "- Si pppoe indica conectado/desconectado, confirmalo al abonado con esos datos (IP/uptime) sin inventar.",
     ]
+    if triage:
+        lines.append(f"- pppoe_triage: {triage}")
+    lines.extend(
+        [
+            "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
+            "- Si pppoe indica conectado/desconectado, usá pppoe_triage: no contradigas "
+            "el dato real ni pidas reinicio de ONT si triage dice linea_ok.",
+        ]
+    )
     return "\n".join(lines)
 
 
