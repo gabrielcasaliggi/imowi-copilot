@@ -88,8 +88,8 @@ def test_resumen_prompt_conectado():
 
 
 def test_consultar_conexion_orquesta(monkeypatch):
-    from app.services import conexion_pppoe as cp
     from app.services import billtrack as bt
+    from app.services import conexion_pppoe as cp
 
     monkeypatch.setattr(
         bt,

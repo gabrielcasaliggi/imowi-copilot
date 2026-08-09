@@ -525,8 +525,9 @@ def lookup_servicios_conectividad_por_dni(
     db: Session | None = None,
 ) -> list[Any]:
     """Servicios de conectividad vía join api_person.doc_cuit → api_service."""
-    from app.estate.security import normalizar_dni, valid_dni_ar
     from sqlalchemy import text
+
+    from app.estate.security import normalizar_dni, valid_dni_ar
 
     dni_n = normalizar_dni(dni)
     if not valid_dni_ar(dni_n):
