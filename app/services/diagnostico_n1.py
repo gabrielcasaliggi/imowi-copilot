@@ -971,7 +971,13 @@ def diagnosticar_turno(
         }
 
     motivo_optico = None
-    if es_intencion_optica(intencion):
+    linea_ya_ok = "linea_ok" in (contexto_abonado or "") or "NO pedir reinicio de ONT" in (
+        contexto_abonado or ""
+    )
+    # Si PPPoE/triage ya dijo línea OK, no correr heurísticas ópticas ni preguntar PON.
+    aplica_optica_turno = es_intencion_optica(intencion) and not linea_ya_ok
+
+    if aplica_optica_turno:
         motivo_optico = detectar_falla_optica_escalar(mensaje_cliente, historial_mensajes)
     if motivo_optico:
         if motivo_optico == "fibra_danada" and "los" not in (mensaje_cliente or "").lower():
@@ -993,7 +999,7 @@ def diagnosticar_turno(
         }
 
     # PON verde fijo = enlace óptico OK → no preguntar cable amarillo
-    if es_intencion_optica(intencion) and detectar_enlace_optico_ok(
+    if aplica_optica_turno and detectar_enlace_optico_ok(
         mensaje_cliente, historial_mensajes
     ):
         return {
@@ -1032,7 +1038,7 @@ def diagnosticar_turno(
     msg_safe = sanitize_user_text(mensaje_cliente)
     es_facturacion = (intencion or "").strip() == "facturacion"
     es_tv_sensa = (intencion or "").strip() == "tv_sensa"
-    aplica_optica = es_intencion_optica(intencion)
+    aplica_optica = aplica_optica_turno
 
     if es_facturacion:
         det = _facturacion_deterministica(
@@ -1246,6 +1252,20 @@ def diagnosticar_turno(
                 mensaje = fb["mensaje"]
                 paso = fb.get("paso_cubierto") or paso
                 accion = "ask"
+
+        # Línea/PPPoE OK: la IA no debe volver a preguntar ONT/PON/LOS
+        if (
+            linea_ya_ok
+            and accion == "ask"
+            and _parece_diagnostico_optica_fuera_de_lugar(mensaje)
+        ):
+            accion = "ask"
+            motivo = "bloqueado_ont_post_linea_ok"
+            mensaje = (
+                "Como la línea ya está OK, sigamos con el Wi‑Fi. "
+                "¿Les pasa a todos los equipos o solo a uno?"
+            )
+            paso = "otros_dispositivos_wifi"
 
         if accion == "resolved":
             t = (mensaje_cliente or "").lower()

@@ -53,6 +53,68 @@ _INTENCIONES_PPPOE = frozenset({
 })
 
 
+def _cliente_indica_solo_wifi(texto: str) -> bool:
+    """True si el abonado acota el problema a Wi‑Fi (no a toda la línea)."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "solo wifi",
+            "solo el wifi",
+            "solo wi-fi",
+            "solo wi fi",
+            "solo falla el wifi",
+            "solo falla wifi",
+            "falla solo el wifi",
+            "falla solo wifi",
+            "nada mas el wifi",
+            "nada más el wifi",
+            "unicamente wifi",
+            "únicamente wifi",
+            "solo inalambr",
+            "solo inalámbr",
+            "el wifi nomas",
+            "el wifi nomás",
+            "wifi nomas",
+            "wifi nomás",
+        )
+    ):
+        return True
+    # "solo falla el wifi" variants already covered; "falla el wifi" alone is weaker
+    if "wifi" in t or "wi-fi" in t or "wi fi" in t:
+        if any(k in t for k in ("solo", "nomas", "nomás", "unicamente", "únicamente")):
+            return True
+    return False
+
+
+def _cliente_cable_ok(texto: str) -> bool:
+    """Por cable anda / TV por cable funciona."""
+    t = (texto or "").lower()
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "por cable funciona",
+            "cable funciona",
+            "cable anda",
+            "anda por cable",
+            "funciona por cable",
+            "con cable anda",
+            "con cable funciona",
+            "cable y funciona",
+            "conectado por cable y funciona",
+        )
+    ):
+        return True
+    if "cable" in t and any(k in t for k in ("bien", "anda", "funciona", "ok", "perfecto")):
+        if not any(k in t for k in ("no ", "mal", "falla", "sin ")):
+            return True
+    return False
+
+
 def _talvez_mensaje_pppoe(
     db: Session,
     abonado: Abonado | None,
@@ -819,6 +881,65 @@ def _aplicar_diagnostico_ia(
             "diagnostico_ia": True,
             "pppoe": True,
         }
+
+    # Línea PPPoE OK + "solo Wi‑Fi" → playbook wifi (sin preguntar ONT/PON).
+    if (
+        ctx.get("pppoe_rama") == "wifi_lan"
+        and not ctx.get("wifi_rama_activada")
+        and (_cliente_indica_solo_wifi(texto) or _cliente_cable_ok(texto))
+    ):
+        ctx["wifi_rama_activada"] = True
+        ctx["enlace_optico_ok"] = True
+        intencion = "wifi"
+        ctx["intencion"] = "wifi"
+        cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+        for pid in (
+            "wifi_vs_cable_ftth",
+            "luces_los",
+            "cable_fibra",
+            "reinicio_ont",
+            "enlace_optico",
+        ):
+            if pid not in cubiertos:
+                cubiertos.append(pid)
+        if _cliente_cable_ok(texto):
+            msg = (
+                "Si por cable anda bien, el acceso está OK y el problema es el Wi‑Fi. "
+                "¿Les pasa a todos los equipos Wi‑Fi o solo a uno?"
+            )
+            if "otros_dispositivos_wifi" not in cubiertos:
+                cubiertos.append("zona_wifi")
+        else:
+            msg = (
+                "Dale, entonces el acceso anda y el tema es el Wi‑Fi. "
+                "¿Les pasa a todos los equipos Wi‑Fi o solo a uno?"
+            )
+        turnos = int(ctx.get("diag_turnos") or 0)
+        ctx["pasos_cubiertos"] = cubiertos
+        ctx["diag_turnos"] = turnos + 1
+        ctx["paso_idx"] = len(cubiertos)
+        ctx["ultima_diag_motivo"] = "rama_wifi_post_pppoe"
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=(canal != "web"))
+        return {
+            "ok": True,
+            "modo": "diagnostico",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "intencion": "wifi",
+            "diagnostico_ia": True,
+            "pppoe_wifi": True,
+        }
+
+    # Ya en rama wifi post-PPPoE: mantener intención wifi aunque el ctx diga internet
+    if ctx.get("wifi_rama_activada") or (
+        ctx.get("pppoe_rama") == "wifi_lan" and ctx.get("enlace_optico_ok")
+    ):
+        if (intencion or "").startswith("internet"):
+            intencion = "wifi"
+            ctx["intencion"] = "wifi"
 
     pb = _playbooks(db)
     checklist = pb.get(intencion) or pb.get("general") or []

@@ -244,8 +244,19 @@ def system_prompt_eco_n1(
     ctx_block = f"\n{ctx}\n" if ctx else ""
     intent = (intencion or "").strip()
     optica = intent in ("internet_ftth", "internet")
+    linea_ok = "linea_ok" in ctx or "NO pedir reinicio de ONT" in ctx
     reglas_optica = ""
-    if optica:
+    if linea_ok or intent == "wifi":
+        reglas_optica = (
+            "- La línea de acceso/PPPoE ya está OK (o el caso es solo Wi‑Fi). "
+            "NUNCA preguntes por luces ONT, PON, LOS, cajita blanca ni cable amarillo.\n"
+            "- accion=ask: diagnóstico Wi‑Fi (zona, dispositivos, reinicio router Wi‑Fi, "
+            "banda 2.4/5, cable vs Wi‑Fi si aún no se aclaró).\n"
+            "- Si por cable anda y Wi‑Fi no: enfocá radio/router inalámbrico; escalate si "
+            "persiste tras 2–3 chequeos útiles.\n"
+            "- Excepciones escalate YA: pide agente/técnico.\n"
+        )
+    elif optica:
         reglas_optica = (
             "- accion=ask: autodiagnóstico (reinicio 30s, luces ONT/PON/LOS, WiFi vs cable).\n"
             "- Excepciones para escalate YA: pide agente/técnico/visita; luz LOS confirmada o "
@@ -255,6 +266,8 @@ def system_prompt_eco_n1(
             "- Si confirma PON en verde fijo (y sin LOS roja), el enlace óptico está OK: "
             "NO preguntes por el cable amarillo. Preguntá si ya anda internet o, si sigue mal, "
             "si falla también por cable al router vs solo WiFi.\n"
+            "- Si el cliente ya dijo que solo falla el Wi‑Fi (y la línea/PPPoE está OK), "
+            "NO preguntes luces ONT: seguí triage Wi‑Fi.\n"
         )
     else:
         reglas_optica = (
