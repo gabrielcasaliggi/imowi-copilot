@@ -197,13 +197,29 @@ def list_notifications(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    destinatario = "" if ctx.es_admin_imowi else ctx.usuario_email
     admin_global = ctx.es_admin_imowi and ctx.organizacion_slug == "imowi"
-    # Descarta alertas de tickets ya cerrados (p. ej. asignación vieja)
+    ve_alertas_equipo = (
+        ctx.es_admin_imowi
+        or ctx.puede("stats.agents")
+        or ctx.puede("users.manage_agents")
+        or ctx.puede("stats.global")
+    )
+    # Admin: todas. Supervisor: propias + CSAT bajo de la org. Agente: solo propias.
+    if ctx.es_admin_imowi:
+        destinatario = ""
+        incluir_csat_org = False
+    elif ve_alertas_equipo:
+        destinatario = ctx.usuario_email or ""
+        incluir_csat_org = True
+    else:
+        destinatario = ctx.usuario_email or ""
+        incluir_csat_org = False
+
+    # Descarta alertas de tickets ya cerrados (p. ej. asignación vieja); CSAT_BAJO se conserva
     repo.dismiss_notifications_for_closed_tickets(
         db,
         ctx.organizacion_id,
-        destinatario=destinatario,
+        destinatario="" if ctx.es_admin_imowi else (ctx.usuario_email or ""),
         admin_global=admin_global,
     )
     items = repo.list_ticket_notifications(
@@ -212,6 +228,7 @@ def list_notifications(
         destinatario=destinatario,
         solo_no_leidas=unread,
         admin_global=admin_global,
+        incluir_csat_org=incluir_csat_org,
     )
     return {"tenant": ctx.organizacion_slug, "notificaciones": [_notification_out(n) for n in items]}
 
@@ -222,7 +239,15 @@ def mark_notification_read(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ):
-    n = repo.mark_notification_read(db, ctx.organizacion_id, notification_id)
+    if ctx.es_admin_imowi:
+        n = repo.mark_notification_read(
+            db,
+            ctx.organizacion_id,
+            notification_id,
+            admin_global=True,
+        )
+    else:
+        n = repo.mark_notification_read(db, ctx.organizacion_id, notification_id)
     if not n:
         raise HTTPException(404, f"Notificación {notification_id} no encontrada")
     return {"status": "ok", "notificacion": _notification_out(n)}

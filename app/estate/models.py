@@ -172,7 +172,11 @@ class Ticket(Base):
 
     organizacion: Mapped[Organization] = relationship(back_populates="tickets")
     eventos: Mapped[list[TicketEvent]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
-    notificaciones: Mapped[list[TicketNotification]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
+    notificaciones: Mapped[list[TicketNotification]] = relationship(
+        back_populates="ticket",
+        primaryjoin="Ticket.id == foreign(TicketNotification.ticket_id)",
+        viewonly=True,
+    )
 
 
 class TicketEvent(Base):
@@ -226,10 +230,8 @@ class TicketNotification(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
-    # Nullable: alertas CSAT tras cierre N1 sin ticket N2
-    ticket_id: Mapped[str | None] = mapped_column(
-        ForeignKey("tickets_estate.id"), nullable=True, index=True, default=None
-    )
+    # Nullable y sin FK obligatorio: alertas CSAT tras cierre N1 sin ticket N2
+    ticket_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True, default=None)
     destinatario: Mapped[str] = mapped_column(String(120), default="")
     canal: Mapped[str] = mapped_column(String(40), default="consola")
     titulo: Mapped[str] = mapped_column(String(160), default="")
@@ -238,7 +240,11 @@ class TicketNotification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped[Organization] = relationship(back_populates="ticket_notifications")
-    ticket: Mapped[Ticket | None] = relationship(back_populates="notificaciones")
+    ticket: Mapped[Ticket | None] = relationship(
+        back_populates="notificaciones",
+        primaryjoin="foreign(TicketNotification.ticket_id) == Ticket.id",
+        viewonly=True,
+    )
 
 
 class AuditEvent(Base):

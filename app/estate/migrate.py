@@ -159,10 +159,37 @@ def migrate_schema(engine: Engine) -> list[str]:
     if insp.has_table("ticket_notifications"):
         if _nullable_column(engine, "ticket_notifications", "ticket_id"):
             cambios.append("ticket_notifications.ticket_id nullable")
+        if _drop_ticket_notification_fk(engine):
+            cambios.append("ticket_notifications.ticket_id FK dropped")
 
     insp = inspect(engine)
     cambios.extend(_ensure_auth_tables(engine, insp))
     return cambios
+
+
+def _drop_ticket_notification_fk(engine: Engine) -> bool:
+    """Quita FK de ticket_id para permitir alertas CSAT sin ticket N2."""
+    if engine.dialect.name != "postgresql":
+        return False
+    if not inspect(engine).has_table("ticket_notifications"):
+        return False
+    dropped = False
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT conname FROM pg_constraint
+                WHERE conrelid = 'ticket_notifications'::regclass
+                  AND contype = 'f'
+                  AND pg_get_constraintdef(oid) ILIKE '%ticket_id%'
+                """
+            )
+        ).fetchall()
+        for (name,) in rows:
+            conn.execute(text(f'ALTER TABLE ticket_notifications DROP CONSTRAINT IF EXISTS "{name}"'))
+            dropped = True
+            logger.info("Migración: drop FK ticket_notifications.%s", name)
+    return dropped
 
 
 def _nullable_column(engine: Engine, tabla: str, col: str) -> bool:

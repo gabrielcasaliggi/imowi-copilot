@@ -286,7 +286,7 @@ def _aplicar_tag_csat_bajo(db: Session, conv: ConversacionCanal, puntuacion: int
             db.rollback()
             logger.warning("No se pudo registrar evento CSAT_BAJO en ticket %s", tid, exc_info=True)
 
-    # Notificar supervisores (+ agente si fue atención humana)
+    # Notificar supervisores/admins de la org + admins plataforma
     titulo = f"{TAG_CSAT_BAJO} Atención calificada {puntuacion}/5"
     ref = f"Ticket {tid}" if tid else f"Conversación {conv.id[:8]}"
     quien = f"Agente: {agente}" if agente else "Origen: bot N1"
@@ -296,15 +296,21 @@ def _aplicar_tag_csat_bajo(db: Session, conv: ConversacionCanal, puntuacion: int
     )
     destinatarios: set[str] = set()
     try:
-        for u in repo.list_supervisores_org(db, conv.organizacion_id):
-            email = (u.email or "").strip()
-            if email:
-                destinatarios.add(email)
+        for email in repo.destinatarios_alerta_csat(db, conv.organizacion_id):
+            destinatarios.add(email)
     except Exception:
-        logger.debug("No se pudieron listar supervisores para CSAT_BAJO", exc_info=True)
+        logger.warning("No se pudieron listar destinatarios CSAT_BAJO", exc_info=True)
     if agente and "@" in agente:
-        destinatarios.add(agente)
+        destinatarios.add(agente.strip().lower())
 
+    if not destinatarios:
+        logger.error(
+            "CSAT_BAJO sin destinatarios org=%s conv=%s — no hay supervisores/admins activos",
+            conv.organizacion_id,
+            conv.id,
+        )
+
+    creadas = 0
     for dest in destinatarios:
         try:
             repo.add_ticket_notification(
@@ -316,9 +322,33 @@ def _aplicar_tag_csat_bajo(db: Session, conv: ConversacionCanal, puntuacion: int
                 mensaje=mensaje,
                 canal="csat_bajo",
             )
+            creadas += 1
         except Exception:
             db.rollback()
             logger.warning("No se pudo notificar CSAT_BAJO a %s", dest, exc_info=True)
+
+    logger.info(
+        "CSAT_BAJO notifs creadas=%s/%s org=%s conv=%s score=%s",
+        creadas,
+        len(destinatarios),
+        conv.organizacion_id,
+        conv.id,
+        puntuacion,
+    )
+
+    try:
+        from app.estate.audit import log_audit
+
+        log_audit(
+            db,
+            org_id=conv.organizacion_id,
+            actor="sistema",
+            accion="csat_bajo",
+            recurso=tid or conv.id,
+            detalle=f"puntuacion={puntuacion} origen={origen} notifs={creadas}",
+        )
+    except Exception:
+        logger.debug("Audit CSAT_BAJO omitido", exc_info=True)
 
 
 def registrar_voto(

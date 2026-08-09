@@ -1009,6 +1009,32 @@ def list_supervisores_org(db: Session, org_id: str) -> list[User]:
     return out
 
 
+def list_admins_plataforma(db: Session) -> list[User]:
+    """Admins de la org plataforma (imowi) — ven alertas de todas las cooperativas."""
+    from app.rbac import normalizar_rol_consola
+
+    org = get_org_by_slug(db, "imowi")
+    if not org:
+        return []
+    out: list[User] = []
+    for u in list_users_for_org(db, org.id):
+        if (u.activo or "Sí") == "No":
+            continue
+        if normalizar_rol_consola(u.rol or "") == "admin" and (u.email or "").strip():
+            out.append(u)
+    return out
+
+
+def destinatarios_alerta_csat(db: Session, org_id: str) -> list[str]:
+    """Emails a notificar por CSAT bajo: supervisores/admins de la org + admins plataforma."""
+    emails: set[str] = set()
+    for u in list_supervisores_org(db, org_id):
+        emails.add((u.email or "").strip().lower())
+    for u in list_admins_plataforma(db):
+        emails.add((u.email or "").strip().lower())
+    return sorted(e for e in emails if e and "@" in e)
+
+
 def list_ticket_notifications(
     db: Session,
     org_id: str,
@@ -1016,15 +1042,30 @@ def list_ticket_notifications(
     destinatario: str = "",
     solo_no_leidas: bool = False,
     admin_global: bool = False,
+    incluir_csat_org: bool = False,
 ) -> list[TicketNotification]:
-    stmt = (
-        select(TicketNotification)
-        .order_by(TicketNotification.created_at.desc())
-    )
+    """Lista notificaciones.
+
+    Si incluir_csat_org=True y hay destinatario, también incluye alertas
+    canal=csat_bajo de la org (para que supervisores/admins las vean aunque
+    el destinatario original sea otro).
+    """
+    from sqlalchemy import or_
+
+    stmt = select(TicketNotification).order_by(TicketNotification.created_at.desc())
     if not admin_global:
         stmt = stmt.where(TicketNotification.organizacion_id == org_id)
     if destinatario:
-        stmt = stmt.where(TicketNotification.destinatario == destinatario)
+        dest = destinatario.strip()
+        if incluir_csat_org:
+            stmt = stmt.where(
+                or_(
+                    TicketNotification.destinatario == dest,
+                    TicketNotification.canal == "csat_bajo",
+                )
+            )
+        else:
+            stmt = stmt.where(TicketNotification.destinatario == dest)
     if solo_no_leidas:
         stmt = stmt.where(TicketNotification.leida == "No")
     return list(db.scalars(stmt).all())
@@ -1034,13 +1075,13 @@ def mark_notification_read(
     db: Session,
     org_id: str,
     notification_id: str,
+    *,
+    admin_global: bool = False,
 ) -> TicketNotification | None:
-    n = db.scalar(
-        select(TicketNotification).where(
-            TicketNotification.organizacion_id == org_id,
-            TicketNotification.id == notification_id,
-        )
-    )
+    stmt = select(TicketNotification).where(TicketNotification.id == notification_id)
+    if not admin_global:
+        stmt = stmt.where(TicketNotification.organizacion_id == org_id)
+    n = db.scalar(stmt)
     if not n:
         return None
     n.leida = "Sí"

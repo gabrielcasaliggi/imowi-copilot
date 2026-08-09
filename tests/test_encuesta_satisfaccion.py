@@ -209,8 +209,10 @@ def test_voto_bajo_marca_tag():
                 select(TicketNotification).where(TicketNotification.canal == "csat_bajo")
             ).all()
         )
-        assert any("[CSAT_BAJO]" in (n.titulo or "") for n in notifs)
-        assert any(n.destinatario for n in notifs)
+        assert any("[CSAT_BAJO]" in (n.titulo or "") for n in notifs), "debía crear alerta CSAT_BAJO"
+        assert len(notifs) >= 1
+        # Al menos un supervisor/admin debe figurar como destinatario
+        assert any(n.destinatario and "@" in n.destinatario for n in notifs)
 
     r_stats = client.get("/api/v1/analytics/csat", headers=headers)
     assert r_stats.status_code == 200, r_stats.text
