@@ -193,3 +193,79 @@ def get_me() -> dict:
         }
     except Exception as e:
         return {"ok": False, "reason": str(e)[:240]}
+
+
+# Updates que el bot necesita recibir (CSAT usa callback_query)
+TELEGRAM_ALLOWED_UPDATES = ["message", "edited_message", "callback_query"]
+
+
+def get_webhook_info() -> dict:
+    cfg = _tg_cfg()
+    token = (cfg.get("bot_token") or "").strip()
+    if not token:
+        return {"ok": False, "reason": "bot_token_vacio"}
+    url = f"{_API}/bot{token}/getWebhookInfo"
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(url)
+        data = r.json()
+        if r.status_code >= 400 or not data.get("ok"):
+            return {
+                "ok": False,
+                "detail": str(data.get("description") or r.text)[:300],
+            }
+        result = data.get("result") or {}
+        return {
+            "ok": True,
+            "url": result.get("url") or "",
+            "has_custom_certificate": bool(result.get("has_custom_certificate")),
+            "pending_update_count": result.get("pending_update_count") or 0,
+            "last_error_date": result.get("last_error_date"),
+            "last_error_message": result.get("last_error_message") or "",
+            "max_connections": result.get("max_connections"),
+            "allowed_updates": result.get("allowed_updates") or [],
+        }
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:240]}
+
+
+def set_webhook(url: str, *, secret_token: str = "", drop_pending: bool = False) -> dict:
+    """Registra webhook incluyendo callback_query (botones CSAT)."""
+    cfg = _tg_cfg()
+    token = (cfg.get("bot_token") or "").strip()
+    if not token:
+        return {"ok": False, "reason": "bot_token_vacio"}
+    target = (url or "").strip()
+    if not target.startswith("https://"):
+        return {"ok": False, "reason": "url_debe_ser_https"}
+    secret = (secret_token or cfg.get("webhook_secret") or "").strip()
+    api = f"{_API}/bot{token}/setWebhook"
+    # application/json para pasar allowed_updates como lista real
+    payload: dict = {
+        "url": target,
+        "allowed_updates": TELEGRAM_ALLOWED_UPDATES,
+        "drop_pending_updates": bool(drop_pending),
+    }
+    if secret:
+        payload["secret_token"] = secret
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            r = client.post(api, json=payload)
+        data = r.json() if r.content else {}
+        if r.status_code >= 400 or not data.get("ok"):
+            return {
+                "ok": False,
+                "status": r.status_code,
+                "detail": str(data.get("description") or r.text)[:300],
+            }
+        info = get_webhook_info()
+        return {
+            "ok": True,
+            "description": data.get("description") or "Webhook set",
+            "url": target,
+            "allowed_updates": TELEGRAM_ALLOWED_UPDATES,
+            "webhook_info": info,
+        }
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:240]}
+

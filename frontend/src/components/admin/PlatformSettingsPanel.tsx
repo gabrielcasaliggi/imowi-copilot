@@ -183,13 +183,34 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     setBusy(true);
     try {
       const r = await api.testAdminTelegram();
+      if (!r.ok) {
+        onMessage?.(`Telegram falló: ${r.error || "falta bot_token"}`);
+        return;
+      }
+      const cb = r.callbacks_enabled
+        ? "callbacks OK"
+        : "⚠ sin callback_query — registrá el webhook de nuevo";
       onMessage?.(
-        r.ok
-          ? `Telegram OK · @${r.bot_username || "bot"} · org ${r.default_org_slug}`
-          : `Telegram falló: ${r.error || "falta bot_token"}`,
+        `Telegram OK · @${r.bot_username || "bot"} · org ${r.default_org_slug} · ${cb}`,
       );
     } catch (err) {
       onMessage?.(err instanceof Error ? err.message : "Error test Telegram");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const registerTgWebhook = async () => {
+    setBusy(true);
+    try {
+      const r = await api.registerTelegramWebhook({ drop_pending: false });
+      onMessage?.(
+        r.ok
+          ? `Webhook TG registrado · ${r.url} · updates: ${(r.allowed_updates || []).join(", ")}`
+          : `Webhook TG falló: ${r.detail || r.reason || "error"}`,
+      );
+    } catch (err) {
+      onMessage?.(err instanceof Error ? err.message : "Error registrando webhook TG");
     } finally {
       setBusy(false);
     }
@@ -463,7 +484,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 placeholder="coop-batan"
               />
             </div>
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={busy}
@@ -472,7 +493,20 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
               >
                 Validar bot (getMe)
               </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void registerTgWebhook()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-ecolan-brand/40 text-ecolan-brand hover:bg-ecolan-brand/10"
+              >
+                Registrar webhook (incluye botones CSAT)
+              </button>
             </div>
+            <p className="md:col-span-2 text-[11px] text-slate-500">
+              Si la encuesta ☆ no responde en Telegram, el webhook suele estar limitado a{" "}
+              <code className="text-slate-400">message</code>. Este botón lo re-registra con{" "}
+              <code className="text-slate-400">callback_query</code>.
+            </p>
           </div>
         </GlassCard>
       )}

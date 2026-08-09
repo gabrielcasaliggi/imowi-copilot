@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -584,7 +585,7 @@ def test_telegram_config(
     db: Session = Depends(get_db),
 ):
     from app.services.platform_settings import resolve_telegram
-    from app.services.telegram_client import get_me, telegram_configurado
+    from app.services.telegram_client import get_me, get_webhook_info, telegram_configurado
 
     cfg = resolve_telegram(db)
     if not telegram_configurado():
@@ -596,6 +597,10 @@ def test_telegram_config(
             "nota": "Falta TELEGRAM_BOT_TOKEN / bot_token en settings.",
         }
     me = get_me()
+    wh = get_webhook_info()
+    allowed = wh.get("allowed_updates") or []
+    # Si allowed_updates está vacío, Telegram envía TODO. Si está seteado, debe incluir callback_query.
+    callbacks_ok = (not allowed) or ("callback_query" in allowed)
     return {
         "ok": bool(me.get("ok")),
         "token_set": True,
@@ -604,8 +609,73 @@ def test_telegram_config(
         "bot_username": me.get("username") or "",
         "bot_id": me.get("id"),
         "error": me.get("detail") or me.get("reason") or "",
-        "nota": "Valida el token con getMe. Configurá el webhook en BotFather/API apuntando a /api/v1/telegram/webhook.",
+        "webhook": wh,
+        "callbacks_enabled": callbacks_ok,
+        "nota": (
+            "OK: el webhook recibe botones CSAT."
+            if callbacks_ok
+            else (
+                "El webhook NO recibe callback_query — re-registralo con "
+                "POST /api/v1/admin/settings/telegram-webhook."
+            )
+        ),
     }
+
+
+class TelegramWebhookIn(BaseModel):
+    url: str = Field(
+        default="",
+        max_length=500,
+        description="HTTPS público del webhook. Vacío = https://{host}/api/v1/telegram/webhook",
+    )
+    drop_pending: bool = False
+
+
+@router.post("/admin/settings/telegram-webhook")
+def register_telegram_webhook(
+    body: TelegramWebhookIn,
+    request: Request,
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Re-registra el webhook incluyendo callback_query (necesario para encuesta CSAT)."""
+    from app.services.platform_settings import resolve_telegram
+    from app.services.telegram_client import set_webhook, telegram_configurado
+
+    if not telegram_configurado():
+        raise HTTPException(400, "Telegram no configurado (falta bot_token)")
+
+    url = (body.url or "").strip()
+    if not url:
+        # Inferir desde el request (proxy) o PUBLIC_URL
+        from app.config import PUBLIC_URL
+
+        base = (PUBLIC_URL or "").strip().rstrip("/")
+        if not base:
+            # X-Forwarded-Proto/Host detrás de nginx
+            proto = (
+                request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+            ).split(",")[0].strip()
+            host = (
+                request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+            ).split(",")[0].strip()
+            if host:
+                base = f"{proto}://{host}"
+        if not base:
+            raise HTTPException(
+                400, "Indicá url=https://tu-dominio/api/v1/telegram/webhook"
+            )
+        url = f"{base}/api/v1/telegram/webhook"
+
+    cfg = resolve_telegram(db)
+    result = set_webhook(
+        url,
+        secret_token=cfg.get("webhook_secret") or "",
+        drop_pending=body.drop_pending,
+    )
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("detail") or result.get("reason") or "setWebhook falló")
+    return result
 
 
 @router.post("/admin/settings/test-database")

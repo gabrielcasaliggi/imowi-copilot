@@ -1009,7 +1009,30 @@ export const api = {
       bot_id?: number;
       error?: string;
       nota?: string;
+      callbacks_enabled?: boolean;
+      webhook?: {
+        ok?: boolean;
+        url?: string;
+        allowed_updates?: string[];
+        last_error_message?: string;
+        pending_update_count?: number;
+      };
     }>("/api/v1/admin/settings/test-telegram", { method: "POST" });
+  },
+
+  registerTelegramWebhook(body?: { url?: string; drop_pending?: boolean }) {
+    return request<{
+      ok: boolean;
+      url?: string;
+      allowed_updates?: string[];
+      description?: string;
+      detail?: string;
+      reason?: string;
+      webhook_info?: Record<string, unknown>;
+    }>("/api/v1/admin/settings/telegram-webhook", {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+    });
   },
 
   testAdminDatabase() {
