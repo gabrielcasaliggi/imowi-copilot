@@ -13,7 +13,7 @@ from app.estate import repository as repo
 from app.estate.database import get_db
 from app.services.canal_abonado import procesar_mensaje_entrante
 from app.services.platform_settings import resolve_telegram
-from app.services.telegram_client import answer_callback_query
+from app.services.telegram_client import answer_callback_query, edit_message_text
 
 logger = logging.getLogger("operations_hub")
 
@@ -24,6 +24,73 @@ def _secret_ok(header_value: str | None, expected: str) -> bool:
     if not expected:
         return True
     return (header_value or "").strip() == expected.strip()
+
+
+def _handle_csat_callback(db: Session, org_id: str, cq: dict) -> None:
+    """Procesa botón ☆ CSAT: guarda voto y edita el mensaje a ★★★☆☆."""
+    from app.services.encuesta_satisfaccion import (
+        capturar_voto_telegram,
+        parse_puntuacion,
+        texto_encuesta_confirmacion,
+    )
+
+    cq_id = str(cq.get("id") or "")
+    data = str(cq.get("data") or "").strip()
+    msg = cq.get("message") if isinstance(cq.get("message"), dict) else {}
+    chat = msg.get("chat") if isinstance(msg.get("chat"), dict) else {}
+    if not chat:
+        from_user = cq.get("from") if isinstance(cq.get("from"), dict) else {}
+        # fallback raro: sin message.chat
+        chat = {"id": from_user.get("id")} if from_user.get("id") is not None else {}
+    chat_id = chat.get("id")
+    message_id = msg.get("message_id")
+    puntuacion = parse_puntuacion(data)
+
+    # Siempre ACK para quitar el spinner del cliente
+    if puntuacion:
+        answer_callback_query(cq_id, text=f"{'★' * puntuacion}")
+    else:
+        answer_callback_query(cq_id, text="OK")
+        logger.info("Telegram callback no-CSAT data=%r", data[:80])
+        return
+
+    if chat_id is None:
+        logger.warning("CSAT callback sin chat_id")
+        return
+
+    try:
+        result = capturar_voto_telegram(
+            db,
+            org_id,
+            chat_id=str(chat_id),
+            puntuacion=int(puntuacion),
+            meta_message_id=f"cq:{cq_id}"[:80],
+        )
+        logger.info(
+            "CSAT Telegram chat=%s score=%s ok=%s reason=%s",
+            chat_id,
+            puntuacion,
+            result.get("ok"),
+            result.get("reason"),
+        )
+    except Exception:
+        logger.exception("CSAT Telegram falló al guardar voto chat=%s", chat_id)
+        result = {"ok": False}
+
+    # Feedback visual SIEMPRE: iluminar 1…N y sacar botones
+    if message_id is not None:
+        edited = edit_message_text(
+            str(chat_id),
+            message_id,
+            texto_encuesta_confirmacion(int(puntuacion)),
+        )
+        if not edited.get("ok") and not edited.get("simulated"):
+            logger.warning(
+                "CSAT editMessage falló chat=%s mid=%s detail=%s",
+                chat_id,
+                message_id,
+                (edited.get("detail") or edited.get("reason") or "")[:200],
+            )
 
 
 @router.post("/telegram/webhook")
@@ -54,53 +121,9 @@ async def receive_webhook(
         return {"status": "ok"}
 
     try:
-        # Botones inline CSAT — al tocar, iluminar ★ de 1…N y quitar teclado
         cq = payload.get("callback_query")
         if isinstance(cq, dict):
-            cq_id = str(cq.get("id") or "")
-            data = str(cq.get("data") or "").strip()
-            msg = cq.get("message") or {}
-            chat = msg.get("chat") or cq.get("from") or {}
-            chat_id = chat.get("id")
-            message_id = msg.get("message_id")
-            from app.services.encuesta_satisfaccion import (
-                parse_puntuacion,
-                texto_encuesta_confirmacion,
-            )
-            from app.services.telegram_client import edit_message_text
-
-            puntuacion = parse_puntuacion(data)
-            if puntuacion:
-                answer_callback_query(cq_id, text=f"{'★' * puntuacion}")
-            else:
-                answer_callback_query(cq_id, text="¡Gracias!")
-
-            if chat_id is not None and data:
-                from app.services.prompt_safety import clamp_message
-
-                text = clamp_message(data, max_chars=64)
-                result = procesar_mensaje_entrante(
-                    db,
-                    org.id,
-                    telefono=str(chat_id),
-                    texto=text,
-                    canal="telegram",
-                    wa_id=str(chat_id),
-                    meta_message_id=f"cq:{cq_id}"[:80],
-                    usar_llama=True,
-                )
-                if (
-                    puntuacion
-                    and message_id is not None
-                    and isinstance(result, dict)
-                    and result.get("ok")
-                    and result.get("modo") == "encuesta"
-                ):
-                    edit_message_text(
-                        str(chat_id),
-                        message_id,
-                        texto_encuesta_confirmacion(puntuacion),
-                    )
+            _handle_csat_callback(db, org.id, cq)
             return {"status": "ok"}
 
         message = payload.get("message") or payload.get("edited_message")
@@ -108,7 +131,6 @@ async def receive_webhook(
             return {"status": "ok"}
         text = (message.get("text") or "").strip()
         if not text:
-            # Ignorar stickers, fotos, etc. en el MVP
             return {"status": "ok"}
         chat = message.get("chat") or {}
         chat_id = chat.get("id")

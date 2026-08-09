@@ -185,17 +185,59 @@ def test_telegram_callback_csat(monkeypatch):
         "app.api.v1.telegram.answer_callback_query",
         lambda *_a, **_k: {"ok": True},
     )
+    edited: list[tuple] = []
+
+    def _fake_edit(chat_id, message_id, texto, **kwargs):
+        edited.append((str(chat_id), str(message_id), texto))
+        return {"ok": True, "simulated": True}
+
+    monkeypatch.setattr("app.api.v1.telegram.edit_message_text", _fake_edit)
+
+    # Preparar encuesta pendiente para este chat
+    chat_id = "777001"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        from app.estate import canal_repo as crepo
+
+        for c in db.scalars(
+            select(ConversacionCanal).where(
+                ConversacionCanal.canal == "telegram",
+                ConversacionCanal.telefono == chat_id,
+            )
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            for e in db.scalars(
+                select(EncuestaSatisfaccion).where(EncuestaSatisfaccion.conversacion_id == c.id)
+            ).all():
+                db.delete(e)
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=chat_id, canal="telegram", wa_id=chat_id
+        )
+        conv.estado = "cerrado"
+        db.commit()
+        enviar_encuesta_cierre(db, conv, origen=ORIGEN_BOT, enviar_externo=False)
+
     body = {
         "update_id": 99,
         "callback_query": {
             "id": "cq1",
             "data": "csat:4",
-            "message": {"chat": {"id": 777001}},
+            "message": {"message_id": 55, "chat": {"id": int(chat_id)}},
         },
     }
-    r = client.post(
-        "/api/v1/telegram/webhook",
-        json=body,
-    )
+    r = client.post("/api/v1/telegram/webhook", json=body)
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
+    assert edited, "debía editar el mensaje con estrellas encendidas"
+    assert "★★★★☆" in edited[0][2]
+
+    with Session() as db:
+        row = db.scalar(
+            select(EncuestaSatisfaccion).where(EncuestaSatisfaccion.puntuacion == 4)
+        )
+        assert row is not None
+        assert row.canal == "telegram"

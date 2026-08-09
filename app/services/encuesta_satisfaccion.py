@@ -128,30 +128,34 @@ def find_conversacion_encuesta_pendiente(
     canal: str,
     wa_id: str = "",
 ) -> ConversacionCanal | None:
-    """Última conversación cerrada con encuesta pendiente (ventana 48h)."""
+    """Última conversación con encuesta pendiente para ese chat (ventana 48h)."""
     canal_norm = (canal or "whatsapp").strip() or "whatsapp"
     tel = crepo.normalizar_identidad(canal_norm, telefono)
     wa = (wa_id or "").strip()
     if canal_norm == "telegram" and wa:
         wa = crepo.normalizar_identidad("telegram", wa)
+    identities = {x for x in (tel, wa) if x}
 
     q = (
         select(ConversacionCanal)
         .where(
             ConversacionCanal.organizacion_id == org_id,
             ConversacionCanal.canal == canal_norm,
-            ConversacionCanal.estado == "cerrado",
         )
         .order_by(ConversacionCanal.updated_at.desc())
-        .limit(15)
+        .limit(40)
     )
     candidates = list(db.scalars(q).all())
     cutoff = _now() - _VENTANA_ENCUESTA
     for conv in candidates:
-        if conv.telefono != tel and (not wa or conv.wa_id != wa):
+        conv_ids = {x for x in ((conv.telefono or "").strip(), (conv.wa_id or "").strip()) if x}
+        if identities and conv_ids.isdisjoint(identities):
             continue
         ctx = crepo.get_contexto(conv)
-        if not ctx.get("encuesta_pendiente"):
+        pendiente = bool(ctx.get("encuesta_pendiente")) or (
+            bool(ctx.get("encuesta_enviada")) and not bool(ctx.get("encuesta_respondida"))
+        )
+        if not pendiente:
             continue
         if ya_tiene_voto(db, conv.id):
             continue
@@ -219,6 +223,12 @@ def enviar_encuesta_cierre(
     delivery: dict[str, Any] = {"ok": True, "simulated": True}
     if enviar_externo and (conv.canal or "") in ("whatsapp", "telegram"):
         delivery = _dispatch_encuesta(conv, texto)
+        mid = str(delivery.get("meta_message_id") or "").strip()
+        if mid:
+            ctx2 = crepo.get_contexto(conv)
+            ctx2["encuesta_message_id"] = mid
+            crepo.set_contexto(conv, ctx2)
+            db.commit()
         if not delivery.get("ok") or delivery.get("simulated"):
             logger.warning(
                 "Encuesta CSAT canal=%s conv=%s ok=%s simulated=%s detail=%s",
@@ -268,7 +278,8 @@ def _aplicar_tag_csat_bajo(db: Session, conv: ConversacionCanal, puntuacion: int
                 nivel=t.nivel or "",
             )
         except Exception:
-            logger.debug("No se pudo registrar evento CSAT_BAJO en ticket %s", tid, exc_info=True)
+            db.rollback()
+            logger.warning("No se pudo registrar evento CSAT_BAJO en ticket %s", tid, exc_info=True)
 
     # Notificar supervisores (+ agente si fue atención humana)
     titulo = f"{TAG_CSAT_BAJO} Atención calificada {puntuacion}/5"
@@ -301,7 +312,8 @@ def _aplicar_tag_csat_bajo(db: Session, conv: ConversacionCanal, puntuacion: int
                 canal="csat_bajo",
             )
         except Exception:
-            logger.debug("No se pudo notificar CSAT_BAJO a %s", dest, exc_info=True)
+            db.rollback()
+            logger.warning("No se pudo notificar CSAT_BAJO a %s", dest, exc_info=True)
 
 
 def registrar_voto(
@@ -310,12 +322,13 @@ def registrar_voto(
     puntuacion: int,
     *,
     enviar_externo: bool = True,
+    enviar_gracias_externo: bool = True,
 ) -> dict[str, Any]:
     """Persiste el voto y limpia la encuesta pendiente."""
     if puntuacion < 1 or puntuacion > 5:
         return {"ok": False, "reason": "puntuacion_invalida"}
     if ya_tiene_voto(db, conv.id):
-        return {"ok": False, "reason": "ya_respondida"}
+        return {"ok": False, "reason": "ya_respondida", "puntuacion": int(puntuacion)}
 
     ctx = crepo.get_contexto(conv)
     origen = str(ctx.get("encuesta_origen") or ORIGEN_BOT)
@@ -338,8 +351,16 @@ def registrar_voto(
     ctx["encuesta_respondida"] = True
     ctx["encuesta_puntuacion"] = int(puntuacion)
     crepo.set_contexto(conv, ctx)
-    _aplicar_tag_csat_bajo(db, conv, int(puntuacion))
+    # Commit del voto ANTES de side-effects (notifs) para no perder la calificación
     db.commit()
+    db.refresh(row)
+
+    try:
+        _aplicar_tag_csat_bajo(db, conv, int(puntuacion))
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Side-effect CSAT_BAJO falló conv=%s (voto ya guardado)", conv.id)
 
     crepo.add_mensaje(
         db,
@@ -349,7 +370,11 @@ def registrar_voto(
         autor="bot",
         texto=_MENSAJE_GRACIAS,
     )
-    if enviar_externo and (conv.canal or "") in ("whatsapp", "telegram"):
+    if (
+        enviar_externo
+        and enviar_gracias_externo
+        and (conv.canal or "") in ("whatsapp", "telegram")
+    ):
         try:
             dest = (conv.wa_id or conv.telefono or "").strip()
             if conv.canal == "whatsapp":
@@ -370,6 +395,54 @@ def registrar_voto(
         "origen": origen,
         "csat_bajo": int(puntuacion) <= 2,
     }
+
+
+def capturar_voto_telegram(
+    db: Session,
+    org_id: str,
+    *,
+    chat_id: str,
+    puntuacion: int,
+    meta_message_id: str = "",
+) -> dict[str, Any]:
+    """Registra voto CSAT desde callback_query (sin abrir hilo nuevo)."""
+    conv = find_conversacion_encuesta_pendiente(
+        db,
+        org_id,
+        telefono=str(chat_id),
+        canal="telegram",
+        wa_id=str(chat_id),
+    )
+    if not conv:
+        logger.warning(
+            "CSAT Telegram: sin encuesta pendiente org=%s chat=%s score=%s",
+            org_id,
+            chat_id,
+            puntuacion,
+        )
+        return {"ok": False, "reason": "sin_pendiente", "puntuacion": int(puntuacion)}
+
+    crepo.add_mensaje(
+        db,
+        org_id,
+        conv.id,
+        direccion="in",
+        autor="cliente",
+        texto=f"csat:{puntuacion}",
+        meta_message_id=meta_message_id,
+    )
+    # En TG el mensaje de encuesta se edita en el webhook (no mandar otro "gracias")
+    result = registrar_voto(
+        db,
+        conv,
+        int(puntuacion),
+        enviar_externo=False,
+        enviar_gracias_externo=False,
+    )
+    result["modo"] = "encuesta"
+    result["conversacion_id"] = conv.id
+    result["estado"] = conv.estado
+    return result
 
 
 def intentar_capturar_voto(
