@@ -38,6 +38,11 @@ from app.services.eco_voice import mensaje_saldo_padron
 from app.services.platform_settings import playbooks_as_pasos, resolve_canal_diagnostico_ia
 from app.services.telegram_client import enviar_texto as enviar_texto_tg
 from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
+from app.services.encuesta_satisfaccion import (
+    ORIGEN_BOT,
+    enviar_encuesta_cierre,
+    intentar_capturar_voto,
+)
 
 logger = logging.getLogger("operations_hub")
 
@@ -1034,6 +1039,9 @@ def _aplicar_diagnostico_ia(
                 "escribime de nuevo. ¡Gracias!"
             )
         _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
+        enviar_encuesta_cierre(
+            db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+        )
         return {
             "ok": True,
             "modo": "cerrado",
@@ -1073,6 +1081,24 @@ def procesar_mensaje_entrante(
     texto = (texto or "").strip()
     if not texto:
         return {"ok": False, "error": "mensaje vacío"}
+
+    # Voto CSAT sobre conversación cerrada con encuesta pendiente (antes de abrir hilo nuevo)
+    try:
+        capturado = intentar_capturar_voto(
+            db,
+            org_id,
+            telefono=telefono,
+            texto=texto,
+            canal=canal,
+            wa_id=wa_id,
+            meta_message_id=meta_message_id,
+            enviar_externo=(canal != "web"),
+        )
+        if capturado is not None:
+            return capturado
+    except Exception:
+        db.rollback()
+        logger.exception("Error capturando voto CSAT canal=%s", canal)
 
     try:
         conv = crepo.get_or_create_conversacion(
@@ -2092,6 +2118,9 @@ def procesar_mensaje_entrante(
             "escribime de nuevo y te ayudo. ¡Gracias!"
         )
         _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        enviar_encuesta_cierre(
+            db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+        )
         return {
             "ok": True,
             "modo": "cerrado",
@@ -2144,6 +2173,9 @@ def procesar_mensaje_entrante(
                 "¡Gracias!"
             )
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            enviar_encuesta_cierre(
+                db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+            )
             return {
                 "ok": True,
                 "modo": "cerrado",

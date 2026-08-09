@@ -972,16 +972,17 @@ def list_ticket_events(
 def add_ticket_notification(
     db: Session,
     org_id: str,
-    ticket_id: str,
+    ticket_id: str | None,
     *,
     destinatario: str,
     titulo: str,
     mensaje: str,
     canal: str = "consola",
 ) -> TicketNotification:
+    tid = (ticket_id or "").strip() or None
     n = TicketNotification(
         organizacion_id=org_id,
-        ticket_id=ticket_id,
+        ticket_id=tid,
         destinatario=destinatario,
         canal=canal,
         titulo=titulo,
@@ -991,6 +992,21 @@ def add_ticket_notification(
     db.commit()
     db.refresh(n)
     return n
+
+
+def list_supervisores_org(db: Session, org_id: str) -> list[User]:
+    """Usuarios activos con rol supervisor (o admin) en la org."""
+    from app.rbac import normalizar_rol_consola
+
+    users = list_users_for_org(db, org_id)
+    out: list[User] = []
+    for u in users:
+        if (u.activo or "Sí") == "No":
+            continue
+        rol = normalizar_rol_consola(u.rol or "")
+        if rol in ("supervisor", "admin") and (u.email or "").strip():
+            out.append(u)
+    return out
 
 
 def list_ticket_notifications(
@@ -1089,6 +1105,9 @@ def dismiss_notifications_for_closed_tickets(
 
     n_done = 0
     for n in unread:
+        # CSAT bajo se revisa después del cierre: no auto-descartar
+        if (n.canal or "").strip().lower() == "csat_bajo":
+            continue
         if n.ticket_id in closed_ids:
             n.leida = "Sí"
             n_done += 1

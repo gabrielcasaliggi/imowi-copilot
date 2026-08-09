@@ -40,6 +40,9 @@ class Organization(Base):
     casos_conversacion: Mapped[list[CasoConversacion]] = relationship(back_populates="organizacion")
     abonados: Mapped[list[Abonado]] = relationship(back_populates="organizacion")
     conversaciones_canal: Mapped[list[ConversacionCanal]] = relationship(back_populates="organizacion")
+    encuestas_satisfaccion: Mapped[list[EncuestaSatisfaccion]] = relationship(
+        back_populates="organizacion"
+    )
 
 
 class User(Base):
@@ -223,7 +226,10 @@ class TicketNotification(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
-    ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets_estate.id"), index=True)
+    # Nullable: alertas CSAT tras cierre N1 sin ticket N2
+    ticket_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tickets_estate.id"), nullable=True, index=True, default=None
+    )
     destinatario: Mapped[str] = mapped_column(String(120), default="")
     canal: Mapped[str] = mapped_column(String(40), default="consola")
     titulo: Mapped[str] = mapped_column(String(160), default="")
@@ -232,7 +238,7 @@ class TicketNotification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped[Organization] = relationship(back_populates="ticket_notifications")
-    ticket: Mapped[Ticket] = relationship(back_populates="notificaciones")
+    ticket: Mapped[Ticket | None] = relationship(back_populates="notificaciones")
 
 
 class AuditEvent(Base):
@@ -426,6 +432,26 @@ class PlatformConfig(Base):
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     updated_by: Mapped[str] = mapped_column(String(120), default="")
+
+
+class EncuestaSatisfaccion(Base):
+    """Voto CSAT 1–5 del abonado tras cierre N1 (bot) o atención humana."""
+
+    __tablename__ = "encuestas_satisfaccion"
+    __table_args__ = (UniqueConstraint("conversacion_id", name="uq_encuesta_conversacion"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    abonado_id: Mapped[str] = mapped_column(String(36), default="", index=True)
+    conversacion_id: Mapped[str] = mapped_column(String(36), default="", index=True)
+    ticket_id: Mapped[str] = mapped_column(String(32), default="", index=True)
+    origen: Mapped[str] = mapped_column(String(16), default="[BOT]", index=True)  # [BOT]|[TECNICO]
+    puntuacion: Mapped[int] = mapped_column(Integer, nullable=False)
+    canal: Mapped[str] = mapped_column(String(20), default="")
+    agente_id: Mapped[str] = mapped_column(String(120), default="", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    organizacion: Mapped[Organization] = relationship(back_populates="encuestas_satisfaccion")
 
 
 class PilotEvent(Base):

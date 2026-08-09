@@ -103,23 +103,17 @@ def verificar_credenciales() -> dict:
         }
 
 
-def enviar_texto(telefono_e164: str, texto: str) -> dict:
-    """Envía mensaje de texto. telefono sin + preferido (solo dígitos)."""
-    to = normalizar_destino_wa(telefono_e164)
-    if not to or not texto.strip():
-        return {"ok": False, "reason": "destino_o_texto_vacio"}
+def _post_messages(payload: dict) -> dict:
     cfg = _wa_cfg()
+    to = str(payload.get("to") or "")
     if not (cfg.get("token") and cfg.get("phone_number_id")):
-        logger.info("WhatsApp no configurado — mensaje simulado a %s: %s", to, texto[:120])
+        logger.info(
+            "WhatsApp no configurado — mensaje simulado a %s type=%s",
+            to,
+            payload.get("type"),
+        )
         return {"ok": True, "simulated": True, "to": to}
-
     url = f"{_GRAPH}/{cfg['phone_number_id']}/messages"
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "text",
-        "text": {"preview_url": False, "body": texto[:4096]},
-    }
     headers = {
         "Authorization": f"Bearer {cfg['token']}",
         "Content-Type": "application/json",
@@ -145,3 +139,53 @@ def enviar_texto(telefono_e164: str, texto: str) -> dict:
     except Exception as e:
         logger.exception("WhatsApp send failed to=%s", to)
         return {"ok": False, "reason": str(e), "to": to}
+
+
+def enviar_texto(telefono_e164: str, texto: str) -> dict:
+    """Envía mensaje de texto. telefono sin + preferido (solo dígitos)."""
+    to = normalizar_destino_wa(telefono_e164)
+    if not to or not texto.strip():
+        return {"ok": False, "reason": "destino_o_texto_vacio"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"preview_url": False, "body": texto[:4096]},
+    }
+    return _post_messages(payload)
+
+
+def enviar_encuesta_csat(telefono_e164: str, texto: str) -> dict:
+    """Lista interactiva 1–5 (WA permite máx. 3 reply buttons; lista soporta 5 filas)."""
+    to = normalizar_destino_wa(telefono_e164)
+    if not to:
+        return {"ok": False, "reason": "destino_vacio"}
+    body = (texto or "").strip() or "¿Cómo calificarías la atención recibida hoy?"
+    # Header/body de lista: body máx 1024
+    body_short = body[:1024]
+    rows = [
+        {"id": "1", "title": "1 · Muy mala", "description": "⭐"},
+        {"id": "2", "title": "2 · Mala", "description": "⭐⭐"},
+        {"id": "3", "title": "3 · Regular", "description": "⭐⭐⭐"},
+        {"id": "4", "title": "4 · Buena", "description": "⭐⭐⭐⭐"},
+        {"id": "5", "title": "5 · Excelente", "description": "⭐⭐⭐⭐⭐"},
+    ]
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {"text": body_short},
+            "action": {
+                "button": "Calificar",
+                "sections": [{"title": "Tu calificación", "rows": rows}],
+            },
+        },
+    }
+    result = _post_messages(payload)
+    if result.get("ok"):
+        return result
+    # Fallback a texto plano si la lista falla (cuenta sin permiso interactive, etc.)
+    logger.warning("WhatsApp lista CSAT falló; fallback texto to=%s", to)
+    return enviar_texto(telefono_e164, texto)

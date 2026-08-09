@@ -133,6 +133,7 @@ def migrate_schema(engine: Engine) -> list[str]:
         ("conversaciones_canal", "ConversacionCanal"),
         ("mensajes_canal", "MensajeCanal"),
         ("knowledge_contributions", "KnowledgeContribution"),
+        ("encuestas_satisfaccion", "EncuestaSatisfaccion"),
     ):
         if not insp.has_table(tabla):
             from app.estate import models as m
@@ -155,9 +156,82 @@ def migrate_schema(engine: Engine) -> list[str]:
         if widened:
             cambios.append("mensajes_canal.meta_message_id→191")
 
+    if insp.has_table("ticket_notifications"):
+        if _nullable_column(engine, "ticket_notifications", "ticket_id"):
+            cambios.append("ticket_notifications.ticket_id nullable")
+
     insp = inspect(engine)
     cambios.extend(_ensure_auth_tables(engine, insp))
     return cambios
+
+
+def _nullable_column(engine: Engine, tabla: str, col: str) -> bool:
+    """Hace nullable una columna (PostgreSQL + SQLite rebuild)."""
+    insp = inspect(engine)
+    if not insp.has_table(tabla):
+        return False
+    cols = {c["name"]: c for c in insp.get_columns(tabla)}
+    info = cols.get(col)
+    if not info or info.get("nullable"):
+        return False
+
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {tabla} ALTER COLUMN {col} DROP NOT NULL"))
+        logger.info("Migración: %s.%s ahora nullable", tabla, col)
+        return True
+
+    if engine.dialect.name == "sqlite" and tabla == "ticket_notifications" and col == "ticket_id":
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE ticket_notifications__csat (
+                        id VARCHAR(36) NOT NULL PRIMARY KEY,
+                        organizacion_id VARCHAR(36) NOT NULL,
+                        ticket_id VARCHAR(32),
+                        destinatario VARCHAR(120),
+                        canal VARCHAR(40),
+                        titulo VARCHAR(160),
+                        mensaje TEXT,
+                        leida VARCHAR(8),
+                        created_at DATETIME,
+                        FOREIGN KEY(organizacion_id) REFERENCES organizations (id),
+                        FOREIGN KEY(ticket_id) REFERENCES tickets_estate (id)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO ticket_notifications__csat
+                    (id, organizacion_id, ticket_id, destinatario, canal, titulo, mensaje, leida, created_at)
+                    SELECT id, organizacion_id, ticket_id, destinatario, canal, titulo, mensaje, leida, created_at
+                    FROM ticket_notifications
+                    """
+                )
+            )
+            conn.execute(text("DROP TABLE ticket_notifications"))
+            conn.execute(
+                text("ALTER TABLE ticket_notifications__csat RENAME TO ticket_notifications")
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_ticket_notifications_organizacion_id "
+                    "ON ticket_notifications (organizacion_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_ticket_notifications_ticket_id "
+                    "ON ticket_notifications (ticket_id)"
+                )
+            )
+        logger.info("Migración: %s.%s ahora nullable (sqlite rebuild)", tabla, col)
+        return True
+
+    return False
 
 
 def _widen_varchar(engine: Engine, tabla: str, col: str, length: int) -> bool:

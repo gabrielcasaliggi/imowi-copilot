@@ -59,6 +59,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "tickets.view",
             "tickets.reassign",
             "tickets.update",
+            "stats.bot",
             "stats.agents",
             "stats.self",
             "reports.export",

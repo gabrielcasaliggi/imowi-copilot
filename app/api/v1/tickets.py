@@ -468,6 +468,7 @@ def update_ticket(
     # Al cerrar el ticket, cerrar el hilo de canal: el próximo ingreso del abonado abre conversación nueva.
     if body.estado == "Cerrado":
         from app.estate import canal_repo as crepo
+        from app.services.encuesta_satisfaccion import ORIGEN_TECNICO, enviar_encuesta_cierre
 
         conv = crepo.get_conversacion_by_ticket(db, t.organizacion_id, ticket_id)
         if conv and conv.estado != "cerrado":
@@ -480,6 +481,20 @@ def update_ticket(
                 direccion="out",
                 autor="sistema",
                 texto="[Sistema] Conversación cerrada al resolver el ticket. Si volvés a escribir, iniciamos un chat nuevo.",
+            )
+        if conv:
+            agente = (
+                ctx.usuario_email
+                or (getattr(t, "asignado_a", "") or "")
+                or conv.agente_id
+                or ""
+            )
+            enviar_encuesta_cierre(
+                db,
+                conv,
+                origen=ORIGEN_TECNICO,
+                agente_id=agente,
+                enviar_externo=(conv.canal or "") in ("whatsapp", "telegram"),
             )
     log_audit(
         db,

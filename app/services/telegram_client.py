@@ -35,11 +35,16 @@ def telegram_configurado() -> bool:
     return bool((_tg_cfg().get("bot_token") or "").strip())
 
 
-def enviar_texto(chat_id: str, texto: str) -> dict:
-    """Envía mensaje de texto a un chat_id de Telegram."""
+def _normalize_chat_id(chat_id: str) -> str:
     cid = str(chat_id or "").strip()
     if cid.startswith("tg:"):
         cid = cid[3:]
+    return cid
+
+
+def enviar_texto(chat_id: str, texto: str, *, reply_markup: dict | None = None) -> dict:
+    """Envía mensaje de texto a un chat_id de Telegram."""
+    cid = _normalize_chat_id(chat_id)
     if not cid or not (texto or "").strip():
         return {"ok": False, "reason": "destino_o_texto_vacio"}
     cfg = _tg_cfg()
@@ -49,11 +54,13 @@ def enviar_texto(chat_id: str, texto: str) -> dict:
         return {"ok": True, "simulated": True, "to": cid}
 
     url = f"{_API}/bot{token}/sendMessage"
-    payload = {
+    payload: dict = {
         "chat_id": cid,
         "text": texto[:4096],
         "disable_web_page_preview": True,
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
         with httpx.Client(timeout=20.0) as client:
             r = client.post(url, json=payload)
@@ -72,6 +79,49 @@ def enviar_texto(chat_id: str, texto: str) -> dict:
     except Exception as e:
         logger.exception("Telegram send failed")
         return {"ok": False, "reason": str(e)}
+
+
+def enviar_encuesta_csat(chat_id: str, texto: str) -> dict:
+    """InlineKeyboard en una sola fila: 1–5 estrellas."""
+    body = (texto or "").strip() or "¿Cómo calificarías la atención recibida hoy?"
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "⭐1", "callback_data": "csat:1"},
+                {"text": "⭐⭐2", "callback_data": "csat:2"},
+                {"text": "⭐⭐⭐3", "callback_data": "csat:3"},
+                {"text": "⭐⭐⭐⭐4", "callback_data": "csat:4"},
+                {"text": "⭐⭐⭐⭐⭐5", "callback_data": "csat:5"},
+            ]
+        ]
+    }
+    return enviar_texto(chat_id, body, reply_markup=keyboard)
+
+
+def answer_callback_query(callback_query_id: str, text: str = "") -> dict:
+    """ACK de callback_query (quita el spinner del botón)."""
+    cfg = _tg_cfg()
+    token = (cfg.get("bot_token") or "").strip()
+    cq = str(callback_query_id or "").strip()
+    if not token or not cq:
+        return {"ok": False, "reason": "token_o_id_vacio"}
+    url = f"{_API}/bot{token}/answerCallbackQuery"
+    payload = {"callback_query_id": cq}
+    if text:
+        payload["text"] = text[:200]
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.post(url, json=payload)
+        data = r.json() if r.content else {}
+        if r.status_code >= 400 or not data.get("ok"):
+            return {
+                "ok": False,
+                "status": r.status_code,
+                "detail": str(data.get("description") or r.text)[:300],
+            }
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:240]}
 
 
 def get_me() -> dict:

@@ -18,6 +18,7 @@ import type {
   StatsResponse,
   OpsAnalytics,
   MeAnalytics,
+  CsatAnalytics,
   TelemetryElement,
   TenantContext,
   Ticket,
@@ -729,6 +730,14 @@ export const api = {
     if (params?.hasta) qs.set("hasta", params.hasta);
     const suffix = qs.toString() ? `?${qs}` : "";
     return request<MeAnalytics>(`/api/v1/analytics/me${suffix}`, { tenantSlug });
+  },
+
+  csatAnalytics(params?: { desde?: string; hasta?: string }, tenantSlug?: string) {
+    const qs = new URLSearchParams();
+    if (params?.desde) qs.set("desde", params.desde);
+    if (params?.hasta) qs.set("hasta", params.hasta);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<CsatAnalytics>(`/api/v1/analytics/csat${suffix}`, { tenantSlug });
   },
 
   prioritizedTickets(tenantSlug?: string) {

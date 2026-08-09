@@ -6,7 +6,7 @@ import { useApp } from "@/contexts/AppContext";
 import { KpiCard, SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
-import type { ExecutiveAnalytics, MeAnalytics, OpsAnalytics, StatsResponse } from "@/lib/types";
+import type { CsatAnalytics, CsatBlock, ExecutiveAnalytics, MeAnalytics, OpsAnalytics, StatsResponse } from "@/lib/types";
 
 function defaultDesde(): string {
   const d = new Date();
@@ -117,15 +117,18 @@ function BarList({
 
 function MeActivityBlock({
   data,
+  csat,
   loading,
 }: {
   data: MeAnalytics | null;
+  csat?: CsatBlock | null;
   loading: boolean;
 }) {
   if (loading && !data) return <EmptyState label="Cargando mi actividad..." />;
   if (!data) return <EmptyState label="No se pudo cargar tu actividad." />;
   const t = data.tickets;
   const c = data.canal;
+  const myCsat = csat || data.csat;
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
@@ -144,7 +147,173 @@ function MeActivityBlock({
           />
         </div>
       </div>
+      {myCsat && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <h3 className="text-xs font-mono uppercase text-slate-500 mb-3">
+            Mi satisfacción (CSAT)
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard label="Respuestas" value={myCsat.total} tone="cyan" helper="calificaciones" />
+            <KpiCard
+              label="Promedio"
+              value={myCsat.promedio == null ? "—" : myCsat.promedio}
+              tone={
+                myCsat.promedio == null
+                  ? "cyan"
+                  : myCsat.promedio >= 4
+                    ? "emerald"
+                    : myCsat.promedio >= 3
+                      ? "amber"
+                      : "red"
+              }
+              helper="sobre 5"
+            />
+            <KpiCard
+              label="Notas bajas"
+              value={myCsat.bajas}
+              tone={myCsat.bajas ? "red" : "emerald"}
+              helper={`${myCsat.pct_bajas}% del total`}
+            />
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <p className="text-[10px] font-mono uppercase text-slate-500 mb-2">Distribución</p>
+              <div className="flex items-end gap-1 h-12">
+                {[1, 2, 3, 4, 5].map((n) => {
+                  const count = myCsat.distribucion?.[String(n)] || 0;
+                  const max = Math.max(
+                    ...[1, 2, 3, 4, 5].map((x) => myCsat.distribucion?.[String(x)] || 0),
+                    1,
+                  );
+                  const h = Math.max((count / max) * 100, count ? 12 : 2);
+                  return (
+                    <div key={n} className="flex-1 flex flex-col justify-end items-center h-full">
+                      <div
+                        className="w-full rounded-t bg-ecolan-brand/70"
+                        style={{ height: `${h}%` }}
+                        title={`${n}★: ${count}`}
+                      />
+                      <span className="text-[9px] font-mono text-slate-600 mt-0.5">{n}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function CsatSection({ data }: { data: CsatAnalytics | null }) {
+  if (!data) return null;
+  const bot = data.bot;
+  const tec = data.tecnicos;
+  const resumen = data.resumen;
+  return (
+    <section className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-100">Satisfacción (CSAT)</h3>
+        <p className="text-[11px] text-slate-500 mt-0.5">
+          Calificaciones 1–5 tras cierre — bot N1 y atención humana.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard label="Total respuestas" value={resumen?.total ?? 0} tone="cyan" helper="en el período" />
+        <KpiCard
+          label="Promedio general"
+          value={resumen?.promedio == null ? "—" : resumen.promedio}
+          tone={
+            resumen?.promedio == null
+              ? "cyan"
+              : resumen.promedio >= 4
+                ? "emerald"
+                : resumen.promedio >= 3
+                  ? "amber"
+                  : "red"
+          }
+          helper="sobre 5"
+        />
+        <KpiCard
+          label="Bot N1"
+          value={bot?.promedio == null ? "—" : bot.promedio}
+          tone="cyan"
+          helper={`${bot?.total ?? 0} votos`}
+        />
+        <KpiCard
+          label="Agentes"
+          value={tec?.promedio == null ? "—" : tec.promedio}
+          tone="emerald"
+          helper={`${tec?.total ?? 0} votos · ${resumen?.bajas ?? 0} bajas`}
+        />
+      </div>
+
+      {(bot || tec) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {bot && (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+              <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Distribución bot</h4>
+              <BarList
+                data={[1, 2, 3, 4, 5].map((n) => ({
+                  label: `${n} ★`,
+                  count: bot.distribucion?.[String(n)] || 0,
+                }))}
+                unit="votos"
+                color="#2298A6"
+              />
+            </div>
+          )}
+          {tec && (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+              <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">
+                Distribución agentes
+              </h4>
+              <BarList
+                data={[1, 2, 3, 4, 5].map((n) => ({
+                  label: `${n} ★`,
+                  count: tec.distribucion?.[String(n)] || 0,
+                }))}
+                unit="votos"
+                color="#10b981"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {!!data.agentes?.length && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-800">
+            <h4 className="text-xs font-mono uppercase text-slate-500">CSAT por agente</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] font-mono uppercase text-slate-500 border-b border-slate-800">
+                  <th className="text-left px-3 py-2">Agente</th>
+                  <th className="text-right px-3 py-2">Votos</th>
+                  <th className="text-right px-3 py-2">Promedio</th>
+                  <th className="text-right px-3 py-2">Bajas (1–2)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.agentes.map((a) => (
+                  <tr key={a.agente_id} className="border-b border-slate-800/60">
+                    <td className="px-3 py-2.5 text-slate-200">{a.nombre || a.agente_id}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-slate-400">{a.total}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-ecolan-brand">
+                      {a.promedio ?? "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-rose-300/90">
+                      {a.bajas}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -327,6 +496,7 @@ export function StatsDashboard() {
   const [hasta, setHasta] = useState(defaultHasta);
   const [ops, setOps] = useState<OpsAnalytics | null>(null);
   const [me, setMe] = useState<MeAnalytics | null>(null);
+  const [csat, setCsat] = useState<CsatAnalytics | null>(null);
   const [executive, setExecutive] = useState<ExecutiveAnalytics | null>(null);
   const [ticketStats, setTicketStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -338,16 +508,22 @@ export function StatsDashboard() {
     setError("");
     try {
       if (selfOnly) {
-        const data = await api.meAnalytics({ desde, hasta }, tenantSlug);
+        const [data, csatData] = await Promise.all([
+          api.meAnalytics({ desde, hasta }, tenantSlug),
+          api.csatAnalytics({ desde, hasta }, tenantSlug).catch(() => null),
+        ]);
         setMe(data);
+        setCsat(csatData);
         setOps(null);
       } else {
-        const [opsData, tStats] = await Promise.all([
+        const [opsData, tStats, csatData] = await Promise.all([
           api.opsAnalytics({ desde, hasta }, tenantSlug),
           api.stats({ desde, hasta }, tenantSlug).catch(() => null),
+          api.csatAnalytics({ desde, hasta }, tenantSlug).catch(() => null),
         ]);
         setOps(opsData);
         setTicketStats(tStats);
+        setCsat(csatData);
         setMe(null);
         void loadStats(desde, hasta);
       }
@@ -439,12 +615,13 @@ export function StatsDashboard() {
       )}
 
       {selfOnly ? (
-        <MeActivityBlock data={me} loading={loading} />
+        <MeActivityBlock data={me} csat={csat?.me || csat?.resumen} loading={loading} />
       ) : loading && !ops ? (
         <EmptyState label="Cargando tablero operativo..." />
       ) : ops ? (
         <>
           <OpsSections ops={ops} canTeam={canTeam} />
+          <CsatSection data={csat} />
 
           {series && (
             <section className="space-y-3">

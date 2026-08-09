@@ -276,6 +276,16 @@ def close_conversation(
             if not prev:
                 t.resolucion_tecnica = nota
                 db.commit()
+
+    from app.services.encuesta_satisfaccion import ORIGEN_TECNICO, enviar_encuesta_cierre
+
+    enviar_encuesta_cierre(
+        db,
+        c,
+        origen=ORIGEN_TECNICO,
+        agente_id=ctx.usuario_email or c.agente_id or "",
+        enviar_externo=(c.canal or "") in ("whatsapp", "telegram"),
+    )
     return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
 
 

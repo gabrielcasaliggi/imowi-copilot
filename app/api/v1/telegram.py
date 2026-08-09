@@ -13,6 +13,7 @@ from app.estate import repository as repo
 from app.estate.database import get_db
 from app.services.canal_abonado import procesar_mensaje_entrante
 from app.services.platform_settings import resolve_telegram
+from app.services.telegram_client import answer_callback_query
 
 logger = logging.getLogger("operations_hub")
 
@@ -53,6 +54,31 @@ async def receive_webhook(
         return {"status": "ok"}
 
     try:
+        # Botones inline CSAT
+        cq = payload.get("callback_query")
+        if isinstance(cq, dict):
+            cq_id = str(cq.get("id") or "")
+            data = str(cq.get("data") or "").strip()
+            msg = cq.get("message") or {}
+            chat = msg.get("chat") or cq.get("from") or {}
+            chat_id = chat.get("id")
+            answer_callback_query(cq_id, text="¡Gracias!")
+            if chat_id is not None and data:
+                from app.services.prompt_safety import clamp_message
+
+                text = clamp_message(data, max_chars=64)
+                procesar_mensaje_entrante(
+                    db,
+                    org.id,
+                    telefono=str(chat_id),
+                    texto=text,
+                    canal="telegram",
+                    wa_id=str(chat_id),
+                    meta_message_id=f"cq:{cq_id}"[:80],
+                    usar_llama=True,
+                )
+            return {"status": "ok"}
+
         message = payload.get("message") or payload.get("edited_message")
         if not isinstance(message, dict):
             return {"status": "ok"}

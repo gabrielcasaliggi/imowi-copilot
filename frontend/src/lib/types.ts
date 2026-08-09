@@ -120,6 +120,31 @@ export interface OpsAnalytics {
   me?: OpsAgentRow | null;
 }
 
+export interface CsatBlock {
+  total: number;
+  promedio: number | null;
+  distribucion: Record<string, number>;
+  bajas: number;
+  pct_bajas: number;
+}
+
+export interface CsatAgentRow extends CsatBlock {
+  agente_id: string;
+  nombre: string;
+}
+
+export interface CsatAnalytics {
+  tenant: string;
+  desde: string;
+  hasta: string;
+  alcance?: "global" | "organizacion" | "agente";
+  resumen: CsatBlock;
+  bot?: CsatBlock | null;
+  tecnicos?: CsatBlock | null;
+  agentes?: CsatAgentRow[];
+  me?: CsatBlock | null;
+}
+
 export interface MeAnalytics {
   tenant: string;
   desde: string;
@@ -135,6 +160,7 @@ export interface MeAnalytics {
     con_resolucion: number;
     pct_resolucion: number;
   };
+  csat?: CsatBlock | null;
   me: OpsAgentRow;
 }
 

@@ -55,7 +55,8 @@ def _extraer_texto_mensaje(msg: dict) -> str:
                 return body[:4000]
         if sub == "list_reply":
             lr = inter.get("list_reply") or {}
-            body = (lr.get("title") or lr.get("description") or "").strip()
+            # Preferir id (p.ej. CSAT "1"…"5"); fallback a título/descripción
+            body = (lr.get("id") or lr.get("title") or lr.get("description") or "").strip()
             if body:
                 return body[:4000]
         if sub == "nfm_reply":

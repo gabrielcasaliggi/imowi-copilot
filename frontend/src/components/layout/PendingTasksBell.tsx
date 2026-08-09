@@ -85,14 +85,17 @@ export function PendingTasksBell() {
 
       const unread = (notifications || []).filter((n) => n.leida !== "Sí");
       for (const n of unread.slice(0, 6)) {
+        const isCsat = (n.canal || "").toLowerCase() === "csat_bajo";
         next.push({
           id: `notif-${n.id}`,
           kind: "ticket_notif",
-          title: n.titulo || "Novedad de ticket",
+          title: n.titulo || (isCsat ? "CSAT bajo" : "Novedad de ticket"),
           detail: n.mensaje?.slice(0, 120) || n.ticket_id,
           href: n.ticket_id
             ? `/soporte?ticket=${encodeURIComponent(n.ticket_id)}`
-            : "/soporte",
+            : isCsat
+              ? "/estadisticas"
+              : "/soporte",
           createdAt: n.created_at,
           notificationId: n.id,
         });

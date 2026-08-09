@@ -5,7 +5,7 @@ import Link from "next/link";
 import { GlassCard, SidebarSection } from "@/components/ui/GlassCard";
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api-client";
-import type { MeAnalytics } from "@/lib/types";
+import type { CsatBlock, MeAnalytics } from "@/lib/types";
 
 function defaultDesde(): string {
   const d = new Date();
@@ -23,6 +23,7 @@ export function AgentSelfPanel() {
   const [desde, setDesde] = useState(defaultDesde);
   const [hasta, setHasta] = useState(defaultHasta);
   const [data, setData] = useState<MeAnalytics | null>(null);
+  const [csat, setCsat] = useState<CsatBlock | null>(null);
   const [loading, setLoading] = useState(false);
 
   const hidden =
@@ -35,10 +36,15 @@ export function AgentSelfPanel() {
     if (hidden) return;
     setLoading(true);
     try {
-      const res = await api.meAnalytics({ desde, hasta }, tenantSlug);
+      const [res, csatRes] = await Promise.all([
+        api.meAnalytics({ desde, hasta }, tenantSlug),
+        api.csatAnalytics({ desde, hasta }, tenantSlug).catch(() => null),
+      ]);
       setData(res);
+      setCsat(csatRes?.me || csatRes?.resumen || res.csat || null);
     } catch {
       setData(null);
+      setCsat(null);
     } finally {
       setLoading(false);
     }
@@ -102,10 +108,11 @@ export function AgentSelfPanel() {
               <p className="text-lg font-mono text-amber-300 mt-0.5">{t?.abiertos ?? 0}</p>
             </div>
             <div>
-              <p className="text-[10px] font-mono uppercase text-slate-500">% resolución</p>
+              <p className="text-[10px] font-mono uppercase text-slate-500">CSAT</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">
-                {t?.pct_resolucion ?? 0}%
+                {csat?.promedio != null ? csat.promedio : "—"}
               </p>
+              <p className="text-[9px] text-slate-600">{csat?.total ?? 0} votos</p>
             </div>
           </div>
         )}
