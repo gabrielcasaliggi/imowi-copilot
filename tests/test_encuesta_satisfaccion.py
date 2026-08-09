@@ -10,9 +10,9 @@ from app.estate.models import ConversacionCanal, EncuestaSatisfaccion, Organizat
 from app.services.encuesta_satisfaccion import (
     ORIGEN_BOT,
     ORIGEN_TECNICO,
-    parse_puntuacion,
     enviar_encuesta_cierre,
     intentar_capturar_voto,
+    parse_puntuacion,
 )
 from main import app
 

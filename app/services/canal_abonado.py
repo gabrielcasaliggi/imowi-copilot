@@ -35,14 +35,14 @@ from app.estate.models import Abonado, ConversacionCanal
 from app.services import ticket_bridge
 from app.services.diagnostico_n1 import diagnosticar_turno, es_intencion_diagnostico
 from app.services.eco_voice import mensaje_saldo_padron
-from app.services.platform_settings import playbooks_as_pasos, resolve_canal_diagnostico_ia
-from app.services.telegram_client import enviar_texto as enviar_texto_tg
-from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
 from app.services.encuesta_satisfaccion import (
     ORIGEN_BOT,
     enviar_encuesta_cierre,
     intentar_capturar_voto,
 )
+from app.services.platform_settings import playbooks_as_pasos, resolve_canal_diagnostico_ia
+from app.services.telegram_client import enviar_texto as enviar_texto_tg
+from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
 
 logger = logging.getLogger("operations_hub")
 
