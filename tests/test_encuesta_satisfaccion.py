@@ -42,8 +42,57 @@ def test_parse_puntuacion():
     assert parse_puntuacion("csat:3") == 3
     assert parse_puntuacion("2 · Mala") == 2
     assert parse_puntuacion("★★★☆☆") == 3
+    assert parse_puntuacion("☆ 4") == 4
     assert parse_puntuacion("hola") is None
     assert parse_puntuacion("15") is None
+
+
+def test_telegram_reply_keyboard_voto():
+    """El teclado ☆ N envía texto normal — debe registrar sin callback_query."""
+    chat_id = "888002"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        from app.estate import canal_repo as crepo
+
+        for c in db.scalars(
+            select(ConversacionCanal).where(
+                ConversacionCanal.canal == "telegram",
+                ConversacionCanal.telefono == chat_id,
+            )
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            for e in db.scalars(
+                select(EncuestaSatisfaccion).where(EncuestaSatisfaccion.conversacion_id == c.id)
+            ).all():
+                db.delete(e)
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=chat_id, canal="telegram", wa_id=chat_id
+        )
+        conv.estado = "cerrado"
+        db.commit()
+        enviar_encuesta_cierre(db, conv, origen=ORIGEN_BOT, enviar_externo=False)
+
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        result = procesar_mensaje_entrante(
+            db,
+            org.id,
+            telefono=chat_id,
+            texto="☆ 5",
+            canal="telegram",
+            wa_id=chat_id,
+            usar_llama=False,
+        )
+    assert result.get("modo") == "encuesta"
+    assert result.get("ok") is True
+    assert result.get("puntuacion") == 5
 
 
 def test_envio_y_voto_bot_simulate():

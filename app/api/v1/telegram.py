@@ -121,6 +121,15 @@ async def receive_webhook(
         return {"status": "ok"}
 
     try:
+        # Log del tipo de update (ayuda a diagnosticar webhooks sin callback_query)
+        if payload.get("callback_query"):
+            logger.info("Telegram update=callback_query")
+        elif payload.get("message"):
+            logger.info(
+                "Telegram update=message text=%r",
+                str((payload.get("message") or {}).get("text") or "")[:40],
+            )
+
         cq = payload.get("callback_query")
         if isinstance(cq, dict):
             _handle_csat_callback(db, org.id, cq)
@@ -140,7 +149,7 @@ async def receive_webhook(
         from app.services.prompt_safety import clamp_message
 
         text = clamp_message(text, max_chars=4000)
-        procesar_mensaje_entrante(
+        result = procesar_mensaje_entrante(
             db,
             org.id,
             telefono=str(chat_id),
@@ -150,6 +159,13 @@ async def receive_webhook(
             meta_message_id=mid,
             usar_llama=True,
         )
+        if isinstance(result, dict) and result.get("modo") == "encuesta":
+            logger.info(
+                "CSAT Telegram (texto) chat=%s score=%s ok=%s",
+                chat_id,
+                result.get("puntuacion"),
+                result.get("ok"),
+            )
     except Exception:
         logger.exception("Error procesando webhook Telegram")
     return {"status": "ok"}

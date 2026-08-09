@@ -82,21 +82,38 @@ def enviar_texto(chat_id: str, texto: str, *, reply_markup: dict | None = None) 
 
 
 def enviar_encuesta_csat(chat_id: str, texto: str) -> dict:
-    """Cinco ☆ en una fila (sutil). Al tocar N se iluminan 1…N vía edit del mensaje."""
+    """Teclado de respuesta ☆1…☆5 (mensaje normal).
+
+    Usa ReplyKeyboard — no InlineKeyboard — porque muchos webhooks
+    históricos solo reciben allowed_updates=[message] y nunca ven callback_query.
+    Al tocar, Telegram envía el texto del botón como mensaje del usuario.
+    """
     body = (texto or "").strip() or "¿Cómo calificarías la atención recibida hoy?"
-    # Una sola estrella apagada por botón — misma línea, sin números
+    body = f"{body}\n\n☆☆☆☆☆\nElegí una opción abajo."
     keyboard = {
-        "inline_keyboard": [
+        "keyboard": [
             [
-                {"text": "☆", "callback_data": "csat:1"},
-                {"text": "☆", "callback_data": "csat:2"},
-                {"text": "☆", "callback_data": "csat:3"},
-                {"text": "☆", "callback_data": "csat:4"},
-                {"text": "☆", "callback_data": "csat:5"},
+                {"text": "☆ 1"},
+                {"text": "☆ 2"},
+                {"text": "☆ 3"},
+                {"text": "☆ 4"},
+                {"text": "☆ 5"},
             ]
-        ]
+        ],
+        "resize_keyboard": True,
+        "one_time_keyboard": True,
+        "input_field_placeholder": "Elegí 1 a 5",
     }
     return enviar_texto(chat_id, body, reply_markup=keyboard)
+
+
+def quitar_teclado(chat_id: str, texto: str) -> dict:
+    """Envía texto y oculta el teclado de respuesta."""
+    return enviar_texto(
+        chat_id,
+        texto,
+        reply_markup={"remove_keyboard": True},
+    )
 
 
 def edit_message_text(

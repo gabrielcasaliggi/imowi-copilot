@@ -71,6 +71,11 @@ def parse_puntuacion(texto: str) -> int | None:
     if re.fullmatch(r"[1-5]", raw):
         return int(raw)
 
+    # ReplyKeyboard CSAT: "☆ 1", "☆ 4", "★ 5"
+    m = re.fullmatch(r"[☆★⭐]\s*([1-5])", raw)
+    if m:
+        return int(m.group(1))
+
     # Solo estrellas: ★★★☆☆ o ☆☆☆☆☆ (Telegram/web)
     if re.fullmatch(r"[★☆⭐]+", raw):
         filled = raw.count("★") + raw.count("⭐")
@@ -368,7 +373,9 @@ def registrar_voto(
         conv.id,
         direccion="out",
         autor="bot",
-        texto=_MENSAJE_GRACIAS,
+        texto=texto_encuesta_confirmacion(int(puntuacion))
+        if (conv.canal or "") == "telegram"
+        else _MENSAJE_GRACIAS,
     )
     if (
         enviar_externo
@@ -382,9 +389,10 @@ def registrar_voto(
 
                 enviar_wa(dest, _MENSAJE_GRACIAS)
             elif conv.canal == "telegram":
-                from app.services.telegram_client import enviar_texto as enviar_tg
+                from app.services.telegram_client import quitar_teclado
 
-                enviar_tg(dest, _MENSAJE_GRACIAS)
+                # Confirmación con ★ encendidas + saca el teclado ☆ 1…5
+                quitar_teclado(dest, texto_encuesta_confirmacion(int(puntuacion)))
         except Exception:
             logger.warning("No se pudo enviar gracias CSAT conv=%s", conv.id, exc_info=True)
 

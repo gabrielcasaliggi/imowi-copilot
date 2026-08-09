@@ -57,7 +57,8 @@ Telegram update (texto | callback_query)
 ```
 
 - Identidad: `chat_id` en `telefono` / `wa_id`, `session_id` = `tg:{org}:{chat_id}`
-- MVP texto: stickers/fotos se ignoran; botones CSAT sí se procesan
+- MVP texto: stickers/fotos se ignoran
+- Encuesta CSAT: **ReplyKeyboard** `☆ 1`…`☆ 5` (mensaje de texto; no depende de `callback_query`)
 - Simular sin bot: `POST /api/v1/inbox/simulate` con `"canal": "telegram"`
 
 ## Checklist prod
