@@ -126,14 +126,14 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                 statuses = value.get("statuses") or []
                 messages = value.get("messages") or []
                 if statuses and not messages:
-                    logger.info(
+                    logger.warning(
                         "WhatsApp webhook solo statuses field=%s n=%s (ignorar; no es mensaje entrante)",
                         field,
                         len(statuses),
                     )
                     continue
                 if not messages:
-                    logger.info(
+                    logger.warning(
                         "WhatsApp webhook sin messages field=%s keys=%s",
                         field,
                         sorted(value.keys()),
@@ -146,11 +146,11 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     mid = msg.get("id") or ""
                     if not from_wa:
                         omitidos += 1
-                        logger.info("WhatsApp msg sin from type=%s", tipo)
+                        logger.warning("WhatsApp msg sin from type=%s", tipo)
                         continue
                     if not text:
                         omitidos += 1
-                        logger.info(
+                        logger.warning(
                             "WhatsApp msg sin texto usable type=%s id=%s keys=%s",
                             tipo,
                             mid[:48] if mid else "",
@@ -175,7 +175,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                             usar_llama=True,
                         )
                         procesados += 1
-                        logger.info(
+                        logger.warning(
                             "WhatsApp msg procesado from=%s type=%s chars=%s org=%s",
                             from_wa,
                             tipo,
@@ -192,7 +192,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         )
     except Exception:
         logger.exception("Error procesando webhook WhatsApp")
-    logger.info(
+    logger.warning(
         "WhatsApp webhook done procesados=%s omitidos=%s org=%s",
         procesados,
         omitidos,

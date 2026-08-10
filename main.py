@@ -43,6 +43,13 @@ from app.knowledge import cargar_base_conocimiento, estadisticas
 from app.observability import init_sentry, sentry_activo
 from app.routers import auth_router, chat_router, tickets_router
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s",
+    force=True,
+)
+logging.getLogger("operations_hub").setLevel(logging.INFO)
+
 logger = logging.getLogger("operations_hub")
 
 _SENTRY_OK = init_sentry()
