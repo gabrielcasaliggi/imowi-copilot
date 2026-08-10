@@ -393,7 +393,7 @@ def extraer_hechos_conversacion(historial: list[dict], previos: dict | None = No
     if any(p in texto for p in ("recomend", "sugiero", "probar cambiando la sim", "cambiar la sim")):
         hechos["sim_recomendada"] = True
 
-    if any(p in texto for p in ("apn", "internet.coop")):
+    if any(p in texto for p in ("apn", "internet.coop", "catel.org", "apn1.catel")):
         if any(p in texto for p in ("configure", "configur", "cambio eso", "lo probo y funcion", "funciono", "funcionó")):
             hechos["apn_configurado"] = True
         elif "recomend" in texto or "sugiero" in ultimo:

@@ -197,7 +197,7 @@ def _pendiente_roaming(hechos: dict) -> PasoFlujo | None:
     if not hechos.get("apn_configurado"):
         return PasoFlujo(
             "roaming_apn",
-            'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.',
+            'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.',
         )
     if not hechos.get("roaming_verificado"):
         return PasoFlujo(
@@ -236,7 +236,7 @@ def _pendiente_datos(hechos: dict) -> PasoFlujo | None:
     if not hechos.get("apn_configurado"):
         return PasoFlujo(
             "datos_apn",
-            'Revisar y configurar el APN de datos móviles (ej. "internet.coopbatan.ar").',
+            'Revisar y configurar el APN de datos móviles (ej. "apn1.catel.org.ar").',
         )
     if not hechos.get("reinicio_o_modo_avion"):
         return PasoFlujo(

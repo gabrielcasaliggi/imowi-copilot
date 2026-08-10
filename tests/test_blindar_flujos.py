@@ -212,7 +212,7 @@ def test_categoria_roaming_no_deriva_a_datos():
         {"rol": "usuario", "contenido": "Cliente sin datos en Brasil, linea 2235551234, Samsung A54"},
         {"rol": "asistente", "contenido": "Verificar datos móviles e itinerancia."},
         {"rol": "usuario", "contenido": "verificado"},
-        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.'},
+        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.'},
         {"rol": "usuario", "contenido": "no navega"},
         {"rol": "asistente", "contenido": "Verificar en JSC roaming internacional."},
         {"rol": "usuario", "contenido": "están habilitados"},
@@ -234,7 +234,7 @@ def test_revisado_y_no_navega_avanzan_apn():
         {"rol": "usuario", "contenido": "Cliente sin datos en Brasil, linea 2235551234"},
         {"rol": "asistente", "contenido": "Verificar datos móviles e itinerancia."},
         {"rol": "usuario", "contenido": "verificado"},
-        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.'},
+        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.'},
         {"rol": "usuario", "contenido": "revisado"},
     ]
     h1 = extraer_hechos_conversacion(hist)
@@ -242,7 +242,7 @@ def test_revisado_y_no_navega_avanzan_apn():
     flujo1 = evaluar_flujo(h1, "sin datos en Brasil")
     assert flujo1["paso_id"] == "roaming_jsc"
 
-    hist.append({"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.'})
+    hist.append({"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.'})
     hist.append({"rol": "usuario", "contenido": "no navega"})
     h2 = extraer_hechos_conversacion(hist)
     assert h2.get("apn_configurado") is True
@@ -280,7 +280,7 @@ def test_persistencia_post_n1_prepara_ticket_noc(db):
         {"rol": "usuario", "contenido": "Cliente sin datos en Brasil, linea 2235551234, Samsung A54"},
         {"rol": "asistente", "contenido": "Verificar datos móviles e itinerancia."},
         {"rol": "usuario", "contenido": "verificado"},
-        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.'},
+        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.'},
         {"rol": "usuario", "contenido": "revisado"},
         {"rol": "asistente", "contenido": "Verificar en JSC que la línea tenga roaming internacional y datos roaming habilitados."},
         {"rol": "usuario", "contenido": "están habilitados"},

@@ -209,7 +209,7 @@ def test_replay_historial_sin_memoria_previa():
         {"rol": "usuario", "contenido": "Cliente sin datos en Brasil, linea 2235482690, Samsung A22."},
         {"rol": "asistente", "contenido": "Verificar que datos móviles e itinerancia de datos estén activos en el equipo."},
         {"rol": "usuario", "contenido": "verificado"},
-        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.'},
+        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.'},
         {"rol": "usuario", "contenido": "ok"},
         {"rol": "asistente", "contenido": "Verificar en JSC que la línea tenga roaming internacional y datos roaming habilitados."},
         {"rol": "usuario", "contenido": "no estaba activado el servicio de roaming"},

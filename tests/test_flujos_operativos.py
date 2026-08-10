@@ -107,7 +107,7 @@ def test_replay_historial_alinea_con_flujo():
         {"rol": "usuario", "contenido": "Cliente sin datos en Brasil, linea 2235482698, Samsung A22."},
         {"rol": "asistente", "contenido": "Verificar que datos móviles e itinerancia de datos estén activos en el equipo."},
         {"rol": "usuario", "contenido": "verificado"},
-        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "internet.coopbatan.ar") y probar navegación.'},
+        {"rol": "asistente", "contenido": 'Revisar el APN de datos para roaming (ej. "apn1.catel.org.ar") y probar navegación.'},
         {"rol": "usuario", "contenido": "ok"},
     ]
     hechos = extraer_hechos_conversacion(hist, {})

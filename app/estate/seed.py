@@ -169,7 +169,7 @@ def seed_estate(db: Session) -> dict:
             organizacion_id=batan.id,
             titulo="APN datos móviles",
             categoria="APN",
-            contenido="APN: internet.coopbatan.ar — MCC 722 MNC 310. Validar con ping a 8.8.8.8.",
+            contenido="APN: apn1.catel.org.ar — MCC 722 MNC 310. Validar con ping a 8.8.8.8.",
         ),
         KnowledgeArticle(
             organizacion_id=batan.id,
@@ -223,11 +223,11 @@ def seed_lineas_jsc(db: Session) -> dict:
         return {"seeded": False, "lineas": 0}
 
     lineas = [
-        LineaJSC(organizacion_id=batan.id, msisdn="2235551234", jsc_ref="JSC-L-10001", abonado="María González", plan="Móvil 5GB", estado_linea="Activa", iccid="8956123450001234", apn="internet.coopbatan.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0"),
-        LineaJSC(organizacion_id=batan.id, msisdn="2235555678", jsc_ref="JSC-L-10002", abonado="Carlos Pérez", plan="Móvil 10GB", estado_linea="Activa", iccid="8956123450005678", apn="internet.coopbatan.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$1.240"),
-        LineaJSC(organizacion_id=batan.id, msisdn="2235559012", jsc_ref="JSC-L-10003", abonado="Ana Ruiz", plan="Móvil 3GB", estado_linea="Suspendida", iccid="8956123450009012", apn="internet.coopbatan.ar", roaming_habilitado="No", estado_cuenta="Deuda", saldo_resumen="$-2.800"),
-        LineaJSC(organizacion_id=batan.id, msisdn="2235560001", jsc_ref="JSC-L-10004", abonado="Jorge Martínez", plan="Móvil 8GB", estado_linea="Activa", iccid="8956123450010001", apn="internet.coopbatan.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0"),
-        LineaJSC(organizacion_id=batan.id, msisdn="2235560002", jsc_ref="JSC-L-10005", abonado="Laura Díaz", plan="Móvil 15GB", estado_linea="Activa", iccid="8956123450010002", apn="internet.coopbatan.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$560"),
+        LineaJSC(organizacion_id=batan.id, msisdn="2235551234", jsc_ref="JSC-L-10001", abonado="María González", plan="Móvil 5GB", estado_linea="Activa", iccid="8956123450001234", apn="apn1.catel.org.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0"),
+        LineaJSC(organizacion_id=batan.id, msisdn="2235555678", jsc_ref="JSC-L-10002", abonado="Carlos Pérez", plan="Móvil 10GB", estado_linea="Activa", iccid="8956123450005678", apn="apn1.catel.org.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$1.240"),
+        LineaJSC(organizacion_id=batan.id, msisdn="2235559012", jsc_ref="JSC-L-10003", abonado="Ana Ruiz", plan="Móvil 3GB", estado_linea="Suspendida", iccid="8956123450009012", apn="apn1.catel.org.ar", roaming_habilitado="No", estado_cuenta="Deuda", saldo_resumen="$-2.800"),
+        LineaJSC(organizacion_id=batan.id, msisdn="2235560001", jsc_ref="JSC-L-10004", abonado="Jorge Martínez", plan="Móvil 8GB", estado_linea="Activa", iccid="8956123450010001", apn="apn1.catel.org.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0"),
+        LineaJSC(organizacion_id=batan.id, msisdn="2235560002", jsc_ref="JSC-L-10005", abonado="Laura Díaz", plan="Móvil 15GB", estado_linea="Activa", iccid="8956123450010002", apn="apn1.catel.org.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$560"),
         LineaJSC(organizacion_id=viamonte.id, msisdn="2235571001", jsc_ref="JSC-L-20001", abonado="Pedro Sosa", plan="Fibra 50Mb", estado_linea="Activa", iccid="8956123450020001", apn="internet.coopviamonte.ar", roaming_habilitado="N/A", estado_cuenta="Al día", saldo_resumen="$0"),
         LineaJSC(organizacion_id=viamonte.id, msisdn="2235571002", jsc_ref="JSC-L-20002", abonado="Silvia Acosta", plan="Móvil 5GB", estado_linea="Activa", iccid="8956123450020002", apn="internet.coopviamonte.ar", roaming_habilitado="Sí", estado_cuenta="Revisar", saldo_resumen="$-450"),
         LineaJSC(organizacion_id=viamonte.id, msisdn="2235571003", jsc_ref="JSC-L-20003", abonado="Miguel Torres", plan="Móvil 10GB", estado_linea="Activa", iccid="8956123450020003", apn="internet.coopviamonte.ar", roaming_habilitado="Sí", estado_cuenta="Al día", saldo_resumen="$0"),
@@ -509,7 +509,7 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             contenido=(
                 "Cuando hay señal (llamadas funcionan) pero no navega:\n"
                 "1) Verificar que datos móviles estén activados.\n"
-                "2) Verificar APN: nombre=internet.coopbatan.ar, MCC=722, MNC=310. "
+                "2) Verificar APN: nombre=apn1.catel.org.ar, MCC=722, MNC=310. "
                 "   En Android: Ajustes > Redes móviles > Nombres de punto de acceso.\n"
                 "   En iPhone: Ajustes > Datos móviles > Red de datos móviles.\n"
                 "3) Verificar que no haya un límite de datos alcanzado.\n"
@@ -717,7 +717,8 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
 def seed_kb_batan_servicios(db: Session) -> dict:
     """Asegura artículos KB de radio/ADSL/IMOWI/Sensa (idempotente por título).
 
-    También corrige el typo histórico IMOVI → IMOWI en títulos/contenido ya seedados.
+    También corrige el typo histórico IMOVI → IMOWI en títulos/contenido ya seedados
+    y el APN Batán incorrecto internet.coopbatan.ar → apn1.catel.org.ar.
     """
     batan = _org(db, "coop-batan")
     if not batan:
@@ -728,11 +729,36 @@ def seed_kb_batan_servicios(db: Session) -> dict:
         select(KnowledgeArticle).where(KnowledgeArticle.organizacion_id == batan.id)
     ).all():
         new_titulo = (art.titulo or "").replace("IMOVI", "IMOWI")
-        new_contenido = (art.contenido or "").replace("IMOVI", "IMOWI")
+        new_contenido = (
+            (art.contenido or "")
+            .replace("IMOVI", "IMOWI")
+            .replace("internet.coopbatan.ar", "apn1.catel.org.ar")
+        )
         if new_titulo != (art.titulo or "") or new_contenido != (art.contenido or ""):
             art.titulo = new_titulo
             art.contenido = new_contenido
             fixed += 1
+
+    # Playbooks / config admin guardados con el APN viejo
+    from app.estate.models import PlatformConfig
+
+    cfg = db.get(PlatformConfig, "default")
+    if cfg and cfg.payload_json and "internet.coopbatan.ar" in cfg.payload_json:
+        cfg.payload_json = cfg.payload_json.replace(
+            "internet.coopbatan.ar", "apn1.catel.org.ar"
+        )
+        fixed += 1
+
+    # Líneas demo JSC con APN viejo
+    from app.estate.models import LineaJSC
+
+    for linea in db.scalars(
+        select(LineaJSC).where(LineaJSC.organizacion_id == batan.id)
+    ).all():
+        if (linea.apn or "") == "internet.coopbatan.ar":
+            linea.apn = "apn1.catel.org.ar"
+            fixed += 1
+
     if fixed:
         db.commit()
 
