@@ -616,6 +616,17 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
             "reclamo",
             "necesito agente",
             "quiero agente",
+            # "ya pagué pero…" → aviso de pago, no cierre
+            "no se acredita",
+            "no figura",
+            "no aparece",
+            "no reflej",
+            "pagué pero",
+            "pague pero",
+            "ya pagué",
+            "ya pague",
+            "avise el pago",
+            "aviso de pago",
         )
     ):
         return False
@@ -634,10 +645,6 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
             "nada mas",
             "nada más",
             "muchas gracias",
-            "ya pude",
-            "pude pagar",
-            "ya pagué",
-            "ya pague",
             "quedó ok",
             "quedo ok",
         )
