@@ -626,6 +626,74 @@ def _tema_desde_mensaje(texto: str) -> str | None:
     return None
 
 
+def _cliente_desiste_o_resuelto(texto: str) -> bool:
+    """True si el abonado dice que ya está / no necesita seguir (ni agente)."""
+    if indica_resuelto(texto):
+        return True
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "no necesito más",
+            "no necesito mas",
+            "no necesito nada",
+            "no hace falta",
+            "ya está todo",
+            "ya esta todo",
+            "todo solucionado",
+            "está solucionado",
+            "esta solucionado",
+            "nada más",
+            "nada mas",
+            "no gracias",
+            "dejá así",
+            "deja asi",
+            "dejalo así",
+            "dejalo asi",
+        )
+    ):
+        return True
+    if re.match(r"^no[\s,.]", t) and any(
+        k in t for k in ("solucion", "necesito", "nada", "agente", "gracias")
+    ):
+        return True
+    return False
+
+
+def _cerrar_consulta_resuelta(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    *,
+    canal: str,
+    mensaje: str = "",
+    nota_ticket: str = "",
+) -> dict:
+    """Cierra el hilo N1 como resuelto (opcional: anota el ticket si había)."""
+    tid = (conv.ticket_id or "").strip()
+    if tid and nota_ticket:
+        _append_evidencia_ticket(db, org_id, tid, nota_ticket)
+    conv.estado = "cerrado"
+    db.commit()
+    resp = (mensaje or "").strip() or (
+        "De nada. Cualquier otra consulta, escribime. ¡Buen día!"
+    )
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+    enviar_encuesta_cierre(
+        db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+    )
+    return {
+        "ok": True,
+        "modo": "cerrado",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "ticket_id": tid,
+    }
+
+
 def _responder_espera_agente(
     db: Session,
     org_id: str,
@@ -634,7 +702,23 @@ def _responder_espera_agente(
     *,
     canal: str,
 ) -> dict:
-    """En espera de agente: si pregunta por el otro tema, lo anota y confirma."""
+    """En espera de agente: si ya resolvió, cierra; si insiste en otro tema, anota."""
+    if _cliente_desiste_o_resuelto(texto):
+        return _cerrar_consulta_resuelta(
+            db,
+            org_id,
+            conv,
+            canal=canal,
+            mensaje=(
+                "Perfecto, entonces lo damos por resuelto. "
+                "Si más adelante necesitás algo, escribime. ¡Gracias!"
+            ),
+            nota_ticket=(
+                "[Abonado] Indicó que ya está solucionado / no necesita agente: "
+                f"{(texto or '').strip()[:300]}"
+            ),
+        )
+
     tid = conv.ticket_id or ""
     ctx = crepo.get_contexto(conv)
     tema = _tema_desde_mensaje(texto)
@@ -2069,6 +2153,19 @@ def procesar_mensaje_entrante(
     )
     if diag is not None:
         return diag
+
+    # Corte/pago o factura: "sí, perfecto, gracias" cierra (no avanzar playbook ni escalar)
+    if intencion in ("corte_deuda", "facturacion"):
+        from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+        if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
+            return _cerrar_consulta_resuelta(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+            )
 
     pb = _playbooks(db)
     pasos = pb.get(intencion) or pb["general"]

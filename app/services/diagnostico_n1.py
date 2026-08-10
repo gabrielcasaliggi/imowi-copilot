@@ -614,6 +614,8 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
             "falla",
             "aument",
             "reclamo",
+            "necesito agente",
+            "quiero agente",
         )
     ):
         return False
@@ -631,6 +633,13 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
             "eso era todo",
             "nada mas",
             "nada más",
+            "muchas gracias",
+            "ya pude",
+            "pude pagar",
+            "ya pagué",
+            "ya pague",
+            "quedó ok",
+            "quedo ok",
         )
     )
 
