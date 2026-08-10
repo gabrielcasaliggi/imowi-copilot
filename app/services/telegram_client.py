@@ -102,7 +102,7 @@ def descargar_archivo(file_id: str) -> bytes:
                     str(data.get("description") or meta.text)[:300],
                 )
                 return b""
-            path = str(((data.get("result") or {}).get("file_path") or "")).strip()
+            path = str((data.get("result") or {}).get("file_path") or "").strip()
             if not path:
                 logger.warning("Telegram getFile sin file_path id=%s", fid[:24])
                 return b""
