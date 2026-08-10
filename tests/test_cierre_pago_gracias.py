@@ -15,6 +15,7 @@ from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
 def test_cierra_consulta_tras_gracias_perfecto():
     assert _cierra_consulta_facturacion("Sí, perfecto, muchas gracias.") is True
+    assert _cierra_consulta_facturacion("Bueno, perfecto, muchas gracias.") is True
     assert _cierra_consulta_facturacion("gracias") is True
     assert _cierra_consulta_facturacion("sigue el problema de la factura") is False
 

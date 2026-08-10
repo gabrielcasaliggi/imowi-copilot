@@ -1115,6 +1115,16 @@ def _aplicar_diagnostico_ia(
     db.commit()
 
     if accion == "escalate":
+        from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+        if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
+            return _cerrar_consulta_resuelta(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+            )
         tid = _crear_ticket_n2(
             db,
             org_id,
@@ -1263,6 +1273,20 @@ def procesar_mensaje_entrante(
         abonado = db.get(Abonado, conv.abonado_id)
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
+
+    # Cierre temprano: tras QR/pago o factura, "perfecto/gracias" no debe abrir ticket
+    _intent_ctx = str(ctx.get("intencion") or "").strip()
+    if _intent_ctx in ("corte_deuda", "facturacion", "aviso_deuda"):
+        from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+        if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
+            return _cerrar_consulta_resuelta(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+            )
 
     # DNI solo (p. ej. respuesta a «pasame DNI»): identificar antes de frustración/ticket
     if not abonado and _es_solo_dni(texto):
@@ -2198,6 +2222,17 @@ def procesar_mensaje_entrante(
         }
 
     def _escalar(motivo: str) -> dict:
+        from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+        # Nunca abrir ticket si el abonado está cerrando (gracias/perfecto/listo)
+        if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
+            return _cerrar_consulta_resuelta(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+            )
         tid = _crear_ticket_n2(
             db,
             org_id,
@@ -2237,29 +2272,36 @@ def procesar_mensaje_entrante(
         }
 
     # El abonado dice que ya quedó resuelto
-    if indica_resuelto(texto):
-        conv.estado = "cerrado"
-        db.commit()
-        resp = (
-            "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
-            "escribime de nuevo y te ayudo. ¡Gracias!"
+    if indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto):
+        return _cerrar_consulta_resuelta(
+            db,
+            org_id,
+            conv,
+            canal=canal,
+            mensaje=(
+                "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
+                "escribime de nuevo y te ayudo. ¡Gracias!"
+            ),
         )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
-        enviar_encuesta_cierre(
-            db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
-        )
-        return {
-            "ok": True,
-            "modo": "cerrado",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-        }
 
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
     if veredicto is True and es_paso_derivacion(paso_actual):
         return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
 
+    # En guía de pago/QR, un "sí/perfecto" = pudo pagar → cerrar (no pedir DNI ni derivar)
+    if (
+        veredicto is True
+        and paso_actual
+        and (paso_actual.id or "")
+        in ("medios_pago_qr", "guia_pago_si_aplica", "guia_pago")
+    ):
+        return _cerrar_consulta_resuelta(
+            db,
+            org_id,
+            conv,
+            canal=canal,
+            mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+        )
     # Sigue fallando → siguiente paso de diagnóstico (no escalar en el primero)
     if veredicto is False:
         if paso_idx >= len(pasos) - 1:
