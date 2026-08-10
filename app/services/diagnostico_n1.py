@@ -716,12 +716,14 @@ def _facturacion_deterministica(
     """Respuestas fijas con saldo real; sin inventar CBU/QR adjunto/web."""
     from app.services.eco_voice import (
         PLANTILLA_PAGO_QR,
-        TEXTO_OV_AVISO_PAGO,
         mensaje_saldo_padron,
+        servicio_cortado_desde_contexto,
+        texto_ov_aviso_pago,
     )
 
     identificado = "modo: identificado" in (contexto_abonado or "")
     saldo = _saldo_desde_contexto(contexto_abonado) if identificado else None
+    cortado = servicio_cortado_desde_contexto(contexto_abonado) if identificado else False
     t = (mensaje_cliente or "").lower().strip()
 
     # Invitado: sin cuenta no hay saldo; pedir DNI (no llamar al LLM).
@@ -747,7 +749,7 @@ def _facturacion_deterministica(
             "motivo": "facturacion_cierre_cliente",
         }
 
-    # Ya pagó → link de aviso de pago (sin inventar comprobantes).
+    # Ya pagó / no se refleja → link de aviso de pago (sin inventar comprobantes).
     if identificado and any(
         k in t
         for k in (
@@ -755,6 +757,14 @@ def _facturacion_deterministica(
             "ya pagué",
             "ya abone",
             "ya aboné",
+            "hoy pague",
+            "hoy pagué",
+            "la pague",
+            "la pagué",
+            "lo pague",
+            "lo pagué",
+            "pague hoy",
+            "pagué hoy",
             "avise el pago",
             "avisar el pago",
             "aviso de pago",
@@ -762,14 +772,29 @@ def _facturacion_deterministica(
             "pagué pero",
             "pague y no",
             "pagué y no",
+            "sigue figurando",
+            "sigue con deuda",
+            "sigo con deuda",
+            "sigue apareciendo",
+            "no se acredita",
+            "no se refleja",
+            "no se actualiz",
+            "sigue la deuda",
+            "todavia figura",
+            "todavía figura",
         )
     ):
         pref = ""
         if saldo is not None:
             pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+        cierre = (
+            "¿Pudiste cargar el aviso?"
+            if cortado
+            else "¿Te quedó claro lo de la demora, o querés cargar el aviso igual?"
+        )
         return {
             "accion": "ask",
-            "mensaje": f"{pref}{TEXTO_OV_AVISO_PAGO}\n¿Pudiste cargar el aviso?",
+            "mensaje": f"{pref}{texto_ov_aviso_pago(cortado=cortado)}\n{cierre}",
             "paso_cubierto": "aviso_pago_ov",
             "motivo": "facturacion_aviso_pago_ov",
         }
@@ -1380,11 +1405,29 @@ def diagnosticar_turno(
             and not forzar_agente
         ):
             if es_facturacion:
-                mensaje = (
-                    "Para confirmar si hubo ajuste de tarifa o cambio de plan necesito "
-                    "mirar tu cuenta. ¿Me pasás el DNI del titular o N.º de socio?"
-                )
-                paso = "identificar_cuenta"
+                if "modo: identificado" in (contexto_abonado or ""):
+                    from app.services.eco_voice import (
+                        mensaje_saldo_padron,
+                        servicio_cortado_desde_contexto,
+                        texto_ov_aviso_pago,
+                    )
+
+                    saldo = _saldo_desde_contexto(contexto_abonado)
+                    pref = ""
+                    if saldo is not None:
+                        pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+                    cortado = servicio_cortado_desde_contexto(contexto_abonado)
+                    mensaje = (
+                        f"{pref}{texto_ov_aviso_pago(cortado=cortado)}\n"
+                        "¿Pudiste cargar el aviso?"
+                    )
+                    paso = "aviso_pago_ov"
+                else:
+                    mensaje = (
+                        "Para confirmar si hubo ajuste de tarifa o cambio de plan necesito "
+                        "mirar tu cuenta. ¿Me pasás el DNI del titular o N.º de socio?"
+                    )
+                    paso = "identificar_cuenta"
             else:
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]
@@ -1394,11 +1437,24 @@ def diagnosticar_turno(
         # No preguntar medio/fecha de pago si no dijo que pagó
         if accion == "ask" and _pregunta_pago_fuera_de_lugar(mensaje, mensaje_cliente):
             if es_facturacion:
-                mensaje = (
-                    "Perfecto. Para ver si hubo un ajuste necesito ubicarte: "
-                    "¿me pasás DNI del titular o N.º de socio?"
-                )
-                paso = "identificar_cuenta"
+                if "modo: identificado" in (contexto_abonado or ""):
+                    from app.services.eco_voice import (
+                        servicio_cortado_desde_contexto,
+                        texto_ov_aviso_pago,
+                    )
+
+                    cortado = servicio_cortado_desde_contexto(contexto_abonado)
+                    mensaje = (
+                        f"{texto_ov_aviso_pago(cortado=cortado)}\n"
+                        "¿Pudiste cargar el aviso?"
+                    )
+                    paso = "aviso_pago_ov"
+                else:
+                    mensaje = (
+                        "Perfecto. Para ver si hubo un ajuste necesito ubicarte: "
+                        "¿me pasás DNI del titular o N.º de socio?"
+                    )
+                    paso = "identificar_cuenta"
             else:
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]

@@ -39,9 +39,44 @@ PLANTILLA_PAGO_QR = (
     "¿Pudiste pagar o necesitás que te ubique la cuenta?"
 )
 
-TEXTO_OV_AVISO_PAGO = (
-    f"Si ya realizaste el pago, podés avisarlo acá:\n{OV_BATAN_AVISO_PAGO_URL}"
+# Demora de acreditación (pago ≠ refleja al instante en padrón/BillTrack).
+TEXTO_DEMORA_ACREDITACION = (
+    "El pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, "
+    "según la entidad donde lo hayas abonado."
 )
+
+# Aviso de pago OV: reactiva automáticamente solo si el servicio estaba cortado por deuda.
+TEXTO_OV_AVISO_PAGO = (
+    f"{TEXTO_DEMORA_ACREDITACION}\n\n"
+    "Si el servicio está cortado por deuda, cargá el aviso de pago acá "
+    f"para habilitarlo automáticamente:\n{OV_BATAN_AVISO_PAGO_URL}\n"
+    "Ingresá tu DNI, el monto abonado y dónde pagaste."
+)
+
+
+def texto_ov_aviso_pago(*, cortado: bool = False) -> str:
+    """Texto N1 según si el padrón figura con corte/suspensión por deuda."""
+    if cortado:
+        return (
+            f"{TEXTO_DEMORA_ACREDITACION}\n\n"
+            "Como el servicio figura cortado por deuda, con el aviso se habilita solo. "
+            f"Entrá acá:\n{OV_BATAN_AVISO_PAGO_URL}\n"
+            "Completá DNI, monto abonado y dónde pagaste."
+        )
+    return TEXTO_OV_AVISO_PAGO
+
+
+def servicio_cortado_desde_contexto(contexto_abonado: str | None) -> bool:
+    """True si CONTEXTO_ABONADO indica corte/suspensión (no baja)."""
+    import re
+
+    m = re.search(
+        r"estado_servicio:\s*([^\n]+)", contexto_abonado or "", flags=re.I
+    )
+    if not m:
+        return False
+    e = (m.group(1) or "").strip().lower()
+    return e in ("corte", "cortado", "suspendido", "suspendida")
 
 
 def parse_monto(raw: str | float | int | None) -> float | None:

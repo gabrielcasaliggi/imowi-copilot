@@ -1350,6 +1350,44 @@ def procesar_mensaje_entrante(
                 "abonado": crepo.abonado_to_dict(abonado),
             }
 
+    # Ya identificado y manda solo DNI (p. ej. tras un ask erróneo): no re-pedir identificación
+    if abonado and _es_solo_dni(texto):
+        from app.services.eco_voice import texto_ov_aviso_pago
+
+        deuda = str(abonado.deuda_monto or "0").strip() or "0"
+        nombre = (abonado.nombre or "").split()[0].title() or "ahí"
+        dni_abo = re.sub(r"\D", "", abonado.dni or "")
+        dni_msg = re.sub(r"\D", "", texto or "")
+        estado = (abonado.estado or "").lower()
+        cortado = estado in ("corte", "cortado", "suspendido", "suspendida")
+        aviso = texto_ov_aviso_pago(cortado=cortado)
+        if dni_abo and dni_msg and dni_abo != dni_msg:
+            resp = (
+                f"{nombre}, esa cuenta ya está identificada con otro DNI del padrón. "
+                "Si es otra titularidad, pedime un agente. "
+                f"Saldo que figura ahora: ${deuda}.\n{aviso}"
+            )
+        else:
+            resp = (
+                f"Ya te tenía ubicado, {nombre}. "
+                f"{mensaje_saldo_padron(deuda, incluir_ov=False)}\n"
+                f"{aviso}\n¿Pudiste cargar el aviso?"
+            )
+        ctx["intencion"] = "facturacion"
+        ctx["identificado"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "abonado": crepo.abonado_to_dict(abonado),
+            "intencion": "facturacion",
+        }
+
     # Frustración / reiteración: solo tras avance N1 real (paso_idx ≥ 2)
     # No aplicar a mensajes que son solo un DNI.
     if not _es_solo_dni(texto) and detecta_frustracion(texto, ctx):

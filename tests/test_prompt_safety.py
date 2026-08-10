@@ -262,6 +262,58 @@ def test_facturacion_aviso_pago_link():
         ),
     )
     assert out["motivo"] == "facturacion_aviso_pago_ov"
+    msg = out.get("mensaje") or ""
+    assert "https://ov.batan.coop/#/aviso-de-pago" in msg
+    assert "24" in msg and "48" in msg
+    assert "dni" in msg.lower()
+
+
+def test_facturacion_hoy_la_pague_sigue_figurando():
+    """Caso WhatsApp: ya identificado, «Hoy la pagué…» no debe pedir DNI otra vez."""
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[
+            {
+                "autor": "bot",
+                "texto": "Te cuento que tenés un saldo pendiente de $38.919,96.",
+            },
+        ],
+        mensaje_cliente="Hoy la pagué, por qué sigue figurando con deuda?",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 38919.96\n"
+        ),
+    )
+    assert out["motivo"] == "facturacion_aviso_pago_ov"
+    assert "identificar" not in (out.get("paso_cubierto") or "")
+    msg = (out.get("mensaje") or "").lower()
+    assert "dni del titular" not in msg
+    assert "https://ov.batan.coop/#/aviso-de-pago" in (out.get("mensaje") or "")
+    assert "24" in (out.get("mensaje") or "") and "48" in (out.get("mensaje") or "")
+
+
+def test_facturacion_aviso_pago_si_cortado_habilita():
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=[],
+        mensaje_cliente="hoy la pagué y sigo sin servicio",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n"
+            "- estado_servicio: corte\n- deuda_monto: 5000\n"
+        ),
+    )
+    assert out["motivo"] == "facturacion_aviso_pago_ov"
+    msg = (out.get("mensaje") or "").lower()
+    assert "habilita" in msg
     assert "https://ov.batan.coop/#/aviso-de-pago" in (out.get("mensaje") or "")
 
 
