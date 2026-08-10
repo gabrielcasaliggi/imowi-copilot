@@ -114,44 +114,89 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
         logger.error("Org WhatsApp no encontrada: %s", org_slug)
         return {"status": "ok"}
 
+    procesados = 0
+    omitidos = 0
     try:
         entries = payload.get("entry") or []
         for entry in entries:
             for change in entry.get("changes") or []:
+                field = change.get("field") or ""
                 value = change.get("value") or {}
                 # statuses = receipts (sent/delivered/read), sin texto de usuario
-                if value.get("statuses") and not value.get("messages"):
-                    continue
+                statuses = value.get("statuses") or []
                 messages = value.get("messages") or []
+                if statuses and not messages:
+                    logger.info(
+                        "WhatsApp webhook solo statuses field=%s n=%s (ignorar; no es mensaje entrante)",
+                        field,
+                        len(statuses),
+                    )
+                    continue
+                if not messages:
+                    logger.info(
+                        "WhatsApp webhook sin messages field=%s keys=%s",
+                        field,
+                        sorted(value.keys()),
+                    )
+                    continue
                 for msg in messages:
                     from_wa = msg.get("from") or ""
+                    tipo = msg.get("type") or ""
                     text = _extraer_texto_mensaje(msg)
                     mid = msg.get("id") or ""
                     if not from_wa:
+                        omitidos += 1
+                        logger.info("WhatsApp msg sin from type=%s", tipo)
                         continue
                     if not text:
+                        omitidos += 1
                         logger.info(
-                            "WhatsApp msg sin texto usable type=%s id=%s",
-                            msg.get("type"),
-                            mid[:40] if mid else "",
+                            "WhatsApp msg sin texto usable type=%s id=%s keys=%s",
+                            tipo,
+                            mid[:48] if mid else "",
+                            sorted(msg.keys()),
                         )
                         continue
                     from app.services.prompt_safety import clamp_message
 
                     text = clamp_message(text, max_chars=4000)
                     if not text.strip():
+                        omitidos += 1
                         continue
-                    procesar_mensaje_entrante(
-                        db,
-                        org.id,
-                        telefono=from_wa,
-                        texto=text,
-                        canal="whatsapp",
-                        wa_id=from_wa,
-                        meta_message_id=mid,
-                        usar_llama=True,
-                    )
+                    try:
+                        procesar_mensaje_entrante(
+                            db,
+                            org.id,
+                            telefono=from_wa,
+                            texto=text,
+                            canal="whatsapp",
+                            wa_id=from_wa,
+                            meta_message_id=mid,
+                            usar_llama=True,
+                        )
+                        procesados += 1
+                        logger.info(
+                            "WhatsApp msg procesado from=%s type=%s chars=%s org=%s",
+                            from_wa,
+                            tipo,
+                            len(text),
+                            org_slug,
+                        )
+                    except Exception:
+                        omitidos += 1
+                        logger.exception(
+                            "WhatsApp fallo al procesar from=%s type=%s mid=%s",
+                            from_wa,
+                            tipo,
+                            mid[:48] if mid else "",
+                        )
     except Exception:
         logger.exception("Error procesando webhook WhatsApp")
+    logger.info(
+        "WhatsApp webhook done procesados=%s omitidos=%s org=%s",
+        procesados,
+        omitidos,
+        org_slug,
+    )
     # Meta espera 200 rápido
     return {"status": "ok"}
