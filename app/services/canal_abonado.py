@@ -175,15 +175,33 @@ def _playbooks(db: Session):
     return playbooks_as_pasos(db)
 
 
+def _dni_desde_digitos_sueltos(texto: str) -> str:
+    """Junta DNI dictado dígito a dígito (típico de Whisper): '24, 9, 14, 8, 6, 7'."""
+    t = (texto or "").strip()
+    if not t:
+        return ""
+    # Solo dígitos y separadores comunes de STT/teclado (sin otras letras)
+    if not re.fullmatch(r"[\d\s.,\-;/]+", t):
+        return ""
+    digits = re.sub(r"\D+", "", t)
+    if len(digits) in (7, 8):
+        return digits
+    return ""
+
+
 def _extraer_dni(texto: str) -> str:
     nums = re.findall(r"\b\d{7,8}\b", texto or "")
-    return nums[0] if nums else ""
+    if nums:
+        return nums[0]
+    return _dni_desde_digitos_sueltos(texto)
 
 
 def _es_solo_dni(texto: str) -> bool:
     """True si el mensaje es (casi) solo un DNI — no es 'queja' ni frustración."""
     t = (texto or "").strip()
-    return bool(re.fullmatch(r"\d{7,8}", t))
+    if re.fullmatch(r"\d{7,8}", t):
+        return True
+    return bool(_dni_desde_digitos_sueltos(t))
 
 
 def _mensaje_pedi_saldo_reciente(db: Session, conv_id: str) -> bool:

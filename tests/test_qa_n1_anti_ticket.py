@@ -265,6 +265,14 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
     ) is True
     assert _es_solo_dni("13920806") is True
     assert _es_solo_dni("mi dni es 13920806") is False
+    # Whisper / dictado dígito a dígito
+    from app.services.canal_abonado import _extraer_dni
+
+    assert _es_solo_dni("24, 9, 14, 8, 6, 7") is True
+    assert _extraer_dni("24, 9, 14, 8, 6, 7") == "24914867"
+    assert _extraer_dni("2 4 9 1 4 8 6 7") == "24914867"
+    assert _extraer_dni("24.914.867") == "24914867"
+    assert _es_solo_dni("corte desde el 10/08/2024 y no anda") is False
 
 
 def test_wifi_parcial_no_cierra_resuelto():
