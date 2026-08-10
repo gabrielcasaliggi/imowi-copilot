@@ -1,0 +1,19 @@
+# Solo Whisper — el backend del hub sigue nativo (uvicorn local).
+# Uso: docker compose -f docker-compose.whisper.yml up -d --build
+services:
+  whisper:
+    build: ./whisper
+    ports:
+      - "9000:9000"
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      WHISPER_LANGUAGE: es
+      HF_HOME: /models
+    volumes:
+      - whisper-models:/models
+    restart: unless-stopped
+
+volumes:
+  whisper-models:

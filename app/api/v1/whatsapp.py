@@ -142,12 +142,43 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                 for msg in messages:
                     from_wa = msg.get("from") or ""
                     tipo = msg.get("type") or ""
-                    text = _extraer_texto_mensaje(msg)
                     mid = msg.get("id") or ""
                     if not from_wa:
                         omitidos += 1
                         logger.warning("WhatsApp msg sin from type=%s", tipo)
                         continue
+
+                    from app.services.prompt_safety import clamp_message
+                    from app.services.transcription import (
+                        MSG_AUDIO_FALLBACK,
+                        texto_desde_audio_whatsapp,
+                    )
+                    from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
+
+                    transcribed = texto_desde_audio_whatsapp(msg)
+                    if transcribed is not None:
+                        text = (transcribed or "").strip()
+                        if not text:
+                            omitidos += 1
+                            logger.warning(
+                                "WhatsApp audio sin transcripción usable id=%s",
+                                mid[:48] if mid else "",
+                            )
+                            try:
+                                enviar_texto_wa(from_wa, MSG_AUDIO_FALLBACK)
+                            except Exception:
+                                logger.exception(
+                                    "WhatsApp fallback audio falló from=%s", from_wa
+                                )
+                            continue
+                        logger.warning(
+                            "WhatsApp audio transcrito from=%s chars=%s",
+                            from_wa,
+                            len(text),
+                        )
+                    else:
+                        text = _extraer_texto_mensaje(msg)
+
                     if not text:
                         omitidos += 1
                         logger.warning(
@@ -157,8 +188,6 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                             sorted(msg.keys()),
                         )
                         continue
-                    from app.services.prompt_safety import clamp_message
-
                     text = clamp_message(text, max_chars=4000)
                     if not text.strip():
                         omitidos += 1

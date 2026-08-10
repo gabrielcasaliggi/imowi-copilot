@@ -155,6 +155,45 @@ def enviar_texto(telefono_e164: str, texto: str) -> dict:
     return _post_messages(payload)
 
 
+def descargar_media(media_id: str) -> bytes:
+    """Descarga bytes de un media_id de Cloud API (audio, imagen, etc.)."""
+    mid = (media_id or "").strip()
+    if not mid:
+        return b""
+    cfg = _wa_cfg()
+    token = (cfg.get("token") or "").strip()
+    if not token:
+        logger.info("WhatsApp no configurado — no se puede descargar media %s", mid[:24])
+        return b""
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            meta = client.get(f"{_GRAPH}/{mid}", headers=headers)
+            if meta.status_code >= 400:
+                logger.warning(
+                    "WhatsApp media meta error %s: %s",
+                    meta.status_code,
+                    meta.text[:300],
+                )
+                return b""
+            url = str((meta.json() or {}).get("url") or "").strip()
+            if not url:
+                logger.warning("WhatsApp media sin url id=%s", mid[:24])
+                return b""
+            r = client.get(url, headers=headers)
+            if r.status_code >= 400:
+                logger.warning(
+                    "WhatsApp media download error %s id=%s",
+                    r.status_code,
+                    mid[:24],
+                )
+                return b""
+            return bytes(r.content or b"")
+    except Exception:
+        logger.exception("WhatsApp descargar_media falló id=%s", mid[:24])
+        return b""
+
+
 def enviar_encuesta_csat(telefono_e164: str, texto: str) -> dict:
     """Lista sutil 1–5 (WA no permite hover; máximo 3 reply buttons)."""
     to = normalizar_destino_wa(telefono_e164)

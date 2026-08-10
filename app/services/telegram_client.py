@@ -81,6 +81,45 @@ def enviar_texto(chat_id: str, texto: str, *, reply_markup: dict | None = None) 
         return {"ok": False, "reason": str(e)}
 
 
+def descargar_archivo(file_id: str) -> bytes:
+    """Descarga bytes de un file_id (voice, audio, document, etc.)."""
+    fid = (file_id or "").strip()
+    if not fid:
+        return b""
+    cfg = _tg_cfg()
+    token = (cfg.get("bot_token") or "").strip()
+    if not token:
+        logger.info("Telegram no configurado — no se puede descargar file %s", fid[:24])
+        return b""
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            meta = client.get(f"{_API}/bot{token}/getFile", params={"file_id": fid})
+            data = meta.json() if meta.content else {}
+            if meta.status_code >= 400 or not data.get("ok"):
+                logger.warning(
+                    "Telegram getFile error %s: %s",
+                    meta.status_code,
+                    str(data.get("description") or meta.text)[:300],
+                )
+                return b""
+            path = str(((data.get("result") or {}).get("file_path") or "")).strip()
+            if not path:
+                logger.warning("Telegram getFile sin file_path id=%s", fid[:24])
+                return b""
+            r = client.get(f"{_API}/file/bot{token}/{path}")
+            if r.status_code >= 400:
+                logger.warning(
+                    "Telegram file download error %s id=%s",
+                    r.status_code,
+                    fid[:24],
+                )
+                return b""
+            return bytes(r.content or b"")
+    except Exception:
+        logger.exception("Telegram descargar_archivo falló id=%s", fid[:24])
+        return b""
+
+
 def enviar_encuesta_csat(chat_id: str, texto: str) -> dict:
     """Teclado de respuesta ☆1…☆5 (mensaje normal).
 

@@ -212,6 +212,20 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 TELEGRAM_DEFAULT_ORG_SLUG = os.getenv("TELEGRAM_DEFAULT_ORG_SLUG", "coop-batan").strip()
 
+# Whisper STT (contenedor aislado; backend nativo apunta a localhost)
+# Levantar: docker compose -f docker-compose.whisper.yml up -d --build
+WHISPER_URL = os.getenv("WHISPER_URL", "http://localhost:9000").strip().rstrip("/")
+WHISPER_ENABLED = os.getenv("WHISPER_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+try:
+    WHISPER_TIMEOUT_S = float(os.getenv("WHISPER_TIMEOUT_S", "30") or "30")
+except ValueError:
+    WHISPER_TIMEOUT_S = 30.0
+
 ESTADOS_TICKET_VALIDOS = ("Abierto", "En Revisión", "Cerrado")
 
 _DEFAULT_MOCK_USERS = {

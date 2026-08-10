@@ -138,15 +138,31 @@ async def receive_webhook(
         message = payload.get("message") or payload.get("edited_message")
         if not isinstance(message, dict):
             return {"status": "ok"}
-        text = (message.get("text") or "").strip()
-        if not text:
-            return {"status": "ok"}
         chat = message.get("chat") or {}
         chat_id = chat.get("id")
         if chat_id is None:
             return {"status": "ok"}
         mid = str(message.get("message_id") or "")
+
         from app.services.prompt_safety import clamp_message
+        from app.services.telegram_client import enviar_texto as enviar_texto_tg
+        from app.services.transcription import (
+            MSG_AUDIO_FALLBACK,
+            texto_desde_audio_telegram,
+        )
+
+        transcribed = texto_desde_audio_telegram(message)
+        if transcribed is not None:
+            text = (transcribed or "").strip()
+            if not text:
+                logger.warning("Telegram audio sin transcripción usable chat=%s", chat_id)
+                enviar_texto_tg(str(chat_id), MSG_AUDIO_FALLBACK)
+                return {"status": "ok"}
+            logger.info("Telegram audio transcrito chat=%s chars=%s", chat_id, len(text))
+        else:
+            text = (message.get("text") or "").strip()
+            if not text:
+                return {"status": "ok"}
 
         text = clamp_message(text, max_chars=4000)
         result = procesar_mensaje_entrante(
