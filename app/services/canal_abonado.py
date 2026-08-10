@@ -175,11 +175,23 @@ def _playbooks(db: Session):
     return playbooks_as_pasos(db)
 
 
+# Whisper en español suele oír "nueve"/"9" como "no" entre números.
+_DNI_NO_COMO_NUEVE = re.compile(r"(?<=\d)[\s.,\-;/]*\bno\b[\s.,\-;/]*(?=\d)", re.IGNORECASE)
+_DNI_STT_RELLENO = re.compile(
+    r"\b(eh+|este|bueno|mm+|ah|oh|um+|y|e)\b",
+    re.IGNORECASE,
+)
+
+
 def _dni_desde_digitos_sueltos(texto: str) -> str:
     """Junta DNI dictado dígito a dígito (típico de Whisper): '24, 9, 14, 8, 6, 7'."""
     t = (texto or "").strip()
     if not t:
         return ""
+    # Primero muletillas ("y"), después "no"→9 (Whisper: nueve)
+    t = _DNI_STT_RELLENO.sub(" ", t)
+    t = _DNI_NO_COMO_NUEVE.sub(" 9 ", t)
+    t = t.strip()
     # Solo dígitos y separadores comunes de STT/teclado (sin otras letras)
     if not re.fullmatch(r"[\d\s.,\-;/]+", t):
         return ""
