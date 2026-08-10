@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.services.canal_abonado import (
-    _cliente_desiste_o_resuelto,
     _cerrar_consulta_resuelta,
+    _cliente_desiste_o_resuelto,
     _responder_espera_agente,
 )
 from app.services.diagnostico_n1 import _cierra_consulta_facturacion
