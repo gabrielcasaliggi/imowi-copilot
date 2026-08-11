@@ -29,6 +29,21 @@ def test_desiste_cuando_ya_esta_solucionado():
     # Whisper / confusión: no cerrar
     assert _cliente_desiste_o_resuelto("no entiendo nada") is False
     assert _cliente_desiste_o_resuelto("no entiendo nada de lo que me decís") is False
+    # Queja real de servicio (audio WA) — no es cierre
+    assert (
+        _cliente_desiste_o_resuelto(
+            "no me da nada, no puedo ser que nunca da nada, este internet"
+        )
+        is False
+    )
+    from app.services.canal_abonado import _elige_pago_o_tecnico
+
+    assert (
+        _elige_pago_o_tecnico(
+            "no me da nada, no puedo ser que nunca da nada, este internet"
+        )
+        == "tecnico"
+    )
 
 
 def test_elige_ya_lo_pague_sigue_tecnico():
