@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.deps import get_tenant_context, require_kb_proposer
 from app.api.v1.schemas import (
     TenantContext,
+    TicketBulkClose,
     TicketEventCreate,
     TicketKbPublish,
     TicketReassign,
@@ -170,6 +171,66 @@ def list_tickets(
         "total": total,
         "limit": lim,
         "offset": off,
+    }
+
+
+def _puede_cierre_masivo(ctx: TenantContext) -> bool:
+    if ctx.es_admin_imowi or ctx.puede("orgs.manage"):
+        return True
+    if ctx.rol in ("admin", "supervisor"):
+        return True
+    return ctx.puede("tickets.reassign") and ctx.puede("tickets.update")
+
+
+@router.post("/tickets/bulk-close")
+def bulk_close_tickets(
+    body: TicketBulkClose,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    """Cierra todos los tickets no cerrados del tenant (limpieza operativa).
+
+    No genera propuestas KB ni encuestas CSAT. Usar dry_run=true para previsualizar.
+    """
+    if not _puede_cierre_masivo(ctx):
+        raise HTTPException(403, "Solo admin/supervisor puede hacer cierre masivo")
+    if ctx.es_admin_imowi and ctx.organizacion_slug == "imowi":
+        raise HTTPException(
+            400,
+            "Elegí una cooperativa (tenant) concreta; no se puede cerrar en masa desde vista global imowi.",
+        )
+    if not body.dry_run and not body.confirmar:
+        raise HTTPException(
+            400,
+            "Para ejecutar el cierre enviá confirmar=true (o dry_run=true para previsualizar).",
+        )
+    try:
+        resultado = repo.cerrar_tickets_abiertos(
+            db,
+            ctx.organizacion_id,
+            resolucion_tecnica=body.resolucion_tecnica,
+            actor=ctx.usuario_email or ctx.rol,
+            dry_run=body.dry_run,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    if not body.dry_run and resultado.get("tickets_cerrados", 0) > 0:
+        log_audit(
+            db,
+            org_id=ctx.organizacion_id,
+            actor=ctx.usuario_email,
+            accion="ticket_cierre_masivo",
+            recurso=ctx.organizacion_slug,
+            detalle=(
+                f"cerrados={resultado['tickets_cerrados']} "
+                f"convs={resultado.get('conversaciones_cerradas', 0)}"
+            ),
+        )
+    return {
+        "status": "ok",
+        "tenant": ctx.organizacion_slug,
+        **resultado,
     }
 
 

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import ANOMALY_TTL_MINUTES, TICKET_ID_PREFIX
 from app.estate.models import (
     CasoConversacion,
+    ConversacionCanal,
     KnowledgeArticle,
     KnowledgeContribution,
     LineaJSC,
@@ -1712,6 +1713,107 @@ def patch_caso_datos_triaje(
     row.datos_triaje_json = json.dumps(datos_triaje, ensure_ascii=False)
     row.updated_at = datetime.now(UTC)
     db.commit()
+
+
+def list_tickets_abiertos(db: Session, org_id: str) -> list[Ticket]:
+    """Tickets no cerrados del tenant (cualquier estado distinto de Cerrado)."""
+    return list(
+        db.scalars(
+            select(Ticket)
+            .where(
+                Ticket.organizacion_id == org_id,
+                Ticket.estado != "Cerrado",
+            )
+            .order_by(Ticket.created_at.desc())
+        ).all()
+    )
+
+
+def cerrar_tickets_abiertos(
+    db: Session,
+    org_id: str,
+    *,
+    resolucion_tecnica: str,
+    actor: str = "sistema",
+    dry_run: bool = False,
+) -> dict:
+    """Cierra en lote tickets abiertos del tenant sin learning/KB ni encuesta CSAT.
+
+    Pensado para limpieza operativa antes de pruebas (pilotar/prod), no para
+    resolución real de casos productivos.
+    """
+    resolucion = (resolucion_tecnica or "").strip()
+    if not resolucion:
+        raise ValueError("resolucion_tecnica es obligatoria")
+
+    abiertos = list_tickets_abiertos(db, org_id)
+    ids = [t.id for t in abiertos]
+    preview = {
+        "tickets_abiertos": len(ids),
+        "ticket_ids": ids[:50],
+        "ticket_ids_truncados": max(0, len(ids) - 50),
+        "dry_run": dry_run,
+    }
+    if dry_run or not ids:
+        return {
+            **preview,
+            "tickets_cerrados": 0,
+            "conversaciones_cerradas": 0,
+            "notificaciones_leidas": 0,
+        }
+
+    now = datetime.now(UTC)
+    for t in abiertos:
+        t.estado = "Cerrado"
+        t.estado_sla = "Cerrado"
+        t.resolucion_tecnica = resolucion
+        t.updated_at = now
+        db.add(
+            TicketEvent(
+                organizacion_id=org_id,
+                ticket_id=t.id,
+                tipo="cierre_masivo",
+                titulo="Cierre masivo (limpieza operativa)",
+                detalle=resolucion[:500],
+                nivel=t.nivel or "N1",
+                estado="Cerrado",
+                actor=actor,
+                visible_cliente="No",
+            )
+        )
+
+    notifs = list(
+        db.scalars(
+            select(TicketNotification).where(
+                TicketNotification.organizacion_id == org_id,
+                TicketNotification.ticket_id.in_(ids),
+                TicketNotification.leida == "No",
+            )
+        ).all()
+    )
+    for n in notifs:
+        n.leida = "Sí"
+
+    convs = list(
+        db.scalars(
+            select(ConversacionCanal).where(
+                ConversacionCanal.organizacion_id == org_id,
+                ConversacionCanal.ticket_id.in_(ids),
+                ConversacionCanal.estado != "cerrado",
+            )
+        ).all()
+    )
+    for c in convs:
+        c.estado = "cerrado"
+        c.updated_at = now
+
+    db.commit()
+    return {
+        **preview,
+        "tickets_cerrados": len(ids),
+        "conversaciones_cerradas": len(convs),
+        "notificaciones_leidas": len(notifs),
+    }
 
 
 def reset_demo_validacion(

@@ -469,6 +469,31 @@ export const api = {
     });
   },
 
+  bulkCloseTickets(
+    body: {
+      resolucion_tecnica?: string;
+      dry_run?: boolean;
+      confirmar?: boolean;
+    } = {},
+    tenantSlug?: string,
+  ) {
+    return request<{
+      status: string;
+      tenant: string;
+      tickets_abiertos: number;
+      tickets_cerrados: number;
+      conversaciones_cerradas: number;
+      notificaciones_leidas: number;
+      ticket_ids: string[];
+      ticket_ids_truncados: number;
+      dry_run: boolean;
+    }>("/api/v1/tickets/bulk-close", {
+      method: "POST",
+      body: JSON.stringify(body),
+      tenantSlug,
+    });
+  },
+
   ticketConversation(id: string, tenantSlug?: string) {
     return request<{
       tenant: string;

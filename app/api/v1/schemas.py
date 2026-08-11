@@ -78,6 +78,16 @@ class TicketUpdateV1(BaseModel):
     asignado_a: str | None = None
 
 
+class TicketBulkClose(BaseModel):
+    """Cierre masivo para limpieza operativa (no genera KB/CSAT)."""
+
+    resolucion_tecnica: str = (
+        "Cierre masivo previo a pruebas en producción / validación piloto."
+    )
+    dry_run: bool = False
+    confirmar: bool = False
+
+
 class TicketReassign(BaseModel):
     asignado_a: str
     nota: str = ""

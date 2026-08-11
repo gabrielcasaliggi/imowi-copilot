@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
 import { SlaBadge } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api, ApiError } from "@/lib/api-client";
 import type { Ticket } from "@/lib/types";
 import {
@@ -193,12 +194,17 @@ export function TicketQueuePanel() {
   const [q, setQ] = useState("");
   const [soloAbiertos, setSoloAbiertos] = useState(true);
   const [soloTomables, setSoloTomables] = useState(!(isAdmin || can("tickets.reassign")));
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState<number | null>(null);
   const claimingRef = useRef(false);
   const hasItemsRef = useRef(false);
   const loadedCountRef = useRef(PAGE_SIZE);
 
   const canReassign = can("tickets.reassign");
   const canClaim = can("tickets.queue.view") && !can("orgs.manage");
+  const canBulkClose =
+    isAdmin || can("orgs.manage") || (can("tickets.reassign") && can("tickets.update"));
   const slug = isAdmin ? tenantSlug : undefined;
 
   const myKeys = useMemo(() => {
@@ -372,6 +378,44 @@ export function TicketQueuePanel() {
     router.push(`/soporte?ticket=${encodeURIComponent(id)}`);
   };
 
+  const openBulkClose = async () => {
+    setHint("");
+    setBulkBusy(true);
+    try {
+      const preview = await api.bulkCloseTickets({ dry_run: true }, slug);
+      setBulkPreview(preview.tickets_abiertos);
+      setConfirmBulk(true);
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "No se pudo previsualizar el cierre");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const runBulkClose = async () => {
+    setBulkBusy(true);
+    setHint("");
+    try {
+      const res = await api.bulkCloseTickets(
+        {
+          confirmar: true,
+          resolucion_tecnica:
+            "Cierre masivo previo a pruebas en producción / validación piloto.",
+        },
+        slug,
+      );
+      setConfirmBulk(false);
+      setBulkPreview(null);
+      loadedCountRef.current = PAGE_SIZE;
+      await load({ silent: true });
+      setHint(`Cierre masivo: ${res.tickets_cerrados} ticket(s) cerrados`);
+    } catch (err) {
+      setHint(err instanceof Error ? err.message : "No se pudo cerrar en masa");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const onFilter = (e: FormEvent) => {
     e.preventDefault();
     loadedCountRef.current = PAGE_SIZE;
@@ -405,13 +449,46 @@ export function TicketQueuePanel() {
             </p>
           )}
         </div>
-        <Link
-          href="/soporte"
-          className="text-xs px-3 py-1.5 rounded-lg border border-ecolan-brand/30 text-ecolan-brand hover:bg-ecolan-brand/10"
-        >
-          Ir a Consola
-        </Link>
+        <div className="flex flex-wrap gap-2 items-center">
+          {canBulkClose && (
+            <button
+              type="button"
+              onClick={() => void openBulkClose()}
+              disabled={bulkBusy || (soloAbiertos && listTotal === 0)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-rose-500/35 text-rose-200 hover:bg-rose-500/10 disabled:opacity-40"
+            >
+              Limpiar abiertos…
+            </button>
+          )}
+          <Link
+            href="/soporte"
+            className="text-xs px-3 py-1.5 rounded-lg border border-ecolan-brand/30 text-ecolan-brand hover:bg-ecolan-brand/10"
+          >
+            Ir a Consola
+          </Link>
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmBulk}
+        title="Cerrar tickets abiertos"
+        description={
+          bulkPreview == null
+            ? "Se van a cerrar los tickets no cerrados del tenant actual. Conservan historial; salen de la cola."
+            : `Se van a cerrar ${bulkPreview} ticket(s) abiertos del tenant. Conservan historial; no generan KB ni encuesta. ¿Confirmás?`
+        }
+        confirmLabel={bulkBusy ? "Cerrando…" : "Cerrar todos"}
+        cancelLabel="Cancelar"
+        busy={bulkBusy}
+        danger
+        onConfirm={() => void runBulkClose()}
+        onCancel={() => {
+          if (!bulkBusy) {
+            setConfirmBulk(false);
+            setBulkPreview(null);
+          }
+        }}
+      />
 
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950/60 text-slate-300">
