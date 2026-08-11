@@ -26,6 +26,18 @@ def test_desiste_cuando_ya_esta_solucionado():
         is True
     )
     assert _cliente_desiste_o_resuelto("y la factura?") is False
+    # Whisper / confusión: no cerrar
+    assert _cliente_desiste_o_resuelto("no entiendo nada") is False
+    assert _cliente_desiste_o_resuelto("no entiendo nada de lo que me decís") is False
+
+
+def test_elige_ya_lo_pague_sigue_tecnico():
+    from app.services.canal_abonado import _elige_pago_o_tecnico
+
+    assert _elige_pago_o_tecnico("ya lo pague") == "tecnico"
+    assert _elige_pago_o_tecnico("ya lo pagué") == "tecnico"
+    assert _elige_pago_o_tecnico("quiero pagar") == "pago"
+    assert _elige_pago_o_tecnico("no entiendo nada") is None
 
 
 def test_espera_agente_cierra_si_resuelto(monkeypatch):

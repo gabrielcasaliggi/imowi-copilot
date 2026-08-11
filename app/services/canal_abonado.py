@@ -325,6 +325,21 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    # Ya pagó → seguir con el diagnóstico técnico (vino por el servicio)
+    if any(
+        k in t
+        for k in (
+            "ya pagué",
+            "ya pague",
+            "ya lo pagué",
+            "ya lo pague",
+            "ya aboné",
+            "ya abone",
+            "ya lo aboné",
+            "ya lo abone",
+        )
+    ):
+        return "tecnico"
     paga = any(
         k in t
         for k in (
@@ -339,6 +354,9 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "fiserv",
             "primero pagar",
             "la deuda",
+            "quiero pagar",
+            "ayudame a pagar",
+            "ayúdame a pagar",
         )
     )
     tecnico = any(
@@ -633,6 +651,21 @@ def _cliente_desiste_o_resuelto(texto: str) -> bool:
     t = (texto or "").lower().strip()
     if not t:
         return False
+    # Confusión ≠ cierre (Whisper: «no entiendo nada»)
+    if any(
+        k in t
+        for k in (
+            "no entiendo",
+            "no te entiendo",
+            "no comprendo",
+            "qué dijiste",
+            "que dijiste",
+            "no me queda claro",
+            "no entendí",
+            "no entendi",
+        )
+    ):
+        return False
     if any(
         k in t
         for k in (
@@ -655,8 +688,18 @@ def _cliente_desiste_o_resuelto(texto: str) -> bool:
         )
     ):
         return True
+    # "no, ya está solucionado" — no matchear «no … nada» suelto
     if re.match(r"^no[\s,.]", t) and any(
-        k in t for k in ("solucion", "necesito", "nada", "agente", "gracias")
+        k in t
+        for k in (
+            "solucion",
+            "no necesito",
+            "agente",
+            "nada más",
+            "nada mas",
+            "está todo",
+            "esta todo",
+        )
     ):
         return True
     return False
@@ -1274,9 +1317,10 @@ def procesar_mensaje_entrante(
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
 
-    # Cierre temprano: tras QR/pago o factura, "perfecto/gracias" no debe abrir ticket
+    # Cierre temprano: tras QR/pago o factura, "perfecto/gracias" no debe abrir ticket.
+    # No aplica en aviso_deuda (elección pagar vs diagnóstico): ahí «no entiendo» ≠ cierre.
     _intent_ctx = str(ctx.get("intencion") or "").strip()
-    if _intent_ctx in ("corte_deuda", "facturacion", "aviso_deuda"):
+    if _intent_ctx in ("corte_deuda", "facturacion"):
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
         if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
@@ -1678,10 +1722,31 @@ def procesar_mensaje_entrante(
         eleccion = _elige_pago_o_tecnico(texto)
         pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
         if eleccion is None:
-            resp = (
-                "Decime cuál preferís: ¿te ayudo a pagar el saldo pendiente, "
-                "o seguimos con el diagnóstico del servicio?"
-            )
+            t_low = (texto or "").lower()
+            if any(
+                k in t_low
+                for k in (
+                    "no entiendo",
+                    "no te entiendo",
+                    "no comprendo",
+                    "qué",
+                    "que?",
+                    "repetí",
+                    "repite",
+                    "otra vez",
+                )
+            ):
+                resp = (
+                    "Perdón, te lo digo más simple: tenés dos opciones.\n"
+                    "1) *Pagar* el saldo pendiente (te paso el link/QR).\n"
+                    "2) *Seguir* con el diagnóstico del servicio (internet/móvil).\n"
+                    "¿Cuál preferís: pagar o seguir con el diagnóstico?"
+                )
+            else:
+                resp = (
+                    "Decime cuál preferís: ¿te ayudo a pagar el saldo pendiente, "
+                    "o seguimos con el diagnóstico del servicio?"
+                )
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
             return {
                 "ok": True,
