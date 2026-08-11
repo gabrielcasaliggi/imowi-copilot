@@ -8,8 +8,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.estate.models import Abonado, NetworkOutage
 from app.estate import repository as repo
+from app.estate.models import Abonado, NetworkOutage
 
 logger = logging.getLogger("operations_hub")
 

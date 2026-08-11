@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_tenant_context, require_permiso
+from app.api.v1.deps import require_permiso
 from app.api.v1.schemas import TenantContext
 from app.estate import repository as repo
 from app.estate.database import get_db
