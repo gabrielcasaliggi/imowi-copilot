@@ -11,6 +11,7 @@ from app.api.v1 import (
     jsc,
     kb,
     metrics,
+    outages,
     portal,
     rbac_api,
     telegram,
@@ -28,6 +29,7 @@ api_v1.include_router(demo.router)
 api_v1.include_router(jsc.router)
 api_v1.include_router(kb.router)
 api_v1.include_router(telemetry.router)
+api_v1.include_router(outages.router)
 api_v1.include_router(metrics.router)
 api_v1.include_router(tickets.router)
 api_v1.include_router(templates.router)

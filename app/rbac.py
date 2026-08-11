@@ -48,6 +48,10 @@ PERMISSION_META: dict[str, dict[str, str]] = {
     "reports.export": {"dominio": "stats", "descripcion": "Exportar reportes"},
     "kb.propose": {"dominio": "kb", "descripcion": "Proponer artículos a la base de conocimiento"},
     "kb.publish": {"dominio": "kb", "descripcion": "Publicar / revisar propuestas KB"},
+    "outages.manage": {
+        "dominio": "red",
+        "descripcion": "Declarar y resolver incidentes masivos por NAS",
+    },
 }
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
@@ -64,6 +68,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "stats.self",
             "reports.export",
             "kb.propose",
+            "outages.manage",
         }
     ),
     "ejecutivo": frozenset(
@@ -80,6 +85,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "agent.availability",
             "stats.self",
             "kb.propose",
+            "outages.manage",
         }
     ),
 }

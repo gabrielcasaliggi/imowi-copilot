@@ -24,6 +24,9 @@ import type {
   Ticket,
   TicketEvent,
   TicketNotification,
+  NasCatalogItem,
+  NasHealth,
+  NetworkOutage,
 } from "./types";
 
 const API_BASE =
@@ -592,6 +595,55 @@ export const api = {
         body: JSON.stringify({ elemento_red }),
         tenantSlug,
       },
+    );
+  },
+
+  listNas(tenantSlug?: string, force = false) {
+    const q = force ? "?force=true" : "";
+    return request<{ tenant: string; count: number; data: NasCatalogItem[] }>(
+      `/api/v1/nas${q}`,
+      { tenantSlug },
+    );
+  },
+
+  nasHealth(shortname: string, tenantSlug?: string) {
+    return request<NasHealth>(
+      `/api/v1/nas/${encodeURIComponent(shortname)}/health`,
+      { tenantSlug },
+    );
+  },
+
+  listOutages(tenantSlug?: string, estado: string = "activo") {
+    const q = estado ? `?estado=${encodeURIComponent(estado)}` : "";
+    return request<{ tenant: string; count: number; data: NetworkOutage[] }>(
+      `/api/v1/outages${q}`,
+      { tenantSlug },
+    );
+  },
+
+  createOutage(
+    body: {
+      nas_shortname: string;
+      nas_ip?: string;
+      alcance?: string;
+      tipo?: string;
+      comentario: string;
+      eta_minutos?: number;
+      usar_ia?: boolean;
+    },
+    tenantSlug?: string,
+  ) {
+    return request<{ status: string; outage: NetworkOutage }>("/api/v1/outages", {
+      method: "POST",
+      body: JSON.stringify(body),
+      tenantSlug,
+    });
+  },
+
+  resolveOutage(outageId: string, tenantSlug?: string) {
+    return request<{ status: string; outage: NetworkOutage }>(
+      `/api/v1/outages/${encodeURIComponent(outageId)}/resolve`,
+      { method: "PATCH", tenantSlug },
     );
   },
 

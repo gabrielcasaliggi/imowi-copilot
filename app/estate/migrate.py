@@ -134,6 +134,7 @@ def migrate_schema(engine: Engine) -> list[str]:
         ("mensajes_canal", "MensajeCanal"),
         ("knowledge_contributions", "KnowledgeContribution"),
         ("encuestas_satisfaccion", "EncuestaSatisfaccion"),
+        ("network_outages", "NetworkOutage"),
     ):
         if not insp.has_table(tabla):
             from app.estate import models as m

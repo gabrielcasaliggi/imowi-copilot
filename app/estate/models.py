@@ -34,6 +34,7 @@ class Organization(Base):
         back_populates="organizacion"
     )
     elementos_red: Mapped[list[NetworkElement]] = relationship(back_populates="organizacion")
+    network_outages: Mapped[list[NetworkOutage]] = relationship(back_populates="organizacion")
     tickets: Mapped[list[Ticket]] = relationship(back_populates="organizacion")
     ticket_events: Mapped[list[TicketEvent]] = relationship(back_populates="organizacion")
     ticket_notifications: Mapped[list[TicketNotification]] = relationship(back_populates="organizacion")
@@ -115,6 +116,32 @@ class NetworkElement(Base):
     ultima_actualizacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped[Organization] = relationship(back_populates="elementos_red")
+
+
+class NetworkOutage(Base):
+    """Incidente masivo declarado sobre un NAS (cobertura)."""
+
+    __tablename__ = "network_outages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    nas_shortname: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    nas_ip: Mapped[str] = mapped_column(String(64), default="")
+    alcance: Mapped[str] = mapped_column(String(16), default="total")  # total|parcial
+    tipo: Mapped[str] = mapped_column(String(32), default="DOWN")
+    comentario: Mapped[str] = mapped_column(Text, default="")
+    mensaje_cliente: Mapped[str] = mapped_column(Text, default="")
+    eta_minutos: Mapped[int] = mapped_column(Integer, default=45)
+    nas_reachable_at_declare: Mapped[str] = mapped_column(String(8), default="")  # Sí|No|""
+    estado: Mapped[str] = mapped_column(String(16), default="activo", index=True)  # activo|resuelto
+    fuente: Mapped[str] = mapped_column(String(24), default="manual")
+    created_by: Mapped[str] = mapped_column(String(120), default="")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    organizacion: Mapped[Organization] = relationship(back_populates="network_outages")
 
 
 class LineaJSC(Base):

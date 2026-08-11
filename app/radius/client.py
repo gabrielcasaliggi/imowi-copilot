@@ -1,4 +1,4 @@
-"""Cliente HTTP contra radius.api.batan.coop (get_nas + list_ppp_session)."""
+"""Cliente HTTP contra radius.api.batan.coop (get_nas, get_all_nas, sessions, resources)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import httpx
 
-from app.radius.contract import SesionPPPoE
+from app.radius.contract import NasInfo, NasResourceStatus, SesionPPPoE
 
 logger = logging.getLogger("operations_hub")
 
@@ -285,3 +285,113 @@ class RadiusNasClient:
         except Exception as exc:
             logger.exception("Radius list_ppp_session falló")
             return SesionPPPoE(username=user, online=False, nas=nas, error=str(exc)[:160])
+
+    def get_all_nas(self) -> list[NasInfo]:
+        """Inventario completo de NAS desde la DB Radius."""
+        if not self.configured():
+            raise RuntimeError("Radius API no configurada")
+
+        url = f"{self.base_url}/radius/get_all_nas/"
+        with httpx.Client(timeout=self.timeout) as client:
+            r = client.get(url, headers=self._headers())
+            if r.status_code in (404, 405):
+                r = client.post(url, headers=self._headers(), json={})
+        if r.status_code >= 400:
+            detail = (r.text or "")[:200]
+            logger.warning("Radius get_all_nas HTTP %s: %s", r.status_code, detail)
+            raise RuntimeError(f"get_all_nas HTTP {r.status_code}")
+        try:
+            data = r.json()
+        except Exception as exc:
+            raise RuntimeError("get_all_nas respuesta no JSON") from exc
+        return parse_all_nas(data)
+
+    def rest_list_resources(self, shortname: str) -> NasResourceStatus:
+        """Chequea conectividad MikroTik del NAS vía shortname."""
+        key = (shortname or "").strip()
+        if not key:
+            return NasResourceStatus(shortname="", reachable=False, error="shortname vacío")
+        if not self.configured():
+            raise RuntimeError("Radius API no configurada")
+
+        path = (
+            f"{self.base_url}/mikrotik_api_rest/rest_list_resources/"
+            f"{quote(key, safe='')}/"
+        )
+        with httpx.Client(timeout=self.timeout) as client:
+            r = client.get(path, headers=self._headers())
+        try:
+            data = r.json() if (r.text or "").strip() else {}
+        except Exception:
+            data = {"raw": (r.text or "")[:200]}
+
+        if not isinstance(data, dict):
+            data = {"value": data}
+
+        err = _first_str(data.get("error"), data.get("detail"), data.get("message"))
+        if r.status_code >= 400 or err:
+            # "NAS not found" u otros errores de comunicación = no alcanzable
+            return NasResourceStatus(
+                shortname=key,
+                reachable=False,
+                error=(err or f"HTTP {r.status_code}")[:200],
+                raw=data,
+            )
+
+        # Respuesta con métricas típicas MikroTik = alcanzable
+        if any(
+            k in data
+            for k in ("uptime", "version", "platform", "board_name", "cpu_load", "free_memory")
+        ):
+            return NasResourceStatus(shortname=key, reachable=True, raw=data)
+
+        if data:
+            return NasResourceStatus(shortname=key, reachable=True, raw=data)
+        return NasResourceStatus(
+            shortname=key,
+            reachable=False,
+            error="respuesta vacía",
+            raw=data,
+        )
+
+
+def parse_all_nas(payload: Any) -> list[NasInfo]:
+    """Normaliza respuesta de get_all_nas a lista de NasInfo."""
+    items: list[Any] = []
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        for key in ("data", "results", "nas", "items"):
+            nested = payload.get(key)
+            if isinstance(nested, list):
+                items = nested
+                break
+        if not items and _first_str(payload.get("shortname"), payload.get("nasname")):
+            items = [payload]
+
+    out: list[NasInfo] = []
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        shortname = _first_str(
+            item.get("shortname"),
+            item.get("nas"),
+            item.get("nas_name"),
+            item.get("name"),
+        )
+        nasname = _first_str(
+            item.get("nasname"),
+            item.get("nas_ip"),
+            item.get("ip"),
+            item.get("address"),
+        )
+        if not shortname:
+            continue
+        key = shortname.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(NasInfo(shortname=shortname, nasname=nasname, raw=item))
+    out.sort(key=lambda n: n.shortname.casefold())
+    return out

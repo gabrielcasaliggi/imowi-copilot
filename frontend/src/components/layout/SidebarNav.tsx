@@ -33,6 +33,13 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         id: "tickets",
         permission: "tickets.queue.view",
       },
+      {
+        href: "/incidentes",
+        label: "Incidentes masivos",
+        shortLabel: "Cortes",
+        id: "incidentes",
+        permission: "outages.manage",
+      },
     ],
   },
   {

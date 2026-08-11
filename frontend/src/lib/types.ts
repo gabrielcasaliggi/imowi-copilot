@@ -590,6 +590,39 @@ export interface PilotMetricas {
   }[];
 }
 
+export interface NasCatalogItem {
+  shortname: string;
+  nasname: string;
+  ip?: string;
+}
+
+export interface NasHealth {
+  shortname: string;
+  reachable: boolean;
+  error: string;
+  alcance_sugerido: "total" | "parcial" | string;
+  resources: Record<string, unknown>;
+}
+
+export interface NetworkOutage {
+  id: string;
+  nas_shortname: string;
+  nas_ip: string;
+  alcance: string;
+  tipo: string;
+  comentario: string;
+  mensaje_cliente: string;
+  eta_minutos: number;
+  nas_reachable_at_declare: string;
+  estado: string;
+  fuente: string;
+  created_by: string;
+  started_at: string;
+  resolved_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const ESTADO_CASO_LABELS: Record<string, string> = {
   nuevo_reclamo: "Nuevo reclamo",
   recolectando_datos: "Recolectando datos",

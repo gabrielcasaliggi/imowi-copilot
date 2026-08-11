@@ -120,6 +120,64 @@ def _cliente_cable_ok(texto: str) -> bool:
     return False
 
 
+def _talvez_respuesta_outage(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    ctx: dict,
+    *,
+    canal: str,
+) -> dict | None:
+    """Si el NAS del abonado tiene incidente masivo activo, responde canned y no crea ticket."""
+    if abonado is None:
+        return None
+    intent = str(ctx.get("intencion") or "").strip()
+    from app.services.outages import (
+        buscar_outage_para_abonado,
+        intencion_bloquea_outage,
+        mensaje_para_conversacion,
+    )
+
+    if intencion_bloquea_outage(intent):
+        return None
+    try:
+        outage, nas = buscar_outage_para_abonado(db, org_id, abonado, ctx)
+    except Exception:
+        logger.exception("Error buscando outage masivo")
+        return None
+    if not outage:
+        # Limpiar cache si el incidente ya no está activo
+        if ctx.get("outage_id"):
+            ctx.pop("outage_id", None)
+            ctx.pop("outage_nas", None)
+            ctx.pop("outage_informado", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+        return None
+
+    ya = bool(ctx.get("outage_informado")) and str(ctx.get("outage_id") or "") == outage.id
+    msg = mensaje_para_conversacion(outage, ya_informado=ya)
+    ctx["outage_id"] = outage.id
+    ctx["outage_nas"] = nas or outage.nas_shortname
+    ctx["outage_informado"] = True
+    ctx["outage_interceptado"] = True
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=(canal != "web"))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "abonado": crepo.abonado_to_dict(abonado),
+        "intencion": intent or None,
+        "outage_id": outage.id,
+        "outage_nas": nas or outage.nas_shortname,
+    }
+
+
 def _talvez_mensaje_pppoe(
     db: Session,
     abonado: Abonado | None,
@@ -1432,6 +1490,14 @@ def procesar_mensaje_entrante(
             "intencion": "facturacion",
         }
 
+    # Incidente masivo por NAS (antes de frustración/ticket/LLM)
+    if abonado:
+        outage_resp = _talvez_respuesta_outage(
+            db, org_id, conv, abonado, ctx, canal=canal
+        )
+        if outage_resp is not None:
+            return outage_resp
+
     # Frustración / reiteración: solo tras avance N1 real (paso_idx ≥ 2)
     # No aplicar a mensajes que son solo un DNI.
     if not _es_solo_dni(texto) and detecta_frustracion(texto, ctx):
@@ -1573,6 +1639,11 @@ def procesar_mensaje_entrante(
             ctx.pop("cola_prioridad", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
+            outage_resp = _talvez_respuesta_outage(
+                db, org_id, conv, abonado, ctx, canal=canal
+            )
+            if outage_resp is not None:
+                return outage_resp
 
         if not abonado:
             # Ya enviaron un DNI/socio y no hay match → visitante (sin repreguntar)

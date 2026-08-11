@@ -16,6 +16,7 @@ from app.estate.models import (
     KnowledgeContribution,
     LineaJSC,
     NetworkElement,
+    NetworkOutage,
     Organization,
     PilotEvent,
     Ticket,
@@ -1875,3 +1876,99 @@ def resumen_pilot_events(db: Session, org_id: str) -> dict:
         "sesiones_recientes": sesiones_list,
         "ultimos_eventos": eventos[:15],
     }
+
+
+# --- Network outages (incidentes masivos) ---
+
+
+def list_network_outages(
+    db: Session,
+    org_id: str,
+    *,
+    estado: str | None = "activo",
+) -> list[NetworkOutage]:
+    q = select(NetworkOutage).where(NetworkOutage.organizacion_id == org_id)
+    if estado:
+        q = q.where(NetworkOutage.estado == estado)
+    q = q.order_by(NetworkOutage.started_at.desc())
+    return list(db.scalars(q).all())
+
+
+def get_network_outage(db: Session, org_id: str, outage_id: str) -> NetworkOutage | None:
+    return db.scalar(
+        select(NetworkOutage).where(
+            NetworkOutage.organizacion_id == org_id,
+            NetworkOutage.id == outage_id,
+        )
+    )
+
+
+def create_network_outage(
+    db: Session,
+    org_id: str,
+    *,
+    nas_shortname: str,
+    nas_ip: str = "",
+    alcance: str = "total",
+    tipo: str = "DOWN",
+    comentario: str = "",
+    mensaje_cliente: str = "",
+    eta_minutos: int = 45,
+    nas_reachable_at_declare: str = "",
+    created_by: str = "",
+    fuente: str = "manual",
+) -> NetworkOutage:
+    o = NetworkOutage(
+        organizacion_id=org_id,
+        nas_shortname=(nas_shortname or "").strip(),
+        nas_ip=(nas_ip or "").strip(),
+        alcance=(alcance or "total").strip().lower() or "total",
+        tipo=(tipo or "DOWN").strip() or "DOWN",
+        comentario=(comentario or "").strip(),
+        mensaje_cliente=(mensaje_cliente or "").strip(),
+        eta_minutos=max(1, int(eta_minutos or 45)),
+        nas_reachable_at_declare=(nas_reachable_at_declare or "").strip(),
+        estado="activo",
+        fuente=(fuente or "manual").strip() or "manual",
+        created_by=(created_by or "").strip(),
+        started_at=datetime.now(UTC),
+    )
+    db.add(o)
+    db.commit()
+    db.refresh(o)
+    return o
+
+
+def update_network_outage(
+    db: Session,
+    outage: NetworkOutage,
+    *,
+    alcance: str | None = None,
+    tipo: str | None = None,
+    comentario: str | None = None,
+    mensaje_cliente: str | None = None,
+    eta_minutos: int | None = None,
+) -> NetworkOutage:
+    if alcance is not None:
+        outage.alcance = (alcance or "total").strip().lower() or "total"
+    if tipo is not None:
+        outage.tipo = (tipo or "DOWN").strip() or "DOWN"
+    if comentario is not None:
+        outage.comentario = (comentario or "").strip()
+    if mensaje_cliente is not None:
+        outage.mensaje_cliente = (mensaje_cliente or "").strip()
+    if eta_minutos is not None:
+        outage.eta_minutos = max(1, int(eta_minutos))
+    outage.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(outage)
+    return outage
+
+
+def resolve_network_outage(db: Session, outage: NetworkOutage) -> NetworkOutage:
+    outage.estado = "resuelto"
+    outage.resolved_at = datetime.now(UTC)
+    outage.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(outage)
+    return outage

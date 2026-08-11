@@ -111,7 +111,7 @@ def _default_payload() -> dict[str, Any]:
             "token": RADIUS_API_TOKEN,
             "timeout": RADIUS_API_TIMEOUT,
             "nota": (
-                "API Radius/NAS Batan: get_nas + list_ppp_session. "
+                "API Radius/NAS Batan: get_nas + get_all_nas + list_ppp_session + rest_list_resources. "
                 "Credenciales solo por env/admin — nunca en código."
             ),
         },

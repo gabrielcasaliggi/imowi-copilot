@@ -128,8 +128,47 @@ class EstadoConexionPPPoE:
         }
 
 
+@dataclass
+class NasInfo:
+    """Entrada del inventario Radius (get_all_nas)."""
+
+    shortname: str
+    nasname: str = ""  # IP
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "shortname": self.shortname,
+            "nasname": self.nasname,
+            "ip": self.nasname,
+        }
+
+
+@dataclass
+class NasResourceStatus:
+    """Resultado de rest_list_resources (conectividad MikroTik)."""
+
+    shortname: str
+    reachable: bool
+    error: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "shortname": self.shortname,
+            "reachable": self.reachable,
+            "error": self.error,
+            "alcance_sugerido": "parcial" if self.reachable else "total",
+            "resources": self.raw if self.reachable else {},
+        }
+
+
 @runtime_checkable
 class RadiusNasProvider(Protocol):
     def get_nas(self, username: str) -> str: ...
 
     def list_ppp_session(self, nas: str, login: str) -> SesionPPPoE: ...
+
+    def get_all_nas(self) -> list[NasInfo]: ...
+
+    def rest_list_resources(self, shortname: str) -> NasResourceStatus: ...
