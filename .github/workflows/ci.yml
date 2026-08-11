@@ -122,7 +122,8 @@ jobs:
             curl -fsS http://127.0.0.1:3000/login >/dev/null && break
             sleep 1
           done
-          curl -fsS http://127.0.0.1:3000/login >/dev/null      - name: Smoke Playwright
+          curl -fsS http://127.0.0.1:3000/login >/dev/null
+      - name: Smoke Playwright
         env:
           QA_BASE_URL: http://127.0.0.1:3000
           VERIFY_USER: admin
