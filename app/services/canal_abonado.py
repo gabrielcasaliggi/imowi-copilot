@@ -156,7 +156,6 @@ def _talvez_respuesta_outage(
         intencion_bloquea_outage,
         mensaje_ack_outage,
         mensaje_ack_outage_corto,
-        mensaje_cierre_post_resolucion,
         mensaje_para_conversacion,
         mensaje_resolucion_outage,
         pide_estado_outage,
@@ -191,18 +190,33 @@ def _talvez_respuesta_outage(
         return payload
 
     if not outage:
-        # Tras avisar resolución: "sí gracias" / ok → cerrar sin saltar a deuda/N1
+        # Tras avisar resolución: "sí gracias" / ok → cerrar hilo (evita deuda/N1 al volver)
         if ctx.get("outage_resuelto_avisado") and es_ack_outage(texto):
-            ctx.pop("outage_resuelto_avisado", None)
-            return _pack(mensaje_cierre_post_resolucion(), outage_cierre=True)
+            from app.services.outages import mensaje_cierre_post_resolucion
+
+            _reset_ctx_diagnostico(ctx)
+            _limpiar_ctx_outage(ctx)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return _cerrar_consulta_resuelta(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                mensaje=mensaje_cierre_post_resolucion(),
+                nota_ticket="[Outage] Abonado confirmó post-resolución de incidente masivo.",
+            )
 
         # Incidente que teníamos cacheado fue resuelto → avisar una vez
         if cached_id and was_informed and not ctx.get("outage_resuelto_avisado"):
             prev = repo.get_network_outage(db, org_id, cached_id)
             if prev is not None and prev.estado == "resuelto":
                 msg = mensaje_resolucion_outage(prev)
+                _reset_ctx_diagnostico(ctx)
                 _limpiar_ctx_outage(ctx)
                 ctx["outage_resuelto_avisado"] = prev.id
+                if hasattr(conv, "servicio_detectado"):
+                    conv.servicio_detectado = ""
                 return _pack(msg, outage_resuelto=prev.id)
         if cached_id or was_informed:
             _limpiar_ctx_outage(ctx)
@@ -233,6 +247,10 @@ def _talvez_respuesta_outage(
         else:
             msg = mensaje_ack_outage()
             ctx["outage_ack"] = True
+        # No dejar intención técnica previa viva (evita aviso_deuda al reabrir)
+        _reset_ctx_diagnostico(ctx)
+        if hasattr(conv, "servicio_detectado"):
+            conv.servicio_detectado = ""
         return _pack(
             msg,
             outage_id=outage.id,
@@ -546,6 +564,70 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             return "pago"
         return "pago"
     return None
+
+
+def _cliente_salir_aviso_deuda(texto: str) -> bool:
+    """No quiere pagar ni diagnosticar / servicio OK / desiste."""
+    if _cliente_desiste_o_resuelto(texto) or indica_resuelto(texto):
+        return True
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", " ", t)
+    t = " ".join(t.split())
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "funciona todo",
+            "todo funciona",
+            "todo bien",
+            "ya anda",
+            "ya anduvo",
+            "ya volvió",
+            "ya volvio",
+            "anda bien",
+            "no necesito",
+            "no hace falta",
+            "ninguna de las",
+            "ninguna opcion",
+            "ninguna opción",
+            "las dos no",
+            "ni una ni otra",
+        )
+    ):
+        return True
+    return t in {
+        "no",
+        "no gracias",
+        "no nada",
+        "nada",
+        "nada gracias",
+        "ninguno",
+        "ninguna",
+        "dejar",
+        "dejá",
+        "deja",
+        "cancelar",
+    }
+
+
+def _reset_ctx_diagnostico(ctx: dict) -> None:
+    """Limpia intención/pasos de un flujo N1 previo (p. ej. post-incidente masivo)."""
+    for k in (
+        "intencion",
+        "intencion_tecnica_pendiente",
+        "paso_idx",
+        "diag_turnos",
+        "pasos_cubiertos",
+        "pppoe_informado",
+        "pppoe_rama",
+        "pppoe_triage",
+        "aviso_deuda_ofrecido",
+        "temas_pendientes",
+        "texto_multi_tema",
+        "prioridad_elegida",
+    ):
+        ctx.pop(k, None)
 
 
 def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
@@ -1877,6 +1959,25 @@ def procesar_mensaje_entrante(
 
     # Aviso de deuda antes de diagnóstico técnico: esperar elección pago vs seguir
     if intencion == "aviso_deuda":
+        # "No" / "funciona todo bien" / desiste → cerrar sin loop
+        if _cliente_salir_aviso_deuda(texto):
+            _reset_ctx_diagnostico(ctx)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return _cerrar_consulta_resuelta(
+                db,
+                org_id,
+                conv,
+                canal=canal,
+                mensaje=(
+                    "Perfecto. Si más adelante necesitás algo (pago o el servicio), "
+                    "escribime. ¡Buen día!"
+                ),
+                nota_ticket=(
+                    "[Abonado] Declínó aviso deuda / indicó que no necesita seguir: "
+                    f"{(texto or '').strip()[:200]}"
+                ),
+            )
         eleccion = _elige_pago_o_tecnico(texto)
         pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
         if eleccion is None:

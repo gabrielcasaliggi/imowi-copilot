@@ -237,6 +237,8 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
         id="conv-1",
         estado="bot",
         contexto_json="{}",
+        servicio_detectado="",
+        ticket_id="",
     )
     monkeypatch.setattr(
         "app.services.canal_abonado.crepo.set_contexto",
@@ -300,7 +302,7 @@ def test_interceptor_avisa_cuando_se_resuelve(db, monkeypatch):
         "app.services.canal_abonado.crepo.abonado_to_dict", lambda a: {"dni": a.dni}
     )
     monkeypatch.setattr("app.services.canal_abonado._enviar_respuesta", lambda *a, **k: None)
-    conv = SimpleNamespace(id="c3", estado="bot", contexto_json="{}")
+    conv = SimpleNamespace(id="c3", estado="bot", contexto_json="{}", servicio_detectado="", ticket_id="")
     ctx: dict = {}
     assert _talvez_respuesta_outage(
         session, org_id, conv, abo, ctx, canal="web", texto="Internet"
@@ -318,13 +320,28 @@ def test_interceptor_avisa_cuando_se_resuelve(db, monkeypatch):
     assert "mkfobatan2" not in resp["respuesta"]
     assert ctx.get("outage_resuelto_avisado") == o.id
 
-    # Tras resolución, "Si gracias" no debe caer a N1/deuda
+    # Tras resolución, "Si gracias" cierra el hilo (no deuda/N1)
+    monkeypatch.setattr(
+        "app.services.canal_abonado.enviar_encuesta_cierre",
+        lambda *a, **k: None,
+    )
     resp2 = _talvez_respuesta_outage(
         session, org_id, conv, abo, ctx, canal="web", texto="Si gracias"
     )
     assert resp2 is not None
-    assert "alegra" in resp2["respuesta"].lower() or "buen día" in resp2["respuesta"].lower()
+    assert resp2.get("modo") == "cerrado" or "alegra" in resp2["respuesta"].lower()
+    assert conv.estado == "cerrado"
     assert not ctx.get("outage_resuelto_avisado")
+
+
+def test_cliente_salir_aviso_deuda():
+    from app.services.canal_abonado import _cliente_salir_aviso_deuda
+
+    assert _cliente_salir_aviso_deuda("No")
+    assert _cliente_salir_aviso_deuda("No nada")
+    assert _cliente_salir_aviso_deuda("Funciona todo bien")
+    assert not _cliente_salir_aviso_deuda("quiero pagar")
+    assert not _cliente_salir_aviso_deuda("seguí con el diagnóstico")
 
 
 def test_interceptor_omite_facturacion(db, monkeypatch):
