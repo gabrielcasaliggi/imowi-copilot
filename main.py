@@ -23,11 +23,12 @@ from app.config import (
     ENABLE_API_DOCS,
     ENABLE_DEMO_RESET,
     ENABLE_LEGACY_API,
+    avisos_config_produccion,
     database_url_enmascarada,
+    errores_config_produccion,
     es_postgres,
     es_produccion,
     supabase_configurado,
-    validar_config_produccion,
 )
 from app.estate.database import Base, get_engine, get_session_factory
 from app.estate.health import verificar_database
@@ -58,7 +59,16 @@ _SENTRY_OK = init_sentry()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: Data Estate (SQLite o PostgreSQL) + KB legacy + persistencia tickets."""
-    for aviso in validar_config_produccion():
+    fatales = errores_config_produccion()
+    if fatales:
+        for err in fatales:
+            logger.error("Config producción FATAL: %s", err)
+        raise RuntimeError(
+            "Configuración de production inválida ("
+            + "; ".join(fatales)
+            + "). Corregí .env o usá ALLOW_INSECURE_PROD=true solo como rescate."
+        )
+    for aviso in avisos_config_produccion():
         logger.warning("Config producción: %s", aviso)
 
     engine = get_engine()
@@ -151,6 +161,7 @@ if _STATIC.is_dir() and ENABLE_LEGACY_API:
 
 @app.get("/health")
 async def health():
+    """Liveness: el proceso responde. No fallar solo porque la DB esté caída."""
     kb = getattr(app.state, "knowledge", {})
     estate = getattr(app.state, "estate", {})
     db_health = getattr(app.state, "database_health", None) or verificar_database()
@@ -176,7 +187,27 @@ async def health():
         "demo_reset_enabled": ENABLE_DEMO_RESET,
         "api_v1": "/api/v1",
         "frontend_recomendado": "Next.js",
+        "ready": "/ready",
     }
+
+
+@app.get("/ready")
+async def ready():
+    """Readiness: apto para tráfico. 503 si la DB no responde."""
+    from fastapi.responses import JSONResponse
+
+    db_health = verificar_database()
+    connected = bool(db_health.get("connected"))
+    body = {
+        "ready": connected,
+        "database_connected": connected,
+        "database": "postgresql" if es_postgres() else "sqlite",
+        "env": "production" if es_produccion() else "development",
+    }
+    if not connected:
+        body["error"] = db_health.get("error", "database unavailable")
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 @app.get("/config.js")

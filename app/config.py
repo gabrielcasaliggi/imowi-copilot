@@ -351,39 +351,92 @@ def _usuarios_desde_env() -> dict:
 MOCK_USERS = _usuarios_desde_env()
 
 
-def validar_config_produccion() -> list[str]:
-    """Advertencias de configuración insegura o incompleta."""
+_AUTH_SECRETS_DEBILES = frozenset(
+    {
+        "",
+        "change-me",
+        "change-me-in-production",
+        "secret",
+        "password",
+        "ci-test-auth-secret-min-32-chars!!",
+        "ci-test-portal-secret-min-32!!",
+    }
+)
+
+
+def allow_insecure_prod() -> bool:
+    """Escape hatch de emergencia: ALLOW_INSECURE_PROD=true (solo rescate)."""
+    return os.getenv("ALLOW_INSECURE_PROD", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def errores_config_produccion() -> list[str]:
+    """Errores fatales: la API no debe arrancar en production con estos.
+
+    Avisos no bloqueantes: ver `avisos_config_produccion`.
+    Override de emergencia: ALLOW_INSECURE_PROD=true.
+    """
+    errores: list[str] = []
+    if not es_produccion():
+        return errores
+    if allow_insecure_prod():
+        return errores
+
+    secret = (AUTH_SECRET or "").strip()
+    if not secret or secret in _AUTH_SECRETS_DEBILES or len(secret) < 32:
+        errores.append(
+            "AUTH_SECRET ausente, débil o corto (<32) — generá uno con openssl rand -hex 32"
+        )
+    portal_sec = (PORTAL_AUTH_SECRET or "").strip()
+    if not portal_sec or portal_sec in _AUTH_SECRETS_DEBILES or len(portal_sec) < 32:
+        errores.append(
+            "PORTAL_AUTH_SECRET ausente, débil o corto (<32) — distinto de AUTH_SECRET"
+        )
+    elif portal_sec == secret:
+        errores.append("PORTAL_AUTH_SECRET debe ser distinto de AUTH_SECRET")
+    if not es_postgres():
+        errores.append(
+            "DATABASE_URL debe ser PostgreSQL en production (no SQLite)"
+        )
+    if CORS_ORIGINS == ["*"] or not CORS_ORIGINS:
+        errores.append(
+            "CORS_ORIGINS=* o vacío — restringí al dominio público (ej. https://ibot.ecolan.com)"
+        )
+    if MOCK_USERS or not demo_users_disabled():
+        errores.append(
+            "Usuarios demo activos — set DISABLE_DEMO_USERS=true"
+        )
+    if ENABLE_DEMO_RESET:
+        errores.append(
+            "ENABLE_DEMO_RESET=true — peligroso en production (set false)"
+        )
+    return errores
+
+
+def avisos_config_produccion() -> list[str]:
+    """Advertencias no bloqueantes de configuración incompleta."""
     avisos: list[str] = []
     if not es_produccion():
         return avisos
 
-    if not AUTH_SECRET or AUTH_SECRET in ("change-me", "change-me-in-production"):
-        avisos.append("AUTH_SECRET no configurado o inseguro")
-    if not PORTAL_AUTH_SECRET:
-        avisos.append("PORTAL_AUTH_SECRET no configurado — usar secreto distinto de AUTH_SECRET")
-    if not es_postgres():
+    if allow_insecure_prod():
         avisos.append(
-            "DATABASE_URL no apunta a PostgreSQL — en producción usá Postgres local "
-            "o Supabase (Settings → Database → Connection string URI)"
+            "ALLOW_INSECURE_PROD=true — fail-fast desactivado (solo rescate temporal)"
         )
-    elif not supabase_configurado():
+    if es_postgres() and not supabase_configurado():
         avisos.append(
             "SUPABASE_URL/SERVICE_KEY opcionales si DATABASE_URL ya es Postgres del mismo proyecto"
         )
     if AI_API_KEY in ("", "ollama", "tu-api-key"):
         avisos.append("AI_API_KEY no configurada")
-    if CORS_ORIGINS == ["*"]:
-        avisos.append("CORS_ORIGINS=* — restringí al dominio público (ibot.ecolan.com)")
-    if MOCK_USERS:
-        avisos.append("MOCK_USERS activos en production — set DISABLE_DEMO_USERS=true")
     if not SMTP_HOST:
         avisos.append("SMTP_HOST no configurado — invites/OTP por email no funcionarán")
     if PORTAL_ALLOW_GUEST:
         avisos.append("PORTAL_ALLOW_GUEST=true — guest anónimo habilitado en production")
-    if ENABLE_DEMO_RESET:
-        avisos.append(
-            "ENABLE_DEMO_RESET=true — POST /api/v1/demo/reset puede borrar tickets del tenant"
-        )
     if ENABLE_LEGACY_API:
         avisos.append("ENABLE_LEGACY_API=true — /api/chat legacy expuesto sin endurecer")
     if ENABLE_API_DOCS:
@@ -402,3 +455,8 @@ def validar_config_produccion() -> list[str]:
         avisos.append("SENTRY_DSN vacío — errores de prod no se reportan a Sentry")
 
     return avisos
+
+
+def validar_config_produccion() -> list[str]:
+    """Compat: errores fatales + avisos (para logs). Preferí errores_/avisos_ separados."""
+    return errores_config_produccion() + avisos_config_produccion()

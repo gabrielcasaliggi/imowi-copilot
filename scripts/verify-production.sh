@@ -28,6 +28,17 @@ print('OK — health check pasó')
 "
 
 echo ""
+echo "==> Verificando $API_URL/ready"
+curl -sf "$API_URL/ready" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d.get('ready') is True, d
+assert d.get('database_connected') is True, d
+print('  ready: true')
+print('OK — ready check pasó')
+"
+
+echo ""
 echo "==> Verificando login (opcional, requiere credenciales)"
 if [[ -n "${VERIFY_USER:-}" && -n "${VERIFY_PASSWORD:-}" ]]; then
   TOKEN="$(curl -sf -X POST "$API_URL/api/login" \

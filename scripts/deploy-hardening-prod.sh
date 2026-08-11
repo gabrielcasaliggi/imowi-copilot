@@ -9,7 +9,8 @@
 #   3) Parchea .env (agrega vars nuevas sin tocar secretos existentes)
 #   4) pip + build frontend
 #   5) restart systemd
-#   6) health checks
+#   6) /health + /ready + smoke Fase 1
+#   7) Recuerda rollback si smoke falla
 set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/operations-hub}"
@@ -220,12 +221,22 @@ systemctl is-active --quiet "$API_UNIT" && grn "    $API_UNIT active" || {
 }
 
 # ── 6) checks ───────────────────────────────────────────────────────────────
-ylw "==> 6/6 Checks"
+ylw "==> 6/7 Checks liveness + readiness"
 HEALTH="$(curl -fsS --max-time 10 http://127.0.0.1:8000/health || true)"
 if echo "$HEALTH" | grep -q '"status"'; then
   grn "    health local OK: $HEALTH"
 else
   red "    health local falló"
+  journalctl -u "$API_UNIT" -n 60 --no-pager
+  exit 1
+fi
+
+READY_CODE="$(curl -s -o /tmp/oh_ready.json -w '%{http_code}' --max-time 10 http://127.0.0.1:8000/ready || echo 000)"
+READY_BODY="$(cat /tmp/oh_ready.json 2>/dev/null || true)"
+if [[ "$READY_CODE" == "200" ]] && echo "$READY_BODY" | grep -q '"ready"[[:space:]]*:[[:space:]]*true'; then
+  grn "    ready local OK: $READY_BODY"
+else
+  red "    /ready falló (HTTP $READY_CODE): $READY_BODY"
   journalctl -u "$API_UNIT" -n 60 --no-pager
   exit 1
 fi
@@ -248,6 +259,26 @@ else
   ylw "    /api/listar-tickets → HTTP $LEGACY_CODE (esperado 401)"
 fi
 
+# ── 7) smoke Fase 1 ─────────────────────────────────────────────────────────
+ylw "==> 7/7 Smoke Fase 1 (local)"
+SMOKE="$APP_ROOT/scripts/fase1-smoke-batan.sh"
+if [[ -x "$SMOKE" || -f "$SMOKE" ]]; then
+  chmod +x "$SMOKE" || true
+  if sudo -u "$APP_USER" bash "$SMOKE" "http://127.0.0.1:8000"; then
+    grn "    fase1-smoke OK"
+  else
+    red "    fase1-smoke FALLÓ — deploy incompleto"
+    ylw "Rollback sugerido:"
+    echo "  sudo -u $APP_USER git -C $APP_ROOT checkout HEAD~1"
+    echo "  sudo cp ${ENV_FILE}.bak.${STAMP} $ENV_FILE"
+    echo "  sudo systemctl restart $API_UNIT $FE_UNIT"
+    echo "  # DB solo si hace falta: sudo bash $APP_ROOT/scripts/restore-estate.sh $BACKUP_FILE --yes --i-understand-this-wipes-target"
+    exit 1
+  fi
+else
+  ylw "    smoke script ausente — skipeado"
+fi
+
 echo
 grn "=== DEPLOY HARDENING OK ==="
 echo "Backup:     $BACKUP_FILE"
@@ -258,12 +289,13 @@ ylw "Próximos pasos manuales:"
 echo "  1) Listar usuarios DB (login real, no demo):"
 echo "       cd $APP_ROOT && sudo -u $APP_USER .venv/bin/python -c \"from app.estate.database import get_session_factory; from app.estate.models import User; db=get_session_factory()(); [print(u.email,u.rol,u.activo) for u in db.query(User).all()]\""
 echo "  2) Completar SMTP_* en .env si querés invites/OTP mail, luego: systemctl restart $API_UNIT"
-echo "  3) BillTrack: activar BILLTRACK_* + LOOKUP_SQL cuando el padrón esté listo"
-echo "  4) Probar https://ibot.ecolan.com/health y login consola con email de DB"
+echo "  3) Alertas /ready: sudo bash $APP_ROOT/scripts/install-ready-alert-cron.sh"
+echo "  4) Drill restore mensual: sudo bash $APP_ROOT/scripts/restore-estate.sh $BACKUP_DIR/ops_hub_estate_latest.dump --url 'postgresql://.../staging' --yes"
+echo "  5) Probar https://ibot.ecolan.com/ready y login consola con email de DB"
 echo
 ylw "Rollback rápido si hace falta:"
 echo "  sudo -u $APP_USER git -C $APP_ROOT checkout HEAD~1"
 echo "  sudo cp ${ENV_FILE}.bak.${STAMP} $ENV_FILE"
 echo "  sudo systemctl restart $API_UNIT $FE_UNIT"
 echo "  # Restore DB solo si hubo corrupción (cuidado):"
-echo "  # pg_restore --clean --if-exists -d \"\$DATABASE_URL\" $BACKUP_FILE"
+echo "  # sudo bash $APP_ROOT/scripts/restore-estate.sh $BACKUP_FILE --yes --i-understand-this-wipes-target"

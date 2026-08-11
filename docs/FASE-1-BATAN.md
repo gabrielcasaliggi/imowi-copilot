@@ -12,20 +12,30 @@ Multi-tenant / white-label / billing: **fuera de esta fase**.
 
 ```bash
 cd /opt/operations-hub
-sudo bash scripts/backup-estate.sh          # ya no falla por SMTP_FROM sin comillas
+# Recomendado (backup → pull → build → restart → /ready → smoke):
+sudo bash scripts/deploy-hardening-prod.sh
+
+# O manual:
+sudo bash scripts/backup-estate.sh
 git pull origin main
 source .venv/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart operations-hub-api
 sleep 3
 curl -fsS https://ibot.ecolan.com/health | python3 -m json.tool
+curl -fsS https://ibot.ecolan.com/ready | python3 -m json.tool
 ```
 
-Health debe incluir:
+Health (liveness) debe incluir:
 
 - `"status": "ok"`
 - `"demo_reset_enabled": false` (en production)
 - `"sentry_configured": true` si cargaste `SENTRY_DSN`
+- `"ready": "/ready"`
+
+`/ready` (readiness) debe ser HTTP 200 con `"ready": true`. Si la DB cae → **503** (systemd puede seguir “active”).
+
+En `APP_ENV=production` la API **no arranca** si faltan secretos ≥32, Postgres, CORS explícito, o hay demos/reset activos. Escape hatch de emergencia: `ALLOW_INSECURE_PROD=true` (solo rescate).
 
 ### B. Parche `.env` (una vez)
 
@@ -61,12 +71,20 @@ SMTP_FROM="Soporte Batán <noreply@tudominio.com>"
 
 Reiniciá API tras editar `.env`.
 
-### C. Backup diario
+### C. Backup diario + alerta /ready + drill restore
 
 ```bash
 sudo bash /opt/operations-hub/scripts/install-backup-cron.sh
 sudo bash /opt/operations-hub/scripts/backup-estate.sh
-ls -la /var/backups/ops-hub/
+ls -lh /var/backups/ops-hub/
+
+# Alerta cada 2 min (webhook/email opcional en /etc/default/operations-hub-alert)
+sudo bash /opt/operations-hub/scripts/install-ready-alert-cron.sh
+sudo bash /opt/operations-hub/scripts/alert-ready.sh
+
+# Drill mensual en staging (NO producción):
+# sudo bash scripts/restore-estate.sh /var/backups/ops-hub/ops_hub_estate_latest.dump \
+#   --url 'postgresql://user:pass@127.0.0.1:5432/ops_hub_staging' --yes
 ```
 
 ### D. Smoke Fase 1
@@ -96,8 +114,11 @@ También: `./scripts/verify-production.sh https://ibot.ecolan.com`
 | Backup `.env` seguro | No ejecuta `batan.coop` como comando |
 | Cron installer | Backup diario automático |
 | `/health` → `sentry_configured`, `demo_reset_enabled` | Visibilidad ops |
-| Warnings boot | Sentry vacío, WA incompleto, demo reset |
-| Smoke `fase1-smoke-batan.sh` | Anti-ticket + QR + webhook WA |
+| `/ready` 200/503 | Readiness real (DB) |
+| Fail-fast boot prod | No arranca con secretos/CORS/demos inseguros |
+| `restore-estate.sh` + alerta cron | RTO y detección de caída |
+| Warnings boot | Sentry vacío, WA incompleto |
+| Smoke `fase1-smoke-batan.sh` | Anti-ticket + QR + webhook WA + /ready |
 
 ---
 
@@ -126,7 +147,10 @@ Ver `docs/FASE-C.md` § checklist WA.
 ## Definition of Done (Fase 1)
 
 - [ ] Backup cron instalado y dump reciente en `/var/backups/ops-hub`
+- [ ] Cron `/ready` instalado (`install-ready-alert-cron.sh`)
+- [ ] Drill restore en staging al menos 1 vez (`restore-estate.sh`)
 - [ ] `demo_reset_enabled: false` en health prod
+- [ ] `curl -fsS …/ready` → `ready: true`
 - [ ] `fase1-smoke-batan.sh` en verde
 - [ ] SMTP_FROM entre comillas (sin error al backup)
 - [ ] Sentry DSN cargado **o** riesgo aceptado documentado

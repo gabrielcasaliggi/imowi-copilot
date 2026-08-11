@@ -44,6 +44,7 @@ Nunca mezclar tokens. BillTrack es **solo lectura**.
 ### Checklist post-deploy
 
 - [ ] `curl -fsS https://ibot.ecolan.com/health` → ok
+- [ ] `curl -fsS https://ibot.ecolan.com/ready` → `ready: true` (503 si DB caída)
 - [ ] Login demo (`admin`/`admin`) **falla** (`DISABLE_DEMO_USERS=true`)
 - [ ] Invite → set password → login OK
 - [ ] Portal: DNI + OTP (SMTP) emite JWT; token consola no abre `/api/v1/portal/messages`
@@ -52,6 +53,7 @@ Nunca mezclar tokens. BillTrack es **solo lectura**.
 - [ ] HSTS presente: `curl -sI https://ibot.ecolan.com | grep -i strict-transport`
 - [ ] `/api/listar-tickets` sin token → 401
 - [ ] WhatsApp: `WHATSAPP_APP_SECRET` seteado; POST sin firma → 403
+- [ ] Cron alerta: `sudo bash scripts/install-ready-alert-cron.sh`
 
 ## WhatsApp HMAC
 
@@ -73,17 +75,32 @@ Con secret configurado, se exige header `X-Hub-Signature-256: sha256=<hmac>`.
 # Backup
 sudo bash scripts/backup-estate.sh /var/backups/ops-hub
 
-# Restore (staging primero)
-createdb ops_hub_restore
-pg_restore --clean --if-exists -d "postgresql://ops_hub:...@127.0.0.1/ops_hub_restore" \
-  /var/backups/ops-hub/ops_hub_estate_latest.dump
+# Restore en staging (recomendado)
+sudo bash scripts/restore-estate.sh /var/backups/ops-hub/ops_hub_estate_latest.dump \
+  --url 'postgresql://ops_hub:...@127.0.0.1/ops_hub_restore' --yes
+
+# Restore sobre la DB de producción (peligroso)
+# sudo bash scripts/restore-estate.sh /var/backups/ops-hub/ops_hub_estate_latest.dump \
+#   --yes --i-understand-this-wipes-target
 ```
 
-Cron sugerido (diario 03:15 UTC):
+Cron sugerido:
 
-```cron
-15 3 * * * root /opt/ops-hub/scripts/backup-estate.sh >/var/log/ops-hub-backup.log 2>&1
+```bash
+sudo bash /opt/operations-hub/scripts/install-backup-cron.sh
+sudo bash /opt/operations-hub/scripts/install-ready-alert-cron.sh
 ```
+
+## Fail-fast de configuración (production)
+
+Con `APP_ENV=production` la API **aborta el boot** si:
+
+- `AUTH_SECRET` / `PORTAL_AUTH_SECRET` ausentes, débiles, iguales entre sí o con menos de 32 chars
+- `DATABASE_URL` no es PostgreSQL
+- `CORS_ORIGINS` es `*` o vacío
+- usuarios demo activos / `ENABLE_DEMO_RESET=true`
+
+Escape hatch temporal: `ALLOW_INSECURE_PROD=true` (solo rescate; loguea warning).
 
 ## Host hardening (runbook)
 

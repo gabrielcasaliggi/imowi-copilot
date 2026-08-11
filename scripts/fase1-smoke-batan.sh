@@ -35,6 +35,16 @@ if d.get("env") == "production" and not d.get("database_connected"):
 ' "$BODY"
 ok "health"
 
+READY="$(curl -sf "$API_URL/ready")" || { red "/ready no responde (503 o down)"; exit 1; }
+python3 -c '
+import json, sys
+d = json.loads(sys.argv[1])
+assert d.get("ready") is True, d
+assert d.get("database_connected") is True, d
+print("  ready=true database=%s" % d.get("database"))
+' "$READY"
+ok "ready"
+
 RESET_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/v1/demo/reset" \
   -H 'Content-Type: application/json' -d '{"incluir_tickets":false}' || true)"
 if [[ "$RESET_CODE" == "401" || "$RESET_CODE" == "403" ]]; then
