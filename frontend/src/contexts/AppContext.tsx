@@ -24,7 +24,6 @@ import {
   newSessionId,
   saveHistorial,
   setTenantSlug,
-  setToken,
 } from "@/lib/storage";
 import type {
   AlertaRed,
@@ -363,40 +362,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [appendTrace],
   );
 
-  // Bootstrap de sesión al recargar — Bearer (localStorage) o cookie HttpOnly
+  // Bootstrap de sesión al recargar — cookie HttpOnly (preferida) o Bearer legacy
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      // Probe por cookie: NO disparar logout en 401 (evita loop en /login)
-      void api
-        .me({ suppressUnauthorized: true })
-        .then((me) =>
-          boot({
-            token: "",
-            usuario: me.usuario,
-            rol: me.rol,
-            cooperativa: me.cooperativa,
-            nombre: me.nombre,
-            org_slug: me.org_slug,
-            permisos: me.permisos,
-            must_change_password: me.must_change_password,
-          } as LoginResponse),
-        )
-        .catch(() => {
-          setReady(true);
-        });
-      return;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore session
-    void boot().catch(() => {
-      clearToken();
-      setUser(null);
-      setReady(true);
-      // Sin hard reload: si estamos en /login no reentrar el loop
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        window.location.replace("/login");
+    const bootFromMe = (me: MeResponse) =>
+      boot({
+        token: "",
+        usuario: me.usuario,
+        rol: me.rol,
+        cooperativa: me.cooperativa,
+        nombre: me.nombre,
+        org_slug: me.org_slug,
+        permisos: me.permisos,
+        must_change_password: me.must_change_password,
+      } as LoginResponse);
+
+    void (async () => {
+      // 1) Cookie HttpOnly (sin Authorization)
+      try {
+        const me = await api.me({ suppressUnauthorized: true });
+        clearToken(); // limpiar JWT legado en localStorage (superficie XSS)
+        await bootFromMe(me);
+        return;
+      } catch {
+        /* sin cookie */
       }
-    });
+
+      // 2) Compat: Bearer en localStorage de sesiones previas
+      if (getToken()) {
+        try {
+          await boot();
+          return;
+        } catch {
+          clearToken();
+          setUser(null);
+          setReady(true);
+          if (
+            typeof window !== "undefined" &&
+            !window.location.pathname.startsWith("/login")
+          ) {
+            window.location.replace("/login");
+          }
+          return;
+        }
+      }
+
+      setReady(true);
+    })();
     // Solo al montar el provider
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap único
   }, []);
@@ -404,7 +415,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (usuario: string, password: string) => {
       const data = await api.login(usuario, password);
-      setToken(data.token);
+      // Cookie HttpOnly ya seteada por el backend; no persistir JWT en JS
+      clearToken();
       newSessionId();
       setSessionIdState(getSessionId());
       if (data.must_change_password) {
@@ -413,9 +425,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        await boot(data);
+        await boot({ ...data, token: "" });
       } catch (e) {
-        // Token ya guardado: entrar igual y mostrar error de carga parcial
         setReady(true);
         appendTrace([
           `⚠️ Login OK, carga incompleta: ${e instanceof Error ? e.message : "Error"}`,

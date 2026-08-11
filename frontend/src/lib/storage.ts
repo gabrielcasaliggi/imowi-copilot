@@ -8,11 +8,13 @@ export interface StoredChatMessage {
   contenido: string;
 }
 
+/** JWT legado en localStorage. La sesión real usa cookie HttpOnly `ops_console_token`. */
 export function getToken(): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(TOKEN_KEY) || "";
 }
 
+/** @deprecated Preferí cookie HttpOnly; no llamar en flujos nuevos. */
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
 }

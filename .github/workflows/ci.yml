@@ -58,5 +58,78 @@ jobs:
         run: npm ci
       - name: Build
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
+          # Same-origin en CI e2e vía rewrite; build también tolera absolute URL
+          NEXT_PUBLIC_API_URL: ""
+          API_PROXY_TARGET: http://127.0.0.1:8000
         run: npm run build
+
+  e2e:
+    name: E2E smoke (login → inbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [backend, frontend]
+    env:
+      APP_ENV: development
+      DISABLE_DEMO_USERS: "false"
+      DATABASE_URL: sqlite:///./data/ci_e2e_estate.db
+      AUTH_SECRET: ci-test-auth-secret-min-32-chars!!
+      PORTAL_AUTH_SECRET: ci-test-portal-secret-min-32!!
+      CORS_ORIGINS: http://127.0.0.1:3000
+      PORTAL_ALLOW_GUEST: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ""
+          API_PROXY_TARGET: http://127.0.0.1:8000
+        run: npm run build
+      - name: Start API
+        run: |
+          mkdir -p data
+          nohup python -m uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/api-e2e.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8000/ready && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/ready
+      - name: Start frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ""
+          API_PROXY_TARGET: http://127.0.0.1:8000
+        run: |
+          nohup npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/fe-e2e.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:3000/login >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/login >/dev/null      - name: Smoke Playwright
+        env:
+          QA_BASE_URL: http://127.0.0.1:3000
+          VERIFY_USER: admin
+          VERIFY_PASSWORD: admin
+        run: python -m qa_bot.smoke_fase_c --skip-portal
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo '--- API ---'; tail -n 80 /tmp/api-e2e.log || true
+          echo '--- FE ---'; tail -n 80 /tmp/fe-e2e.log || true

@@ -30,7 +30,15 @@ import type {
 } from "./types";
 
 const API_BASE =
-  (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+/**
+ * Base para fetch. Vacío = same-origin (nginx prod o rewrite Next en dev),
+ * así la cookie HttpOnly path=/api viaja sin depender de localStorage.
+ */
+export function apiBaseUrl(): string {
+  return API_BASE;
+}
 
 /** Timeout de red: evita que "Ingresando…" quede colgado si Render está despertando. */
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -317,13 +325,15 @@ export const api = {
     });
   },
 
-  portalSetPin(pin: string, portalToken: string) {
+  portalSetPin(pin: string, portalToken?: string) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (portalToken) headers.Authorization = `Bearer ${portalToken}`;
     return fetch(`${API_BASE}/api/v1/portal/auth/set-pin`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${portalToken}`,
-      },
+      credentials: "include",
+      headers,
       body: JSON.stringify({ pin }),
     }).then(async (res) => {
       if (!res.ok) {
@@ -1255,14 +1265,15 @@ export const api = {
     });
   },
 
-  portalSend(texto: string, portalToken: string) {
+  portalSend(texto: string, portalToken?: string) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (portalToken) headers.Authorization = `Bearer ${portalToken}`;
     return fetch(`${API_BASE}/api/v1/portal/messages`, {
       method: "POST",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${portalToken}`,
-      },
+      headers,
       body: JSON.stringify({ texto }),
     }).then(async (res) => {
       if (!res.ok) {
@@ -1284,10 +1295,12 @@ export const api = {
     });
   },
 
-  portalConversation(id: string, portalToken: string) {
+  portalConversation(id: string, portalToken?: string) {
+    const headers: Record<string, string> = {};
+    if (portalToken) headers.Authorization = `Bearer ${portalToken}`;
     return fetch(`${API_BASE}/api/v1/portal/conversations/${id}`, {
       credentials: "include",
-      headers: { Authorization: `Bearer ${portalToken}` },
+      headers,
     }).then(async (res) => {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

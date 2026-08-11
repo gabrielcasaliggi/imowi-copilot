@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
-import { getToken } from "@/lib/storage";
 import { inputCls } from "@/components/ui/forms";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getBranding } from "@/lib/brand";
@@ -19,8 +18,8 @@ export default function LoginPage() {
     process.env.NEXT_PUBLIC_APP_ENV !== "production";
 
   useEffect(() => {
-    // Cookie HttpOnly y/o Bearer: si ya hay sesión, salir de /login
-    if (ready && (user || getToken())) {
+    // Cookie HttpOnly: si ya hay sesión, salir de /login
+    if (ready && user) {
       // Hard nav: más fiable si el App Router quedó con chunks stale tras un deploy
       window.location.replace("/inbox");
     }

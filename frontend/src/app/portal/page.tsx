@@ -18,9 +18,11 @@ const showDemo =
   process.env.NODE_ENV !== "production" &&
   process.env.NEXT_PUBLIC_APP_ENV !== "production";
 
+/** Solo metadata de UI; el JWT va en cookie HttpOnly `ops_portal_token`. */
 type PortalStored = {
-  token: string;
   convId: string;
+  /** @deprecated legado — no se vuelve a grabar */
+  token?: string;
 };
 
 type Step = "auth" | "otp" | "chat" | "pin-setup";
@@ -28,7 +30,10 @@ type Step = "auth" | "otp" | "chat" | "pin-setup";
 function loadStored(): PortalStored | null {
   try {
     const raw = sessionStorage.getItem(PORTAL_KEY);
-    return raw ? (JSON.parse(raw) as PortalStored) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PortalStored;
+    if (!parsed?.convId) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -36,7 +41,7 @@ function loadStored(): PortalStored | null {
 
 function saveStored(s: PortalStored | null) {
   if (!s) sessionStorage.removeItem(PORTAL_KEY);
-  else sessionStorage.setItem(PORTAL_KEY, JSON.stringify(s));
+  else sessionStorage.setItem(PORTAL_KEY, JSON.stringify({ convId: s.convId }));
 }
 
 function canalEstadoLabel(estado: string): string {
@@ -62,7 +67,8 @@ export default function PortalPage() {
   const [otp, setOtp] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [contactMasked, setContactMasked] = useState("");
-  const [token, setToken] = useState("");
+  const [authed, setAuthed] = useState(false);
+  const [legacyToken, setLegacyToken] = useState("");
   const [conv, setConv] = useState<InboxConversation | null>(null);
   const [mensajes, setMensajes] = useState<InboxMessage[]>([]);
   const [texto, setTexto] = useState("");
@@ -78,29 +84,38 @@ export default function PortalPage() {
   ]);
 
   const applyPayload = useCallback(
-    (c: InboxConversation, msgs: InboxMessage[], portalToken: string, guest = false) => {
+    (c: InboxConversation, msgs: InboxMessage[], _portalToken: string, guest = false) => {
       setConv(c);
       setMensajes(msgs);
-      setToken(portalToken);
+      setAuthed(true);
+      setLegacyToken("");
       setModoInvitado(guest);
       setStep("chat");
-      saveStored({ token: portalToken, convId: c.id });
+      saveStored({ convId: c.id });
     },
     [],
   );
 
   const refresh = useCallback(async () => {
     const stored = loadStored();
-    if (!stored?.token || !stored.convId) return;
+    if (!stored?.convId) return;
     try {
-      const data = await api.portalConversation(stored.convId, stored.token);
+      // Prefer cookie; Bearer solo si hay token legado de sesión anterior
+      const data = await api.portalConversation(
+        stored.convId,
+        stored.token || undefined,
+      );
       setConv(data.conversacion);
       setMensajes(data.mensajes || []);
-      setToken(stored.token);
+      setAuthed(true);
+      if (stored.token) setLegacyToken(stored.token);
+      // Migrar storage: quitar JWT de sessionStorage
+      saveStored({ convId: stored.convId });
       setStep("chat");
     } catch {
       saveStored(null);
-      setToken("");
+      setAuthed(false);
+      setLegacyToken("");
       setConv(null);
       setMensajes([]);
       setStep("auth");
@@ -112,13 +127,13 @@ export default function PortalPage() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!token || !conv?.id) return;
+    if (!authed || !conv?.id) return;
     if (conv.estado !== "con_agente" && conv.estado !== "espera_agente") return;
     const id = window.setInterval(() => {
       void refresh();
     }, 4000);
     return () => window.clearInterval(id);
-  }, [token, conv?.id, conv?.estado, refresh]);
+  }, [authed, conv?.id, conv?.estado, refresh]);
 
   const onStartDni = async (e: FormEvent) => {
     e.preventDefault();
@@ -215,11 +230,11 @@ export default function PortalPage() {
 
   const onSetPin = async (e: FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!authed) return;
     setBusy(true);
     setError("");
     try {
-      await api.portalSetPin(newPin.trim(), token);
+      await api.portalSetPin(newPin.trim(), legacyToken || undefined);
       setStep("chat");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el PIN");
@@ -230,7 +245,7 @@ export default function PortalPage() {
 
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!token || !texto.trim() || botTyping) return;
+    if (!authed || !texto.trim() || botTyping) return;
     setError("");
     const outgoing = texto.trim();
     setTexto("");
@@ -249,7 +264,7 @@ export default function PortalPage() {
     ]);
     setBotTyping(true);
     try {
-      const res = await api.portalSend(outgoing, token);
+      const res = await api.portalSend(outgoing, legacyToken || undefined);
       if (res.conversacion) setConv(res.conversacion);
       setMensajes(res.mensajes || []);
     } catch (err) {
@@ -262,12 +277,12 @@ export default function PortalPage() {
   };
 
   const onCsatSelect = async (n: number) => {
-    if (!token || botTyping) return;
+    if (!authed || botTyping) return;
     setError("");
     forceStick();
     setBotTyping(true);
     try {
-      const res = await api.portalSend(String(n), token);
+      const res = await api.portalSend(String(n), legacyToken || undefined);
       if (res.conversacion) setConv(res.conversacion);
       setMensajes(res.mensajes || []);
     } catch (err) {
@@ -280,7 +295,8 @@ export default function PortalPage() {
   const onExit = () => {
     void api.portalLogout().catch(() => {});
     saveStored(null);
-    setToken("");
+    setAuthed(false);
+    setLegacyToken("");
     setConv(null);
     setMensajes([]);
     setStep("auth");
@@ -308,7 +324,7 @@ export default function PortalPage() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
-          {token && (
+          {authed && (
             <button
               type="button"
               onClick={onExit}

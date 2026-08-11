@@ -1,12 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { setToken } from "@/lib/storage";
+import { clearToken } from "@/lib/storage";
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -22,15 +20,10 @@ export default function ChangePasswordPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.changePassword(current, next);
-      // El backend invalida el JWT viejo (token_version); hay que guardar el nuevo
-      if (res.token) {
-        setToken(res.token);
-        window.location.replace("/inbox");
-        return;
-      }
-      // Fallback: forzar re-login limpio
-      window.location.replace("/login");
+      await api.changePassword(current, next);
+      // Backend renueva cookie HttpOnly; no guardar JWT en localStorage
+      clearToken();
+      window.location.replace("/inbox");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cambiar");
       setLoading(false);
