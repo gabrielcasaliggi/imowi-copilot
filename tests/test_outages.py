@@ -165,7 +165,7 @@ def test_get_all_nas_client(monkeypatch):
     assert items[0].nasname == "1.2.3.4"
 
 
-def test_mensaje_ya_informado():
+def test_mensaje_ya_informado_sin_nombre_tecnico():
     o = SimpleNamespace(
         mensaje_cliente="Mensaje largo del incidente.",
         alcance="total",
@@ -176,8 +176,24 @@ def test_mensaje_ya_informado():
     first = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
     again = outage_svc.mensaje_para_conversacion(o, ya_informado=True)
     assert first == "Mensaje largo del incidente."
-    assert "Seguimos" in again
-    assert "apposada" in again
+    assert "guardia" in again.lower()
+    assert "apposada" not in again
+    assert "reclamo" in again.lower()
+
+
+def test_es_ack_outage():
+    assert outage_svc.es_ack_outage("Gracias")
+    assert outage_svc.es_ack_outage("ok")
+    assert outage_svc.es_ack_outage("Ok!")
+    assert not outage_svc.es_ack_outage("sigue sin internet")
+    assert not outage_svc.es_ack_outage("Internet")
+
+
+def test_mensaje_resolucion():
+    o = SimpleNamespace(nas_shortname="mkfobatan2")
+    msg = outage_svc.mensaje_resolucion_outage(o)
+    assert "resuelto" in msg.lower()
+    assert "mkfobatan2" not in msg
 
 
 def test_intencion_bloquea():
@@ -235,7 +251,7 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
 
     ctx: dict = {}
     resp = _talvez_respuesta_outage(
-        session, org_id, conv, abo, ctx, canal="web"
+        session, org_id, conv, abo, ctx, canal="web", texto="Internet"
     )
     assert resp is not None
     assert resp["ok"] is True
@@ -243,6 +259,58 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
     assert resp["outage_nas"] == "apposada"
     assert "ticket_id" not in resp
     assert sent.get("texto")
+
+    # Gracias → ack, no re-explicar incidente técnico
+    resp2 = _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="Gracias"
+    )
+    assert resp2 is not None
+    assert "de nada" in resp2["respuesta"].lower()
+    assert "apposada" not in resp2["respuesta"].lower()
+    assert ctx.get("outage_ack") is True
+
+    # Ok otra vez → cierre corto, sin insistir
+    resp3 = _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="Ok"
+    )
+    assert resp3 is not None
+    assert "cualquier cosa" in resp3["respuesta"].lower()
+
+
+def test_interceptor_avisa_cuando_se_resuelve(db, monkeypatch):
+    session, org_id = db
+    abo = Abonado(organizacion_id=org_id, dni="30111224", nombre="Test")
+    session.add(abo)
+    session.commit()
+    o = repo.create_network_outage(
+        session,
+        org_id,
+        nas_shortname="mkfobatan2",
+        comentario="parcial",
+        mensaje_cliente="Hay un corte parcial.",
+    )
+    monkeypatch.setattr(outage_svc, "resolver_nas_abonado", lambda *a, **k: "mkfobatan2")
+    monkeypatch.setattr("app.services.canal_abonado.crepo.set_contexto", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.abonado_to_dict", lambda a: {"dni": a.dni}
+    )
+    monkeypatch.setattr("app.services.canal_abonado._enviar_respuesta", lambda *a, **k: None)
+    conv = SimpleNamespace(id="c3", estado="bot", contexto_json="{}")
+    ctx: dict = {}
+    assert _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="Internet"
+    )
+    repo.resolve_network_outage(session, o)
+    # Forzar cache previo (simula conversación ya avisada)
+    ctx["outage_id"] = o.id
+    ctx["outage_informado"] = True
+    ctx["outage_nas"] = "mkfobatan2"
+    resp = _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="Hola"
+    )
+    assert resp is not None
+    assert "resuelto" in resp["respuesta"].lower()
+    assert "mkfobatan2" not in resp["respuesta"]
 
 
 def test_interceptor_omite_facturacion(db, monkeypatch):
@@ -266,5 +334,6 @@ def test_interceptor_omite_facturacion(db, monkeypatch):
         abo,
         {"intencion": "facturacion"},
         canal="web",
+        texto="quiero pagar",
     )
     assert resp is None

@@ -120,6 +120,21 @@ def _cliente_cable_ok(texto: str) -> bool:
     return False
 
 
+def _limpiar_ctx_outage(ctx: dict, *, preservar_resuelto_avisado: bool = False) -> None:
+    avisado = ctx.get("outage_resuelto_avisado")
+    for k in (
+        "outage_id",
+        "outage_nas",
+        "outage_informado",
+        "outage_interceptado",
+        "outage_ack",
+        "outage_resuelto_avisado",
+    ):
+        ctx.pop(k, None)
+    if preservar_resuelto_avisado and avisado:
+        ctx["outage_resuelto_avisado"] = avisado
+
+
 def _talvez_respuesta_outage(
     db: Session,
     org_id: str,
@@ -128,54 +143,120 @@ def _talvez_respuesta_outage(
     ctx: dict,
     *,
     canal: str,
+    texto: str = "",
 ) -> dict | None:
     """Si el NAS del abonado tiene incidente masivo activo, responde canned y no crea ticket."""
     if abonado is None:
         return None
     intent = str(ctx.get("intencion") or "").strip()
+    from app.estate import repository as repo
     from app.services.outages import (
         buscar_outage_para_abonado,
+        es_ack_outage,
         intencion_bloquea_outage,
+        mensaje_ack_outage,
+        mensaje_ack_outage_corto,
         mensaje_para_conversacion,
+        mensaje_resolucion_outage,
+        pide_estado_outage,
     )
 
     if intencion_bloquea_outage(intent):
         return None
+
+    cached_id = str(ctx.get("outage_id") or "").strip()
+    was_informed = bool(ctx.get("outage_informado"))
+
     try:
         outage, nas = buscar_outage_para_abonado(db, org_id, abonado, ctx)
     except Exception:
         logger.exception("Error buscando outage masivo")
         return None
+
+    def _pack(msg: str, **extra):
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=(canal != "web"))
+        payload = {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "abonado": crepo.abonado_to_dict(abonado),
+            "intencion": intent or None,
+        }
+        payload.update(extra)
+        return payload
+
     if not outage:
-        # Limpiar cache si el incidente ya no está activo
-        if ctx.get("outage_id"):
-            ctx.pop("outage_id", None)
-            ctx.pop("outage_nas", None)
-            ctx.pop("outage_informado", None)
+        # Incidente que teníamos cacheado fue resuelto → avisar una vez
+        if cached_id and was_informed and not ctx.get("outage_resuelto_avisado"):
+            prev = repo.get_network_outage(db, org_id, cached_id)
+            if prev is not None and prev.estado == "resuelto":
+                msg = mensaje_resolucion_outage(prev)
+                _limpiar_ctx_outage(ctx)
+                ctx["outage_resuelto_avisado"] = prev.id
+                return _pack(msg, outage_resuelto=prev.id)
+        if cached_id or was_informed:
+            _limpiar_ctx_outage(ctx)
             crepo.set_contexto(conv, ctx)
             db.commit()
         return None
 
-    ya = bool(ctx.get("outage_informado")) and str(ctx.get("outage_id") or "") == outage.id
-    msg = mensaje_para_conversacion(outage, ya_informado=ya)
+    ya = was_informed and str(cached_id or "") == outage.id
     ctx["outage_id"] = outage.id
     ctx["outage_nas"] = nas or outage.nas_shortname
-    ctx["outage_informado"] = True
     ctx["outage_interceptado"] = True
-    crepo.set_contexto(conv, ctx)
-    db.commit()
-    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=(canal != "web"))
-    return {
-        "ok": True,
-        "modo": "bot",
-        "conversacion_id": conv.id,
-        "respuesta": msg,
-        "estado": conv.estado,
-        "abonado": crepo.abonado_to_dict(abonado),
-        "intencion": intent or None,
-        "outage_id": outage.id,
-        "outage_nas": nas or outage.nas_shortname,
-    }
+    ctx.pop("outage_resuelto_avisado", None)
+
+    # Primer aviso
+    if not ya:
+        msg = mensaje_para_conversacion(outage, ya_informado=False)
+        ctx["outage_informado"] = True
+        return _pack(
+            msg,
+            outage_id=outage.id,
+            outage_nas=nas or outage.nas_shortname,
+        )
+
+    # Ya informado: no insistir ante ok/gracias
+    if es_ack_outage(texto):
+        if ctx.get("outage_ack"):
+            msg = mensaje_ack_outage_corto()
+        else:
+            msg = mensaje_ack_outage()
+            ctx["outage_ack"] = True
+        return _pack(
+            msg,
+            outage_id=outage.id,
+            outage_nas=nas or outage.nas_shortname,
+        )
+
+    # Pregunta por estado / sigue sin servicio → recordatorio suave (sin nombre técnico)
+    if pide_estado_outage(texto) or contiene_sintoma_canal(texto):
+        msg = mensaje_para_conversacion(outage, ya_informado=True)
+        return _pack(
+            msg,
+            outage_id=outage.id,
+            outage_nas=nas or outage.nas_shortname,
+        )
+
+    # Otros mensajes cortos mientras el incidente está activo: no soltar deuda/N1
+    t = (texto or "").strip()
+    if t and len(t) <= 60 and not parece_consulta_nueva(texto):
+        msg = (
+            "Todavía hay un incidente activo en tu zona; la guardia sigue trabajando. "
+            "No hace falta reclamo. Si ya te anda, avisame."
+        )
+        return _pack(
+            msg,
+            outage_id=outage.id,
+            outage_nas=nas or outage.nas_shortname,
+        )
+
+    # Consultas nuevas de otro tema: dejar pasar (p. ej. factura)
+    return None
 
 
 def _talvez_mensaje_pppoe(
@@ -1493,7 +1574,7 @@ def procesar_mensaje_entrante(
     # Incidente masivo por NAS (antes de frustración/ticket/LLM)
     if abonado:
         outage_resp = _talvez_respuesta_outage(
-            db, org_id, conv, abonado, ctx, canal=canal
+            db, org_id, conv, abonado, ctx, canal=canal, texto=texto
         )
         if outage_resp is not None:
             return outage_resp
@@ -1640,7 +1721,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             outage_resp = _talvez_respuesta_outage(
-                db, org_id, conv, abonado, ctx, canal=canal
+                db, org_id, conv, abonado, ctx, canal=canal, texto=texto
             )
             if outage_resp is not None:
                 return outage_resp

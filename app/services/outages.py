@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 
@@ -232,9 +233,126 @@ def mensaje_para_conversacion(
         return base
     eta = outage.eta_minutos or 45
     return (
-        f"Seguimos con el incidente en tu zona de cobertura "
-        f"({outage.nas_shortname}). La guardia continúa trabajando. "
-        f"ETA aproximado: {eta} min. No hace falta generar un reclamo."
+        f"El equipo de guardia sigue trabajando en el inconveniente de tu zona. "
+        f"ETA aproximado: {eta} min. No hace falta generar un reclamo; "
+        "si el servicio vuelve, avisame."
+    )
+
+
+def mensaje_ack_outage() -> str:
+    return (
+        "De nada. Mientras dure el incidente no hace falta que generes un reclamo. "
+        "Si después de la reparación sigue fallando, escribime."
+    )
+
+
+def mensaje_ack_outage_corto() -> str:
+    return "Perfecto. Cualquier cosa me escribís."
+
+
+def mensaje_resolucion_outage(outage: NetworkOutage | None = None) -> str:
+    zona = ""
+    if outage is not None and (outage.nas_shortname or "").strip():
+        # Nombre legible sin exponer jerga técnica innecesaria
+        zona = " de tu zona de cobertura"
+    return (
+        f"El incidente{zona} ya fue resuelto por el equipo de guardia. "
+        "¿Ya te anda el servicio o necesitás ayuda con otra cosa?"
+    )
+
+
+def es_ack_outage(texto: str) -> bool:
+    """Confirmaciones cortas tras el aviso (ok, gracias, dale…)."""
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?😊👍✅]+", " ", t)
+    t = " ".join(t.split())
+    if not t or len(t) > 48:
+        return False
+    # Si insiste con el síntoma, no es ack
+    if any(
+        k in t
+        for k in (
+            "no anda",
+            "no funciona",
+            "sigue sin",
+            "sin internet",
+            "sin servicio",
+            "no tengo",
+            "sigue igual",
+            "todavía no",
+            "todavia no",
+            "reclamo",
+            "agente",
+        )
+    ):
+        return False
+    exactos = {
+        "ok",
+        "okay",
+        "okey",
+        "oka",
+        "dale",
+        "gracias",
+        "graciass",
+        "muchas gracias",
+        "mil gracias",
+        "listo",
+        "perfecto",
+        "bien",
+        "bueno",
+        "genial",
+        "bárbaro",
+        "barbaro",
+        "joya",
+        "copado",
+        "si",
+        "sí",
+        "sip",
+        "sep",
+        "va",
+        "de nada",
+        "entendí",
+        "entendi",
+        "entendido",
+        "dale gracias",
+        "ok gracias",
+        "okey gracias",
+        "gracias ok",
+        "bueno gracias",
+        "perfecto gracias",
+        "listo gracias",
+    }
+    if t in exactos:
+        return True
+    if t.startswith("gracias") and len(t) <= 24:
+        return True
+    if t.startswith("ok ") and len(t) <= 20:
+        return True
+    return False
+
+
+def pide_estado_outage(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "sigue el",
+            "siguen con",
+            "ya lo resolvieron",
+            "ya está resuelto",
+            "ya esta resuelto",
+            "cuánto falta",
+            "cuanto falta",
+            "eta",
+            "novedades",
+            "alguna novedad",
+            "ya volvió",
+            "ya volvio",
+            "ya anduvo",
+            "ya anda",
+        )
     )
 
 
