@@ -281,6 +281,8 @@ def es_ack_outage(texto: str) -> bool:
             "sigue igual",
             "todavía no",
             "todavia no",
+            "sigue la falla",
+            "sigue fallando",
             "reclamo",
             "agente",
         )
@@ -319,8 +321,20 @@ def es_ack_outage(texto: str) -> bool:
         "okey gracias",
         "gracias ok",
         "bueno gracias",
+        "bien gracias",
         "perfecto gracias",
         "listo gracias",
+        "si gracias",
+        "sí gracias",
+        "sip gracias",
+        "ya anda",
+        "ya anduvo",
+        "ya volvió",
+        "ya volvio",
+        "ya me anda",
+        "me anda",
+        "anda bien",
+        "todo bien",
     }
     if t in exactos:
         return True
@@ -328,18 +342,33 @@ def es_ack_outage(texto: str) -> bool:
         return True
     if t.startswith("ok ") and len(t) <= 20:
         return True
+    parts = t.split()
+    # "bien gracias", "si gracias", "dale mil gracias"
+    if 1 < len(parts) <= 4 and parts[-1] in ("gracias", "graciass"):
+        return True
     return False
+
+
+def mensaje_cierre_post_resolucion() -> str:
+    return "Me alegra. Cualquier otra consulta, escribime. ¡Buen día!"
 
 
 def pide_estado_outage(texto: str) -> bool:
     t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", " ", t)
+    t = " ".join(t.split())
     if not t:
         return False
     return any(
         k in t
         for k in (
             "sigue el",
+            "sigue la",
             "siguen con",
+            "sigue la falla",
+            "sigue fallando",
+            "sigue el problema",
+            "sigue el corte",
             "ya lo resolvieron",
             "ya está resuelto",
             "ya esta resuelto",
@@ -352,6 +381,8 @@ def pide_estado_outage(texto: str) -> bool:
             "ya volvio",
             "ya anduvo",
             "ya anda",
+            "siguen trabajando",
+            "sigue el incidente",
         )
     )
 

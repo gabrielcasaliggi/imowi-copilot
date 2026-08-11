@@ -185,8 +185,12 @@ def test_es_ack_outage():
     assert outage_svc.es_ack_outage("Gracias")
     assert outage_svc.es_ack_outage("ok")
     assert outage_svc.es_ack_outage("Ok!")
+    assert outage_svc.es_ack_outage("Bien gracias")
+    assert outage_svc.es_ack_outage("Si gracias")
+    assert outage_svc.es_ack_outage("sí gracias")
     assert not outage_svc.es_ack_outage("sigue sin internet")
     assert not outage_svc.es_ack_outage("Internet")
+    assert outage_svc.pide_estado_outage("Sigue la falla?")
 
 
 def test_mensaje_resolucion():
@@ -260,12 +264,13 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
     assert "ticket_id" not in resp
     assert sent.get("texto")
 
-    # Gracias → ack, no re-explicar incidente técnico
+    # Bien gracias → ack (variante real de WA)
     resp2 = _talvez_respuesta_outage(
-        session, org_id, conv, abo, ctx, canal="web", texto="Gracias"
+        session, org_id, conv, abo, ctx, canal="web", texto="Bien gracias"
     )
     assert resp2 is not None
     assert "de nada" in resp2["respuesta"].lower()
+    assert "todavía" not in resp2["respuesta"].lower()
     assert "apposada" not in resp2["respuesta"].lower()
     assert ctx.get("outage_ack") is True
 
@@ -306,11 +311,20 @@ def test_interceptor_avisa_cuando_se_resuelve(db, monkeypatch):
     ctx["outage_informado"] = True
     ctx["outage_nas"] = "mkfobatan2"
     resp = _talvez_respuesta_outage(
-        session, org_id, conv, abo, ctx, canal="web", texto="Hola"
+        session, org_id, conv, abo, ctx, canal="web", texto="Sigue la falla?"
     )
     assert resp is not None
     assert "resuelto" in resp["respuesta"].lower()
     assert "mkfobatan2" not in resp["respuesta"]
+    assert ctx.get("outage_resuelto_avisado") == o.id
+
+    # Tras resolución, "Si gracias" no debe caer a N1/deuda
+    resp2 = _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="Si gracias"
+    )
+    assert resp2 is not None
+    assert "alegra" in resp2["respuesta"].lower() or "buen día" in resp2["respuesta"].lower()
+    assert not ctx.get("outage_resuelto_avisado")
 
 
 def test_interceptor_omite_facturacion(db, monkeypatch):

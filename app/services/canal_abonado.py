@@ -156,6 +156,7 @@ def _talvez_respuesta_outage(
         intencion_bloquea_outage,
         mensaje_ack_outage,
         mensaje_ack_outage_corto,
+        mensaje_cierre_post_resolucion,
         mensaje_para_conversacion,
         mensaje_resolucion_outage,
         pide_estado_outage,
@@ -190,6 +191,11 @@ def _talvez_respuesta_outage(
         return payload
 
     if not outage:
+        # Tras avisar resolución: "sí gracias" / ok → cerrar sin saltar a deuda/N1
+        if ctx.get("outage_resuelto_avisado") and es_ack_outage(texto):
+            ctx.pop("outage_resuelto_avisado", None)
+            return _pack(mensaje_cierre_post_resolucion(), outage_cierre=True)
+
         # Incidente que teníamos cacheado fue resuelto → avisar una vez
         if cached_id and was_informed and not ctx.get("outage_resuelto_avisado"):
             prev = repo.get_network_outage(db, org_id, cached_id)
