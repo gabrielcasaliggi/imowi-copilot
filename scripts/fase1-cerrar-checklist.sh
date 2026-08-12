@@ -18,15 +18,30 @@ warn() { printf 'WARN %s\n' "$*"; WARN=$((WARN + 1)); }
 echo "==> Checklist Fase 1 → $API_URL"
 echo
 
-# Health / ready
-HEALTH="$(curl -sf --max-time 15 "$API_URL/health" || true)"
+# Health / ready (reintentos: post-restart la API puede tardar)
+wait_http() {
+  local url="$1" tries="${2:-20}"
+  local i body
+  for i in $(seq 1 "$tries"); do
+    body="$(curl -sf --max-time 5 "$url" 2>/dev/null || true)"
+    if [[ -n "$body" ]]; then
+      echo "$body"
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+HEALTH="$(wait_http "$API_URL/health" 25 || true)"
 if echo "$HEALTH" | grep -q '"status"'; then
   ok "health responde"
   echo "$HEALTH" | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
-print("     env=%s demo_reset=%s sentry=%s db=%s" % (
-  d.get("env"), d.get("demo_reset_enabled"), d.get("sentry_configured"), d.get("database_connected")))
+print("     env=%s demo_reset=%s sentry=%s sentry_risk=%s db=%s" % (
+  d.get("env"), d.get("demo_reset_enabled"), d.get("sentry_configured"),
+  d.get("sentry_risk_accepted"), d.get("database_connected")))
 ' 2>/dev/null || true
   if echo "$HEALTH" | grep -q '"demo_reset_enabled": true\|"demo_reset_enabled":true'; then
     bad "demo_reset_enabled=true en prod"
@@ -41,10 +56,10 @@ print("     env=%s demo_reset=%s sentry=%s db=%s" % (
     warn "Sentry no configurado — set SENTRY_DSN o SENTRY_RISK_ACCEPTED=true"
   fi
 else
-  bad "health no responde"
+  bad "health no responde (¿API caída? journalctl -u operations-hub-api -n 50)"
 fi
 
-READY="$(curl -sf --max-time 15 "$API_URL/ready" || true)"
+READY="$(wait_http "$API_URL/ready" 15 || true)"
 if echo "$READY" | grep -q '"ready": true\|"ready":true'; then
   ok "/ready = true"
 else
@@ -57,11 +72,16 @@ fi
 
 # Backup reciente
 if [[ -d "$BACKUP_DIR" ]]; then
-  latest="$(ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
+  latest=""
+  if [[ -r "$BACKUP_DIR" ]]; then
+    latest="$(ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
+  else
+    latest="$(sudo ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
+  fi
   if [[ -n "$latest" ]]; then
     ok "backup existe: $(basename "$latest")"
   else
-    warn "sin dumps en $BACKUP_DIR — corré backup-estate.sh"
+    warn "sin dumps en $BACKUP_DIR — corré: sudo bash scripts/backup-estate.sh"
   fi
 else
   warn "no existe $BACKUP_DIR"

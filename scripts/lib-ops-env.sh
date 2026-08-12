@@ -5,6 +5,10 @@
 ops_load_env_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
+  [[ -r "$file" ]] || {
+    echo "WARN: no puedo leer $file (permisos). Usá sudo o chmod/chgrp." >&2
+    return 0
+  }
   local line key val
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line#"${line%%[![:space:]]*}"}"
