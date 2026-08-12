@@ -2,18 +2,18 @@
 
 ## Resumen
 
-**Canónico (producción):** frontend Next.js → `/api/v1/*` → Data Estate en Postgres (`tickets_estate`).
+**Canónico (producción):** frontend Next.js (nginx → :3000) → `/api/v1/*` → Data Estate en Postgres (`tickets_estate`). Host típico: `ibot.ecolan.com` (systemd + nginx).
 
-**Legacy (deprecado):** `index.html` / Netlify estático → `/api/chat`, `/api/estructurar`, `tickets_store`.
+**Legacy:** la UI estática `index.html` / Netlify fue **eliminada** del repo. Las rutas API legacy (`/api/chat`, etc.) solo se montan si `ENABLE_LEGACY_API=true` (off en producción).
 
 ```mermaid
 flowchart TB
-    nextjs[Frontend Next.js] -->|api_v1| fastapi[FastAPI Render]
-    legacy[UI index.html legacy] -->|api_chat| fastapi
-    fastapi -->|DATABASE_URL| postgres[(Supabase Postgres)]
+    nextjs[Frontend Next.js] -->|api_v1| fastapi[FastAPI]
+    fastapi -->|DATABASE_URL| postgres[(PostgreSQL)]
     fastapi -->|opcional mirror REST| supabaseRest[Tabla tickets legacy]
 ```
 
+> Operación NAS/cortes: UI `/incidentes`. La telemetría demo `/red` fue retirada de la UX Batán.
 ## Fuente de verdad
 
 | Dato | Fuente canónica | Legacy (no usar en piloto) |

@@ -180,12 +180,20 @@ def release_conversation(
     if not c:
         raise HTTPException(404, "Conversación no encontrada")
     ctx_c = crepo.get_contexto(c)
+    prev_estado = c.estado or ""
     if c.ticket_id or ctx_c.get("visitante") or ctx_c.get("cola_prioridad") == "baja":
         c.estado = "espera_agente"
     else:
         c.estado = "bot"
     c.agente_id = ""
     db.commit()
+    if c.estado == "espera_agente":
+        try:
+            from app.services.handoff_notify import notify_espera_agente
+
+            notify_espera_agente(db, c, prev_estado=prev_estado)
+        except Exception:
+            pass
     return {"status": "ok", "conversacion": crepo.conversacion_to_dict(c)}
 
 

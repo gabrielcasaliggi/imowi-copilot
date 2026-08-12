@@ -632,9 +632,16 @@ def abrir_sesion_portal(
     if body.dni:
         ctx["dni_hint_ignored"] = True
     # Visitante: sin bot N1 — cola de agente con prioridad baja (clientes primero)
-    marcar_cola_visitante(conv, ctx, motivo="portal_invitado")
+    ctx = marcar_cola_visitante(conv, ctx, motivo="portal_invitado")
+    prev = str(ctx.pop("_prev_estado_antes_cola", "") or "")
     db.commit()
     db.refresh(conv)
+    try:
+        from app.services.handoff_notify import notify_espera_agente
+
+        notify_espera_agente(db, conv, prev_estado=prev)
+    except Exception:
+        pass
 
     token = _crear_portal_token(
         org_id=org.id,

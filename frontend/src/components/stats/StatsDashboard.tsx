@@ -502,6 +502,8 @@ export function StatsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const canExport = can("reports.export");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -559,6 +561,26 @@ export function StatsDashboard() {
     void load();
   };
 
+  const onExport = async () => {
+    if (!canExport || exporting) return;
+    setExporting(true);
+    setError("");
+    try {
+      await api.exportAnalyticsCsv(
+        {
+          kind: can("stats.bot") || can("stats.global") ? "executive" : "ops",
+          desde,
+          hasta,
+        },
+        tenantSlug,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo exportar CSV");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const series = ticketStats || stats;
 
   const slaVencidos = useMemo(
@@ -604,6 +626,16 @@ export function StatsDashboard() {
             >
               Filtrar
             </button>
+            {canExport && !selfOnly && (
+              <button
+                type="button"
+                onClick={() => void onExport()}
+                disabled={exporting}
+                className="text-xs px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-900/60 text-slate-200 hover:border-slate-400 disabled:opacity-50"
+              >
+                {exporting ? "Exportando…" : "Exportar CSV"}
+              </button>
+            )}
           </form>
         </div>
       </div>

@@ -1,14 +1,19 @@
 # Frontend Next.js — despliegue productivo
 
-El frontend **Next.js** es la consola principal. La UI estática (`index.html` + Netlify) queda como legacy.
+El frontend **Next.js** es la consola principal. Producción canónica: **servidor propio** (`ibot.ecolan.com`) con nginx + systemd.
 
-## Arquitectura
+> **UX Batán:** la operación de red/NAS es [`/incidentes`](../frontend/src/app/(dashboard)/incidentes). La ruta `/red` (telemetría demo JSC) fue retirada; no forma parte de la UI operativa.
+
+## Arquitectura (producción nativa)
 
 ```
-Vercel / Netlify          Render                 Supabase
-(Next.js)        ──►      (FastAPI /api/v1)  ──►  (Postgres)
-NEXT_PUBLIC_API_URL       DATABASE_URL
+Nginx (HTTPS)
+  /        → Next.js :3000
+  /api     → FastAPI :8000  →  PostgreSQL (Supabase / local)
+                              →  Groq / LLM
 ```
+
+Ver [DEPLOY.md](../DEPLOY.md) y `deploy/nginx/operations-hub.conf`.
 
 ---
 
@@ -25,42 +30,21 @@ Backend en `http://localhost:8000` con `CORS_ORIGINS=http://localhost:3000`.
 
 ---
 
-## Vercel (recomendado)
+## Servidor propio (canónico)
 
-1. Importar repo → **Root Directory:** `frontend`
-2. Framework: Next.js (auto-detectado)
-3. Variables de entorno:
+```bash
+cd frontend && npm ci && npm run build
+sudo systemctl restart operations-hub-frontend
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Variables en el unit / `.env` del host:
 
 | Variable | Valor |
 |----------|-------|
-| `NEXT_PUBLIC_API_URL` | `https://tu-api.onrender.com` |
+| `NEXT_PUBLIC_API_URL` | `https://ibot.ecolan.com` (o URL pública de la API) |
 
-4. Deploy
-5. En Render, agregar URL de Vercel a `CORS_ORIGINS`:
-
-```env
-CORS_ORIGINS=https://tu-app.vercel.app
-```
-
-`vercel.json` en `frontend/` ya define build estándar.
-
----
-
-## Netlify (alternativa)
-
-1. **Base directory:** `frontend`
-2. **Build command:** `npm run build`
-3. **Publish directory:** `.next` no aplica — usar plugin Next.js de Netlify o:
-
-```toml
-# netlify.toml en frontend/ (opcional)
-[build]
-  base = "frontend"
-  command = "npm run build"
-  publish = ".next"
-```
-
-4. Variable: `NEXT_PUBLIC_API_URL=https://tu-api.onrender.com`
+En la API: `CORS_ORIGINS` debe incluir el origen del frontend.
 
 ---
 
@@ -68,16 +52,7 @@ CORS_ORIGINS=https://tu-app.vercel.app
 
 - [ ] Login en `/login` con usuario cooperativa
 - [ ] Chat en `/soporte` responde
-- [ ] Tickets persisten tras F5
+- [ ] Inbox / tickets persisten tras F5
+- [ ] Incidentes masivos (`/incidentes`) refleja NAS
 - [ ] Admin ve múltiples tenants
 - [ ] Sin errores CORS en consola del browser
-
----
-
-## Legacy (no usar para piloto)
-
-| Componente | Variable | Rutas |
-|------------|----------|-------|
-| Netlify estático raíz | `IMOWI_API_URL` | `/api/chat` legacy |
-
-Usar solo si necesitás la UI antigua en `index.html`.

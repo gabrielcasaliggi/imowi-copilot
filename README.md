@@ -12,19 +12,19 @@ Las APIs legacy de telemetría/JSC pueden existir en el backend pero **no forman
 ## Arquitectura (producción)
 
 ```
-Netlify (index.html)  ──HTTPS──►  Render (FastAPI)  ──►  Supabase (PostgreSQL)
-                                         │
-                                         └── Groq / LLM compatible OpenAI
+Nginx (HTTPS)  ──►  Next.js :3000   (consola + portal)
+               ──►  FastAPI :8000   ──►  PostgreSQL (Supabase / local)
+                                    ──►  Groq / LLM compatible OpenAI
 ```
 
 | Componente | Dónde | Qué hace |
 |------------|-------|----------|
-| **Frontend** | Netlify | UI estática (`index.html`) |
-| **API** | Render / Fly / Docker | Chat, RAG, tickets, auth JWT |
-| **DB** | Supabase PostgreSQL | Data Estate completo (`DATABASE_URL`) |
+| **Frontend** | Next.js + systemd (nginx) | Consola ops + portal abonado |
+| **API** | FastAPI + systemd | Chat, RAG, tickets, auth JWT |
+| **DB** | PostgreSQL (Supabase u host) | Data Estate completo (`DATABASE_URL`) |
 | **LLM** | Groq (u otro) | Respuestas del Copilot |
 
-Guía paso a paso: [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md) (recomendado) · [DEPLOY-NETLIFY-SUPABASE.md](./DEPLOY-NETLIFY-SUPABASE.md) (legacy UI estática)
+Prod actual: `https://ibot.ecolan.com`. Guía: [DEPLOY.md](./DEPLOY.md) · [docs/FRONTEND-DEPLOY.md](./docs/FRONTEND-DEPLOY.md) · [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md)
 
 ---
 
@@ -56,7 +56,7 @@ si todavía no existe.
 ./run.sh
 ```
 
-Abrí **http://127.0.0.1:8000** (UI legacy) o el frontend Next.js (recomendado):
+API en **http://127.0.0.1:8000**. Frontend Next.js (recomendado):
 
 ```bash
 cd frontend
@@ -108,57 +108,21 @@ En producción cambiá contraseñas vía variables `ADMIN_PASSWORD`, `COOP_PASSW
 | `SUPABASE_SERVICE_KEY` | Opcional | Service role (solo backend) |
 | `CORS_ORIGINS` | Recomendado | URL del frontend |
 
-Frontend (Netlify build):
+Frontend (`frontend/.env.local`):
 
 | Variable | Descripción |
 |----------|-------------|
-| `IMOWI_API_URL` | URL pública de la API, ej. `https://xxx.onrender.com` |
+| `NEXT_PUBLIC_API_URL` | URL pública de la API, ej. `https://ibot.ecolan.com` |
 
 ---
 
 ## Supabase (producción)
 
 1. Creá proyecto en [supabase.com](https://supabase.com)
-2. **Settings → Database → Connection string** → URI (Transaction pooler) → `DATABASE_URL` en Render
+2. **Settings → Database → Connection string** → URI (Transaction pooler) → `DATABASE_URL`
 3. Al primer arranque la API crea tablas y ejecuta seed automáticamente
 
-Detalle: [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md)
-
----
-
-## Despliegue rápido
-
-### 1. GitHub
-
-```bash
-git init
-git add .
-git commit -m "Initial commit — Operations Hub"
-git remote add origin https://github.com/TU_ORG/Copilot-Tickets.git
-git push -u origin main
-```
-
-### 2. API en Render
-
-- New → **Web Service** → conectá el repo
-- O importá [render.yaml](./render.yaml) (Blueprint)
-- Variables: `AI_*`, `SUPABASE_*`, `AUTH_SECRET`, `CORS_ORIGINS`, contraseñas
-- Probá: `https://tu-api.onrender.com/health`
-
-### 3. Frontend en Netlify
-
-- New site → Import from Git → mismo repo
-- Build command: `node scripts/generate-config.js` (ya en `netlify.toml`)
-- Publish directory: `.`
-- Variable: `IMOWI_API_URL=https://tu-api.onrender.com`
-
-### 4. CORS
-
-En Render, configurá:
-
-```env
-CORS_ORIGINS=https://tu-sitio.netlify.app
-```
+Detalle: [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md) · despliegue nativo: [DEPLOY.md](./DEPLOY.md)
 
 ---
 
@@ -166,8 +130,7 @@ CORS_ORIGINS=https://tu-sitio.netlify.app
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
-# http://localhost:8000
+docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
 ```
 
 ---
@@ -175,16 +138,11 @@ docker compose up -d --build
 ## Estructura del proyecto
 
 ```
-app/
-  routers/          # Endpoints REST
-  services/         # Chat, extracción, inferencia
-  knowledge_rag.py  # RAG sobre Markdown
-  tickets_store.py  # JSON local o delegación a Supabase
-main.py             # FastAPI
-index.html          # Frontend (también servido en local)
-config.js           # URL API (Netlify build)
+app/                # FastAPI (API v1, agents, estate, services)
+frontend/           # Next.js (consola + portal)
+deploy/             # nginx + systemd + docker-compose
+main.py             # Entrypoint FastAPI
 Base_de_Conocimiento_Tickets.md
-supabase/schema.sql
 ```
 
 ---

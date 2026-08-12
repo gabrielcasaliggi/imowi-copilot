@@ -9,8 +9,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 import app.estate.models  # noqa: F401 — registra tablas SQLAlchemy
 from app import tickets_store
@@ -149,15 +147,10 @@ app.add_middleware(
 
 app.include_router(api_v1)
 app.include_router(auth_router.router)
-# tickets_router: endpoints con JWT (compat listar/crear). chat_router: Copilot HTML legacy.
+# tickets_router: endpoints con JWT (compat listar/crear). chat_router: API legacy (ENABLE_LEGACY_API).
 app.include_router(tickets_router.router)
 if ENABLE_LEGACY_API:
     app.include_router(chat_router.router)
-
-_ROOT = Path(__file__).resolve().parent
-_STATIC = _ROOT / "static"
-if _STATIC.is_dir() and ENABLE_LEGACY_API:
-    app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
 
 @app.get("/health")
@@ -212,21 +205,8 @@ async def ready():
     return body
 
 
-@app.get("/config.js")
-async def config_js():
-    path = _ROOT / "config.js"
-    if path.exists():
-        return FileResponse(path, media_type="application/javascript")
-    from fastapi import HTTPException
-    raise HTTPException(404, "config.js no encontrado")
-
-
 @app.get("/")
 async def root():
-    if ENABLE_LEGACY_API:
-        for candidate in (_ROOT / "index.html", _ROOT / "public" / "index.html"):
-            if candidate.exists():
-                return FileResponse(candidate)
     kb = estadisticas()
     return {
         "app": APP_TITLE,

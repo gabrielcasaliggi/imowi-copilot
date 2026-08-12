@@ -68,6 +68,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "stats.self",
             "reports.export",
             "kb.propose",
+            "kb.publish",
             "outages.manage",
         }
     ),

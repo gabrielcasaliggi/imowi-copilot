@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, datetime, time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_tenant_context
@@ -14,6 +17,115 @@ from app.estate.ops_analytics import build_ops_analytics
 from app.services.encuesta_satisfaccion import build_csat_analytics
 
 router = APIRouter(tags=["Analytics"])
+
+
+def _flatten_for_csv(prefix: str, value: object, rows: list[dict[str, str]]) -> None:
+    """Aplana métricas escalares/listas simples a filas metric,value."""
+    if value is None:
+        return
+    if isinstance(value, (str, int, float, bool)):
+        rows.append({"metric": prefix, "value": str(value)})
+        return
+    if isinstance(value, dict):
+        for k, v in value.items():
+            key = f"{prefix}.{k}" if prefix else str(k)
+            if isinstance(v, (dict, list)):
+                _flatten_for_csv(key, v, rows)
+            else:
+                rows.append({"metric": key, "value": "" if v is None else str(v)})
+        return
+    if isinstance(value, list):
+        if not value:
+            rows.append({"metric": prefix, "value": ""})
+            return
+        if all(isinstance(x, dict) for x in value):
+            for i, item in enumerate(value):
+                _flatten_for_csv(f"{prefix}[{i}]", item, rows)
+        else:
+            rows.append({"metric": prefix, "value": "; ".join(str(x) for x in value)})
+        return
+    rows.append({"metric": prefix, "value": str(value)})
+
+
+def _csv_response(rows: list[dict[str, str]], filename: str) -> StreamingResponse:
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=["metric", "value"])
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/analytics/export")
+def export_analytics_csv(
+    kind: str = Query(default="executive", pattern="^(executive|ops|tickets)$"),
+    desde: str | None = None,
+    hasta: str | None = None,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    """Export CSV de métricas. Requiere reports.export."""
+    if not ctx.puede("reports.export"):
+        raise HTTPException(403, "Sin permiso para exportar reportes")
+
+    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
+    desde_dt = _parse_desde(desde)
+    hasta_dt = _parse_hasta(hasta)
+    rows: list[dict[str, str]] = [
+        {"metric": "tenant", "value": ctx.organizacion_slug},
+        {"metric": "kind", "value": kind},
+        {"metric": "exported_at", "value": datetime.now(UTC).isoformat()},
+    ]
+
+    if kind == "executive":
+        data = executive_analytics(db, admin_global=admin_global, org_id=ctx.organizacion_id)
+        _flatten_for_csv("", data, rows)
+    elif kind == "ops":
+        data = build_ops_analytics(
+            db,
+            ctx.organizacion_id,
+            desde=desde_dt,
+            hasta=hasta_dt,
+            admin_global=admin_global,
+        )
+        _flatten_for_csv("", data, rows)
+    else:
+        stats = repo.ticket_stats(
+            db,
+            ctx.organizacion_id,
+            admin_global=admin_global,
+            desde=desde_dt,
+            hasta=hasta_dt,
+        )
+        # backlog de tickets como objetos: solo IDs/estados para CSV
+        backlog = stats.pop("backlog", None) or []
+        series = stats.pop("series", None)
+        _flatten_for_csv("", stats, rows)
+        if series:
+            _flatten_for_csv("series", series, rows)
+        for i, t in enumerate(backlog[:200]):
+            if hasattr(t, "id"):
+                rows.append(
+                    {
+                        "metric": f"backlog[{i}]",
+                        "value": f"{t.id}|{getattr(t, 'estado', '')}|{getattr(t, 'estado_sla', '')}|{getattr(t, 'nivel', '')}",
+                    }
+                )
+            elif isinstance(t, dict):
+                rows.append(
+                    {
+                        "metric": f"backlog[{i}]",
+                        "value": f"{t.get('id', '')}|{t.get('estado', '')}|{t.get('estado_sla', '')}|{t.get('nivel', '')}",
+                    }
+                )
+
+    stamp = datetime.now(UTC).strftime("%Y%m%d")
+    return _csv_response(rows, f"analytics-{kind}-{ctx.organizacion_slug}-{stamp}.csv")
 
 
 @router.get("/analytics/tickets")

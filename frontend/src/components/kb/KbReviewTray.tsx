@@ -39,7 +39,8 @@ function EstadoPill({ estado }: { estado: string }) {
 }
 
 export function KbReviewTray() {
-  const { isAdmin, tenantSlug, setTenant, refreshData, appendTrace } = useApp();
+  const { can, isAdmin, tenantSlug, setTenant, refreshData, appendTrace } = useApp();
+  const canReview = can("kb.publish");
   const [items, setItems] = useState<KBContribution[]>([]);
   const [filtro, setFiltro] = useState<"pendiente" | "todas" | "aprobada" | "rechazada">(
     "pendiente",
@@ -54,17 +55,20 @@ export function KbReviewTray() {
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canReview) return;
     setLoading(true);
     try {
-      const res = await api.kbContributions({ estado: filtro }, tenantSlug);
+      const res = await api.kbContributions(
+        { estado: filtro },
+        isAdmin ? tenantSlug : undefined,
+      );
       setItems(res.contribuciones || []);
     } catch {
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filtro, tenantSlug]);
+  }, [canReview, filtro, tenantSlug, isAdmin]);
 
   useEffect(() => {
     void load();
@@ -78,6 +82,8 @@ export function KbReviewTray() {
     setMotivo("");
     setMessage("");
   };
+
+  const slugHdr = isAdmin ? tenantSlug : undefined;
 
   const onApprove = async () => {
     if (!selected) return;
@@ -93,9 +99,9 @@ export function KbReviewTray() {
           titulo: titulo.trim() || undefined,
           categoria: categoria.trim() || undefined,
           contenido: contenido.trim() || undefined,
-          motivo_revision: motivo.trim() || "Aprobada por administrador",
+          motivo_revision: motivo.trim() || "Aprobada en revisión KB",
         },
-        tenantSlug,
+        slugHdr,
       );
       const pubSlug =
         res.articulo.organizacion_slug || targetSlug || tenantSlug;
@@ -106,7 +112,7 @@ export function KbReviewTray() {
         "la cooperativa";
       appendTrace([`✅ KB aprobada: ${res.articulo.titulo} → ${pubName}`]);
       // La biblioteca se filtra por tenant: cambiar a la org donde quedó el artículo
-      if (pubSlug && pubSlug !== tenantSlug) {
+      if (isAdmin && pubSlug && pubSlug !== tenantSlug) {
         await setTenant(pubSlug);
       } else {
         await refreshData();
@@ -130,8 +136,8 @@ export function KbReviewTray() {
     try {
       await api.rejectKbContribution(
         selected.id,
-        { motivo_revision: motivo.trim() || "Rechazada por administrador" },
-        tenantSlug,
+        { motivo_revision: motivo.trim() || "Rechazada en revisión KB" },
+        slugHdr,
       );
       appendTrace([`⛔ Propuesta KB rechazada: ${selected.titulo}`]);
       setMessage("Propuesta rechazada.");
@@ -144,7 +150,7 @@ export function KbReviewTray() {
     }
   };
 
-  if (!isAdmin) return null;
+  if (!canReview) return null;
 
   const pendientes = filtro === "pendiente" ? items.length : items.filter((i) => i.estado === "pendiente").length;
 
@@ -154,7 +160,7 @@ export function KbReviewTray() {
         <div>
           <h3 className="text-sm font-semibold text-slate-100">Bandeja de revisión KB</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Aportes de cierres N1/N2 y agentes · solo el admin publica a la KB
+            Aportes de cierres N1/N2 y agentes · admin/supervisor publican a la KB
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">

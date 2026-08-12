@@ -1,6 +1,6 @@
 # Operations Hub — Frontend Next.js
 
-Consola operativa principal (canónica). Ver [docs/FRONTEND-DEPLOY.md](../docs/FRONTEND-DEPLOY.md) para producción.
+Consola operativa principal (canónica). Ver [docs/FRONTEND-DEPLOY.md](../docs/FRONTEND-DEPLOY.md) y [DEPLOY.md](../DEPLOY.md) para producción en servidor propio (`ibot.ecolan.com`).
 
 ## Requisitos
 
@@ -31,12 +31,6 @@ En `.env` del backend:
 CORS_ORIGINS=http://localhost:3000
 ```
 
-## Producción (Vercel)
-
-1. Root directory: `frontend`
-2. `NEXT_PUBLIC_API_URL=https://tu-api.onrender.com`
-3. En Render: `CORS_ORIGINS=https://tu-app.vercel.app`
-
 ## Credenciales demo
 
 | Usuario | Contraseña | Rol |
@@ -45,8 +39,4 @@ CORS_ORIGINS=http://localhost:3000
 | `batan` | `batan` | Cooperativa Batán |
 | `viamonte` | `viamonte` | Cooperativa Viamonte |
 
-En producción las contraseñas vienen del seed (`ADMIN_PASSWORD`, etc. en Render).
-
-## Legacy
-
-La UI en `index.html` (Netlify + `IMOWI_API_URL`) está deprecada. Usar este frontend para el piloto.
+En producción las contraseñas vienen del seed (`ADMIN_PASSWORD`, etc.).

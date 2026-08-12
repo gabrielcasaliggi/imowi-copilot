@@ -59,9 +59,11 @@ export function KnowledgeBasePanel() {
     proposeKbArticle,
     deleteKbArticle,
     isAdmin,
+    can,
     tenantSlug,
     tenantContext,
   } = useApp();
+  const canReview = can("kb.publish");
   const botName = getBranding().botDisplayName;
   const uses = intelligenceUses(botName);
   const [titulo, setTitulo] = useState("");
@@ -154,7 +156,7 @@ export function KnowledgeBasePanel() {
         subtitle={`Memoria operativa · ${tenantLabel} · cada artículo mejora a ${botName} (N1/N2)`}
       />
 
-      {isAdmin && (
+      {canReview && isAdmin && (
         <p className="text-[11px] text-slate-500 -mt-3 mb-1">
           La biblioteca muestra solo la KB de la cooperativa seleccionada arriba
           {tenantSlug ? ` (${tenantSlug})` : ""}. Si aprobás una propuesta de otra
@@ -162,7 +164,7 @@ export function KnowledgeBasePanel() {
         </p>
       )}
 
-      {isAdmin && (
+      {canReview && (
         <SidebarSection title="Revisión de aportes">
           <KbReviewTray />
         </SidebarSection>

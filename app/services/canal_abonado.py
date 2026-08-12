@@ -817,6 +817,7 @@ def _crear_ticket_n2(
         regla_clasificacion="canal_abonado_n2",
     )
     conv.ticket_id = t.id
+    prev_estado = conv.estado or ""
     conv.estado = "espera_agente"
     if pendientes:
         ctx["temas_anotados_ticket"] = list(
@@ -824,6 +825,12 @@ def _crear_ticket_n2(
         )
         crepo.set_contexto(conv, ctx)
     db.commit()
+    try:
+        from app.services.handoff_notify import notify_espera_agente
+
+        notify_espera_agente(db, conv, prev_estado=prev_estado)
+    except Exception:
+        logger.warning("Fallo notify handoff tras ticket N2", exc_info=True)
     return t.id
 
 
@@ -1130,6 +1137,8 @@ def marcar_cola_visitante(conv: ConversacionCanal, ctx: dict | None, *, motivo: 
     crepo.set_contexto(conv, out)
     if not (conv.servicio_detectado or "").strip():
         conv.servicio_detectado = "comercial"
+    # prev_estado se notifica en callers con DB (ver notify_espera_agente)
+    out["_prev_estado_antes_cola"] = conv.estado or ""
     conv.estado = "espera_agente"
     return out
 
@@ -1147,7 +1156,14 @@ def _derivar_visitante(
 ) -> dict:
     """Visitante sin padrón: mensaje breve + cola de agente (prioridad baja)."""
     ctx = marcar_cola_visitante(conv, ctx, motivo=motivo)
+    prev = str(ctx.pop("_prev_estado_antes_cola", "") or "")
     db.commit()
+    try:
+        from app.services.handoff_notify import notify_espera_agente
+
+        notify_espera_agente(db, conv, prev_estado=prev)
+    except Exception:
+        logger.warning("Fallo notify handoff visitante", exc_info=True)
     resp = (mensaje or mensaje_derivacion_visitante(motivo=motivo)).strip()
     if enviar_mensaje and resp:
         _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))

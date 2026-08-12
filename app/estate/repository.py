@@ -764,24 +764,44 @@ def list_tickets_all(db: Session) -> list[Ticket]:
 
 def refresh_tickets_sla(db: Session, tickets: list[Ticket], *, persist: bool = True) -> None:
     dirty = False
+    newly_breached: list[Ticket] = []
     for t in tickets:
         if t.estado == "Cerrado":
             continue
+        was_breached = bool(t.sla_breached_at)
         prev = (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy)
         apply_sla_to_ticket(t)
         if prev != (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy):
             dirty = True
+        if not was_breached and t.sla_breached_at:
+            newly_breached.append(t)
     if dirty and persist:
         db.commit()
+    for t in newly_breached:
+        try:
+            from app.services.sla_notify import notify_sla_breach
+
+            notify_sla_breach(db, t, was_breached=False)
+        except Exception:
+            logger = __import__("logging").getLogger("operations_hub")
+            logger.warning("Fallo notify SLA breach %s", t.id, exc_info=True)
 
 
 def ensure_ticket_sla(db: Session, t: Ticket) -> dict:
     if t.estado != "Cerrado":
+        was_breached = bool(t.sla_breached_at)
         prev = (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy)
         apply_sla_to_ticket(t)
         if prev != (t.sla_due_at, t.sla_breached_at, t.estado_sla, t.sla_policy):
             db.commit()
             db.refresh(t)
+        if not was_breached and t.sla_breached_at:
+            try:
+                from app.services.sla_notify import notify_sla_breach
+
+                notify_sla_breach(db, t, was_breached=False)
+            except Exception:
+                pass
     return compute_sla(t)
 
 
@@ -1048,9 +1068,8 @@ def list_ticket_notifications(
 ) -> list[TicketNotification]:
     """Lista notificaciones.
 
-    Si incluir_csat_org=True y hay destinatario, también incluye alertas
-    canal=csat_bajo de la org (para que supervisores/admins las vean aunque
-    el destinatario original sea otro).
+    Si incluir_csat_org=True y hay destinatario, también incluye alertas de equipo
+    (csat_bajo, inbox_handoff, sla_breach) de la org aunque el destinatario sea otro.
     """
     from sqlalchemy import or_
 
@@ -1063,7 +1082,9 @@ def list_ticket_notifications(
             stmt = stmt.where(
                 or_(
                     TicketNotification.destinatario == dest,
-                    TicketNotification.canal == "csat_bajo",
+                    TicketNotification.canal.in_(
+                        ("csat_bajo", "inbox_handoff", "sla_breach")
+                    ),
                 )
             )
         else:

@@ -827,6 +827,42 @@ export const api = {
     return request<CsatAnalytics>(`/api/v1/analytics/csat${suffix}`, { tenantSlug });
   },
 
+  async exportAnalyticsCsv(
+    params?: { kind?: "executive" | "ops" | "tickets"; desde?: string; hasta?: string },
+    tenantSlug?: string,
+  ): Promise<void> {
+    const qs = new URLSearchParams();
+    qs.set("kind", params?.kind || "executive");
+    if (params?.desde) qs.set("desde", params.desde);
+    if (params?.hasta) qs.set("hasta", params.hasta);
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+    const res = await fetch(`${API_BASE}/api/v1/analytics/export?${qs}`, {
+      headers,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail =
+        typeof err.detail === "string" ? err.detail : `Error ${res.status}`;
+      throw new ApiError(detail, res.status);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") || "";
+    const match = /filename="?([^";]+)"?/.exec(cd);
+    const filename = match?.[1] || `analytics-${params?.kind || "executive"}.csv`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
   prioritizedTickets(tenantSlug?: string) {
     return request<{
       tenant: string;

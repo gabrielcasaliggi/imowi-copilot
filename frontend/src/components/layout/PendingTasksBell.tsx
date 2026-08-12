@@ -47,7 +47,8 @@ function kindLabel(kind: PendingTaskKind): string {
 }
 
 export function PendingTasksBell() {
-  const { isAdmin, tenantSlug, notifications, user, markNotificationRead } = useApp();
+  const { isAdmin, can, tenantSlug, notifications, user, markNotificationRead } = useApp();
+  const canReviewKb = can("kb.publish");
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<PendingTask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,8 +62,11 @@ export function PendingTasksBell() {
     setLoading(true);
     const next: PendingTask[] = [];
     try {
-      if (isAdmin) {
-        const kb = await api.kbContributions({ estado: "pendiente" }, tenantSlug);
+      if (canReviewKb) {
+        const kb = await api.kbContributions(
+          { estado: "pendiente" },
+          isAdmin ? tenantSlug : undefined,
+        );
         const contribs = kb.contribuciones || [];
         setKbPendingCount(contribs.length);
         for (const c of contribs) {
@@ -85,17 +89,25 @@ export function PendingTasksBell() {
 
       const unread = (notifications || []).filter((n) => n.leida !== "Sí");
       for (const n of unread.slice(0, 6)) {
-        const isCsat = (n.canal || "").toLowerCase() === "csat_bajo";
-        next.push({
-          id: `notif-${n.id}`,
-          kind: "ticket_notif",
-          title: n.titulo || (isCsat ? "CSAT bajo" : "Novedad de ticket"),
-          detail: n.mensaje?.slice(0, 120) || n.ticket_id,
-          href: n.ticket_id
+        const canal = (n.canal || "").toLowerCase();
+        const isCsat = canal === "csat_bajo";
+        const isHandoff = canal === "inbox_handoff";
+        const isSla = canal === "sla_breach";
+        const title = n.titulo
+          || (isCsat ? "CSAT bajo" : isHandoff ? "Cliente espera agente" : isSla ? "SLA vencido" : "Novedad de ticket");
+        const href = isHandoff
+          ? "/inbox"
+          : n.ticket_id
             ? `/soporte?ticket=${encodeURIComponent(n.ticket_id)}`
             : isCsat
               ? "/estadisticas"
-              : "/soporte",
+              : "/soporte";
+        next.push({
+          id: `notif-${n.id}`,
+          kind: "ticket_notif",
+          title,
+          detail: n.mensaje?.slice(0, 120) || n.ticket_id,
+          href,
           createdAt: n.created_at,
           notificationId: n.id,
         });
@@ -135,7 +147,7 @@ export function PendingTasksBell() {
       setTasks(next);
       setLoading(false);
     }
-  }, [user, isAdmin, tenantSlug, notifications]);
+  }, [user, isAdmin, canReviewKb, tenantSlug, notifications]);
 
   useEffect(() => {
     void load();
@@ -193,7 +205,7 @@ export function PendingTasksBell() {
             <div>
               <p className="text-xs font-semibold text-slate-100">Pendientes</p>
               <p className="text-[10px] text-slate-400">
-                {isAdmin
+                {canReviewKb
                   ? "KB, bandeja y tickets"
                   : "Bandeja y novedades de tickets"}
               </p>
@@ -246,7 +258,7 @@ export function PendingTasksBell() {
             )}
           </div>
 
-          {isAdmin && (
+          {canReviewKb && (
             <div className="px-3 py-2 border-t border-slate-800 bg-slate-900/40">
               <Link
                 href="/conocimiento"
