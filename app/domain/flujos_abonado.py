@@ -1,11 +1,11 @@
 """Playbooks N1 — Cooperativa Batán / Ecolan Tecnologías.
 
 Catálogo:
-- Internet FTTH (fibra), Wireless/radio, ADSL
-- TV OTT Sensa
+- Internet FTTH (fibra), BAI/Wireless/radio, ADSL
+- TV OTT Sensa (+ Android TV Box / packs)
 - Telefonía móvil IMOWI y telefonía fija
 - Ecolan B2B (Data Center, VMs, enlaces dedicados, housing/hosting)
-- Facturación / pagos QR Fiserv
+- Facturación / pagos QR Fiserv + Mi Cuenta ov.batan.coop
 - Trámites digitales batan.coop
 """
 
@@ -63,9 +63,10 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "corte_deuda": [
         PasoPlaybook(
             "medios_pago_qr",
-            "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
-            "Cuando se acredita, el servicio se reactiva solo. "
-            "Si no tenés el QR, identificáte con DNI en el portal o pasame DNI/N.º de socio. "
+            "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.) "
+            "o por los medios de la boleta. Cuando se acredita, el servicio se reactiva solo: "
+            "no hace falta avisar el pago. "
+            "Si no tenés el QR, mirá Mi Cuenta en ov.batan.coop o pasame DNI/N.º de socio. "
             "¿Pudiste pagar o necesitás que te ubique la cuenta?",
         ),
         PasoPlaybook(
@@ -125,7 +126,11 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
     ],
     "internet_radio": [
-        PasoPlaybook("poe_antena", "Ok, por antena. ¿La fuente PoE tiene la lucecita prendida?"),
+        PasoPlaybook("poe_antena", "Ok, por antena (BAI). ¿La fuente PoE tiene la lucecita prendida?"),
+        PasoPlaybook(
+            "cable_wan_bai",
+            "El cable del inyector PoE (salida LAN) va al puerto azul/Internet del router. ¿Está así?",
+        ),
         PasoPlaybook(
             "reinicio_cpe",
             "Reiniciá antena y router 30 segundos; prendé primero la antena. ¿Volvió?",
@@ -163,7 +168,14 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "internet_lento": [
         PasoPlaybook("cuantos_dispositivos", "¿Cuántos equipos hay conectados al WiFi ahora?"),
         PasoPlaybook("horario_lento", "¿Es lento todo el día o más a la tarde/noche?"),
-        PasoPlaybook("test_velocidad", "Si podés, hacé un test por cable en fast.com y decime cuánto da."),
+        PasoPlaybook(
+            "test_velocidad",
+            "Si podés, hacé un test por cable en fast.com (no por WiFi) y decime cuánto da.",
+        ),
+        PasoPlaybook(
+            "windows_update_hint",
+            "Si usás PC con Windows, ¿hay una actualización descargándose? Eso a veces deja todo lento.",
+        ),
         PasoPlaybook("reinicio_lento", "Reiniciá módem/router 30 segundos y probá de nuevo. ¿Mejoró?"),
         PasoPlaybook("comparar_plan", "Si sigue bajo, ¿querés que te pase con un agente?"),
     ],
@@ -171,23 +183,50 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("zona_wifi", "¿El WiFi falla en toda la casa o solo lejos del router?"),
         PasoPlaybook("otros_dispositivos_wifi", "¿Les pasa a todos los equipos o solo a uno?"),
         PasoPlaybook("reinicio_router_wifi", "¿Reiniciaste el router 30 segundos? ¿Mejoró?"),
+        PasoPlaybook(
+            "clave_wifi_etiqueta",
+            "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+        ),
         PasoPlaybook("banda_wifi", "Si tenés 2.4 y 5 GHz, ¿probaste la otra red?"),
         PasoPlaybook("canal_interferencia", "¿Podés alejar el router de microondas u otros equipos?"),
         PasoPlaybook("derivar_wifi", "Si sigue mal, ¿querés que te derive?"),
     ],
     "movil": [
-        PasoPlaybook("sintoma_movil", "¿Qué te pasa con el móvil: sin señal, sin datos, o no podés llamar?"),
+        PasoPlaybook(
+            "sintoma_movil",
+            "¿Qué te pasa con el móvil IMOWI: sin señal, sin datos, no podés llamar, o robo/pérdida?",
+        ),
         PasoPlaybook("datos_roaming_check", "¿Datos móviles activos y modo avión apagado?"),
         PasoPlaybook("reinicio_imovi", "¿Probaste reiniciar el teléfono?"),
         PasoPlaybook("modo_avion", "Modo avión 15 segundos y desactivalo. ¿Volvió?"),
-        PasoPlaybook("apn_imovi", "El APN debería ser apn1.catel.org.ar. ¿Está así?"),
+        PasoPlaybook(
+            "apn_imovi",
+            "En Android: Nombre imowi y APN apn1.catel.org.ar. "
+            "En iPhone 11+ o eSIM suele ser automático; si es más viejo, "
+            "Punto de acceso = apn1.catel.org.ar y usuario = imowi. ¿Quedó bien?",
+        ),
         PasoPlaybook("otra_sim_o_tel", "Si podés, ¿probaste esa SIM en otro teléfono?"),
+        PasoPlaybook(
+            "robo_perdida_hint",
+            "Si fue robo o pérdida: desde otra compañía marcá *910 (opción 4 – imowi); "
+            "desde una línea imowi *303; desde fijo 0800-147-0303. ¿Necesitás reposición de SIM/eSIM?",
+        ),
         PasoPlaybook("otra_ubicacion", "¿Te pasa solo en un lugar o en varios? ¿Querés que te derive?"),
     ],
     "movil_datos": [
         PasoPlaybook("datos_activados", "¿Datos móviles prendidos y sin modo avión?"),
-        PasoPlaybook("consumo_paquete", "¿Te quedan datos del abono?"),
-        PasoPlaybook("apn_datos", "Revisá el APN: apn1.catel.org.ar. ¿Quedó bien?"),
+        PasoPlaybook(
+            "consumo_paquete",
+            "¿Te quedan datos del abono? Si se acabaron, WhatsApp mensajería suele seguir; "
+            "para navegar el resto comprá un bono en Autogestión Batán (ov.batan.coop) "
+            "u oficina — no uses la autogestión de imowi.com.ar.",
+        ),
+        PasoPlaybook(
+            "apn_datos",
+            "Revisá el APN: Android Nombre imowi / APN apn1.catel.org.ar. "
+            "iPhone 11+ o eSIM suele ser automático; si es más viejo, "
+            "Punto de acceso = apn1.catel.org.ar y usuario = imowi. ¿Quedó bien?",
+        ),
         PasoPlaybook("roaming_datos", "¿Estás en tu zona habitual o de viaje?"),
         PasoPlaybook("prueba_wifi_off", "Apagá el WiFi del celular y probá solo datos. ¿Navega?"),
         PasoPlaybook("derivar_datos", "Si sigue, ¿querés que te derive?"),
@@ -196,18 +235,42 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("tipo_problema_llamada", "¿No podés llamar, no te entran, o se cortan?"),
         PasoPlaybook("reinicio_llamadas", "Reiniciá y probá una llamada. ¿Anduvo?"),
         PasoPlaybook("modo_avion_llamadas", "Modo avión 15 segundos y volvé a probar. ¿Mejoró?"),
+        PasoPlaybook(
+            "sms_a2p_hint",
+            "Si es un SMS de banco o app que no llega, suele ser validación A2P: probá otro medio (email/llamada). ¿Era eso o llamadas normales?",
+        ),
         PasoPlaybook("otra_ubicacion_llamadas", "¿Te pasa en una sola zona o en varios lados?"),
         PasoPlaybook("derivar_llamadas", "Si sigue, ¿querés que te derive?"),
     ],
     "telefono_fija": [
-        PasoPlaybook("tono_fija", "¿Al descolgar el fijo hay tono?"),
-        PasoPlaybook("cableado_fija", "¿El cable está bien en la toma?"),
-        PasoPlaybook("derivar_fija", "Si no hay tono, ¿querés que te derive?"),
+        PasoPlaybook("tono_fija", "Dale, vamos con el fijo. ¿Al descolgar hay tono?"),
+        PasoPlaybook(
+            "alcance_aparatos_fija",
+            "¿Te pasa en todos los teléfonos de la casa o solo en uno?",
+        ),
+        PasoPlaybook("cableado_fija", "¿El cable está bien enchufado en la toma de la pared?"),
+        PasoPlaybook(
+            "otro_telefono_fija",
+            "Si podés, ¿probaste otro aparato en esa misma toma?",
+        ),
+        PasoPlaybook("ruido_linea_fija", "¿Hay ruido o estática en la línea al escuchar?"),
+        PasoPlaybook(
+            "adsl_misma_linea",
+            "¿En esa misma línea tenés internet ADSL? Si sí, no saques el splitter/filtros.",
+        ),
+        PasoPlaybook(
+            "derivar_fija",
+            "Si sigue igual te derivo con N° de línea, tono sí/no y si hay ruido. ¿Abrimos el ticket?",
+        ),
     ],
     "tv_sensa": [
         PasoPlaybook(
+            "triaje_tv_sensa",
+            "Dale, vamos con TV. ¿Es la app/web Sensa o la TV con decodificador / Android TV Box de la cooperativa?",
+        ),
+        PasoPlaybook(
             "internet_en_disp",
-            "Dale, vamos con Sensa. En el equipo donde querés verla, ¿tenés internet funcionando?",
+            "En el equipo donde querés verla, ¿tenés internet funcionando?",
         ),
         PasoPlaybook(
             "dispositivo_sensa",
@@ -232,7 +295,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "derivar_sensa",
-            "Si sigue igual te derivo con dispositivo, síntoma y lo que ya probamos. ¿Abrimos el ticket?",
+            "Si sigue igual te derivo con dispositivo, síntoma y lo que ya probamos. "
+            "Packs premium o habilitación de cuenta los ve comercial. ¿Abrimos el ticket?",
         ),
     ],
     "ecolan_b2b": [
@@ -249,7 +313,10 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("derivar_comercial", "Te paso con comercial. ¿Te derivo?"),
     ],
     "portal_tramites": [
-        PasoPlaybook("info_batan_coop", "También está batan.coop. ¿Qué trámite necesitás?"),
+        PasoPlaybook(
+            "info_batan_coop",
+            "Podés usar Mi Cuenta en ov.batan.coop o batan.coop. ¿Qué trámite necesitás?",
+        ),
         PasoPlaybook("derivar_tramites", "Si hace falta operador, ¿querés que te derive?"),
     ],
     "turno_campo": [
@@ -260,7 +327,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook(
             "menu_servicio",
             f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-            "¿En qué te ayudo: internet, móvil, Sensa/TV, factura o algo más?",
+            "¿En qué te ayudo: internet, móvil IMOWI, teléfono fijo, Sensa/TV, factura o algo más?",
         ),
         PasoPlaybook(
             "detalle_problema",
@@ -446,12 +513,16 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     if any(k in t for k in (
         "dar de alta", "alta", "cambio de plan", "cambiar plan", "mejorar plan",
         "contratar", "baja", "quiero el plan",
+        "dar de baja imowi", "baja imowi", "arrepentimiento",
     )):
         return "alta_plan"
 
     if any(k in t for k in (
         "telefono fijo", "teléfono fijo", "linea fija", "línea fija",
         "telefonia fija", "telefonía fija", "sin tono",
+        "fijo ecolan", "telefono ecolan", "teléfono ecolan",
+        "no me llaman al fijo", "no me entra al fijo", "no anda el fijo",
+        "no funciona el fijo", "mi fijo", "el fijo no",
     )):
         return "telefono_fija"
 
@@ -515,12 +586,16 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     if any(k in t for k in (
         "datos movil", "datos móvil", "sin datos", "no tengo datos",
         "datos no funcionan", "internet del celular", "apn",
+        "se me acabaron los datos", "bono de datos", "comprar datos",
     )):
         return "movil_datos"
 
     if any(k in t for k in (
         "llamada", "sms", "no puedo llamar", "no me llegan llamadas",
         "se cortan las llamadas", "mensaje de texto",
+        "sms de verificacion", "sms de verificación", "codigo por sms",
+        "código por sms", "a2p",
+        "correo de voz", "buzon de voz", "buzón de voz", "*333",
     )):
         return "movil_llamadas"
 
@@ -528,6 +603,9 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
         "imowi", "imovi", "imovu", "señal", "senal",
         "chip", "4g", "5g", "celular", "móvil", "movil",
         "sim", "linea movil", "línea móvil",
+        "*910", "*303", "robo el celular", "me robaron el celu", "me robaron el celular",
+        "perdi el celular", "perdí el celular", "celular robado", "sim robada",
+        "esim", "e-sim", "reemplazo de chip", "reponer sim",
     )):
         return "movil"
 
@@ -1051,6 +1129,9 @@ def contiene_sintoma_canal(texto: str) -> bool:
             "televisor",
             "smart tv",
             "tv box",
+            "*910",
+            "robo",
+            "sim",
             "no anda",
             "no funciona",
             "sin servicio",

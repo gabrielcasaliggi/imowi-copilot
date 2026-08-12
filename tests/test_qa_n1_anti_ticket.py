@@ -154,9 +154,96 @@ def test_clasifica_tv_sensa():
     assert clasificar_intencion("no tengo internet y no anda sensa") == "internet"
     assert "tv_sensa" in PLAYBOOKS
     assert len(PLAYBOOKS["tv_sensa"]) >= 5
+    assert PLAYBOOKS["tv_sensa"][0].id == "triaje_tv_sensa"
     assert tag_para_intencion("tv_sensa") == "[TEC_TV_SENSA]"
     assert es_intencion_diagnostico("tv_sensa") is True
     assert contiene_sintoma_canal("no anda sensa, quiero un agente") is True
+
+
+def test_clasifica_telefono_fija_y_cobertura_playbook():
+    from app.domain.flujos_abonado import PLAYBOOKS, tag_para_intencion
+
+    assert clasificar_intencion("no anda el fijo, sin tono") == "telefono_fija"
+    assert clasificar_intencion("no me llaman al fijo") == "telefono_fija"
+    assert clasificar_intencion("problema con telefonía fija") == "telefono_fija"
+    # ADSL no debe caer en fija solo por "línea"
+    assert clasificar_intencion("se me cae el adsl, parpadea el modem") == "internet_adsl"
+    assert len(PLAYBOOKS["telefono_fija"]) >= 5
+    assert tag_para_intencion("telefono_fija") == "[TEL_FIJA]"
+
+
+def test_clasifica_imowi_robo_datos_y_a2p():
+    assert clasificar_intencion("me robaron el celular imowi") == "movil"
+    assert clasificar_intencion("perdi el celular necesito *910") == "movil"
+    assert clasificar_intencion("se me acabaron los datos del abono") == "movil_datos"
+    assert clasificar_intencion("no me llega el sms de verificación del banco") == "movil_llamadas"
+    assert contiene_sintoma_canal("me robaron el celu *910") is True
+
+
+def test_kb_batan_seed_cubre_servicios_oficiales():
+    from app.estate.seed import _articulos_kb_batan
+
+    arts = _articulos_kb_batan("org-test")
+    by_title = {a.titulo: a.contenido for a in arts}
+    assert "Telefonía fija — sin tono o falla" in by_title
+    assert "IMOWI — robo o pérdida de celular" in by_title
+    assert "IMOWI — SMS de verificación (A2P)" in by_title
+    assert "IMOWI — FAQ operativa N1" in by_title
+    assert "IMOWI — baja o arrepentimiento" in by_title
+    planes = by_title["Planes IMOWI móvil — vigentes"]
+    assert "8GB" in planes
+    assert "25GB" in planes
+    assert "1,5GB" in planes or "1.5GB" in planes
+    assert "30GB" not in planes and "50GB" not in planes
+    assert "ov.batan.coop" in planes
+    assert "imowi.com.ar/autogestion" not in planes.lower() or "NO" in planes
+    faq = by_title["IMOWI — FAQ operativa N1"]
+    assert "ov.batan.coop" in faq
+    assert "NO redirigir" in faq or "NO" in faq
+    assert "imowi.com.ar/autogestion" in faq
+    datos = by_title["IMOWI — sin datos móviles"]
+    assert "apn1.catel.org.ar" in datos
+    assert "usuario = imowi" in datos or "Nombre de usuario = imowi" in datos
+    assert "ov.batan.coop" in datos
+    assert "NO orientar" in datos or "NO" in datos
+    assert "*333" in by_title["IMOWI — llamadas y SMS"]
+    assert "*#06#" in by_title["IMOWI — activar SIM / eSIM"]
+    assert "10 días" in by_title["IMOWI — baja o arrepentimiento"]
+    assert "24" in by_title["IMOWI — portabilidad numérica"]
+    assert "ov.batan.coop" in by_title["Cooperativa Batán — información general"]
+    assert "464-3006" in by_title["Cooperativa Batán — información general"]
+    assert "no es necesario avisar" in by_title["Corte por deuda — rehabilitación automática"].lower()
+    assert "decodificador" in by_title["TV OTT Sensa — sin reproducción o no abre"].lower()
+    assert any("BAI" in c or "puerto AZUL" in c for c in by_title.values())
+    assert "100M" in by_title["Planes internet Ecolan — vigentes"]
+    assert "600M" in by_title["Planes internet Ecolan — vigentes"]
+
+
+def test_playbooks_imowi_apn_y_autogestion_batan():
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    apn = next(p.pregunta for p in PLAYBOOKS["movil"] if p.id == "apn_imovi")
+    assert "apn1.catel.org.ar" in apn
+    assert "usuario = imowi" in apn
+    datos = next(p.pregunta for p in PLAYBOOKS["movil_datos"] if p.id == "consumo_paquete")
+    assert "ov.batan.coop" in datos
+    assert "imowi.com.ar" in datos  # se menciona para decir que NO usarla
+    assert "no uses" in datos.lower() or "no" in datos.lower()
+    robo = next(p.pregunta for p in PLAYBOOKS["movil"] if p.id == "robo_perdida_hint")
+    assert "*910" in robo and "*303" in robo
+    assert clasificar_intencion("quiero escuchar el correo de voz *333") == "movil_llamadas"
+    assert clasificar_intencion("necesito activar la esim imowi") == "movil"
+    assert clasificar_intencion("quiero dar de baja imowi") == "alta_plan"
+
+
+def test_playbooks_menu_y_portal_mencionan_servicios():
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    menu = PLAYBOOKS["general"][0].pregunta.lower()
+    assert "fijo" in menu and "imowi" in menu
+    portal = PLAYBOOKS["portal_tramites"][0].pregunta.lower()
+    assert "ov.batan.coop" in portal
+    assert any(p.id == "cable_wan_bai" for p in PLAYBOOKS["internet_radio"])
 
 
 # ---------------------------------------------------------------------------

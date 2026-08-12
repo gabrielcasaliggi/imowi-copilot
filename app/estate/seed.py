@@ -348,7 +348,8 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "   desenchufado del conector SC/APC (verde) en la ONT.\n"
                 "4) Probar cable vs WiFi: si por cable al router anda, el problema es WiFi.\n"
                 "5) Si nada de lo anterior resuelve → N2 (posible corte de fibra en la acometida "
-                "   o falla en el splitter/OLT de la central). Registrar dirección y síntoma."
+                "   o falla en el splitter/OLT de la central). Registrar dirección y síntoma.\n"
+                "Soporte: 0223 464-3006 · Mi Cuenta: https://ov.batan.coop"
             ),
         ),
         KnowledgeArticle(
@@ -372,19 +373,21 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Internet radio/wireless — sin servicio",
             categoria="Internet",
             contenido=(
-                "Cooperativa Batán — Internet inalámbrico por radio (enlace punto-multipunto). "
-                "El abonado tiene un CPE/antena en el techo apuntando a una torre de la cooperativa, "
-                "alimentado por PoE (inyector de corriente conectado al tomacorriente).\n\n"
+                "Cooperativa Batán / Ecolan — Internet inalámbrico BAI (banda ancha inalámbrica, "
+                "enlace punto-multipunto). El abonado tiene un CPE/antena en el techo apuntando "
+                "a una torre, alimentado por PoE (inyector conectado al tomacorriente).\n\n"
                 "Diagnóstico N1:\n"
-                "1) Reiniciar: desenchufar el inyector PoE del CPE y el router 30s. Enchufar "
-                "   primero el inyector, esperar 1 min a que el CPE enganche señal, luego el router.\n"
-                "2) LED del CPE: enlace/señal fijo = OK; parpadeo rápido o rojo = sin enlace.\n"
-                "3) Línea de vista: ¿crecieron árboles? ¿hay construcción nueva entre la antena "
-                "   y la torre? Obstáculos generan pérdida de señal.\n"
-                "4) Inyector PoE: ¿tiene luz encendida? Si no, verificar enchufe y fusible.\n"
-                "5) Probar cable vs WiFi.\n"
-                "6) Consultar si vecinos de la misma torre tienen problemas → probable falla zonal.\n"
-                "Escalar a N2 con: dirección, torre a la que apunta, síntoma, si es zonal o individual."
+                "1) Inyector PoE: ¿tiene luz encendida? Si no, verificar enchufe y fusible.\n"
+                "2) Cable PoE: la salida LAN del inyector/transformador va al puerto AZUL "
+                "   (también rotulado Internet/WAN) del router WiFi (FAQ Ecolan).\n"
+                "3) Reiniciar: desenchufar inyector PoE y router 30s. Enchufar primero el inyector, "
+                "   esperar ~1 min a que el CPE enganche señal, luego el router.\n"
+                "4) LED del CPE: enlace/señal fijo = OK; parpadeo rápido o rojo = sin enlace.\n"
+                "5) Línea de vista: ¿crecieron árboles o hay construcción entre antena y torre?\n"
+                "6) Probar cable vs WiFi en un dispositivo.\n"
+                "7) ¿Vecinos de la misma torre con problemas? → falla zonal.\n"
+                "Escalar a N2 con: dirección, torre, síntoma, zonal o individual.\n"
+                "Soporte: 0223 464-3006."
             ),
         ),
         KnowledgeArticle(
@@ -392,9 +395,8 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Internet radio — señal intermitente",
             categoria="Internet",
             contenido=(
-                "Cuando la conexión por radio se cae y vuelve periódicamente:\n"
-                "1) Puede ser interferencia en la banda (5GHz generalmente). Ocurre más en "
-                "   zonas con muchos equipos inalámbricos.\n"
+                "Cuando la conexión BAI/radio se cae y vuelve periódicamente:\n"
+                "1) Puede ser interferencia en la banda (suele ser 5 GHz).\n"
                 "2) Verificar que el CPE no se mueva con el viento (soporte flojo).\n"
                 "3) Luego de lluvia/tormenta, puede haber humedad en conectores.\n"
                 "4) Si parece cíclico (siempre a la misma hora), puede ser saturación de la torre.\n"
@@ -408,7 +410,7 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Internet ADSL — sin servicio",
             categoria="Internet",
             contenido=(
-                "Cooperativa Batán — Internet ADSL por par de cobre (línea telefónica).\n\n"
+                "Cooperativa Batán / Ecolan — Internet ADSL/xDSL por par de cobre (línea telefónica).\n\n"
                 "Diagnóstico N1:\n"
                 "1) Reiniciar módem ADSL 30s. Esperar ~2 min a sincronización (luz DSL/Sync fija).\n"
                 "2) Luces: DSL fija = sincronización OK. Si parpadea → no sincroniza con DSLAM.\n"
@@ -417,8 +419,9 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "4) Probar en la primera toma (la que viene de la calle), sin extensiones ni "
                 "   cables internos largos.\n"
                 "5) Cable vs WiFi: si por cable anda, es tema WiFi.\n"
-                "6) Si no sincroniza → posible falla en par de cobre o en el DSLAM de la central.\n"
-                "Escalar a N2 con: dirección, N° de línea telefónica, estado de luces."
+                "6) Si no sincroniza → posible falla en par de cobre o en el DSLAM.\n"
+                "Escalar a N2 con: dirección, N° de línea telefónica, estado de luces.\n"
+                "Soporte: 0223 464-3006. Ver también FAQ Ecolan (Conectar Modem ADSL)."
             ),
         ),
         KnowledgeArticle(
@@ -445,11 +448,12 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "Cuando el abonado dice 'no tengo internet' sin especificar tipo:\n"
                 "1) Preguntar qué tipo de conexión tiene:\n"
                 "   - Fibra (cable amarillo a cajita blanca) → playbook FTTH\n"
-                "   - Radio/antena en el techo → playbook Radio\n"
+                "   - Radio/antena en el techo (BAI) → playbook Radio\n"
                 "   - Línea telefónica/módem ADSL → playbook ADSL\n"
-                "2) Si no sabe: preguntar si tiene antena en el techo (radio), cable "
+                "2) Si no sabe: preguntar si tiene antena en el techo (BAI), cable "
                 "   amarillo finito (fibra), o si es por la línea del teléfono (ADSL).\n"
-                "3) Siempre verificar primero si hay deuda/corte antes del diagnóstico técnico."
+                "3) Siempre verificar primero si hay deuda/corte antes del diagnóstico técnico.\n"
+                "4) Reclamos y autogestión: https://ov.batan.coop (Mi Cuenta)."
             ),
         ),
         KnowledgeArticle(
@@ -457,13 +461,14 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Internet lento — diagnóstico general",
             categoria="Internet",
             contenido=(
-                "Cuando reportan lentitud:\n"
-                "1) Pedir test por cable (no WiFi): fast.com o speedtest.net.\n"
-                "2) Si da >70% del plan contratado, es aceptable.\n"
+                "Cuando reportan lentitud (FAQ Ecolan):\n"
+                "1) Pedir test por cable (no WiFi): fast.com o medidor de velocidad Ecolan.\n"
+                "2) La velocidad contratada es la de descarga; >70% del plan suele ser aceptable.\n"
                 "3) Si por cable da bien y WiFi no → problema WiFi, no de línea.\n"
                 "4) Verificar cuántos dispositivos conectados y qué hacen.\n"
-                "5) En horarios pico puede haber congestión (sobre todo en radio).\n"
-                "6) Si por cable da <50% del plan → escalar N2 indicando plan y resultado."
+                "5) En PCs Windows, una actualización descargándose es causa frecuente de lentitud.\n"
+                "6) En horarios pico puede haber congestión (sobre todo en BAI/radio).\n"
+                "7) Si por cable da <50% del plan → escalar N2 indicando plan y resultado."
             ),
         ),
 
@@ -473,14 +478,38 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="WiFi — cobertura y rendimiento",
             categoria="Internet",
             contenido=(
-                "Problemas de WiFi (no es un problema de internet, es de la red del hogar):\n"
+                "Problemas de WiFi (red del hogar, no necesariamente de la línea):\n"
                 "1) El WiFi pierde señal con cada pared (especialmente hormigón/ladrillo).\n"
                 "2) Router en el centro de la casa = mejor cobertura.\n"
-                "3) Banda 2.4GHz: más alcance, menos velocidad. 5GHz: menos alcance, más velocidad.\n"
+                "3) Banda 2.4 GHz: más alcance, menos velocidad. 5 GHz: menos alcance, más velocidad.\n"
                 "4) Interferencia: microondas, teléfonos inalámbricos, vecinos en mismo canal.\n"
-                "5) Solución: reiniciar router, cambiar canal WiFi, agregar extensor/mesh.\n"
-                "6) Si muchas habitaciones sin señal → sugerir access point o mesh.\n"
-                "La cooperativa puede ofrecer servicio de instalación de extensores (consultar área comercial)."
+                "5) Clave olvidada: resetear el módem/router y usar nombre/clave de la etiqueta "
+                "   debajo del equipo (datos de fábrica).\n"
+                "6) Recomendación Ecolan BAI: cablear PCs, Smart TV y consolas a puertos LAN; "
+                "   dejar WiFi para celulares/tablets.\n"
+                "7) Si muchas habitaciones sin señal → sugerir access point o mesh (comercial).\n"
+                "La cooperativa puede ofrecer instalación de extensores (consultar comercial)."
+            ),
+        ),
+
+        # ==================== TELEFONÍA FIJA ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Telefonía fija — sin tono o falla",
+            categoria="Telefonía",
+            contenido=(
+                "Cooperativa Batán / Ecolan — telefonía fija.\n\n"
+                "Diagnóstico N1:\n"
+                "1) ¿Hay tono al descolgar?\n"
+                "2) ¿Falla en todos los aparatos o solo en uno? Si solo uno → probar otro teléfono "
+                "   en la misma toma (descarta aparato defectuoso).\n"
+                "3) Cable bien enchufado en la toma de pared.\n"
+                "4) ¿Hay ruido o estática? Puede indicar par de cobre deteriorado.\n"
+                "5) Si en la misma línea hay internet ADSL: no quitar splitter/filtros; "
+                "   un teléfono sin filtro genera ruido y caídas de ADSL.\n"
+                "6) Si no hay tono en ningún aparato y el cableado está OK → falla de planta/central.\n"
+                "Escalar a N2 con: N° de línea, tono sí/no, ruido, si es un aparato o todos, "
+                "dirección. Soporte: 0223 464-3006."
             ),
         ),
 
@@ -490,16 +519,17 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="IMOWI — sin señal o sin servicio",
             categoria="Móvil",
             contenido=(
-                "Cooperativa Batán — servicio móvil IMOWI (MVNO).\n\n"
+                "Cooperativa Batán — servicio móvil IMOWI (MVNO). Cobertura 4G nacional.\n\n"
                 "Diagnóstico N1:\n"
                 "1) Reiniciar el teléfono.\n"
                 "2) Modo avión 15s y desactivar → fuerza re-registro en la red.\n"
                 "3) Selección de red manual: Ajustes > Redes móviles > Operador > elegir otra red "
-                "   (Personal/Claro), esperar registro, volver a IMOWI. Genera nuevo registro.\n"
+                "   (Personal/Claro), esperar registro, volver a IMOWI.\n"
                 "4) Verificar que la SIM esté bien insertada (sacar y poner).\n"
                 "5) Probar la SIM en otro teléfono para descartar problema del equipo.\n"
                 "6) Si en otra ubicación anda → zona sin cobertura.\n"
-                "Escalar a N2 con: MSISDN (número de línea), ubicación, si es solo señal o también datos."
+                "Escalar a N2 con: MSISDN, ubicación, si es solo señal o también datos.\n"
+                "Contacto: WhatsApp 0223 4643010 · 464-3000 · oficina comercial."
             ),
         ),
         KnowledgeArticle(
@@ -507,14 +537,21 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="IMOWI — sin datos móviles",
             categoria="Móvil",
             contenido=(
-                "Cuando hay señal (llamadas funcionan) pero no navega:\n"
-                "1) Verificar que datos móviles estén activados.\n"
-                "2) Verificar APN: nombre=apn1.catel.org.ar, MCC=722, MNC=310. "
-                "   En Android: Ajustes > Redes móviles > Nombres de punto de acceso.\n"
-                "   En iPhone: Ajustes > Datos móviles > Red de datos móviles.\n"
-                "3) Verificar que no haya un límite de datos alcanzado.\n"
-                "4) Reiniciar configuración de red (borra WiFi guardadas pero resuelve APN).\n"
-                "5) Si persiste → escalar N2 indicando MSISDN y si la señal está OK."
+                "Cuando hay señal (llamadas funcionan) pero no navega "
+                "(FAQ imowi.com.ar + canales Batán):\n"
+                "1) Verificar que datos móviles estén activados y modo avión apagado.\n"
+                "2) APN Android: Nombre = imowi · APN = apn1.catel.org.ar "
+                "   (resto en blanco). Ajustes > Conexiones/Redes móviles > APN > Nuevo.\n"
+                "3) APN iPhone: iPhone 11 en adelante o eSIM → APN automático. "
+                "   Modelos anteriores: Configuración > Datos celulares > Opciones > "
+                "   Red de datos celulares → Punto de acceso internet = apn1.catel.org.ar · "
+                "   Nombre de usuario = imowi.\n"
+                "4) Sin datos del abono (FAQ): sigue WhatsApp mensajería (textos/audios/fotos/"
+                "   videos) y páginas educativas; para el resto hay que comprar un bono.\n"
+                "5) Bonos: Autogestión Batán https://ov.batan.coop u oficina Cooperativa Batán. "
+                "   NO orientar a la autogestión de imowi.com.ar (es de otra cooperativa).\n"
+                "6) Apagar WiFi del celular y probar solo datos.\n"
+                "7) Si persiste → escalar N2 con MSISDN y si la señal está OK."
             ),
         ),
         KnowledgeArticle(
@@ -522,14 +559,47 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="IMOWI — llamadas y SMS",
             categoria="Móvil",
             contenido=(
-                "Problemas con llamadas o mensajes de texto:\n"
+                "Problemas con llamadas o mensajes de texto (FAQ imowi):\n"
                 "1) Si no puede hacer llamadas: reiniciar, modo avión, selección manual de red.\n"
                 "2) Si no recibe llamadas: verificar desvíos activos (*#21# para consultar).\n"
                 "3) Si las llamadas se cortan: probable zona de baja señal.\n"
-                "4) SMS de verificación que no llegan (A2P): son mensajes de apps/bancos. "
-                "   Estos dependen de acuerdos con las plataformas y pueden no llegar. "
-                "   Sugerir validar por otro medio (email, llamada). Si es crítico, escalar.\n"
-                "5) Si nada funciona (ni llamadas ni datos) → ver artículo 'sin señal'."
+                "4) El plan incluye 1000 SMS a numeración de cliente nacional; "
+                "   NO incluye números cortos (bancos/apps) → ver artículo A2P.\n"
+                "5) Correo de voz: marcar *333 desde la línea imowi.\n"
+                "6) Bloqueo de llamadas/SMS internacionales: *303 (red imowi) o canales Batán.\n"
+                "7) Si nada funciona (ni llamadas ni datos) → ver artículo 'sin señal'."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOWI — SMS de verificación (A2P)",
+            categoria="Móvil",
+            contenido=(
+                "SMS A2P (Application-to-Person) de bancos, apps y validaciones:\n"
+                "1) No es un SMS persona-a-persona; depende de acuerdos del remitente con la red.\n"
+                "2) El plan imowi de 1000 SMS es solo a numeración de cliente; "
+                "   no incluye números cortos de verificación.\n"
+                "3) N1: sugerir validar por otro medio (email, llamada, WhatsApp del banco/app).\n"
+                "4) Confirmar que la línea tiene señal y puede enviar/recibir SMS normales.\n"
+                "5) Pedir nombre de la app/banco y el número corto del remitente para el ticket.\n"
+                "6) No prometer plazo corto de habilitación A2P; si es crítico, escalar a N2.\n"
+                "Escalar con: MSISDN, app/entidad, número corto, fecha/hora del intento."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOWI — robo o pérdida de celular",
+            categoria="Móvil",
+            contenido=(
+                "Robo o pérdida del equipo IMOWI (FAQ imowi.com.ar):\n"
+                "1) Desde línea de otra compañía: *910 (opción 4 – imowi) para interrumpir.\n"
+                "2) Desde línea imowi: *303.\n"
+                "3) Desde línea fija: 0800-147-0303.\n"
+                "4) También canales Batán: WhatsApp 0223 4643010 · 464-3000 · oficina.\n"
+                "5) El operador indica pasos para reposición de SIM/eSIM y rehabilitar.\n"
+                "6) N1 no repone SIM sola: derivar con DNI y MSISDN.\n"
+                "7) Tras nueva SIM física: APN Nombre imowi / APN apn1.catel.org.ar.\n"
+                "8) Si era eSIM: pedir nuevo QR por *303 o en oficina Batán."
             ),
         ),
         KnowledgeArticle(
@@ -537,12 +607,16 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="IMOWI — portabilidad numérica",
             categoria="Móvil",
             contenido=(
-                "Portabilidad de número a IMOWI:\n"
-                "1) Se solicita en oficina comercial con DNI y última factura del operador anterior.\n"
-                "2) El proceso tarda entre 3 y 5 días hábiles.\n"
+                "Portabilidad de número a IMOWI (canales Batán; FAQ imowi):\n"
+                "1) Inicio en Batán: WhatsApp 0223 4643010, 464-3000 u oficina comercial "
+                "   (DNI, equipo liberado, titular ≥18 años).\n"
+                "2) El trámite dura entre 24 y 72 horas hábiles (batan.coop/imowi).\n"
                 "3) Durante la portabilidad puede haber un corte breve del servicio.\n"
-                "4) Si pasaron más de 5 días y no se completó → escalar a N2 con el número y DNI.\n"
-                "5) Para portar DESDE IMOWI a otro operador, se gestiona con el nuevo operador."
+                "4) Si pasaron más de 72 hs hábiles y no se completó → escalar a N2.\n"
+                "5) Para portar DESDE IMOWI a otro operador, se gestiona con el nuevo operador.\n"
+                "6) Chip/SIM: retirar en oficina comercial Batán.\n"
+                "Cobertura: el servicio móvil imowi cubre el territorio argentino; "
+                "Batán (Gral. Pueyrredón, CP 7601) es localidad de comercialización."
             ),
         ),
         KnowledgeArticle(
@@ -550,13 +624,62 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="IMOWI — activar SIM / eSIM",
             categoria="Móvil",
             contenido=(
-                "Activación de SIM/eSIM nueva:\n"
-                "1) SIM física: insertar, reiniciar teléfono, esperar 5 min a registro automático.\n"
-                "2) eSIM: escanear QR proporcionado en oficina. Verificar perfil activo en "
-                "   Ajustes > Datos móviles > Planes de datos.\n"
-                "3) Si no se activa en 30 min → verificar EID/ICCID con el agente.\n"
-                "4) Configurar APN manualmente si los datos no funcionan post-activación.\n"
-                "Escalar si la activación no completa tras reiniciar y esperar."
+                "Activación SIM/eSIM (FAQ imowi.com.ar):\n\n"
+                "SIM física:\n"
+                "1) Insertar, reiniciar, esperar ~5 min a registro automático.\n"
+                "2) Si no navega: configurar APN (Android Nombre imowi / APN apn1.catel.org.ar).\n\n"
+                "Compatibilidad eSIM: marcar *#06# — si aparece EID, el equipo soporta eSIM.\n"
+                "Requisitos: WiFi + QR enviado por e-mail (o reenviado desde oficina/*303).\n"
+                "Android: Ajustes > Conexiones > Administrador SIM > Añadir eSIM > escanear QR.\n"
+                "iPhone: cámara sobre el QR → Añadir plan, o Configuración > Red celular > "
+                "Agregar eSIM.\n"
+                "Notas:\n"
+                "- La eSIM se activa en un solo dispositivo a la vez (seguridad).\n"
+                "- El mismo QR puede usarse hasta 5 veces si se da de baja en el equipo anterior.\n"
+                "- Si se pierde el QR → *303 o oficina Batán para reenviar.\n"
+                "iPhone 11+ / eSIM: APN suele ser automático.\n"
+                "Escalar si no completa tras reiniciar y esperar."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOWI — FAQ operativa N1",
+            categoria="Móvil",
+            contenido=(
+                "Resumen operativo desde FAQ imowi.com.ar (usar canales Batán para gestión):\n\n"
+                "Autogestión: en Batán usar https://ov.batan.coop u oficina/WhatsApp Batán. "
+                "NO redirigir a imowi.com.ar/autogestion (pertenece a otra cooperativa).\n\n"
+                "Alta / primera factura: se prorratean GB, minutos, SMS y el monto según "
+                "días restantes del mes calendario. Alta el día 1 = cuota completa.\n\n"
+                "Plan base típico: datos contratados + 1000 min voz nacional + 1000 SMS "
+                "a numeración de cliente + WhatsApp libre. Llamadas/SMS internacionales "
+                "se facturan como excedente; se pueden bloquear vía *303 o Batán.\n\n"
+                "Sin datos: WhatsApp mensajería sigue; resto requiere bono "
+                "(eventual por días o recurrente hasta fin de mes / renovable).\n\n"
+                "imowi no vende celulares; cualquier equipo homologado para Argentina sirve.\n\n"
+                "Correo de voz: *333.\n"
+                "Atención red imowi: *303 · 0800-147-0303 (24 hs).\n"
+                "Atención Batán IMOWI: WhatsApp 0223 4643010 · 464-3000 · oficina.\n\n"
+                "Baja / arrepentimiento: solo titular; mínimo 10 días corridos desde "
+                "activación; implica pérdida del número; contactan en 48 hs. "
+                "Puede emitirse factura según ciclo. Gestionar en Batán (no formulario genérico "
+                "de imowi.com.ar salvo que comercial lo indique)."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="IMOWI — baja o arrepentimiento",
+            categoria="Móvil",
+            contenido=(
+                "Baja de línea IMOWI / derecho de arrepentimiento (FAQ imowi):\n"
+                "1) Solo el titular puede solicitarla.\n"
+                "2) Deben haber pasado al menos 10 días corridos desde la activación.\n"
+                "3) Implica pérdida del número y beneficios del plan.\n"
+                "4) Contactan dentro de 48 hs para confirmar; si no logran contacto, "
+                "   pueden procesar la baja igual.\n"
+                "5) Según el ciclo de facturación, puede emitir factura posterior a la baja.\n"
+                "N1: no procesar la baja en el bot — derivar a comercial/agente Batán "
+                "con MSISDN y DNI del titular. Canales: WhatsApp 0223 4643010 · 464-3000 · oficina."
             ),
         ),
 
@@ -566,14 +689,15 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Facturación — medios de pago",
             categoria="Facturación",
             contenido=(
-                "Medios de pago disponibles en Cooperativa Batán:\n"
-                "1) Rapipago y Pago Fácil (con código de barras de la boleta).\n"
-                "2) Transferencia bancaria al CBU de la Cooperativa (informar en oficina).\n"
-                "3) Débito automático (se tramita en oficina con CBU o tarjeta).\n"
-                "4) Oficina comercial: Av. Brown 1234, Batán. Lunes a viernes 8-16h.\n"
-                "5) Mercado Pago: buscar 'Cooperativa Batán' (en implementación).\n"
-                "Acreditación: Rapipago/PF en 24-48h, transferencia bancaria en 24h, "
-                "débito automático en fecha de vencimiento."
+                "Medios de pago Cooperativa Batán:\n"
+                "1) QR Fiserv de la factura (Mercado Pago, MODO, etc.).\n"
+                "2) Rapipago y Pago Fácil (código de barras de la boleta).\n"
+                "3) Transferencia bancaria al CBU de la Cooperativa (consultar en oficina).\n"
+                "4) Débito automático (tramitar en oficina con CBU o tarjeta).\n"
+                "5) Autogestión / Mi Cuenta: https://ov.batan.coop\n"
+                "6) Atención: 0223 464-3006 · WhatsApp comercial IMOWI 0223 4643010 · 464-3000.\n"
+                "Acreditación: el tiempo de imputación varía según el medio. "
+                "No inventar montos ni CBU en el chat."
             ),
         ),
         KnowledgeArticle(
@@ -581,13 +705,15 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Corte por deuda — rehabilitación automática",
             categoria="Facturación",
             contenido=(
-                "Cuando el abonado tiene estado corte/suspendido:\n"
-                "1) Informar el saldo pendiente y los medios de pago.\n"
-                "2) La rehabilitación es AUTOMÁTICA tras acreditación del pago (no requiere "
-                "   llamar ni pedir habilitación manual).\n"
-                "3) Tiempo de rehabilitación: hasta 2 horas después de la acreditación.\n"
-                "4) NO intentar diagnóstico técnico si el servicio está cortado por deuda.\n"
-                "5) Si pagó hace más de 4 horas y sigue cortado → escalar a N2."
+                "Cuando el abonado tiene estado corte/suspendido (FAQ Ecolan):\n"
+                "1) Informar medios de pago (QR Fiserv, boleta, Mi Cuenta ov.batan.coop).\n"
+                "2) NO es necesario avisar que pagó: la rehabilitación es AUTOMÁTICA "
+                "   cuando ingresa el pago al sistema.\n"
+                "3) El tiempo de imputación depende del medio de pago.\n"
+                "4) Si pagó luego del vencimiento, la próxima factura puede incluir intereses "
+                "   y cargo de reconexión.\n"
+                "5) NO intentar diagnóstico técnico si el servicio está cortado por deuda.\n"
+                "6) Si pagó hace varias horas y sigue cortado → escalar a N2."
             ),
         ),
         KnowledgeArticle(
@@ -596,7 +722,7 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             categoria="Facturación",
             contenido=(
                 "Si el abonado no reconoce un monto en la factura:\n"
-                "1) Verificar si hubo cambio de plan, cargo por instalación, o mora.\n"
+                "1) Verificar si hubo cambio de plan, cargo por instalación, mora o reconexión.\n"
                 "2) Si es un cargo que no se puede explicar en N1 → derivar a agente con "
                 "   acceso al sistema de facturación.\n"
                 "3) Siempre ser empático: 'Entiendo la preocupación, vamos a revisarlo'."
@@ -609,27 +735,22 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="TV OTT Sensa — sin reproducción o no abre",
             categoria="TV",
             contenido=(
-                "Cooperativa Batán — Sensa es el servicio de TV por internet (OTT). "
-                "Depende de una conexión a internet estable en el dispositivo.\n\n"
-                "Diagnóstico N1 (checklist para Eco / agente):\n"
-                "1) Confirmar internet en el mismo dispositivo. Si no hay internet → "
-                "   aplicar flujo de internet antes de seguir con Sensa.\n"
-                "2) Registrar dispositivo: Smart TV, celular/tablet, PC/notebook o Android TV Box.\n"
-                "3) ¿Navega internet en ese equipo? Si no → WiFi/cable/router (no es falla de Sensa).\n"
-                "4) ¿Abre la app/web de Sensa? Si no → reinstalar, actualizar SO, chequear "
-                "   compatibilidad del equipo.\n"
-                "5) Síntoma al ver contenido:\n"
-                "   - No reproduce: velocidad (>5 Mbps orientativo), probar otro dispositivo "
-                "     u otra red (datos 4G). Si en otra red anda → red local.\n"
-                "   - Buffering infinito: estabilidad WiFi + speed test; si velocidad baja → "
-                "     flujo de internet lento.\n"
-                "   - Error de cuenta/usuario: credenciales, servicio habilitado (CRM — agente), "
-                "     dispositivos autorizados. N1 no inventa estado de cuenta.\n"
-                "   - Calidad baja / se detiene: cable si es posible, otros equipos saturando, QoS.\n"
-                "6) Acciones rápidas: cerrar apps que consuman red, reiniciar router/ONT y "
-                "   dispositivo, actualizar app Sensa.\n"
-                "Escalar con: dispositivo, captura/error, velocidad medida, usuario afectado, "
-                "fecha/hora de la falla. No afirmar habilitación en CRM sin acceso al sistema."
+                "Cooperativa Batán — Sensa es el servicio de TV por internet (OTT / app / "
+                "Android TV Box). Depende de una conexión a internet estable.\n\n"
+                "Diagnóstico N1:\n"
+                "1) Triaje: ¿app/web Sensa o decodificador / Android TV Box de la cooperativa?\n"
+                "2) Confirmar internet en el mismo dispositivo. Si no hay internet → "
+                "   flujo de internet antes de seguir con Sensa.\n"
+                "3) Registrar dispositivo: Smart TV, celular/tablet, PC/notebook o Android TV Box.\n"
+                "4) ¿Navega internet en ese equipo? Si no → WiFi/cable/router.\n"
+                "5) ¿Abre la app/web de Sensa? Si no → reinstalar, actualizar SO, compatibilidad.\n"
+                "6) Síntoma al ver contenido:\n"
+                "   - No reproduce: velocidad (>5 Mbps orientativo), otro dispositivo u otra red.\n"
+                "   - Buffering: estabilidad WiFi + speed test; si baja → internet lento.\n"
+                "   - Error de cuenta: credenciales / habilitación CRM (agente; N1 no inventa estado).\n"
+                "   - Calidad baja: cable si es posible, otros equipos saturando.\n"
+                "7) Acciones: reiniciar router/ONT y dispositivo, actualizar Sensa.\n"
+                "Escalar con: dispositivo, error, velocidad, usuario, fecha/hora."
             ),
         ),
         KnowledgeArticle(
@@ -641,8 +762,9 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "- Velocidad orientativa mínima para reproducción estable: ~5 Mbps "
                 "  (más si hay varios streams en paralelo).\n"
                 "- Si el equipo cumple requisitos, hay internet OK y el síntoma sigue → N2.\n"
-                "- Temas de alta/baja del servicio Sensa o autorización de dispositivos → "
-                "  derivar a área con acceso a CRM (no resolver solo con el bot)."
+                "- Alta/baja de Sensa, packs premium (HBO, Universal, etc.) o autorización "
+                "  de dispositivos → derivar a comercial/CRM (no resolver solo con el bot).\n"
+                "Grilla y packs: consultar batan.coop (sección Televisión)."
             ),
         ),
 
@@ -653,14 +775,18 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             categoria="General",
             contenido=(
                 "Cooperativa de Provisión de Servicios Telefónicos y Otros Batán Ltda.\n"
-                "Servicios: Internet (FTTH, radio/wireless, ADSL), Telefonía móvil (IMOWI), "
-                "TV OTT (Sensa).\n"
-                "Marca internet: Ecolan.\n"
-                "Planes internet: desde 25Mb hasta 300Mb según tecnología y zona.\n"
-                "Planes IMOWI: desde 3GB hasta 50GB con minutos ilimitados nacionales.\n"
-                "Oficina: Av. Brown 1234, Batán. Tel: 0223-XXX-XXXX.\n"
-                "Horarios: Lunes a viernes 8-16h.\n"
-                "Guardia técnica: fuera de horario, los reclamos se atienden al día siguiente "
+                "Servicios:\n"
+                "- Internet Ecolan: FTTH (fibra), BAI (banda ancha inalámbrica), ADSL.\n"
+                "- Telefonía fija Ecolan/Batán.\n"
+                "- Telefonía móvil y datos: IMOWI.\n"
+                "- TV: Sensa (OTT / Android TV) y packs premium.\n"
+                "- B2B Ecolan: conectividad empresarial, datacenter, housing/hosting.\n\n"
+                "Autogestión / Mi Cuenta: https://ov.batan.coop\n"
+                "Webs: https://batan.coop · https://ecolan.com · https://batan.coop/imowi\n"
+                "Soporte técnico: 0223 464-3006\n"
+                "Horario soporte Ecolan: Lunes a Viernes 8 a 21 hs · Sábados 9 a 14 hs.\n"
+                "IMOWI WhatsApp: 0223 4643010 · Central: 464-3000\n"
+                "Fuera de horario: los reclamos no urgentes se atienden el siguiente día hábil "
                 "salvo corte masivo."
             ),
         ),
@@ -669,15 +795,13 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Planes internet Ecolan — vigentes",
             categoria="Comercial",
             contenido=(
-                "Planes internet Ecolan vigentes (precios orientativos, confirmar en oficina):\n"
-                "- Ecolan 25Mb: ideal para 1-2 dispositivos, navegación y redes.\n"
-                "- Ecolan 50Mb: recomendado para 3-5 dispositivos, streaming HD.\n"
-                "- Ecolan 100Mb: familias con múltiples dispositivos y streaming 4K.\n"
-                "- Ecolan 200Mb: gamers, trabajo remoto pesado, múltiples streams 4K.\n"
-                "- Ecolan 300Mb: uso intensivo, disponible solo en FTTH.\n"
-                "Disponibilidad de velocidades según tecnología: FTTH hasta 300Mb, "
-                "radio hasta 100Mb, ADSL hasta 20Mb (según distancia a central).\n"
-                "Para contratar o cambiar → derivar a área comercial (agente)."
+                "Planes internet Ecolan (tiers orientativos; confirmar precios y promo en "
+                "ecolan.com — N1 no cotiza montos):\n"
+                "FTTH (fibra): 100M, 200M, 300M, 600M (simétricos según plan publicado).\n"
+                "BAI (banda ancha inalámbrica): 10M, 15M, 25M.\n"
+                "ADSL: 10M (según distancia a central).\n"
+                "Disponibilidad según zona y tecnología.\n"
+                "Para contratar o cambiar → derivar a comercial (agente) o consultar ecolan.com."
             ),
         ),
         KnowledgeArticle(
@@ -685,15 +809,18 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             titulo="Planes IMOWI móvil — vigentes",
             categoria="Comercial",
             contenido=(
-                "Planes IMOWI vigentes (confirmar precios en oficina):\n"
-                "- IMOWI 3GB: 3GB datos + minutos ilimitados + SMS ilimitados.\n"
-                "- IMOWI 5GB: 5GB datos + minutos ilimitados + SMS ilimitados.\n"
-                "- IMOWI 15GB: 15GB datos + minutos ilimitados + WhatsApp libre.\n"
-                "- IMOWI 30GB: 30GB datos + minutos ilimitados + redes sociales libres.\n"
-                "- IMOWI 50GB: 50GB datos + todo ilimitado.\n"
-                "Todos los planes incluyen roaming nacional.\n"
-                "Portabilidad: se puede traer el número de otro operador (3-5 días hábiles).\n"
-                "Para contratar → oficina comercial con DNI."
+                "Planes IMOWI (tiers según imowi.com.ar / batan.coop/imowi; "
+                "confirmar precios en web u oficina — N1 no cotiza montos):\n"
+                "- 1,5GB · 3GB · 5GB · 8GB · 15GB · 25GB de datos.\n"
+                "- Incluyen: 1000 minutos nacionales, 1000 SMS a numeración de cliente "
+                "  (no números cortos), WhatsApp libre, cobertura 4G nacional.\n"
+                "- Llamadas/SMS internacionales: excedente (se pueden bloquear).\n"
+                "- Bonos adicionales (eventuales por días o recurrentes) desde "
+                "  Autogestión Batán https://ov.batan.coop u oficina — "
+                "  NO imowi.com.ar/autogestion.\n"
+                "Portabilidad: 24–72 hs hábiles (WhatsApp 0223 4643010 / 464-3000 / oficina).\n"
+                "Primera factura / alta a mitad de mes: prorrateo de GB, minutos, SMS y monto.\n"
+                "Para contratar → oficina comercial Batán con DNI."
             ),
         ),
         KnowledgeArticle(
@@ -704,18 +831,18 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "Derivar a agente humano (N2) cuando:\n"
                 "1) El playbook N1 se agotó sin solución.\n"
                 "2) El abonado pide explícitamente hablar con una persona.\n"
-                "3) Problema claramente fuera de alcance del bot (falla masiva, configuración "
-                "   avanzada, reclamo comercial complejo).\n"
-                "4) Se necesita acceso a sistemas internos (facturación, HLR, NMS).\n\n"
-                "Al escalar incluir: servicio afectado, pasos ya realizados en N1, dirección "
-                "del abonado (si aplica), teléfono de contacto, resumen del síntoma."
+                "3) Problema fuera de alcance del bot (falla masiva, CRM, reclamo comercial).\n"
+                "4) Se necesita acceso a sistemas internos (facturación, HLR, NMS).\n"
+                "5) Robo/pérdida (*910) con reposición de SIM, portabilidad trabada, packs TV.\n\n"
+                "Al escalar incluir: servicio afectado, pasos N1 hechos, dirección (si aplica), "
+                "teléfono de contacto, resumen del síntoma."
             ),
         ),
     ]
 
 
 def seed_kb_batan_servicios(db: Session) -> dict:
-    """Asegura artículos KB de radio/ADSL/IMOWI/Sensa (idempotente por título).
+    """Asegura artículos KB Batán (idempotente por título) y refresca contenido canónico.
 
     También corrige el typo histórico IMOVI → IMOWI en títulos/contenido ya seedados
     y el APN Batán incorrecto internet.coopbatan.ar → apn1.catel.org.ar.
@@ -762,19 +889,45 @@ def seed_kb_batan_servicios(db: Session) -> dict:
     if fixed:
         db.commit()
 
+    canon = {a.titulo: a for a in _articulos_kb_batan(batan.id)}
     existentes = {
-        a.titulo
+        a.titulo: a
         for a in db.scalars(
             select(KnowledgeArticle).where(KnowledgeArticle.organizacion_id == batan.id)
         ).all()
     }
-    nuevos = [a for a in _articulos_kb_batan(batan.id) if a.titulo not in existentes]
-    if not nuevos and not fixed:
-        return {"seeded": False, "articulos": len(existentes), "fixed_imowi": 0}
-    if nuevos:
-        db.add_all(nuevos)
+
+    updated = 0
+    for titulo, plantilla in canon.items():
+        actual = existentes.get(titulo)
+        if not actual:
+            continue
+        if (actual.contenido or "") != (plantilla.contenido or "") or (
+            actual.categoria or ""
+        ) != (plantilla.categoria or ""):
+            actual.contenido = plantilla.contenido
+            actual.categoria = plantilla.categoria
+            updated += 1
+
+    nuevos = [a for titulo, a in canon.items() if titulo not in existentes]
+    if updated or nuevos:
+        if nuevos:
+            db.add_all(nuevos)
         db.commit()
-    return {"seeded": bool(nuevos), "articulos": len(nuevos), "fixed_imowi": fixed}
+
+    if not nuevos and not fixed and not updated:
+        return {
+            "seeded": False,
+            "articulos": len(existentes),
+            "fixed_imowi": 0,
+            "updated": 0,
+        }
+    return {
+        "seeded": bool(nuevos or updated),
+        "articulos": len(nuevos),
+        "fixed_imowi": fixed,
+        "updated": updated,
+    }
 
 
 def seed_inbox_conversaciones(db: Session) -> dict:
