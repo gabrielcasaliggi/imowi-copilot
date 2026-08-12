@@ -24,7 +24,9 @@ def test_health_incluye_flags_fase1():
     data = r.json()
     assert "demo_reset_enabled" in data
     assert "sentry_configured" in data
+    assert "sentry_risk_accepted" in data
     assert isinstance(data["demo_reset_enabled"], bool)
+    assert isinstance(data["sentry_risk_accepted"], bool)
 
 
 def test_demo_reset_bloqueado_cuando_flag_off(monkeypatch):

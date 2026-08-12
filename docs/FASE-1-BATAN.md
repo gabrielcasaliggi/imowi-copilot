@@ -120,6 +120,39 @@ También: `./scripts/verify-production.sh https://ibot.ecolan.com`
 | Warnings boot | Sentry vacío, WA incompleto |
 | Smoke `fase1-smoke-batan.sh` | Anti-ticket + QR + webhook WA + /ready |
 
+### E. Cerrar Fase 1 (checklist + alertas + Sentry)
+
+```bash
+cd /opt/operations-hub
+git pull origin main
+
+# Canales de alerta (al menos uno):
+sudo nano /etc/default/operations-hub-alert
+# ALERT_EMAIL_TO=ops@tudominio.com
+# ALERT_TELEGRAM_CHAT_ID=123456789   # + TELEGRAM_BOT_TOKEN en .env
+sudo bash scripts/install-ready-alert-cron.sh
+
+# Smoke autenticado (no commitear):
+sudo mkdir -p /etc/operations-hub
+sudo nano /etc/operations-hub/smoke.env
+# VERIFY_USER=tu@email
+# VERIFY_PASSWORD='...'
+sudo chmod 600 /etc/operations-hub/smoke.env
+./scripts/fase1-smoke-batan.sh https://ibot.ecolan.com
+
+# Sentry (opción A — recomendado):
+# 1) Creá proyecto en sentry.io → copiá DSN
+# 2) En .env: SENTRY_DSN=https://...@...
+# 3) systemctl restart operations-hub-api
+# 4) .venv/bin/python scripts/sentry-ping.py
+#
+# Sentry (opción B — diferir):
+# SENTRY_RISK_ACCEPTED=true en .env + restart
+
+# Veredicto DoD:
+bash scripts/fase1-cerrar-checklist.sh https://ibot.ecolan.com
+```
+
 ---
 
 ## Checklist WhatsApp prod
@@ -148,13 +181,15 @@ Ver `docs/FASE-C.md` § checklist WA.
 
 - [ ] Backup cron instalado y dump reciente en `/var/backups/ops-hub`
 - [ ] Cron `/ready` instalado (`install-ready-alert-cron.sh`)
+- [ ] Canal de alerta activo (email SMTP / Telegram / webhook)
 - [ ] Drill restore en staging al menos 1 vez (`restore-estate.sh`)
 - [ ] `demo_reset_enabled: false` en health prod
 - [ ] `curl -fsS …/ready` → `ready: true`
-- [ ] `fase1-smoke-batan.sh` en verde
+- [ ] `fase1-smoke-batan.sh` en verde **con** login (`/etc/operations-hub/smoke.env`)
 - [ ] SMTP_FROM entre comillas (sin error al backup)
-- [ ] Sentry DSN cargado **o** riesgo aceptado documentado
+- [ ] Sentry DSN **o** `SENTRY_RISK_ACCEPTED=true`
 - [ ] WhatsApp: operativo **o** explícitamente “próximo sprint” con HMAC listo cuando haya token
+- [ ] `fase1-cerrar-checklist.sh` sin FAIL
 - [ ] 1 semana de operación estable con agentes Batán
 
 Cuando todo esté checked → abrir Fase 2 (white-label / 2º cliente).

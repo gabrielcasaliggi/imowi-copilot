@@ -41,7 +41,7 @@ from app.estate.seed import (
     seed_lineas_jsc,
 )
 from app.knowledge import cargar_base_conocimiento, estadisticas
-from app.observability import init_sentry, sentry_activo
+from app.observability import init_sentry, sentry_activo, sentry_risk_accepted
 from app.routers import auth_router, chat_router, tickets_router
 
 logging.basicConfig(
@@ -54,6 +54,7 @@ logging.getLogger("operations_hub").setLevel(logging.INFO)
 logger = logging.getLogger("operations_hub")
 
 _SENTRY_OK = init_sentry()
+_SENTRY_RISK_ACCEPTED = sentry_risk_accepted()
 
 
 @asynccontextmanager
@@ -184,6 +185,7 @@ async def health():
         "auth": "jwt",
         "auth_secret_configured": bool(AUTH_SECRET),
         "sentry_configured": bool(_SENTRY_OK) or sentry_activo(),
+        "sentry_risk_accepted": bool(_SENTRY_RISK_ACCEPTED),
         "demo_reset_enabled": ENABLE_DEMO_RESET,
         "api_v1": "/api/v1",
         "frontend_recomendado": "Next.js",

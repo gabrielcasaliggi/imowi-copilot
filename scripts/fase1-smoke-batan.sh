@@ -3,7 +3,20 @@
 # Uso:
 #   ./scripts/fase1-smoke-batan.sh https://ibot.ecolan.com
 #   VERIFY_USER=admin@… VERIFY_PASSWORD=… ./scripts/fase1-smoke-batan.sh https://ibot.ecolan.com
+#
+# Credenciales (opcional, no commitear):
+#   /etc/operations-hub/smoke.env  o  $APP_ROOT/.smoke.env
+#   VERIFY_USER=...
+#   VERIFY_PASSWORD=...
 set -euo pipefail
+
+APP_ROOT="${APP_ROOT:-/opt/operations-hub}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib-ops-env.sh
+source "$SCRIPT_DIR/lib-ops-env.sh"
+
+ops_load_env_file /etc/operations-hub/smoke.env
+ops_load_env_file "$APP_ROOT/.smoke.env"
 
 API_URL="${1:-https://ibot.ecolan.com}"
 API_URL="${API_URL%/}"

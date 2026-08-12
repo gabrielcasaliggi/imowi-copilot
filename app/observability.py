@@ -43,6 +43,16 @@ def init_sentry() -> bool:
     return True
 
 
+def sentry_risk_accepted() -> bool:
+    """True si ops documentó operar sin Sentry (SENTRY_RISK_ACCEPTED=true)."""
+    return os.getenv("SENTRY_RISK_ACCEPTED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def sentry_activo() -> bool:
     """True si Sentry quedó inicializado en este proceso."""
     if _SENTRY_INIT:

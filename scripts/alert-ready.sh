@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 # Alerta mínima de readiness — Operations Hub (Batán)
-# Chequea GET /ready; si falla N veces seguidas, loguea y opcionalmente notifica.
+# Chequea GET /ready; si falla N veces seguidas, loguea y notifica.
 #
 # Uso:
 #   bash scripts/alert-ready.sh https://ibot.ecolan.com
-#   READY_URL=http://127.0.0.1:8000/ready FAIL_THRESHOLD=2 bash scripts/alert-ready.sh
 #
-# Notificación (opcionales):
-#   ALERT_WEBHOOK_URL=https://hooks.slack.com/...   # POST JSON {text}
-#   ALERT_EMAIL_TO=ops@ecolan.com                   # usa mail(1) si existe
+# Canales (en /etc/default/operations-hub-alert o env):
+#   ALERT_WEBHOOK_URL=https://hooks.slack.com/...
+#   ALERT_EMAIL_TO=ops@ecolan.com          # vía SMTP del .env de la app
+#   ALERT_TELEGRAM_CHAT_ID=123456789       # + TELEGRAM_BOT_TOKEN en .env
+#   FAIL_THRESHOLD=2
 set -euo pipefail
+
+APP_ROOT="${APP_ROOT:-/opt/operations-hub}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib-ops-env.sh
+source "$SCRIPT_DIR/lib-ops-env.sh"
+
+# Cron defaults primero; .env de la app rellena lo que falte
+[[ -f /etc/default/operations-hub-alert ]] && set -a && . /etc/default/operations-hub-alert && set +a || true
+ops_load_env_file "$APP_ROOT/.env"
 
 BASE_URL="${1:-${PUBLIC_URL:-https://ibot.ecolan.com}}"
 BASE_URL="${BASE_URL%/}"
@@ -26,15 +36,24 @@ body="$(cat /tmp/ops-hub-ready.json 2>/dev/null || true)"
 
 notify() {
   local msg="$1"
+  local subject="[ops-hub] readiness"
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $msg" >>"$STATE_DIR/alerts.log"
+
   if [[ -n "${ALERT_WEBHOOK_URL:-}" ]]; then
     curl -sS -X POST "$ALERT_WEBHOOK_URL" \
       -H 'Content-Type: application/json' \
       -d "{\"text\":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$msg")}" \
       >/dev/null 2>&1 || true
   fi
-  if [[ -n "${ALERT_EMAIL_TO:-}" ]] && command -v mail >/dev/null 2>&1; then
-    printf '%s\n' "$msg" | mail -s "[ops-hub] readiness FAIL" "$ALERT_EMAIL_TO" || true
+
+  if [[ -n "${ALERT_EMAIL_TO:-}" ]] || [[ -n "${ALERT_TELEGRAM_CHAT_ID:-}" ]]; then
+    if [[ -x "$APP_ROOT/.venv/bin/python" ]]; then
+      APP_ROOT="$APP_ROOT" "$APP_ROOT/.venv/bin/python" "$SCRIPT_DIR/send-ops-alert.py" \
+        --subject "$subject" --body "$msg" --app-root "$APP_ROOT" \
+        >>"$STATE_DIR/alerts.log" 2>&1 || true
+    elif command -v mail >/dev/null 2>&1 && [[ -n "${ALERT_EMAIL_TO:-}" ]]; then
+      printf '%s\n' "$msg" | mail -s "$subject" "$ALERT_EMAIL_TO" || true
+    fi
   fi
 }
 
@@ -54,7 +73,6 @@ msg="FAIL ($fails): $READY_URL → HTTP $code body=${body:0:200}"
 echo "$msg" >&2
 
 if [[ "$fails" -ge "$FAIL_THRESHOLD" ]]; then
-  # Evitar spam: notificar solo al cruzar el umbral o cada 10 fallos
   if [[ "$fails" -eq "$FAIL_THRESHOLD" || $((fails % 10)) -eq 0 ]]; then
     notify "$msg"
   fi

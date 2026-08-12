@@ -452,7 +452,20 @@ def avisos_config_produccion() -> list[str]:
     if TELEGRAM_BOT_TOKEN and not TELEGRAM_WEBHOOK_SECRET:
         avisos.append("TELEGRAM_WEBHOOK_SECRET vacío con bot token — webhook sin secret token")
     if not (os.getenv("SENTRY_DSN") or "").strip():
-        avisos.append("SENTRY_DSN vacío — errores de prod no se reportan a Sentry")
+        if os.getenv("SENTRY_RISK_ACCEPTED", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            avisos.append(
+                "SENTRY_DSN vacío con SENTRY_RISK_ACCEPTED=true — sin reporte de errores"
+            )
+        else:
+            avisos.append(
+                "SENTRY_DSN vacío — errores de prod no se reportan a Sentry "
+                "(o set SENTRY_RISK_ACCEPTED=true)"
+            )
 
     return avisos
 
