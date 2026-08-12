@@ -71,20 +71,22 @@ fi
 [[ -f /etc/cron.d/operations-hub-ready-alert ]] && ok "cron /ready instalado" || bad "falta cron ready-alert"
 
 # Backup reciente
-if [[ -d "$BACKUP_DIR" ]]; then
-  latest=""
-  if [[ -r "$BACKUP_DIR" ]]; then
-    latest="$(ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
-  else
-    latest="$(sudo ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
-  fi
-  if [[ -n "$latest" ]]; then
-    ok "backup existe: $(basename "$latest")"
-  else
-    warn "sin dumps en $BACKUP_DIR — corré: sudo bash scripts/backup-estate.sh"
-  fi
+latest=""
+if [[ -r "$BACKUP_DIR" ]]; then
+  latest="$(ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
+elif command -v sudo >/dev/null 2>&1; then
+  latest="$(sudo -n ls -1t "$BACKUP_DIR"/ops_hub_estate_*.dump 2>/dev/null | head -1 || true)"
+fi
+# Symlink latest (a veces legible aunque el dir no liste)
+if [[ -z "$latest" && -e "$BACKUP_DIR/ops_hub_estate_latest.dump" ]]; then
+  latest="$BACKUP_DIR/ops_hub_estate_latest.dump"
+fi
+if [[ -n "$latest" ]]; then
+  ok "backup existe: $(basename "$latest")"
+elif [[ -d "$BACKUP_DIR" ]]; then
+  warn "no pude listar dumps (permisos). Verificá: sudo ls -lh $BACKUP_DIR"
 else
-  warn "no existe $BACKUP_DIR"
+  warn "no existe $BACKUP_DIR — corré: sudo bash scripts/backup-estate.sh"
 fi
 
 # Alert channels

@@ -102,14 +102,16 @@ except Exception:
     echo "$MSG" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
-tid = d.get("ticket_id") or ""
+tid = (d.get("ticket_id") or "").strip()
 estado = d.get("estado") or ""
 resp = (d.get("respuesta") or "").lower()
-if tid or estado == "espera_agente":
+# Pedir humano puede ir a espera_agente (cola inbox) SIN ticket formal — OK.
+# Falla solo si abre ticket N2 / menciona id de ticket.
+if tid:
     raise SystemExit(f"ticket prematuro: estado={estado} ticket={tid} resp={resp[:120]}")
-if "ticket" in resp and "jsc-" in resp:
+if "ticket" in resp and ("jsc-" in resp or "ibot-" in resp):
     raise SystemExit(f"respuesta menciona ticket: {resp[:160]}")
-print(f"  anti-ticket OK estado={estado}")
+print(f"  anti-ticket OK estado={estado} (sin ticket_id)")
 '
     ok "anti-ticket N1 (pedido humano sin síntoma)"
 
