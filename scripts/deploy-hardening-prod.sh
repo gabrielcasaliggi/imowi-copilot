@@ -191,17 +191,25 @@ fi
 sudo -u "$APP_USER" bash -lc "cd '$APP_ROOT/frontend' && npm ci && npm run build"
 
 # ── 5) restart ──────────────────────────────────────────────────────────────
-ylw "==> 5/6 Restart systemd"
-if systemctl list-unit-files | grep -q "^${API_UNIT}.service"; then
-  systemctl restart "$API_UNIT"
+ylw "==> 5/7 Restart systemd"
+unit_exists() {
+  local u="$1"
+  systemctl cat "${u}.service" >/dev/null 2>&1 \
+    || systemctl cat "$u" >/dev/null 2>&1 \
+    || [[ -f "/etc/systemd/system/${u}.service" ]] \
+    || [[ -f "/lib/systemd/system/${u}.service" ]]
+}
+
+if unit_exists "$API_UNIT"; then
+  systemctl restart "${API_UNIT}.service" 2>/dev/null || systemctl restart "$API_UNIT"
 else
   red "Unit $API_UNIT no encontrado. Units disponibles:"
   systemctl list-units --type=service --all | grep -iE 'operat|ops|hub|uvicorn|next' || true
   exit 1
 fi
 
-if systemctl list-unit-files | grep -q "^${FE_UNIT}.service"; then
-  systemctl restart "$FE_UNIT"
+if unit_exists "$FE_UNIT"; then
+  systemctl restart "${FE_UNIT}.service" 2>/dev/null || systemctl restart "$FE_UNIT"
 else
   ylw "    Unit $FE_UNIT no encontrado — reiniciá el frontend a mano si aplica"
 fi
@@ -214,11 +222,14 @@ if command -v nginx >/dev/null 2>&1; then
 fi
 
 sleep 2
-systemctl is-active --quiet "$API_UNIT" && grn "    $API_UNIT active" || {
+if systemctl is-active --quiet "${API_UNIT}.service" 2>/dev/null \
+  || systemctl is-active --quiet "$API_UNIT"; then
+  grn "    $API_UNIT active"
+else
   red "    $API_UNIT NO active"
   journalctl -u "$API_UNIT" -n 40 --no-pager
   exit 1
-}
+fi
 
 # ── 6) checks ───────────────────────────────────────────────────────────────
 ylw "==> 6/7 Checks liveness + readiness"
