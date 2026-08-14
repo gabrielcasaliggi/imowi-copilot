@@ -413,7 +413,7 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
         abo, "Me cortaron por falta de pago, como pago?", "general"
     ) is True
     assert _es_solo_dni("13920806") is True
-    assert _es_solo_dni("mi dni es 13920806") is False
+    assert _es_solo_dni("mi dni es 13920806") is True
     # Whisper / dictado dígito a dígito
     from app.services.canal_abonado import _extraer_dni
 
@@ -421,6 +421,10 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
     assert _extraer_dni("24, 9, 14, 8, 6, 7") == "24914867"
     assert _extraer_dni("2 4 9 1 4 8 6 7") == "24914867"
     assert _extraer_dni("24.914.867") == "24914867"
+    assert _extraer_dni("24,914,867") == "24914867"
+    assert _extraer_dni("mi dni es 24.914.867") == "24914867"
+    assert _extraer_dni("dos cuatro nueve uno cuatro ocho seis siete") == "24914867"
+    assert _extraer_dni("veinticuatro nueve uno cuatro ocho seis siete") == "24914867"
     # Whisper: "nueve"/"9" → "no"; "6 7" → "67"
     assert _extraer_dni("24, no y 14, 8, 67.") == "24914867"
     assert _es_solo_dni("24, no y 14, 8, 67.") is True

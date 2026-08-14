@@ -115,9 +115,25 @@ def _synthesize_wav(text: str, wav_path: Path) -> None:
     import wave
 
     with wave.open(str(wav_path), "wb") as wav_file:
-        # API nueva: synthesize_wav; legacy: synthesize(text, wav_file)
+        # Un poco más pausado = menos “robot apurado”
+        syn_cfg = None
+        try:
+            from piper import SynthesisConfig
+
+            syn_cfg = SynthesisConfig(
+                length_scale=1.12,
+                noise_scale=0.5,
+                noise_w_scale=0.7,
+                normalize_audio=True,
+            )
+        except Exception:
+            syn_cfg = None
+
         if hasattr(_voice, "synthesize_wav"):
-            _voice.synthesize_wav(text, wav_file)
+            if syn_cfg is not None:
+                _voice.synthesize_wav(text, wav_file, syn_config=syn_cfg)
+            else:
+                _voice.synthesize_wav(text, wav_file)
         else:
             _voice.synthesize(text, wav_file)
 

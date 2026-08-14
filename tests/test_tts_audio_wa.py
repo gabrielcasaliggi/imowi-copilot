@@ -12,6 +12,20 @@ def test_texto_apto_para_audio():
     assert not texto_apto_para_audio("x" * 900)
 
 
+def test_texto_para_habla_marca_y_dni():
+    from app.services.tts import texto_para_habla
+
+    out = texto_para_habla(
+        "Hola, soy Eco, de Soporte Batán (Cooperativa Batán / Ecolan). Enviame tu DNI."
+    )
+    low = out.lower()
+    assert "punto com" not in low
+    assert ".com" not in low
+    assert "de ene i" in low
+    assert "asistente de la cooperativa batán" in low
+    assert "de soporte batán" not in low
+
+
 def test_sintetizar_deshabilitado(monkeypatch):
     monkeypatch.setattr("app.services.tts.TTS_ENABLED", False)
     assert sintetizar_audio("hola") == b""

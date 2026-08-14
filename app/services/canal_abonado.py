@@ -7,7 +7,7 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
+from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT
 from app.domain.flujos_abonado import (
     ajustar_intencion_a_padron,
     clasificar_intencion,
@@ -353,6 +353,110 @@ _DNI_STT_RELLENO = re.compile(
     r"\b(eh+|este|bueno|mm+|ah|oh|um+|y|e)\b",
     re.IGNORECASE,
 )
+_DNI_PALABRAS = {
+    "cero": "0",
+    "uno": "1",
+    "una": "1",
+    "dos": "2",
+    "tres": "3",
+    "cuatro": "4",
+    "cinco": "5",
+    "seis": "6",
+    "siete": "7",
+    "ocho": "8",
+    "nueve": "9",
+}
+# Whisper a veces escribe el dígito en letras compostas sueltas
+_DNI_COMPUESTOS = {
+    "diez": "10",
+    "once": "11",
+    "doce": "12",
+    "trece": "13",
+    "catorce": "14",
+    "quince": "15",
+    "dieciseis": "16",
+    "dieciséis": "16",
+    "diecisiete": "17",
+    "dieciocho": "18",
+    "diecinueve": "19",
+    "veinte": "20",
+    "veintiuno": "21",
+    "veintiuna": "21",
+    "veintidos": "22",
+    "veintidós": "22",
+    "veintitres": "23",
+    "veintitrés": "23",
+    "veinticuatro": "24",
+    "veinticinco": "25",
+    "veintiseis": "26",
+    "veintiséis": "26",
+    "veintisiete": "27",
+    "veintiocho": "28",
+    "veintinueve": "29",
+}
+
+
+def _dni_desde_palabras(texto: str) -> str:
+    """Convierte dictado en palabras ('dos cuatro nueve…' / 'veinticuatro…') a DNI."""
+    t = (texto or "").lower()
+    t = (
+        t.replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+    )
+    t = _DNI_STT_RELLENO.sub(" ", t)
+    t = re.sub(r"[^\w\s]", " ", t)
+    tokens = [x for x in t.split() if x]
+    if not tokens:
+        return ""
+    # Permitir muletillas de documento alrededor
+    ignorar = {
+        "mi",
+        "dni",
+        "documento",
+        "numero",
+        "número",
+        "es",
+        "el",
+        "la",
+        "de",
+        "ene",
+        "i",
+        "soy",
+        "tengo",
+        "mando",
+        "envio",
+        "envío",
+        "pasar",
+        "paso",
+        "te",
+        "digo",
+    }
+    digits: list[str] = []
+    for tok in tokens:
+        if tok in ignorar:
+            continue
+        if tok.isdigit() and 1 <= len(tok) <= 2:
+            digits.append(tok)
+            continue
+        if tok in _DNI_PALABRAS:
+            digits.append(_DNI_PALABRAS[tok])
+            continue
+        if tok in _DNI_COMPUESTOS:
+            digits.append(_DNI_COMPUESTOS[tok])
+            continue
+        # token raro: si ya juntamos algo, abortar; si no, seguir
+        if digits and not tok.isdigit():
+            # no romper si es conector
+            if tok in {"con", "punto", "coma", "guion", "guión"}:
+                continue
+            return ""
+    joined = "".join(digits)
+    if len(joined) in (7, 8):
+        return joined
+    return ""
 
 
 def _dni_desde_digitos_sueltos(texto: str) -> str:
@@ -373,11 +477,38 @@ def _dni_desde_digitos_sueltos(texto: str) -> str:
     return ""
 
 
+def _dni_formato_ar_en_texto(texto: str) -> str:
+    """Busca DNI con separadores AR/EN en cualquier parte del mensaje: 24.914.867 / 24,914,867."""
+    t = texto or ""
+    # Evitar confusión con fechas dd/mm/yyyy
+    t = re.sub(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", " ", t)
+    m = re.search(r"\b(\d{1,2})[.\s,](\d{3})[.\s,](\d{3})\b", t)
+    if not m:
+        return ""
+    d = f"{m.group(1)}{m.group(2)}{m.group(3)}"
+    return d if len(d) in (7, 8) else ""
+
+
 def _extraer_dni(texto: str) -> str:
-    nums = re.findall(r"\b\d{7,8}\b", texto or "")
+    t = texto or ""
+    nums = re.findall(r"\b\d{7,8}\b", t)
     if nums:
         return nums[0]
-    return _dni_desde_digitos_sueltos(texto)
+    ar = _dni_formato_ar_en_texto(t)
+    if ar:
+        return ar
+    spoken = _dni_desde_palabras(t)
+    if spoken:
+        return spoken
+    loose = _dni_desde_digitos_sueltos(t)
+    if loose:
+        return loose
+    # Último recurso: si al sacar fechas quedan exactamente 7–8 dígitos en todo el mensaje
+    t2 = re.sub(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", " ", t)
+    only = re.sub(r"\D+", "", t2)
+    if len(only) in (7, 8):
+        return only
+    return ""
 
 
 def _es_solo_dni(texto: str) -> bool:
@@ -385,7 +516,43 @@ def _es_solo_dni(texto: str) -> bool:
     t = (texto or "").strip()
     if re.fullmatch(r"\d{7,8}", t):
         return True
-    return bool(_dni_desde_digitos_sueltos(t))
+    if re.fullmatch(r"\d{1,2}[.\s,]\d{3}[.\s,]\d{3}", t):
+        return True
+    if _dni_desde_digitos_sueltos(t):
+        return True
+    dni = _extraer_dni(t)
+    if not dni:
+        return False
+    # Mensaje corto cuyo único dato útil es el DNI (audio: “mi dni es …”)
+    resto = t.lower()
+    for w in (
+        "mi",
+        "dni",
+        "documento",
+        "numero",
+        "número",
+        "es",
+        "el",
+        "la",
+        "de",
+        "ene",
+        "i",
+        "paso",
+        "mando",
+        "envio",
+        "envío",
+        "te",
+        "digo",
+        "soy",
+        "tengo",
+    ):
+        resto = re.sub(rf"\b{re.escape(w)}\b", " ", resto)
+    resto = re.sub(r"[\d\s.,\-;/]+", " ", resto)
+    # quitar palabras numéricas usadas en el DNI
+    for w in list(_DNI_PALABRAS) + list(_DNI_COMPUESTOS):
+        resto = re.sub(rf"\b{re.escape(w)}\b", " ", resto, flags=re.IGNORECASE)
+    resto = re.sub(r"\s+", " ", resto).strip()
+    return len(resto) <= 2
 
 
 def _mensaje_pedi_saldo_reciente(db: Session, conv_id: str) -> bool:
@@ -1204,19 +1371,17 @@ def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
     if "dni" in motivo_l:
         return (
             "No te encuentro como abonado en el padrón con ese dato. "
-            f"Puede ser otro DNI o que todavía no seas cliente de {PRODUCT_DISPLAY_NAME}. "
-            "Igual te derivo con un agente para ayudarte (alta, consulta comercial u otro trámite). "
+            "Puede ser otro DNI, o que todavía no seas cliente de la Cooperativa Batán. "
+            "Igual te derivo con un agente para ayudarte. "
             "Te van a responder por este mismo chat. "
-            "Si ya sos abonado, podés volver a intentar con el DNI del titular "
-            "así vemos tu cuenta al instante."
+            "Si ya sos abonado, intentá de nuevo con el DNI del titular."
         )
     return (
-        f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-        "Como todavía no identificamos tu cuenta, no puedo ver saldos ni diagnosticar "
+        f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de la Cooperativa Batán. "
+        "Todavía no identifiqué tu cuenta, así que no puedo ver saldos ni diagnosticar "
         "tu servicio de forma automática. "
-        "Te derivo con un agente y te van a responder por este mismo chat. "
-        "Si sos abonado, identificáte con el DNI del titular cuando puedas: "
-        "así te ayudo más rápido con tu cuenta."
+        "Te derivo con un agente; te responden por este mismo chat. "
+        "Si sos abonado, pasame el DNI del titular cuando puedas."
     )
 
 
@@ -1960,10 +2125,9 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = (
-                    f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME} "
-                    "(Cooperativa Batán / Ecolan). "
-                    "Para identificarte (facturas, diagnóstico de cuenta o visitas), "
-                    "enviame tu DNI o N.º de socio. Si preferís, escribí *agente*."
+                    f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de la Cooperativa Batán. "
+                    "Para ayudarte, enviame tu DNI o número de socio. "
+                    "Si preferís, escribí *agente*."
                 )
                 if usar_llama:
                     resp = _redactar_con_llama(

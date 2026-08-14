@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
+from app.config import BOT_DISPLAY_NAME
 
 
 @dataclass(frozen=True)
@@ -326,7 +326,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "general": [
         PasoPlaybook(
             "menu_servicio",
-            f"Hola, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+            f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de la Cooperativa Batán. "
             "¿En qué te ayudo: internet, móvil IMOWI, teléfono fijo, Sensa/TV, factura o algo más?",
         ),
         PasoPlaybook(
