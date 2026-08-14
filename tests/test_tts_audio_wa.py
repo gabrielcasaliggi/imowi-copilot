@@ -34,11 +34,13 @@ def test_sintetizar_deshabilitado(monkeypatch):
 
 def test_sintetizar_ok(monkeypatch):
     monkeypatch.setattr("app.services.tts.TTS_ENABLED", True)
+    monkeypatch.setattr("app.services.tts.TTS_BACKEND", "http")
     monkeypatch.setattr("app.services.tts.TTS_URL", "http://tts.test")
 
     class _Resp:
         status_code = 200
         content = b"O" * 200
+        headers = {}
 
     class _Client:
         def __init__(self, *a, **k):
@@ -55,6 +57,17 @@ def test_sintetizar_ok(monkeypatch):
 
     monkeypatch.setattr("app.services.tts.httpx.Client", _Client)
     assert len(sintetizar_audio("Hola, soy Eco")) >= 64
+
+
+def test_sintetizar_edge(monkeypatch):
+    monkeypatch.setattr("app.services.tts.TTS_ENABLED", True)
+    monkeypatch.setattr("app.services.tts.TTS_BACKEND", "edge")
+    monkeypatch.setattr("app.services.tts.TTS_VOICE", "es-AR-ElenaNeural")
+    monkeypatch.setattr(
+        "app.services.tts._edge_mp3",
+        lambda _t: b"M" * 200,
+    )
+    assert len(sintetizar_audio("Hola, ¿cómo andás?")) >= 64
 
 
 def test_dispatch_outbound_prefers_audio(monkeypatch, db):
@@ -121,7 +134,11 @@ def test_dispatch_fallback_texto_si_tts_vacio(monkeypatch, db):
 
 def test_tts_disponible(monkeypatch):
     monkeypatch.setattr("app.services.tts.TTS_ENABLED", True)
-    monkeypatch.setattr("app.services.tts.TTS_URL", "http://localhost:9100")
+    monkeypatch.setattr("app.services.tts.TTS_BACKEND", "edge")
     assert tts_disponible() is True
     monkeypatch.setattr("app.services.tts.TTS_ENABLED", False)
+    assert tts_disponible() is False
+    monkeypatch.setattr("app.services.tts.TTS_ENABLED", True)
+    monkeypatch.setattr("app.services.tts.TTS_BACKEND", "http")
+    monkeypatch.setattr("app.services.tts.TTS_URL", "")
     assert tts_disponible() is False

@@ -226,8 +226,12 @@ try:
 except ValueError:
     WHISPER_TIMEOUT_S = 30.0
 
-# Piper TTS (contenedor aislado; respuesta en audio WA si el abonado mandó nota de voz)
-# Levantar: docker compose -f docker-compose.tts.yml up -d --build
+# TTS WhatsApp — voz femenina argentina (Edge es-AR-ElenaNeural) en el proceso API
+# TTS_ENABLED=true
+# TTS_BACKEND=edge
+# TTS_VOICE=es-AR-ElenaNeural
+# Contenedor :9100 es opcional (TTS_BACKEND=http + TTS_URL=...). Ver docs/ECO-TTS.md
+# TTS_TIMEOUT_S=45
 TTS_URL = os.getenv("TTS_URL", "http://localhost:9100").strip().rstrip("/")
 TTS_ENABLED = os.getenv("TTS_ENABLED", "false").strip().lower() in (
     "1",
@@ -235,10 +239,12 @@ TTS_ENABLED = os.getenv("TTS_ENABLED", "false").strip().lower() in (
     "yes",
     "on",
 )
+TTS_BACKEND = (os.getenv("TTS_BACKEND", "edge").strip().lower() or "edge")
+TTS_VOICE = (os.getenv("TTS_VOICE", "es-AR-ElenaNeural").strip() or "es-AR-ElenaNeural")
 try:
-    TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "90") or "90")
+    TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "45") or "45")
 except ValueError:
-    TTS_TIMEOUT_S = 90.0
+    TTS_TIMEOUT_S = 45.0
 
 ESTADOS_TICKET_VALIDOS = ("Abierto", "En Revisión", "Cerrado")
 

@@ -1372,12 +1372,13 @@ def _dispatch_outbound(
         dest = (conv.wa_id or conv.telefono or "").strip()
         if prefer_audio:
             try:
-                from app.services.tts import sintetizar_audio
+                from app.services.tts import mime_y_filename_tts, sintetizar_audio
                 from app.services.whatsapp_client import enviar_audio as enviar_audio_wa
 
                 audio = sintetizar_audio(texto)
                 if audio:
-                    result = enviar_audio_wa(dest, audio)
+                    mime, fname = mime_y_filename_tts()
+                    result = enviar_audio_wa(dest, audio, mime=mime, filename=fname)
                     if result.get("ok"):
                         return result
                     logger.warning(
