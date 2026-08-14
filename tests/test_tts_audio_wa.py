@@ -42,6 +42,13 @@ def test_texto_para_habla_marca_y_dni():
     assert "éco" in out3.lower() or "Éco" in out3
     assert "eka" not in out3.lower()
 
+    out4 = texto_para_habla("El saldo pendiente es $3.248,04.")
+    low4 = out4.lower()
+    assert "$" not in out4
+    assert "3.248,04 pesos" in low4 or "3.248,04 pesos" in out4
+    assert "dólar" not in low4 and "dolar" not in low4
+    assert "usd" not in low4
+
 
 def test_sintetizar_deshabilitado(monkeypatch):
     monkeypatch.setattr("app.services.tts.TTS_ENABLED", False)

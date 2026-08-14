@@ -1106,6 +1106,7 @@ def diagnosticar_turno(
             "- Al explicar pagos, incluí esos links + QR Fiserv de la factura (Mercado Pago/MODO).\n"
             "- NUNCA inventes CBU, alias, cuenta bancaria ni adjuntos de QR.\n"
             "- Si CONTEXTO_ABONADO trae deuda_monto, usá SOLO ese valor; no inventes montos.\n"
+            "- deuda_monto está en pesos argentinos (ARS). NUNCA digas dólares ni USD.\n"
             "- En consulta de saldo/pago NO preguntes por fibra, antena, módem ni tipo de conexión.\n"
             "- En modo invitado (sin cuenta): pedí DNI/N.º de socio; no inventes saldos.\n"
             "- Si el cliente agradece y dice que solo quería el saldo: accion=resolved.\n"

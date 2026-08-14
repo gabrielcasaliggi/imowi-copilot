@@ -854,10 +854,9 @@ def _reset_ctx_diagnostico(ctx: dict) -> None:
 
 
 def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
-    from app.services.eco_voice import formatear_monto_ars, parse_monto
+    from app.services.eco_voice import texto_monto_ars
 
-    m = parse_monto(getattr(abonado, "deuda_monto", None))
-    monto = formatear_monto_ars(m) if m is not None else str(abonado.deuda_monto or "0")
+    monto = texto_monto_ars(getattr(abonado, "deuda_monto", None))
     if (intencion_tecnica or "").startswith("movil"):
         tema = "del móvil"
     elif (intencion_tecnica or "").startswith("wifi"):
@@ -865,7 +864,7 @@ def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
     else:
         tema = "de internet"
     return (
-        f"Antes de seguir: en tu cuenta figura un saldo pendiente de ${monto}. "
+        f"Antes de seguir: en tu cuenta figura un saldo pendiente de {monto}. "
         f"¿Querés que te ayude primero a pagar, o seguimos con el diagnóstico {tema}?"
     )
 
@@ -2192,9 +2191,11 @@ def procesar_mensaje_entrante(
                     "¿Qué necesitás?"
                 )
             elif estado in ("corte", "suspendido"):
+                from app.services.eco_voice import texto_monto_ars
+
                 resp = (
                     f"Te ubiqué, {nombre}: la cuenta figura «{abonado.estado}». "
-                    f"Saldo pendiente ${abonado.deuda_monto}. "
+                    f"Saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
                     "¿Es por reactivar, pagar, o por otra consulta?"
                 )
             else:
@@ -2219,7 +2220,7 @@ def procesar_mensaje_entrante(
 
     # Ya identificado y manda solo DNI (p. ej. tras un ask erróneo): no re-pedir identificación
     if abonado and _es_solo_dni(texto):
-        from app.services.eco_voice import texto_ov_aviso_pago
+        from app.services.eco_voice import texto_monto_ars, texto_ov_aviso_pago
 
         deuda = str(abonado.deuda_monto or "0").strip() or "0"
         nombre = (abonado.nombre or "").split()[0].title() or "ahí"
@@ -2232,7 +2233,7 @@ def procesar_mensaje_entrante(
             resp = (
                 f"{nombre}, esa cuenta ya está identificada con otro DNI del padrón. "
                 "Si es otra titularidad, pedime un agente. "
-                f"Saldo que figura ahora: ${deuda}.\n{aviso}"
+                f"Saldo que figura ahora: {texto_monto_ars(deuda)}.\n{aviso}"
             )
         else:
             resp = (
@@ -2913,9 +2914,12 @@ def procesar_mensaje_entrante(
             from app.services.eco_voice import PLANTILLA_PAGO_QR
 
             if abonado:
+                from app.services.eco_voice import texto_monto_ars
+
                 pregunta = (
                     f"Tu cuenta figura con estado «{abonado.estado}» "
-                    f"y saldo pendiente ${abonado.deuda_monto}. {PLANTILLA_PAGO_QR}"
+                    f"y saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
+                    f"{PLANTILLA_PAGO_QR}"
                 )
             else:
                 # Invitado: no inventar saldo ni soltar QR sin cuenta.

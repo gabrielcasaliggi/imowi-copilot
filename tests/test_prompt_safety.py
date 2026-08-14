@@ -210,6 +210,8 @@ def test_mensaje_saldo_a_favor():
     deuda = mensaje_saldo_padron("3248.04")
     assert "pendiente" in deuda.lower()
     assert "3.248,04" in deuda
+    assert "pesos" in deuda.lower()
+    assert "$" not in deuda
     assert "a favor" not in deuda.lower()
     assert "https://ov.batan.coop/#/pagar" in deuda
 
@@ -217,6 +219,8 @@ def test_mensaje_saldo_a_favor():
     favor = mensaje_saldo_padron("-1500.00")
     assert "saldo a favor" in favor.lower()
     assert "1.500,00" in favor
+    assert "pesos" in favor.lower()
+    assert "$" not in favor
 
 
 def test_facturacion_saldo_y_web_ov_batan():

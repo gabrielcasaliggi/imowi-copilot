@@ -334,11 +334,14 @@ def test_aviso_deuda_elige_pago_o_tecnico():
     abo = SimpleNamespace(deuda_monto="86479.89")
     txt = _texto_aviso_deuda_tecnico(abo, "internet")
     assert "86.479,89" in txt or "86479" in txt
+    assert "pesos" in txt.lower()
+    assert "$" not in txt
     assert "pagar" in txt.lower()
     assert "diagnóstico" in txt.lower() or "diagnostico" in txt.lower()
     assert "de el " not in txt.lower()
     movil_txt = _texto_aviso_deuda_tecnico(abo, "movil")
     assert "diagnóstico del móvil" in movil_txt.lower() or "diagnostico del movil" in movil_txt.lower()
+    assert "pesos" in movil_txt.lower()
 
 
 def test_declara_solo_movil_sin_fijo():

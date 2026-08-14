@@ -992,7 +992,7 @@ def seed_inbox_conversaciones(db: Session) -> dict:
                 (
                     "out",
                     "bot",
-                    "Tu cuenta figura con estado «corte» y saldo pendiente $2800. "
+                    "Tu cuenta figura con estado «corte» y saldo pendiente 2.800,00 pesos. "
                     "Tu cuenta tiene un saldo pendiente y el servicio puede estar limitado. "
                     "¿Querés que te indique cómo regularizarlo?",
                 ),

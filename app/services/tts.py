@@ -155,6 +155,17 @@ def texto_para_habla(texto: str) -> str:
 
     t = t.replace(" / ", ", ")
     t = t.replace("/", ", ")
+
+    # $1234,56 / $ 1.234,56 → «1.234,56 pesos» (evitar que TTS diga "dólares")
+    def _pesos_ars(m: re.Match[str]) -> str:
+        num = m.group(1).rstrip(".")
+        return f"{num} pesos"
+
+    t = re.sub(r"\$\s*([\d.,]+)", _pesos_ars, t)
+    t = re.sub(r"\bUSD\b", "pesos", t, flags=re.IGNORECASE)
+    t = re.sub(r"\bd[oó]lares?\b", "pesos", t, flags=re.IGNORECASE)
+    t = re.sub(r"\bpesos\s+pesos\b", "pesos", t, flags=re.IGNORECASE)
+
     t = re.sub(r"\s+", " ", t).strip()
     t = re.sub(r"\s+,", ",", t)
     if len(t) > 420:

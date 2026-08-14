@@ -111,6 +111,15 @@ def formatear_monto_ars(valor: float) -> str:
     return f"{'-' if neg else ''}{entero_txt},{dec:02d}"
 
 
+def texto_monto_ars(raw: str | float | int | None) -> str:
+    """Monto listo para mostrar/hablar: siempre pesos argentinos (nunca USD)."""
+    monto = parse_monto(raw)
+    if monto is None:
+        s = str(raw or "0").strip().lstrip("$").strip() or "0"
+        return f"{s} pesos"
+    return f"{formatear_monto_ars(monto)} pesos"
+
+
 def mensaje_saldo_padron(
     deuda_raw: str | float | int | None,
     *,
@@ -123,21 +132,22 @@ def mensaje_saldo_padron(
       - positivo → debe ese monto
       - negativo → saldo a favor del cliente
       - 0 → sin deuda
+    Montos siempre en pesos argentinos (ARS).
     """
     monto = parse_monto(deuda_raw)
     debe = False
     if monto is None:
-        body = f"El saldo / última factura que figura es ${deuda_raw}."
+        body = (
+            f"El saldo / última factura que figura es {texto_monto_ars(deuda_raw)}."
+        )
     elif monto > 0:
         debe = True
-        body = (
-            f"El saldo / última factura pendiente es ${formatear_monto_ars(monto)}."
-        )
+        body = f"El saldo / última factura pendiente es {texto_monto_ars(monto)}."
     elif monto == 0:
-        body = "No figuran deudas pendientes (saldo $0)."
+        body = "No figuran deudas pendientes (saldo 0 pesos)."
     else:
         body = (
-            f"Tenés un saldo a favor de ${formatear_monto_ars(abs(monto))} "
+            f"Tenés un saldo a favor de {texto_monto_ars(abs(monto))} "
             "(no figuran deudas pendientes)."
         )
 
@@ -258,7 +268,7 @@ def build_contexto_abonado(
         f"- servicios_contratados: {_etiqueta_servicios(servicio)}",
         f"- plan: {plan}",
         f"- estado_servicio: {estado}",
-        f"- deuda_monto: {deuda}",
+        f"- deuda_monto: {deuda} (pesos argentinos / ARS — NUNCA dólares ni USD)",
         f"- linea: {linea}",
         f"- ont_estado: {integ.get('ont_estado') or '(sin dato — integrar NMS)'}",
         f"- olt_huawei: {integ.get('olt_huawei') or '(sin dato — integrar NMS)'}",
@@ -271,6 +281,8 @@ def build_contexto_abonado(
     lines.extend(
         [
             "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
+            "- Los montos de deuda/factura/saldo son SIEMPRE pesos argentinos (ARS). "
+            "Nunca digas dólares, USD ni 'dollar'. Preferí «pesos» o «$ … pesos».",
             "- Ofrecé SOLO los servicios_contratados. No preguntes por internet/fibra/Wi‑Fi "
             "si no figura internet fijo, ni por móvil IMOWI si no figura móvil.",
             "- Si no tiene internet fijo y dice 'no tengo internet', NO es un corte: "
@@ -343,6 +355,7 @@ def system_prompt_eco_n1(
         "palabras y seguí con el próximo paso útil.\n"
         "- Evitá menús rígidos, listas largas, viñetas y tonos de contestador automático.\n"
         "- No inventes datos (OLT, ONT, potencias, saldos, pagos, CBU, adjuntos QR, turnos, cortes de zona).\n"
+        "- Montos de deuda/factura: siempre pesos argentinos (ARS). Nunca dólares/USD.\n"
         "- No uses jerga interna del NOC.\n\n"
         "Respondé SOLO JSON válido:\n"
         '{"accion":"ask"|"resolved"|"escalate","mensaje":"...","paso_cubierto":"id_o_vacio","motivo":"..."}\n\n'
@@ -374,6 +387,7 @@ def system_prompt_eco_rewrite() -> str:
         "- Si hay frustración, validala en pocas palabras.\n"
         "- Sin listas, viñetas ni menús.\n"
         "- No inventes datos (OLT, ONT, saldos, turnos, potencias).\n"
+        "- Montos de deuda/factura: siempre pesos argentinos (ARS). Nunca dólares/USD.\n"
         "- Conservá la intención del borrador; no agregues pasos extra.\n"
         "- Si el borrador menciona QR Fiserv / Mercado Pago / MODO, conservalo.\n"
         "- No digas que quedó resuelto si el cliente aún tiene el problema.\n"
