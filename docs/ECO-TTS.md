@@ -6,8 +6,20 @@ Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audi
 
 1. WA audio → Whisper (STT) → texto  
 2. Motor N1 genera respuesta  
-3. Si el turno entró como audio → Piper (TTS) → OGG Opus → WhatsApp `type=audio`  
+3. Si el turno entró como audio → normalización hablada → Piper (TTS) → OGG Opus → WhatsApp `type=audio`  
 4. Fallback: texto
+
+## Calidad de voz
+
+- Piper con `length_scale` un poco más lento (menos “robot apurado”).
+- Antes de sintetizar, `texto_para_habla()`:
+  - “soy Eco, de Soporte Batán…” → “soy Eco, el asistente de la Cooperativa Batán”
+  - `DNI` → “de ene i”; sin dominios `.com`/`.coop`
+  - Mensajes de audio acotados (~420 caracteres)
+
+## DNI por audio
+
+El STT a menudo manda `24,914,867`, `24 914 867` o “dos cuatro nueve…”. El extractor acepta formato AR, dígitos sueltos y palabras numéricas.
 
 ## Levantar Piper
 
@@ -15,8 +27,6 @@ Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audi
 docker compose -f docker-compose.tts.yml up -d --build
 curl -s http://localhost:9100/health
 ```
-
-La primera vez descarga la voz (~modelo ONNX) en el volumen `tts-models`.
 
 ## Config API (`.env` del hub)
 
@@ -26,16 +36,10 @@ TTS_URL=http://localhost:9100
 TTS_TIMEOUT_S=45
 ```
 
-Reiniciar `operations-hub-api` después de cambiar env.
-
-## Voces
-
-Default: `es_MX-claude-high` (override con `TTS_VOICE` en el compose).
-
-Opciones en `tts/app.py`: `es_MX-claude-medium`, `es_ES-mls_10246-low` (más liviana).
+Reiniciar `operations-hub-api` tras editar `.env`. Si cambió `tts/app.py`, rebuild del contenedor.
 
 ## Notas
 
-- Solo WhatsApp; Telegram sigue en texto (se puede extender igual).
-- Mensajes con `http://` o >800 caracteres → texto (p. ej. QR de pago).
+- Solo WhatsApp; Telegram sigue en texto.
+- Mensajes con link o muy largos → texto (p. ej. QR de pago).
 - Agentes en Inbox siguen respondiendo en texto.
