@@ -327,7 +327,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook(
             "menu_servicio",
             f"Hola, soy {BOT_DISPLAY_NAME}, la asistente de la Cooperativa Batán. "
-            "¿En qué te ayudo: internet, móvil IMOWI, teléfono fijo, Sensa/TV, factura o algo más?",
+            "¿En qué te ayudo: internet, telefonía móvil, teléfono fijo, Sensa/TV, factura o algo más?",
         ),
         PasoPlaybook(
             "detalle_problema",
@@ -377,12 +377,128 @@ def texto_menu_consulta(servicio_abonado: str) -> str:
     """Menú N1 según servicios contratados (no ofrecer lo que no figura)."""
     s = (servicio_abonado or "").strip().lower()
     if s == "movil":
-        return "¿Tu consulta es por el móvil IMOWI o factura/deuda?"
+        return (
+            "¿Tu consulta es por el servicio de telefonía móvil o por factura/deuda?"
+        )
     if s == "internet":
-        return "¿Tu consulta es por internet o factura/deuda?"
+        return "¿Tu consulta es por internet o por factura/deuda?"
     if s == "ambos":
-        return "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
-    return "¿En qué te puedo ayudar: internet, móvil IMOWI, factura/deuda u otra consulta?"
+        return (
+            "¿Tu consulta es por internet, por el servicio de telefonía móvil, "
+            "o por factura/deuda?"
+        )
+    return (
+        "¿En qué te puedo ayudar: internet, telefonía móvil, factura/deuda "
+        "u otra consulta?"
+    )
+
+
+def texto_menu_tipo_consulta() -> str:
+    """Segundo paso tras elegir telefonía móvil."""
+    return (
+        "Dale. ¿Es un tema técnico, comercial, "
+        "o administrativo referente a la facturación?"
+    )
+
+
+def parse_menu_servicio(texto: str) -> str | None:
+    """Respuesta al 1.er menú: movil | internet | facturacion | None."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return None
+    if any(
+        k in t
+        for k in (
+            "factura",
+            "deuda",
+            "pago",
+            "saldo",
+            "boleta",
+            "administrativ",
+            "cobro",
+            "cuenta",
+        )
+    ) and not any(k in t for k in ("móvil", "movil", "celular", "telefon")):
+        return "facturacion"
+    if any(
+        k in t
+        for k in (
+            "telefonía móvil",
+            "telefonia movil",
+            "telefonía movil",
+            "telefonia móvil",
+            "servicio de telefon",
+            "línea móvil",
+            "linea movil",
+            "móvil",
+            "movil",
+            "celular",
+            "imowi",
+            "imovi",
+        )
+    ):
+        return "movil"
+    if any(k in t for k in ("internet", "fibra", "wifi", "wi-fi", "router", "onu")):
+        return "internet"
+    if any(k in t for k in ("factura", "deuda", "pago", "saldo", "boleta")):
+        return "facturacion"
+    return None
+
+
+def parse_menu_tipo_consulta(texto: str) -> str | None:
+    """Respuesta al 2.º menú: tecnico | comercial | facturacion | None."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return None
+    if any(
+        k in t
+        for k in (
+            "administrativ",
+            "factur",
+            "deuda",
+            "pago",
+            "boleta",
+            "saldo",
+            "cobro",
+        )
+    ):
+        return "facturacion"
+    if any(
+        k in t
+        for k in (
+            "comercial",
+            "plan",
+            "alta",
+            "baja",
+            "contratar",
+            "pack",
+            "promo",
+            "venta",
+        )
+    ):
+        return "comercial"
+    if any(
+        k in t
+        for k in (
+            "técnico",
+            "tecnico",
+            "técnica",
+            "tecnica",
+            "señal",
+            "senal",
+            "datos",
+            "no anda",
+            "no funciona",
+            "sin servicio",
+            "falla",
+            "chip",
+            "sim",
+            "llamar",
+            "llamada",
+        )
+    ):
+        return "tecnico"
+    return None
 
 
 def texto_sin_internet_contratado(servicio_abonado: str) -> str:
@@ -390,7 +506,7 @@ def texto_sin_internet_contratado(servicio_abonado: str) -> str:
     if tiene_movil_contratado(servicio_abonado):
         return (
             "En tu cuenta no figura internet fijo contratado. "
-            "¿Te ayudo con el móvil IMOWI o con la factura?"
+            "¿Te ayudo con el servicio de telefonía móvil o con la factura?"
         )
     return (
         "En tu cuenta no figura internet fijo contratado. "

@@ -361,7 +361,10 @@ def test_declara_solo_movil_sin_fijo():
 def test_menu_consulta_segun_padron():
     from app.domain.flujos_abonado import (
         es_saludo_corto,
+        parse_menu_servicio,
+        parse_menu_tipo_consulta,
         texto_menu_consulta,
+        texto_menu_tipo_consulta,
         texto_sin_internet_contratado,
     )
 
@@ -372,17 +375,31 @@ def test_menu_consulta_segun_padron():
     assert es_saludo_solo("hol") is True
     assert es_saludo_solo("hola no me anda internet") is False
     movil = texto_menu_consulta("movil").lower()
-    assert "imowi" in movil
+    assert "telefonía móvil" in movil or "telefonia movil" in movil.replace("í", "i")
+    assert "imowi" not in movil
     assert "internet," not in movil
     inet = texto_menu_consulta("internet").lower()
     assert "internet" in inet
     assert "imowi" not in inet
     ambos = texto_menu_consulta("ambos").lower()
-    assert "internet" in ambos and "imowi" in ambos
+    assert "internet" in ambos and "móvil" in ambos
+    assert "imowi" not in ambos
     aviso = texto_sin_internet_contratado("movil").lower()
     assert "no figura internet" in aviso
-    assert "imowi" in aviso
+    assert "telefonía" in aviso or "telefonia" in aviso.replace("í", "i")
+    assert "imowi" not in aviso
 
+    tipo = texto_menu_tipo_consulta().lower()
+    assert "técnico" in tipo or "tecnico" in tipo
+    assert "comercial" in tipo
+    assert "administrativo" in tipo or "facturación" in tipo or "facturacion" in tipo
+
+    assert parse_menu_servicio("telefonía móvil") == "movil"
+    assert parse_menu_servicio("factura") == "facturacion"
+    assert parse_menu_servicio("internet fibra") == "internet"
+    assert parse_menu_tipo_consulta("técnico") == "tecnico"
+    assert parse_menu_tipo_consulta("comercial") == "comercial"
+    assert parse_menu_tipo_consulta("administrativo facturación") == "facturacion"
 
 def test_aviso_deuda_no_interpreta_no_tengo_internet_como_diagnostico():
     from app.services.canal_abonado import _elige_pago_o_tecnico

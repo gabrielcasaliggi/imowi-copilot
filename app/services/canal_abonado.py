@@ -25,6 +25,8 @@ from app.domain.flujos_abonado import (
     intencion_es_internet,
     misma_queja,
     niega_producto_internet,
+    parse_menu_servicio,
+    parse_menu_tipo_consulta,
     parece_consulta_nueva,
     pide_humano,
     pide_humano_en_flujo_activo,
@@ -35,6 +37,7 @@ from app.domain.flujos_abonado import (
     resumen_handoff,
     tag_para_intencion,
     texto_menu_consulta,
+    texto_menu_tipo_consulta,
     texto_sin_internet_contratado,
     tiene_internet_fijo,
 )
@@ -1208,6 +1211,194 @@ def _cerrar_consulta_resuelta(
 _AVISO_ESPERA_COOLDOWN_S = 90
 
 
+def _intencion_desde_tipo_menu(tipo: str) -> str:
+    """tecnico → movil | comercial → alta_plan | facturacion → facturacion."""
+    if tipo == "tecnico":
+        return "movil"
+    if tipo == "comercial":
+        return "alta_plan"
+    return "facturacion"
+
+
+def _manejar_menu_consulta_n1(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    usar_llama: bool,
+) -> dict | None:
+    """Menú 2 pasos: servicio → (si móvil) técnico/comercial/administrativo."""
+    paso = str(ctx.get("menu_paso") or "").strip()
+    if not paso or not abonado:
+        return None
+    servicio_abo = abonado.servicio if abonado else ""
+
+    if paso == "servicio":
+        elec = parse_menu_servicio(texto)
+        if not elec:
+            resp = f"No te entendí. {texto_menu_consulta(servicio_abo)}"
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "menu_paso": "servicio",
+            }
+        if elec == "movil":
+            ctx["menu_paso"] = "tipo"
+            ctx["menu_servicio"] = "movil"
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = texto_menu_tipo_consulta()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "menu_paso": "tipo",
+            }
+        # internet / facturacion → arrancar flujo
+        intent = "internet" if elec == "internet" else "facturacion"
+        ctx.pop("menu_paso", None)
+        ctx.pop("menu_servicio", None)
+        return _arrancar_intencion_menu(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intent,
+            usar_llama=usar_llama,
+            servicio_abo=servicio_abo,
+        )
+
+    if paso == "tipo":
+        tipo = parse_menu_tipo_consulta(texto)
+        if not tipo:
+            resp = f"No te entendí. {texto_menu_tipo_consulta()}"
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "menu_paso": "tipo",
+            }
+        intent = _intencion_desde_tipo_menu(tipo)
+        ctx.pop("menu_paso", None)
+        ctx.pop("menu_servicio", None)
+        return _arrancar_intencion_menu(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intent,
+            usar_llama=usar_llama,
+            servicio_abo=servicio_abo,
+        )
+
+    return None
+
+
+def _arrancar_intencion_menu(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+    usar_llama: bool,
+    servicio_abo: str,
+) -> dict:
+    ctx["intencion"] = intencion
+    ctx["paso_idx"] = 0
+    ctx["diag_turnos"] = 0
+    ctx["pasos_cubiertos"] = []
+    if intencion in ("internet", "internet_radio", "internet_adsl", "movil"):
+        conv.servicio_detectado = intencion
+    if (
+        abonado
+        and _deuda_positiva(abonado)
+        and _intencion_es_tecnica(intencion)
+        and not ctx.get("aviso_deuda_ofrecido")
+        and intencion != "corte_deuda"
+    ):
+        ctx["intencion"] = "aviso_deuda"
+        ctx["intencion_tecnica_pendiente"] = intencion
+        ctx["aviso_deuda_ofrecido"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = _texto_aviso_deuda_tecnico(abonado, intencion)
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": "aviso_deuda",
+        }
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    diag = _aplicar_diagnostico_ia(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion=intencion,
+        usar_llama=usar_llama,
+    )
+    if diag is not None:
+        return diag
+    pb = _playbooks(db)
+    pasos = pb.get(intencion) or pb["general"]
+    pregunta = pasos[0].pregunta if pasos else "Contame qué necesitás."
+    if intencion == "general":
+        pregunta = texto_menu_consulta(servicio_abo)
+    if intencion == "movil":
+        pregunta = (
+            "Dale, vamos con el servicio de telefonía móvil. "
+            "¿Qué te pasa: sin señal, sin datos o no podés llamar?"
+        )
+    if usar_llama:
+        pregunta = _redactar_con_llama(
+            pregunta,
+            f"intencion={intencion} desde_menu=1",
+            db=db,
+            org_id=org_id,
+            consulta=texto,
+        )
+    _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": pregunta,
+        "estado": conv.estado,
+        "intencion": intencion,
+    }
+
+
 def _mensaje_operativo_sin_tts(texto: str) -> bool:
     """Avisos cortos de sistema (CSAT / derivado) → siempre texto, nunca TTS."""
     t = (texto or "").strip().lower()
@@ -1970,6 +2161,7 @@ def procesar_mensaje_entrante(
                 )
             if not pedi_saldo:
                 ctx["saludo"] = True
+                ctx["menu_paso"] = "servicio"
                 crepo.set_contexto(conv, ctx)
                 db.commit()
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
@@ -2230,6 +2422,7 @@ def procesar_mensaje_entrante(
         conv.abonado_id = abonado.id
         if not ctx.get("saludo"):
             ctx["saludo"] = True
+            ctx["menu_paso"] = "servicio"
             ctx.pop("invitado", None)
             ctx.pop("visitante", None)
             ctx.pop("cola_prioridad", None)
@@ -2316,10 +2509,26 @@ def procesar_mensaje_entrante(
     intencion = ctx.get("intencion") or ""
     servicio_abo = abonado.servicio if abonado else ""
 
+    # Menú post-ID: servicio → (móvil) técnico/comercial/administrativo
+    if abonado and ctx.get("menu_paso"):
+        menu_out = _manejar_menu_consulta_n1(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            usar_llama=usar_llama,
+        )
+        if menu_out is not None:
+            return menu_out
+
     # Saludo corto: menú según padrón, sin deuda ni diagnóstico
     if es_saludo_solo(texto) and intencion in ("", "general"):
         ctx["intencion"] = "general"
         ctx["saludo"] = True
+        ctx["menu_paso"] = "servicio"
         crepo.set_contexto(conv, ctx)
         db.commit()
         resp = f"¡Hola! {texto_menu_consulta(servicio_abo)}"
@@ -2582,7 +2791,7 @@ def procesar_mensaje_entrante(
             # IMOWI / móvil + factura
             if any(k in texto.lower() for k in ("imowi", "móvil", "movil", "celular")):
                 resp = (
-                    "Veo dos cosas: el móvil IMOWI y el tema de la factura. "
+                    "Veo dos cosas: el servicio de telefonía móvil y el tema de la factura. "
                     "¿Arrancamos por el móvil o por el aumento?"
                 )
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
@@ -2766,7 +2975,7 @@ def procesar_mensaje_entrante(
             if diag is not None:
                 return diag
             pregunta = pasos[0].pregunta if pasos else (
-                "Dale, vamos con el móvil IMOWI. ¿Qué te pasa: sin señal, sin datos o no podés llamar?"
+                "Dale, vamos con el servicio de telefonía móvil. ¿Qué te pasa: sin señal, sin datos o no podés llamar?"
             )
             if usar_llama:
                 pregunta = _redactar_con_llama(
