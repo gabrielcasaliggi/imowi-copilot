@@ -102,6 +102,18 @@ def test_espera_agente_cierra_si_resuelto(monkeypatch):
     assert sent and "resuelto" in sent[0].lower()
 
 
+def test_mensaje_cierre_calido():
+    from app.services.canal_abonado import _mensaje_cierre_calido
+
+    con = _mensaje_cierre_calido("Jorge")
+    assert "De nada Jorge" in con
+    assert "no dudes en escribime" in con
+    assert "lindo día" in con.lower()
+    sin = _mensaje_cierre_calido("")
+    assert sin.startswith("De nada.")
+    assert "no dudes en escribime" in sin
+
+
 def test_cerrar_consulta_resuelta_helper(monkeypatch):
     conv = SimpleNamespace(
         id="c2",

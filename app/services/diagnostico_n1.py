@@ -744,9 +744,10 @@ def _facturacion_deterministica(
     if identificado and _cierra_consulta_facturacion(mensaje_cliente):
         return {
             "accion": "resolved",
-            "mensaje": "De nada. Cualquier otra consulta, escribime. ¡Buen día!",
+            "mensaje": "",  # canal_abonado usa cierre cálido con nombre
             "paso_cubierto": "cierre_facturacion",
             "motivo": "facturacion_cierre_cliente",
+            "cierre_calido": True,
         }
 
     # Ya pagó / no se refleja → link de aviso de pago (sin inventar comprobantes).

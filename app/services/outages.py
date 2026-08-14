@@ -349,8 +349,17 @@ def es_ack_outage(texto: str) -> bool:
     return False
 
 
-def mensaje_cierre_post_resolucion() -> str:
-    return "Me alegra. Cualquier otra consulta, escribime. ¡Buen día!"
+def mensaje_cierre_post_resolucion(nombre: str = "") -> str:
+    nom = (nombre or "").strip()
+    if nom:
+        return (
+            f"Me alegra {nom}. Cualquier otra consulta, no dudes en escribime. "
+            "¡Que tengas un lindo día!"
+        )
+    return (
+        "Me alegra. Cualquier otra consulta, no dudes en escribime. "
+        "¡Que tengas un lindo día!"
+    )
 
 
 def pide_estado_outage(texto: str) -> bool:

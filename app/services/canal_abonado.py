@@ -214,7 +214,9 @@ def _talvez_respuesta_outage(
                 org_id,
                 conv,
                 canal=canal,
-                mensaje=mensaje_cierre_post_resolucion(),
+                mensaje=mensaje_cierre_post_resolucion(
+                    _primer_nombre_cliente(abonado)
+                ),
                 nota_ticket="[Outage] Abonado confirmó post-resolución de incidente masivo.",
             )
 
@@ -1176,6 +1178,27 @@ def _cliente_desiste_o_resuelto(texto: str) -> bool:
     return False
 
 
+def _primer_nombre_cliente(abonado: Abonado | None = None, nombre: str = "") -> str:
+    raw = (nombre or "").strip() or (getattr(abonado, "nombre", None) or "").strip()
+    if not raw:
+        return ""
+    return raw.split()[0].title()
+
+
+def _mensaje_cierre_calido(nombre: str = "") -> str:
+    """Cierre N1 con más expresión (TTS y texto)."""
+    nom = (nombre or "").strip()
+    if nom:
+        return (
+            f"De nada {nom}. Cualquier otra consulta, no dudes en escribime. "
+            "¡Que tengas un lindo día!"
+        )
+    return (
+        "De nada. Cualquier otra consulta, no dudes en escribime. "
+        "¡Que tengas un lindo día!"
+    )
+
+
 def _cerrar_consulta_resuelta(
     db: Session,
     org_id: str,
@@ -1184,6 +1207,7 @@ def _cerrar_consulta_resuelta(
     canal: str,
     mensaje: str = "",
     nota_ticket: str = "",
+    nombre: str = "",
 ) -> dict:
     """Cierra el hilo N1 como resuelto (opcional: anota el ticket si había)."""
     tid = (conv.ticket_id or "").strip()
@@ -1191,9 +1215,14 @@ def _cerrar_consulta_resuelta(
         _append_evidencia_ticket(db, org_id, tid, nota_ticket)
     conv.estado = "cerrado"
     db.commit()
-    resp = (mensaje or "").strip() or (
-        "De nada. Cualquier otra consulta, escribime. ¡Buen día!"
-    )
+    if (mensaje or "").strip():
+        resp = mensaje.strip()
+    else:
+        nom = (nombre or "").strip()
+        if not nom and (conv.abonado_id or "").strip():
+            abo = db.get(Abonado, conv.abonado_id)
+            nom = _primer_nombre_cliente(abo)
+        resp = _mensaje_cierre_calido(nom)
     _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
     enviar_encuesta_cierre(
         db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
@@ -1428,10 +1457,6 @@ def _responder_espera_agente(
             org_id,
             conv,
             canal=canal,
-            mensaje=(
-                "Perfecto, entonces lo damos por resuelto. "
-                "Si más adelante necesitás algo, escribime. ¡Gracias!"
-            ),
             nota_ticket=(
                 "[Abonado] Indicó que ya está solucionado / no necesita agente: "
                 f"{(texto or '').strip()[:300]}"
@@ -1922,7 +1947,6 @@ def _aplicar_diagnostico_ia(
                 org_id,
                 conv,
                 canal=canal,
-                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
             )
         tid = _crear_ticket_n2(
             db,
@@ -1956,11 +1980,8 @@ def _aplicar_diagnostico_ia(
     if accion == "resolved":
         conv.estado = "cerrado"
         db.commit()
-        if not mensaje:
-            mensaje = (
-                "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
-                "escribime de nuevo. ¡Gracias!"
-            )
+        if not mensaje or result.get("cierre_calido"):
+            mensaje = _mensaje_cierre_calido(_primer_nombre_cliente(abonado))
         _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
         enviar_encuesta_cierre(
             db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
@@ -2108,7 +2129,6 @@ def procesar_mensaje_entrante(
                 org_id,
                 conv,
                 canal=canal,
-                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
             )
 
     # DNI solo (p. ej. respuesta a «pasame DNI»): identificar antes de frustración/ticket
@@ -2572,10 +2592,6 @@ def procesar_mensaje_entrante(
                 org_id,
                 conv,
                 canal=canal,
-                mensaje=(
-                    "Perfecto. Si más adelante necesitás algo (pago o el servicio), "
-                    "escribime. ¡Buen día!"
-                ),
                 nota_ticket=(
                     "[Abonado] Declínó aviso deuda / indicó que no necesita seguir: "
                     f"{(texto or '').strip()[:200]}"
@@ -3227,7 +3243,6 @@ def procesar_mensaje_entrante(
                 org_id,
                 conv,
                 canal=canal,
-                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
             )
 
     pb = _playbooks(db)
@@ -3270,7 +3285,6 @@ def procesar_mensaje_entrante(
                 org_id,
                 conv,
                 canal=canal,
-                mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
             )
         tid = _crear_ticket_n2(
             db,
@@ -3317,10 +3331,6 @@ def procesar_mensaje_entrante(
             org_id,
             conv,
             canal=canal,
-            mensaje=(
-                "¡Genial! Qué bueno que quedó resuelto. Si vuelve a pasar, "
-                "escribime de nuevo y te ayudo. ¡Gracias!"
-            ),
         )
 
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
@@ -3339,7 +3349,6 @@ def procesar_mensaje_entrante(
             org_id,
             conv,
             canal=canal,
-            mensaje="De nada. Cualquier otra consulta, escribime. ¡Buen día!",
         )
     # Sigue fallando → siguiente paso de diagnóstico (no escalar en el primero)
     if veredicto is False:
