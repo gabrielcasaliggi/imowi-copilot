@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT, PRODUCT_DISPLAY_NAME
 from app.domain.flujos_abonado import (
+    ajustar_intencion_a_padron,
     clasificar_intencion,
     contiene_sintoma_canal,
     declara_solo_movil_sin_fijo,
@@ -17,9 +18,12 @@ from app.domain.flujos_abonado import (
     es_escape_agente,
     es_paso_derivacion,
     es_saludo_corto,
+    es_saludo_solo,
     indica_resuelto,
     intencion_desde_tema,
+    intencion_es_internet,
     misma_queja,
+    niega_producto_internet,
     parece_consulta_nueva,
     pide_humano,
     pide_humano_en_flujo_activo,
@@ -29,6 +33,9 @@ from app.domain.flujos_abonado import (
     respuesta_paso_ok,
     resumen_handoff,
     tag_para_intencion,
+    texto_menu_consulta,
+    texto_sin_internet_contratado,
+    tiene_internet_fijo,
 )
 from app.estate import canal_repo as crepo
 from app.estate.models import Abonado, ConversacionCanal
@@ -292,6 +299,8 @@ def _talvez_mensaje_pppoe(
     """Consulta Radius una vez por conversación en reclamos de internet."""
     if (intencion or "").strip() not in _INTENCIONES_PPPOE:
         return None
+    if not tiene_internet_fijo(_servicio_abonado(abonado)):
+        return None
     if ctx.get("pppoe_informado"):
         return None
     if abonado is None or not str(getattr(abonado, "dni", "") or "").strip():
@@ -531,7 +540,6 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "seguimos",
             "diagnóstico",
             "diagnostico",
-            "internet",
             "wifi",
             "wi-fi",
             "conexión",
@@ -552,6 +560,9 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "fibra",
         )
     )
+    # "no tengo internet" menciona internet pero no elige diagnóstico
+    if "internet" in t and not niega_producto_internet(t):
+        tecnico = True
     if paga and not tecnico:
         return "pago"
     if tecnico and not paga:
@@ -645,6 +656,22 @@ def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
         f"Antes de seguir: en tu cuenta figura un saldo pendiente de ${monto}. "
         f"¿Querés que te ayude primero a pagar, o seguimos con el diagnóstico de {tema}?"
     )
+
+
+def _servicio_abonado(abonado: Abonado | None) -> str:
+    return str(getattr(abonado, "servicio", "") or "").strip().lower() if abonado else ""
+
+
+def _intencion_compatible_padron(intencion: str, abonado: Abonado | None, texto: str = "") -> str:
+    return ajustar_intencion_a_padron(intencion, _servicio_abonado(abonado), texto)
+
+
+def _debe_explicar_sin_internet(abonado: Abonado | None, texto: str, intencion: str = "") -> bool:
+    if _servicio_abonado(abonado) != "movil":
+        return False
+    if niega_producto_internet(texto):
+        return True
+    return intencion_es_internet(intencion)
 
 
 def _kb_fragmento(
@@ -1621,7 +1648,7 @@ def procesar_mensaje_entrante(
             else:
                 resp = (
                     f"Listo {nombre}, ya te identifiqué. "
-                    "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+                    f"{texto_menu_consulta(abonado.servicio)}"
                 )
             if not pedi_saldo:
                 ctx["saludo"] = True
@@ -1893,8 +1920,7 @@ def procesar_mensaje_entrante(
             db.commit()
             saludo = (
                 f"Hola {abonado.nombre.split()[0]}, te identifiqué correctamente. "
-                f"Servicio: {abonado.servicio} · plan {abonado.plan or 'N/A'} · estado {abonado.estado}. "
-                "¿En qué te puedo ayudar?"
+                f"{texto_menu_consulta(abonado.servicio)}"
             )
             if usar_llama:
                 saludo = _redactar_con_llama(
@@ -1973,8 +1999,43 @@ def procesar_mensaje_entrante(
     intencion = ctx.get("intencion") or ""
     servicio_abo = abonado.servicio if abonado else ""
 
+    # Saludo corto: menú según padrón, sin deuda ni diagnóstico
+    if es_saludo_solo(texto) and intencion in ("", "general"):
+        ctx["intencion"] = "general"
+        ctx["saludo"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = f"¡Hola! {texto_menu_consulta(servicio_abo)}"
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": "general",
+            "abonado": crepo.abonado_to_dict(abonado) if abonado else None,
+        }
+
     # Aviso de deuda antes de diagnóstico técnico: esperar elección pago vs seguir
     if intencion == "aviso_deuda":
+        if _debe_explicar_sin_internet(
+            abonado, texto, str(ctx.get("intencion_tecnica_pendiente") or "")
+        ):
+            _reset_ctx_diagnostico(ctx)
+            ctx["intencion"] = "general"
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         # "No" / "funciona todo bien" / desiste → cerrar sin loop
         if _cliente_salir_aviso_deuda(texto):
             _reset_ctx_diagnostico(ctx)
@@ -2061,7 +2122,23 @@ def procesar_mensaje_entrante(
                 "intencion": "corte_deuda",
             }
         # Seguir técnico
-        intencion = pendiente if _intencion_es_tecnica(pendiente) else "internet"
+        intencion = pendiente if _intencion_es_tecnica(pendiente) else "general"
+        intencion = _intencion_compatible_padron(intencion, abonado, texto)
+        if _debe_explicar_sin_internet(abonado, texto, intencion):
+            ctx["intencion"] = "general"
+            ctx.pop("intencion_tecnica_pendiente", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         ctx["intencion"] = intencion
         ctx["paso_idx"] = 0
         ctx["diag_turnos"] = 0
@@ -2201,6 +2278,23 @@ def procesar_mensaje_entrante(
                 "intencion": "multi_tema",
             }
         intencion = clasificar_intencion(texto, servicio_abo)
+        if _debe_explicar_sin_internet(abonado, texto, intencion):
+            ctx["intencion"] = "general"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         if _deberia_priorizar_corte_deuda(abonado, texto, intencion):
             intencion = "corte_deuda"
         paso_inicial = 0
@@ -2247,6 +2341,8 @@ def procesar_mensaje_entrante(
         pasos = pb.get(intencion) or pb["general"]
         idx = max(0, min(paso_inicial, len(pasos) - 1))
         pregunta = pasos[idx].pregunta
+        if intencion == "general":
+            pregunta = texto_menu_consulta(servicio_abo)
         if intencion == "corte_deuda":
             # Siempre guía QR primero (evita playbooks admin sin Fiserv / rewrites).
             from app.services.eco_voice import PLANTILLA_PAGO_QR
@@ -2308,7 +2404,24 @@ def procesar_mensaje_entrante(
     # Refinar internet → radio / ADSL tras la pregunta de tipo de acceso
     # Si aclara que NO tiene fijo y solo móvil/IMOWI → saltar a playbook móvil
     if intencion.startswith("internet") or intencion in ("wifi", "internet_lento"):
-        if declara_solo_movil_sin_fijo(texto):
+        if _debe_explicar_sin_internet(abonado, texto, intencion):
+            ctx["intencion"] = "general"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
+        if declara_solo_movil_sin_fijo(texto, servicio_abo):
             intencion = clasificar_intencion(texto, "movil")
             if not intencion.startswith("movil"):
                 intencion = "movil"
@@ -2403,7 +2516,29 @@ def procesar_mensaje_entrante(
 
     # Si estaba en general y el usuario elige servicio, reclasificar
     if intencion == "general":
+        if _debe_explicar_sin_internet(abonado, texto):
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         nueva = clasificar_intencion(texto, servicio_abo)
+        if _debe_explicar_sin_internet(abonado, texto, nueva):
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         if nueva != "general":
             intencion = nueva
             ctx["intencion"] = intencion

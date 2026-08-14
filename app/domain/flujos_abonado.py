@@ -363,11 +363,117 @@ def tag_para_intencion(intencion: str) -> str:
     return TAG_POR_INTENCION.get((intencion or "").strip(), "[HANDOFF_HUMANO]")
 
 
-def declara_solo_movil_sin_fijo(texto: str) -> bool:
+def tiene_internet_fijo(servicio_abonado: str) -> bool:
+    """True si el padrón indica internet fijo (fibra/radio/ADSL)."""
+    return (servicio_abonado or "").strip().lower() in ("internet", "ambos")
+
+
+def tiene_movil_contratado(servicio_abonado: str) -> bool:
+    """True si el padrón indica línea móvil IMOWI."""
+    return (servicio_abonado or "").strip().lower() in ("movil", "ambos")
+
+
+def texto_menu_consulta(servicio_abonado: str) -> str:
+    """Menú N1 según servicios contratados (no ofrecer lo que no figura)."""
+    s = (servicio_abonado or "").strip().lower()
+    if s == "movil":
+        return "¿Tu consulta es por el móvil IMOWI o factura/deuda?"
+    if s == "internet":
+        return "¿Tu consulta es por internet o factura/deuda?"
+    if s == "ambos":
+        return "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+    return "¿En qué te puedo ayudar: internet, móvil IMOWI, factura/deuda u otra consulta?"
+
+
+def texto_sin_internet_contratado(servicio_abonado: str) -> str:
+    """El abonado habla de internet pero el padrón no tiene internet fijo."""
+    if tiene_movil_contratado(servicio_abonado):
+        return (
+            "En tu cuenta no figura internet fijo contratado. "
+            "¿Te ayudo con el móvil IMOWI o con la factura?"
+        )
+    return (
+        "En tu cuenta no figura internet fijo contratado. "
+        "¿Es por factura/deuda u otra consulta?"
+    )
+
+
+def niega_producto_internet(texto: str) -> bool:
+    """True si dice que no tiene / no contrató internet (no un corte)."""
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "no tengo internet",
+            "no tengo el internet",
+            "no tengo fibra",
+            "no tengo internet fijo",
+            "sin internet fijo",
+            "no es internet",
+            "no tengo servicio de internet",
+            "no contraté internet",
+            "no contrate internet",
+            "no tengo contratado internet",
+            "no tengo contratado el internet",
+        )
+    )
+
+
+_SALUDOS_SOLO = frozenset(
+    {
+        "hola",
+        "hola hola",
+        "buenas",
+        "buen dia",
+        "buen día",
+        "buenas tardes",
+        "buenas noches",
+        "hey",
+        "holis",
+        "hol",
+        "ola",
+        "hi",
+        "hello",
+    }
+)
+
+
+def es_saludo_solo(texto: str) -> bool:
+    """True solo si el mensaje ES un saludo (no 'hola no me anda internet')."""
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    return bool(t) and t in _SALUDOS_SOLO
+
+
+def intencion_es_internet(intencion: str) -> bool:
+    intent = (intencion or "").strip()
+    return intent.startswith("internet") or intent in ("wifi", "internet_lento")
+
+
+def ajustar_intencion_a_padron(
+    intencion: str,
+    servicio_abonado: str,
+    texto: str = "",
+) -> str:
+    """No abrir diagnóstico de un producto que el padrón no tiene."""
+    _ = texto
+    if not intencion_es_internet(intencion):
+        return intencion
+    if tiene_internet_fijo(servicio_abonado):
+        return intencion
+    # Solo si el padrón dice explícitamente "solo móvil". Vacío = desconocido.
+    if (servicio_abonado or "").strip().lower() == "movil":
+        return "general"
+    return intencion
+
+
+def declara_solo_movil_sin_fijo(texto: str, servicio_abonado: str = "") -> bool:
     """True si aclara que no tiene internet fijo y solo usa móvil/IMOWI.
 
-    No confundir con corte (“me quedé sin internet”).
+    No confundir con corte (“me quedé sin internet”). El padrón se aplica
+    después en `ajustar_intencion_a_padron` (si solo tiene móvil, no es corte).
     """
+    _ = servicio_abonado
     t = (texto or "").lower()
     if any(
         k in t
@@ -467,10 +573,18 @@ def _menciona_tv_sensa(texto: str) -> bool:
 
 
 def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
+    intent = _clasificar_intencion_core(texto, servicio_abonado)
+    return ajustar_intencion_a_padron(intent, servicio_abonado, texto)
+
+
+def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
     t = (texto or "").lower().replace("fatura", "factura")
 
+    if es_saludo_solo(t):
+        return "general"
+
     # Corrección frecuente: “no tengo internet, solo IMOWI”
-    if declara_solo_movil_sin_fijo(t):
+    if declara_solo_movil_sin_fijo(t, servicio_abonado):
         if any(k in t for k in ("datos", "navega", "4g", "5g", "sin señal", "sin senal")):
             return "movil_datos"
         if any(k in t for k in ("llamar", "llamada", "sms")):
@@ -668,7 +782,7 @@ def es_saludo_corto(texto: str) -> bool:
         return False
     saludos = (
         "hola", "hola hola", "buenas", "buen dia", "buen día", "buenas tardes",
-        "buenas noches", "hey", "holis", "ola", "hi", "hello",
+        "buenas noches", "hey", "holis", "hol", "ola", "hi", "hello",
     )
     return t in saludos or any(t == s or t.startswith(s + " ") for s in saludos)
 

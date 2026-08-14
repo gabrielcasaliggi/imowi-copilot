@@ -306,6 +306,67 @@ def test_reiteracion_temprana_no_ticket():
     assert not r3.get("ticket_id")
 
 
+def test_padron_solo_movil_no_diagnostica_internet():
+    """Si el padrón no tiene internet fijo, no ofrecer fibra/Wi‑Fi ni asumir corte."""
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+    from sqlalchemy import select
+
+    tel = "5492235599991"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "32123456"))
+        assert abo is not None
+        abo.servicio = "movil"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.contexto_json = "{}"
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r0 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto="hol", canal="whatsapp", usar_llama=False
+        )
+    resp_hola = (r0.get("respuesta") or "").lower()
+    assert r0.get("estado") == "bot"
+    assert "diagnóstico de internet" not in resp_hola
+    assert "imowi" in resp_hola or "móvil" in resp_hola or "movil" in resp_hola
+    assert "internet," not in resp_hola
+
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="no tengo internet",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    resp = (r1.get("respuesta") or "").lower()
+    assert r1.get("estado") == "bot"
+    assert "no figura internet" in resp
+    assert "wi-fi" not in resp and "wifi" not in resp
+    assert "cajita" not in resp
+    assert "línea ya está ok" not in resp and "linea ya esta ok" not in resp
+
+
 def test_visitante_portal_deriva_sin_ticket_n2():
     """Guest: cola de agente con prioridad baja; sin ticket N2 ni N1."""
     r = client.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})
@@ -378,8 +439,23 @@ def test_wifi_parcial_no_cierra_resuelto():
 
 def test_inbox_pide_agente_ya_no_ticket_en_primer_turno():
     """Regresión del comportamiento anterior: 1er pedido humano ≠ ticket."""
-    headers = _admin_headers()
+    from app.estate.database import get_session_factory
+    from app.estate.models import ConversacionCanal
+    from sqlalchemy import select
+
     tel = "5492235560199"
+    Session = get_session_factory()
+    with Session() as db:
+        suf = tel[-10:]
+        for c in db.scalars(select(ConversacionCanal)).all():
+            if (c.telefono or "").endswith(suf) or c.telefono == tel:
+                c.estado = "cerrado"
+                c.contexto_json = "{}"
+                c.ticket_id = ""
+                c.agente_id = ""
+        db.commit()
+
+    headers = _admin_headers()
     r0 = client.post(
         "/api/v1/inbox/simulate",
         headers=headers,

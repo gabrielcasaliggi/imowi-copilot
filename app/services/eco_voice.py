@@ -153,6 +153,17 @@ def mensaje_saldo_padron(
     return "\n".join(partes)
 
 
+def _etiqueta_servicios(servicio: str) -> str:
+    s = (servicio or "").strip().lower()
+    if s == "movil":
+        return "móvil IMOWI (sin internet fijo)"
+    if s == "internet":
+        return "internet fijo (sin móvil IMOWI)"
+    if s == "ambos":
+        return "internet fijo y móvil IMOWI"
+    return "(sin dato de productos en padrón)"
+
+
 def enrich_contexto_desde_integraciones(
     abonado: Any | None,
     *,
@@ -244,6 +255,7 @@ def build_contexto_abonado(
         f"- dni_enmascarado: {_mask_dni(dni) or '(sin dato)'}",
         f"- nro_asociado: {nro}",
         f"- servicio: {servicio}",
+        f"- servicios_contratados: {_etiqueta_servicios(servicio)}",
         f"- plan: {plan}",
         f"- estado_servicio: {estado}",
         f"- deuda_monto: {deuda}",
@@ -259,6 +271,10 @@ def build_contexto_abonado(
     lines.extend(
         [
             "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
+            "- Ofrecé SOLO los servicios_contratados. No preguntes por internet/fibra/Wi‑Fi "
+            "si no figura internet fijo, ni por móvil IMOWI si no figura móvil.",
+            "- Si no tiene internet fijo y dice 'no tengo internet', NO es un corte: "
+            "no tiene ese producto contratado. No inicies diagnóstico de Wi‑Fi ni ONT.",
             "- Si pppoe indica conectado/desconectado, usá pppoe_triage: no contradigas "
             "el dato real ni pidas reinicio de ONT si triage dice linea_ok.",
         ]

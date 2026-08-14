@@ -41,6 +41,8 @@ def test_contexto_abonado_identificado():
     assert "María Pérez" in txt
     assert "30***222" in txt or "***" in txt
     assert "100Mb" in txt
+    assert "servicios_contratados" in txt
+    assert "internet fijo" in txt.lower()
     # Placeholders listos para conectar APIs
     assert "ont_estado" in txt
     assert "pago_qr_reciente" in txt
@@ -336,8 +338,47 @@ def test_declara_solo_movil_sin_fijo():
     assert declara_solo_movil_sin_fijo("no tengo internet, solo tengo telefonia movil") is True
     assert declara_solo_movil_sin_fijo("me quedé sin internet") is False
     assert declara_solo_movil_sin_fijo("no tengo internet") is False  # corte ambiguo
+    assert declara_solo_movil_sin_fijo("no tengo internet", "movil") is False
     assert clasificar_intencion("no tengo internet solo tengo imowi", "internet") == "movil"
-    assert clasificar_intencion("hola", "internet") == "internet"
+    assert clasificar_intencion("hola", "internet") == "general"
+    assert clasificar_intencion("hola no me anda internet", "internet") == "internet"
+    assert clasificar_intencion("hol", "movil") == "general"
+    assert clasificar_intencion("no tengo internet", "internet") == "internet"
+    assert clasificar_intencion("no tengo internet", "movil") == "general"
+    assert clasificar_intencion("me quedé sin internet", "internet") == "internet"
+
+
+def test_menu_consulta_segun_padron():
+    from app.domain.flujos_abonado import (
+        es_saludo_corto,
+        texto_menu_consulta,
+        texto_sin_internet_contratado,
+    )
+
+    assert es_saludo_corto("hol") is True
+    assert es_saludo_corto("hola") is True
+    from app.domain.flujos_abonado import es_saludo_solo
+
+    assert es_saludo_solo("hol") is True
+    assert es_saludo_solo("hola no me anda internet") is False
+    movil = texto_menu_consulta("movil").lower()
+    assert "imowi" in movil
+    assert "internet," not in movil
+    inet = texto_menu_consulta("internet").lower()
+    assert "internet" in inet
+    assert "imowi" not in inet
+    ambos = texto_menu_consulta("ambos").lower()
+    assert "internet" in ambos and "imowi" in ambos
+    aviso = texto_sin_internet_contratado("movil").lower()
+    assert "no figura internet" in aviso
+    assert "imowi" in aviso
+
+
+def test_aviso_deuda_no_interpreta_no_tengo_internet_como_diagnostico():
+    from app.services.canal_abonado import _elige_pago_o_tecnico
+
+    assert _elige_pago_o_tecnico("no tengo internet") is None
+    assert _elige_pago_o_tecnico("seguimos con internet") == "tecnico"
 
 
 def test_pon_verde_no_pide_cable_amarillo(monkeypatch):

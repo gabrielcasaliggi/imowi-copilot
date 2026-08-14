@@ -39,6 +39,7 @@ from app.estate.security import (
     valid_pin,
     verify_pin,
 )
+from app.domain.flujos_abonado import texto_menu_consulta
 from app.services import auth_security as aseg
 from app.services import email as email_svc
 from app.services.billtrack import lookup_abonado_por_dni
@@ -235,11 +236,11 @@ def _abrir_conversacion_identificada(
     from app.services.billtrack import ensure_local_abonado
 
     abo = crepo.find_abonado_por_dni(db, org.id, dni_n)
-    if abo is None and hit:
+    if hit:
         try:
             abo = ensure_local_abonado(db, org.id, {**hit, "dni": dni_n})
         except Exception:
-            abo = None
+            abo = abo or None
     tel = crepo.normalizar_telefono(telefono) if telefono else ""
     if abo and abo.telefono_e164:
         tel = crepo.normalizar_telefono(abo.telefono_e164)
@@ -287,9 +288,10 @@ def _abrir_conversacion_identificada(
                 "Igual puedo ayudarte (reactivación, factura u otro trámite). ¿Qué necesitás?"
             )
         else:
+            menu = texto_menu_consulta(abo.servicio if abo else "")
             saludo = (
                 f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-                "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+                f"{menu}"
             )
         crepo.add_mensaje(
             db, org.id, conv.id, direccion="out", autor="bot", texto=saludo
@@ -470,9 +472,10 @@ def portal_auth_verify(
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
     if not mensajes:
         nombre = (abo.nombre if abo else hit.get("nombre") or "hola").split()[0]
+        menu = texto_menu_consulta(abo.servicio if abo else "")
         saludo = (
             f"Hola {nombre}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
-            "¿Tu consulta es por internet, móvil IMOWI, o factura/deuda?"
+            f"{menu}"
         )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]

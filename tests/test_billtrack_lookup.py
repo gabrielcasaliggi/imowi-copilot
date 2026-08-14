@@ -95,3 +95,25 @@ def test_mock_lookup_dev_sin_billtrack():
     assert hit is not None
     assert hit["email"]
     assert hit.get("fuente") in ("mock", "mock_local", None) or hit["nombre"]
+
+
+def test_clasificar_servicios_cuenta_internet_y_movil():
+    from app.radius.contract import ServicioConectividad
+    from app.services.billtrack import clasificar_servicios_cuenta
+
+    fibra = ServicioConectividad(
+        login="1",
+        service_type_code="INTFO",
+        service_type_label="Fibra Optica",
+        product="Fibra 100",
+    )
+    movil = ServicioConectividad(
+        login="",
+        service_type_code="IMOWI",
+        service_type_label="Móvil IMOWI",
+        product="Móvil 5GB",
+    )
+    assert clasificar_servicios_cuenta([fibra]) == "internet"
+    assert clasificar_servicios_cuenta([movil]) == "movil"
+    assert clasificar_servicios_cuenta([fibra, movil]) == "ambos"
+    assert clasificar_servicios_cuenta([]) == ""

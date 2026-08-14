@@ -317,6 +317,34 @@ def lookup_abonado_por_dni(
 
 # Servicios de conectividad fijos (api_service.service_type_code)
 SERVICE_TYPE_CONECTIVIDAD = frozenset({"INTFO", "INTBA", "INTINA"})
+SERVICE_TYPE_MOVIL = frozenset(
+    {"CEL", "CELU", "MOVIL", "MOVI", "IMOWI", "TELMOV", "TELM", "GSM", "LTE", "MVNO"}
+)
+_HINTS_INTERNET = (
+    "internet",
+    "fibra",
+    "adsl",
+    "ftth",
+    "intfo",
+    "intba",
+    "intina",
+    "wireless",
+    "bai",
+    "radio",
+)
+_HINTS_MOVIL = (
+    "imowi",
+    "imovi",
+    "móvil",
+    "movil",
+    "celular",
+    "gsm",
+    "lte",
+    "mvno",
+    "telmov",
+    "telefonia movil",
+    "telefonía móvil",
+)
 
 DEFAULT_SERVICES_SQL = """
 SELECT
@@ -390,6 +418,48 @@ ORDER BY
   s.id DESC
 """.strip()
 
+# Todos los productos de la cuenta (internet, móvil, TV, etc.) para armar el menú N1.
+DEFAULT_SERVICES_CUENTA_BY_DNI_SQL = """
+SELECT
+  s.id::text AS id,
+  COALESCE(NULLIF(TRIM(s.identifier), ''), '') AS login,
+  COALESCE(NULLIF(TRIM(s.label), ''), '') AS label,
+  COALESCE(NULLIF(TRIM(s.state), ''), '') AS state,
+  COALESCE(NULLIF(TRIM(s.account_name), ''), '') AS account_name,
+  COALESCE(NULLIF(TRIM(s.base_account_number), ''), '') AS base_account_number,
+  COALESCE(NULLIF(TRIM(s.product_code), ''), '') AS product_code,
+  COALESCE(NULLIF(TRIM(s.product), ''), '') AS product,
+  COALESCE(s.service_on::text, '') AS service_on,
+  COALESCE(NULLIF(TRIM(s.service_type_code), ''), '') AS service_type_code,
+  COALESCE(NULLIF(TRIM(s.service_type_label), ''), '') AS service_type_label,
+  COALESCE(NULLIF(TRIM(s.locality), ''), '') AS locality,
+  s.last_state_date,
+  s.effective_date_from,
+  s.effective_date_to
+FROM public.api_person p
+INNER JOIN public.api_service s
+  ON regexp_replace(COALESCE(s.base_account_number, ''), '[^0-9A-Za-z]', '', 'g')
+   = regexp_replace(COALESCE(p.client_number::text, ''), '[^0-9A-Za-z]', '', 'g')
+WHERE (
+  regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g') = :dni
+  OR (
+    length(regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g')) = 11
+    AND substring(
+      regexp_replace(COALESCE(p.doc_cuit, ''), '[^0-9]', '', 'g') FROM 3 FOR 8
+    ) = lpad(:dni, 8, '0')
+  )
+)
+ORDER BY
+  CASE
+    WHEN LOWER(COALESCE(s.service_on::text, '')) IN ('1', 't', 'true', 'yes', 'on', 'si', 'sí')
+      THEN 0
+    ELSE 1
+  END,
+  s.last_state_date DESC NULLS LAST,
+  s.id DESC
+LIMIT 80
+""".strip()
+
 
 def _truthy_service_on(raw: Any) -> bool:
     val = str(raw or "").strip().lower()
@@ -418,6 +488,42 @@ def map_service_row(row: dict[str, Any]) -> Any:
         id=str(row.get("id") or "").strip(),
         locality=str(row.get("locality") or "").strip(),
     )
+
+
+def _blob_servicio(svc: Any) -> str:
+    return " ".join(
+        str(getattr(svc, k, "") or "")
+        for k in ("service_type_code", "service_type_label", "product", "label")
+    ).lower()
+
+
+def es_servicio_internet_cuenta(svc: Any) -> bool:
+    code = str(getattr(svc, "service_type_code", "") or "").strip().upper()
+    if code in SERVICE_TYPE_CONECTIVIDAD:
+        return True
+    blob = _blob_servicio(svc)
+    return any(k in blob for k in _HINTS_INTERNET)
+
+
+def es_servicio_movil_cuenta(svc: Any) -> bool:
+    code = str(getattr(svc, "service_type_code", "") or "").strip().upper()
+    if code in SERVICE_TYPE_MOVIL:
+        return True
+    blob = _blob_servicio(svc)
+    return any(k in blob for k in _HINTS_MOVIL)
+
+
+def clasificar_servicios_cuenta(servicios: list[Any]) -> str:
+    """internet | movil | ambos | '' (consultó y no hay match)."""
+    has_inet = any(es_servicio_internet_cuenta(s) for s in (servicios or []))
+    has_mov = any(es_servicio_movil_cuenta(s) for s in (servicios or []))
+    if has_inet and has_mov:
+        return "ambos"
+    if has_inet:
+        return "internet"
+    if has_mov:
+        return "movil"
+    return ""
 
 
 def elegir_servicio_principal(servicios: list[Any]) -> Any | None:
@@ -473,7 +579,17 @@ def _mock_servicios(client_number: str = "", dni: str = "") -> list[Any]:
                 service_on=True,
                 base_account_number="200",
                 id="svc-1",
-            )
+            ),
+            ServicioConectividad(
+                login="",
+                service_type_code="IMOWI",
+                service_type_label="Móvil IMOWI",
+                product="Móvil 5GB",
+                label="Telefonía móvil",
+                service_on=True,
+                base_account_number="200",
+                id="svc-mov",
+            ),
         ],
     }
     return list(catalog.get(key, []))
@@ -561,6 +677,60 @@ def lookup_servicios_conectividad_por_dni(
         engine.dispose()
 
 
+def lookup_servicios_cuenta_por_dni(
+    *,
+    dni: str,
+    db: Session | None = None,
+) -> tuple[list[Any], bool]:
+    """Todos los api_service del DNI. (lista, consulta_ok).
+
+    consulta_ok=False si BillTrack no está disponible o falló: no inferir productos.
+    lista vacía + ok=True = consultó y no hay productos (p. ej. sin internet fijo).
+    """
+    from sqlalchemy import text
+
+    from app.estate.security import normalizar_dni, valid_dni_ar
+
+    dni_n = normalizar_dni(dni)
+    if not valid_dni_ar(dni_n):
+        return [], False
+
+    engine, _params, prod = _billtrack_engine(db)
+    if engine is None:
+        if prod:
+            return [], False
+        return _mock_servicios(dni=dni_n), True
+
+    try:
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(text(DEFAULT_SERVICES_CUENTA_BY_DNI_SQL), {"dni": dni_n})
+                .mappings()
+                .all()
+            )
+            out = [map_service_row(dict(row)) for row in rows]
+            return out, True
+    except Exception:
+        logger.exception("BillTrack api_service cuenta por DNI falló (dni=***%s)", dni_n[-3:])
+        if prod:
+            return [], False
+        return _mock_servicios(dni=dni_n), True
+    finally:
+        engine.dispose()
+
+
+def resolver_servicio_contratado(
+    dni: str,
+    *,
+    db: Session | None = None,
+) -> str | None:
+    """internet|movil|ambos|'' si consultó; None si no se pudo leer el padrón."""
+    svcs, ok = lookup_servicios_cuenta_por_dni(dni=dni, db=db)
+    if not ok:
+        return None
+    return clasificar_servicios_cuenta(svcs)
+
+
 def ensure_local_abonado(
     db: Session,
     org_id: str,
@@ -584,8 +754,20 @@ def ensure_local_abonado(
     nombre = str(hit.get("nombre") or "").strip()
     tel = str(hit.get("telefono") or "").strip()
     deuda = str(hit.get("deuda") or "0").strip() or "0"
+    servicio_padron: str | None = None
+    try:
+        servicio_padron = resolver_servicio_contratado(dni_n, db=db)
+    except Exception:
+        logger.debug("No se pudo resolver servicios contratados", exc_info=True)
+        servicio_padron = None
 
     if abo is None:
+        if servicio_padron:
+            servicio = servicio_padron
+        elif servicio_padron == "":
+            servicio = "movil" if tel else ""
+        else:
+            servicio = ""
         abo = Abonado(
             organizacion_id=org_id,
             dni=dni_n,
@@ -594,8 +776,8 @@ def ensure_local_abonado(
             linea_msisdn="".join(c for c in tel if c.isdigit())[-10:] if tel else "",
             estado=estado,
             deuda_monto=deuda,
-            plan="",
-            servicio="internet",
+            plan=str(hit.get("plan") or "").strip(),
+            servicio=servicio,
         )
         db.add(abo)
     else:
@@ -608,6 +790,14 @@ def ensure_local_abonado(
                 abo.linea_msisdn = digits[-10:]
         abo.estado = estado
         abo.deuda_monto = deuda
+        if servicio_padron:
+            abo.servicio = servicio_padron
+        elif servicio_padron == "":
+            prev = (abo.servicio or "").strip().lower()
+            if prev in ("movil", "ambos") or tel or abo.linea_msisdn:
+                abo.servicio = "movil"
+            else:
+                abo.servicio = ""
     db.commit()
     db.refresh(abo)
     return abo
