@@ -110,6 +110,9 @@ def _cliente_cable_ok(texto: str) -> bool:
     t = (texto or "").lower()
     if not t:
         return False
+    # Word-boundary: evita falso positivo «impecable» ⊃ «cable»
+    if not re.search(r"\bcable\b", t):
+        return False
     if any(
         k in t
         for k in (
@@ -125,7 +128,7 @@ def _cliente_cable_ok(texto: str) -> bool:
         )
     ):
         return True
-    if "cable" in t and any(k in t for k in ("bien", "anda", "funciona", "ok", "perfecto")):
+    if any(k in t for k in ("bien", "anda", "funciona", "ok", "perfecto")):
         if not any(k in t for k in ("no ", "mal", "falla", "sin ")):
             return True
     return False
@@ -1825,6 +1828,20 @@ def _aplicar_diagnostico_ia(
         return None
     if not es_intencion_diagnostico(intencion):
         return None
+
+    # Cierre primero: no seguir con ramas Wi‑Fi/PPPoE si el abonado ya resolvió
+    if indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto):
+        return _cerrar_consulta_resuelta(
+            db,
+            org_id,
+            conv,
+            canal=canal,
+            nombre=_primer_nombre_cliente(abonado),
+            nota_ticket=(
+                "[Abonado] Confirmó resolución / pidió cierre durante diagnóstico: "
+                f"{(texto or '').strip()[:200]}"
+            ),
+        )
 
     # Primer turno de internet: informar estado PPPoE real (no depender del LLM).
     pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion)

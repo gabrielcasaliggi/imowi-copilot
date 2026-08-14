@@ -1039,8 +1039,51 @@ def indica_resuelto(texto: str) -> bool:
         "volvió todo",
         "volvio todo",
         "todo bien ahora",
+        "funcionaba bien",
+        "funciona bien",
+        "ya me funciona",
+        "ya me funcionaba",
+        "me funcionaba bien",
+        "ahora funciona",
+        "ahora funcionaba",
+        "ahora ya me",
+        "ahora ya funciona",
+        "ya andaba",
+        "me anda bien",
+        "me andaba bien",
     )
     if any(k in t for k in claves):
+        return True
+    # Pide cerrar el caso / ticket tras confirmar que anda
+    if any(
+        k in t
+        for k in (
+            "cerrar el ticket",
+            "cierra el ticket",
+            "cerrá el ticket",
+            "cerra el ticket",
+            "puede cerrar",
+            "podes cerrar",
+            "podés cerrar",
+            "podes cerrarlo",
+            "podés cerrarlo",
+            "cerralo",
+            "cerralo por favor",
+        )
+    ) and any(
+        k in t
+        for k in (
+            "gracias",
+            "funcion",
+            "anda",
+            "bien",
+            "solucion",
+            "resuelto",
+            "impecable",
+            "perfecto",
+            "listo",
+        )
+    ):
         return True
     # Respuesta corta a «¿Mejoró?» / «¿Volvió?»
     if _token_en_texto(t, "mejoró") or _token_en_texto(t, "mejoro"):

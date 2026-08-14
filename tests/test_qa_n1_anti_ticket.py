@@ -105,6 +105,24 @@ def test_indica_resuelto_no_cierra_cobertura_parcial():
     assert indica_resuelto("ya funciona") is True
 
 
+def test_indica_resuelto_cierre_wifi_gracias_ticket():
+    msg = (
+        "impecable, si ahí moví un poco más cerca del baño en el rutor wifi "
+        "y ahora ya me funcionaba bien, muchas gracias, puede cerrar el ticket"
+    )
+    assert indica_resuelto(msg) is True
+
+
+def test_cliente_cable_ok_no_impecable():
+    from app.services.canal_abonado import _cliente_cable_ok
+
+    assert not _cliente_cable_ok(
+        "impecable, moví el router wifi y ahora ya me funcionaba bien, muchas gracias"
+    )
+    assert _cliente_cable_ok("por cable funciona bien")
+    assert _cliente_cable_ok("el cable anda ok")
+
+
 def test_detecta_frustracion_requiere_progreso_n1():
     ctx0 = {"ultima_queja": "no tengo internet", "paso_idx": 0, "reiteracion_queja": 1}
     assert detecta_frustracion("No tengo internet", ctx0) is False
