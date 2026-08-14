@@ -1189,11 +1189,11 @@ def _mensaje_cierre_calido(nombre: str = "") -> str:
     nom = (nombre or "").strip()
     if nom:
         return (
-            f"De nada {nom}. Cualquier otra consulta, no dudes en escribime. "
+            f"De nada {nom}. Cualquier otra consulta, no dudes en escribirme. "
             "¡Que tengas un lindo día!"
         )
     return (
-        "De nada. Cualquier otra consulta, no dudes en escribime. "
+        "De nada. Cualquier otra consulta, no dudes en escribirme. "
         "¡Que tengas un lindo día!"
     )
 

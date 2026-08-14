@@ -108,11 +108,11 @@ def test_mensaje_cierre_calido():
 
     con = _mensaje_cierre_calido("Jorge")
     assert "De nada Jorge" in con
-    assert "no dudes en escribime" in con
+    assert "no dudes en escribirme" in con
     assert "lindo día" in con.lower()
     sin = _mensaje_cierre_calido("")
     assert sin.startswith("De nada.")
-    assert "no dudes en escribime" in sin
+    assert "no dudes en escribirme" in sin
 
 
 def test_cerrar_consulta_resuelta_helper(monkeypatch):

@@ -353,11 +353,11 @@ def mensaje_cierre_post_resolucion(nombre: str = "") -> str:
     nom = (nombre or "").strip()
     if nom:
         return (
-            f"Me alegra {nom}. Cualquier otra consulta, no dudes en escribime. "
+            f"Me alegra {nom}. Cualquier otra consulta, no dudes en escribirme. "
             "¡Que tengas un lindo día!"
         )
     return (
-        "Me alegra. Cualquier otra consulta, no dudes en escribime. "
+        "Me alegra. Cualquier otra consulta, no dudes en escribirme. "
         "¡Que tengas un lindo día!"
     )
 
