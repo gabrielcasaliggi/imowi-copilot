@@ -1268,6 +1268,29 @@ def _manejar_menu_consulta_n1(
 
     if paso == "servicio":
         elec = parse_menu_servicio(texto)
+        # Padrón sin internet fijo + habla de fibra/niega internet → aclarar
+        if not tiene_internet_fijo(servicio_abo) and (
+            niega_producto_internet(texto)
+            or elec == "internet"
+            or (
+                elec is None
+                and any(
+                    k in (texto or "").lower()
+                    for k in ("internet", "fibra", "wifi", "wi-fi")
+                )
+            )
+        ):
+            resp = texto_sin_internet_contratado(servicio_abo)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+                "menu_paso": "servicio",
+            }
         if not elec:
             resp = f"No te entendí. {texto_menu_consulta(servicio_abo)}"
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))

@@ -240,7 +240,9 @@ def test_playbooks_menu_y_portal_mencionan_servicios():
     from app.domain.flujos_abonado import PLAYBOOKS
 
     menu = PLAYBOOKS["general"][0].pregunta.lower()
-    assert "fijo" in menu and "imowi" in menu
+    assert "fijo" in menu
+    assert "telefonía móvil" in menu or "telefonia movil" in menu.replace("í", "i")
+    assert "imowi" not in menu
     portal = PLAYBOOKS["portal_tramites"][0].pregunta.lower()
     assert "ov.batan.coop" in portal
     assert any(p.id == "cable_wan_bai" for p in PLAYBOOKS["internet_radio"])

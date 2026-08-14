@@ -406,6 +406,9 @@ def parse_menu_servicio(texto: str) -> str | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    # "no tengo internet" no es elegir diagnóstico de fibra
+    if niega_producto_internet(texto):
+        return None
     if any(
         k in t
         for k in (
