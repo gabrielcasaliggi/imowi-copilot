@@ -21,10 +21,15 @@ def test_texto_para_habla_marca_y_dni():
     low = out.lower()
     assert "punto com" not in low
     assert ".com" not in low
-    assert "de ene i" in low
+    assert "dé, ene, í" in low
+    assert "dni" not in low
     assert "la asistente de la cooperativa batán" in low
     assert "de soporte batán" not in low
     assert "el asistente" not in low
+
+    out2 = texto_para_habla("Pasame el D.N.I. del titular")
+    assert "dni" not in out2.lower()
+    assert "dé, ene, í" in out2.lower()
 
 
 def test_sintetizar_deshabilitado(monkeypatch):

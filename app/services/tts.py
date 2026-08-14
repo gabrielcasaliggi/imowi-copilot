@@ -77,18 +77,23 @@ def texto_para_habla(texto: str) -> str:
     t = re.sub(r"https?://\S+", " ", t)
     t = _DOMAIN_RE.sub(" ", t)
 
+    # Siglas: Elena AR lee mal "DNI"/"de ene i" → deletrear con pausas
     reemplazos = [
         (r"\bSoporte\s+Bat[aá]n\b", "Soporte Batán"),
         (r"\bCooperativa\s+Bat[aá]n\s*/\s*Ecolan\b", "Cooperativa Batán"),
         (r"\bBat[aá]n\s*/\s*Ecolan\b", "Batán"),
         (r"\bN\.?\s*º\b", "número"),
         (r"\bN°\b", "número"),
-        (r"\bDNI\b", "de ene i"),
+        (r"\bD\.?\s*N\.?\s*I\.?\b", "dé, ene, í"),
+        (r"\bCUIT\b", "cuit"),
+        (r"\bCUIL\b", "cuil"),
         (r"\bIMOWI\b", "Imowi"),
         (r"\bFTTH\b", "fibra"),
+        (r"\bPPPoE\b", "pe pe pe o e"),
         (r"\bWi-?Fi\b", "wifi"),
         (r"\bQR\b", "código QR"),
         (r"\bOV\b", "oficina virtual"),
+        (r"\bN\.?\s*º\s*de\s*socio\b", "número de socio"),
     ]
     for pat, rep in reemplazos:
         t = re.sub(pat, rep, t, flags=re.IGNORECASE)
