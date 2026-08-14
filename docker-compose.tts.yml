@@ -1,26 +1,26 @@
-# Coqui TTS (español VITS) — calidad superior a Piper
+# Eco TTS — voz femenina argentina (Edge es-AR-ElenaNeural) por defecto.
 # Uso: docker compose -f docker-compose.tts.yml up -d --build
-# Si falla por PyTorch:  docker compose -f docker-compose.tts.yml build --no-cache
 # API: POST http://localhost:9100/synthesize  {"text":"..."} → audio/ogg
 #
-# Requisitos server: ~2–4 GB RAM libres para el modelo. Primera subida descarga pesos.
+# Requiere salida HTTPS del contenedor (Microsoft Edge TTS).
+# Offline / Coqui: TTS_ENGINE=coqui (imagen legacy con torch; ver docs/ECO-TTS.md).
 services:
   tts:
     build: ./tts
     ports:
       - "9100:9100"
     environment:
-      TTS_MODEL: ${TTS_MODEL:-tts_models/es/css10/vits}
-      TTS_MODEL_DIR: /models
-      TTS_HOME: /models
+      TTS_ENGINE: ${TTS_ENGINE:-edge}
+      TTS_VOICE: ${TTS_VOICE:-es-AR-ElenaNeural}
+      TTS_RATE: ${TTS_RATE:-+0%}
+      TTS_PITCH: ${TTS_PITCH:-+0Hz}
       TTS_MAX_CHARS: ${TTS_MAX_CHARS:-800}
       TTS_OPUS_BITRATE: ${TTS_OPUS_BITRATE:-64k}
-      COQUI_TOS_AGREED: "1"
     volumes:
       - tts-models:/models
-    # on-failure evita loop infinito si el build quedó mal
     restart: on-failure
-    mem_limit: 4g
+    # Edge no carga modelo local; 512M sobra. Subí si usás coqui.
+    mem_limit: 1g
 
 volumes:
   tts-models:

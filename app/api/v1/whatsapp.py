@@ -7,13 +7,13 @@ import hmac
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.config import WHATSAPP_DEFAULT_ORG_SLUG, WHATSAPP_VERIFY_TOKEN, es_produccion
 from app.estate import repository as repo
-from app.estate.database import get_db
+from app.estate.database import get_db, get_session_factory
 from app.services.canal_abonado import procesar_mensaje_entrante
 from app.services.platform_settings import resolve_whatsapp
 
@@ -76,44 +76,22 @@ def _extraer_texto_mensaje(msg: dict) -> str:
     return ""
 
 
-@router.get("/whatsapp/webhook")
-def verify_webhook(
-    hub_mode: str | None = Query(None, alias="hub.mode"),
-    hub_verify_token: str | None = Query(None, alias="hub.verify_token"),
-    hub_challenge: str | None = Query(None, alias="hub.challenge"),
-    db: Session = Depends(get_db),
-):
-    expected = resolve_whatsapp(db).get("verify_token") or WHATSAPP_VERIFY_TOKEN
-    if hub_mode == "subscribe" and hub_verify_token == expected:
-        return PlainTextResponse(content=hub_challenge or "")
-    raise HTTPException(403, "Verify token inválido")
+def _procesar_payload_whatsapp(payload: dict, org_id: str, org_slug: str) -> None:
+    """Procesa el payload fuera del request HTTP para devolver 200 a Meta al toque.
 
+    Si Whisper/TTS tarda >~15–20s, Meta reintenta el mismo wamid y se dispara un loop
+    de audios (p.ej. aviso «ya derivado» en espera_agente).
+    """
+    from app.estate import canal_repo as crepo
+    from app.services.prompt_safety import clamp_message
+    from app.services.transcription import (
+        MSG_AUDIO_FALLBACK,
+        texto_desde_audio_whatsapp,
+    )
+    from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
 
-@router.post("/whatsapp/webhook")
-async def receive_webhook(request: Request, db: Session = Depends(get_db)):
-    raw = await request.body()
-    wa = resolve_whatsapp(db)
-    secret = (wa.get("app_secret") or "").strip()
-
-    if secret:
-        sig = request.headers.get("x-hub-signature-256")
-        if not _firma_valida(raw, sig, secret):
-            raise HTTPException(403, "Firma inválida")
-    elif es_produccion():
-        logger.error("WhatsApp webhook sin WHATSAPP_APP_SECRET en production")
-        raise HTTPException(503, "Webhook WhatsApp no configurado")
-
-    try:
-        payload = json.loads(raw.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        raise HTTPException(400, "JSON inválido") from None
-
-    org_slug = wa.get("default_org_slug") or WHATSAPP_DEFAULT_ORG_SLUG
-    org = repo.get_org_by_slug(db, org_slug)
-    if not org:
-        logger.error("Org WhatsApp no encontrada: %s", org_slug)
-        return {"status": "ok"}
-
+    SessionLocal = get_session_factory()
+    db = SessionLocal()
     procesados = 0
     omitidos = 0
     try:
@@ -122,7 +100,6 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
             for change in entry.get("changes") or []:
                 field = change.get("field") or ""
                 value = change.get("value") or {}
-                # statuses = receipts (sent/delivered/read), sin texto de usuario
                 statuses = value.get("statuses") or []
                 messages = value.get("messages") or []
                 if statuses and not messages:
@@ -148,18 +125,30 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         logger.warning("WhatsApp msg sin from type=%s", tipo)
                         continue
 
-                    from app.services.prompt_safety import clamp_message
-                    from app.services.transcription import (
-                        MSG_AUDIO_FALLBACK,
-                        texto_desde_audio_whatsapp,
-                    )
-                    from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
+                    if mid and crepo.inbound_meta_ya_procesado(db, org_id, mid):
+                        omitidos += 1
+                        logger.warning(
+                            "WhatsApp msg duplicado omitido id=%s type=%s",
+                            mid[:48],
+                            tipo,
+                        )
+                        continue
+
+                    if mid and not crepo.try_claim_inbound_meta(mid):
+                        omitidos += 1
+                        logger.warning(
+                            "WhatsApp msg claim omitido (en vuelo) id=%s type=%s",
+                            mid[:48],
+                            tipo,
+                        )
+                        continue
 
                     transcribed = texto_desde_audio_whatsapp(msg)
                     if transcribed is not None:
                         text = (transcribed or "").strip()
                         if not text:
                             omitidos += 1
+                            # Mantener claim: ya mandamos fallback; no reintentar el mismo wamid
                             logger.warning(
                                 "WhatsApp audio sin transcripción usable id=%s",
                                 mid[:48] if mid else "",
@@ -167,6 +156,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                             try:
                                 enviar_texto_wa(from_wa, MSG_AUDIO_FALLBACK)
                             except Exception:
+                                crepo.release_inbound_meta_claim(mid)
                                 logger.exception(
                                     "WhatsApp fallback audio falló from=%s", from_wa
                                 )
@@ -181,6 +171,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
 
                     if not text:
                         omitidos += 1
+                        crepo.release_inbound_meta_claim(mid)
                         logger.warning(
                             "WhatsApp msg sin texto usable type=%s id=%s keys=%s",
                             tipo,
@@ -191,12 +182,13 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     text = clamp_message(text, max_chars=4000)
                     if not text.strip():
                         omitidos += 1
+                        crepo.release_inbound_meta_claim(mid)
                         continue
                     entrada_audio = transcribed is not None
                     try:
                         procesar_mensaje_entrante(
                             db,
-                            org.id,
+                            org_id,
                             telefono=from_wa,
                             texto=text,
                             canal="whatsapp",
@@ -215,6 +207,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         )
                     except Exception:
                         omitidos += 1
+                        crepo.release_inbound_meta_claim(mid)
                         logger.exception(
                             "WhatsApp fallo al procesar from=%s type=%s mid=%s",
                             from_wa,
@@ -223,11 +216,58 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         )
     except Exception:
         logger.exception("Error procesando webhook WhatsApp")
+    finally:
+        db.close()
     logger.warning(
         "WhatsApp webhook done procesados=%s omitidos=%s org=%s",
         procesados,
         omitidos,
         org_slug,
     )
-    # Meta espera 200 rápido
+
+
+@router.get("/whatsapp/webhook")
+def verify_webhook(
+    hub_mode: str | None = Query(None, alias="hub.mode"),
+    hub_verify_token: str | None = Query(None, alias="hub.verify_token"),
+    hub_challenge: str | None = Query(None, alias="hub.challenge"),
+    db: Session = Depends(get_db),
+):
+    expected = resolve_whatsapp(db).get("verify_token") or WHATSAPP_VERIFY_TOKEN
+    if hub_mode == "subscribe" and hub_verify_token == expected:
+        return PlainTextResponse(content=hub_challenge or "")
+    raise HTTPException(403, "Verify token inválido")
+
+
+@router.post("/whatsapp/webhook")
+async def receive_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    raw = await request.body()
+    wa = resolve_whatsapp(db)
+    secret = (wa.get("app_secret") or "").strip()
+
+    if secret:
+        sig = request.headers.get("x-hub-signature-256")
+        if not _firma_valida(raw, sig, secret):
+            raise HTTPException(403, "Firma inválida")
+    elif es_produccion():
+        logger.error("WhatsApp webhook sin WHATSAPP_APP_SECRET en production")
+        raise HTTPException(503, "Webhook WhatsApp no configurado")
+
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(400, "JSON inválido") from None
+
+    org_slug = wa.get("default_org_slug") or WHATSAPP_DEFAULT_ORG_SLUG
+    org = repo.get_org_by_slug(db, org_slug)
+    if not org:
+        logger.error("Org WhatsApp no encontrada: %s", org_slug)
+        return {"status": "ok"}
+
+    # 200 inmediato: Whisper + Coqui TTS no deben bloquear el ACK a Meta
+    background_tasks.add_task(_procesar_payload_whatsapp, payload, org.id, org_slug)
     return {"status": "ok"}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 from sqlalchemy.orm import Session
 
@@ -1204,6 +1205,23 @@ def _cerrar_consulta_resuelta(
     }
 
 
+_AVISO_ESPERA_COOLDOWN_S = 90
+
+
+def _mensaje_operativo_sin_tts(texto: str) -> bool:
+    """Avisos cortos de sistema (CSAT / derivado) → siempre texto, nunca TTS."""
+    t = (texto or "").strip().lower()
+    if not t:
+        return True
+    if "gracias por tu calificación" in t or "gracias por tu calificacion" in t:
+        return True
+    if "ya está derivado" in t or "ya esta derivado" in t:
+        return True
+    if "te van a responder por este mismo chat" in t and len(t) < 320:
+        return True
+    return False
+
+
 def _responder_espera_agente(
     db: Session,
     org_id: str,
@@ -1231,6 +1249,10 @@ def _responder_espera_agente(
 
     tid = conv.ticket_id or ""
     ctx = crepo.get_contexto(conv)
+    # Nunca TTS en cola humana: el flag de audio entrante + reintentos Meta
+    # generaba un loop de la misma nota de voz (~9s).
+    ctx.pop("responder_en_audio", None)
+
     tema = _tema_desde_mensaje(texto)
     pendientes = [str(x) for x in (ctx.get("temas_pendientes") or []) if str(x).strip()]
     anotados = [str(x) for x in (ctx.get("temas_anotados_ticket") or []) if str(x).strip()]
@@ -1238,6 +1260,18 @@ def _responder_espera_agente(
         k in (texto or "").lower()
         for k in ("y la ", "y el ", "qué pasó con", "que paso con", "y eso de")
     )
+
+    def _cooldown_activo() -> bool:
+        last = ctx.get("ultimo_aviso_espera_ts")
+        try:
+            return last is not None and (time.time() - float(last)) < _AVISO_ESPERA_COOLDOWN_S
+        except (TypeError, ValueError):
+            return False
+
+    def _marcar_aviso_enviado() -> None:
+        ctx["ultimo_aviso_espera_ts"] = time.time()
+        crepo.set_contexto(conv, ctx)
+        db.commit()
 
     if tema and tid and (tema in pendientes or tema in anotados or insiste):
         label = _label_tema_pendiente(tema)
@@ -1251,13 +1285,24 @@ def _responder_espera_agente(
         if tema not in anotados:
             anotados.append(tema)
         ctx["temas_anotados_ticket"] = anotados
-        crepo.set_contexto(conv, ctx)
-        db.commit()
         aviso = (
             f"Sí: el ticket {tid} queda con el reclamo de {label} "
             "junto a lo de la conexión. El agente lo ve en el mismo caso; "
             "te van a responder por este chat."
         )
+        if _cooldown_activo():
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return {
+                "ok": True,
+                "modo": "espera_agente",
+                "conversacion_id": conv.id,
+                "respuesta": "",
+                "estado": conv.estado,
+                "ticket_id": tid,
+                "aviso_omitido": True,
+            }
+        _marcar_aviso_enviado()
         _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=(canal != "web"))
         return {
             "ok": True,
@@ -1266,6 +1311,19 @@ def _responder_espera_agente(
             "respuesta": aviso,
             "estado": conv.estado,
             "ticket_id": tid,
+        }
+
+    if _cooldown_activo():
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": "",
+            "estado": conv.estado,
+            "ticket_id": tid,
+            "aviso_omitido": True,
         }
 
     aviso = (
@@ -1277,6 +1335,7 @@ def _responder_espera_agente(
             f"Tu caso ya está derivado (ticket {tid}). "
             f"También quedó anotado: {labels}. Te responden por este chat."
         )
+    _marcar_aviso_enviado()
     _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=(canal != "web"))
     return {
         "ok": True,
@@ -1350,6 +1409,8 @@ def _enviar_respuesta(
             try:
                 prefer_audio = bool(crepo.get_contexto(conv).get("responder_en_audio"))
             except Exception:
+                prefer_audio = False
+            if prefer_audio and _mensaje_operativo_sin_tts(texto):
                 prefer_audio = False
         delivery = _dispatch_outbound(conv, texto, prefer_audio=prefer_audio)
         if not delivery.get("ok") or delivery.get("simulated"):
@@ -1756,6 +1817,15 @@ def procesar_mensaje_entrante(
     texto = (texto or "").strip()
     if not texto:
         return {"ok": False, "error": "mensaje vacío"}
+
+    mid = (meta_message_id or "").strip()
+    if mid and crepo.inbound_meta_ya_procesado(db, org_id, mid):
+        logger.warning(
+            "Mensaje entrante duplicado omitido canal=%s mid=%s",
+            canal,
+            mid[:48],
+        )
+        return {"ok": True, "modo": "duplicado", "meta_message_id": mid[:48]}
 
     # Voto CSAT sobre conversación cerrada con encuesta pendiente (antes de abrir hilo nuevo)
     try:

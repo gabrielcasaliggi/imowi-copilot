@@ -1,4 +1,4 @@
-"""Cliente HTTP hacia Piper TTS local (Docker en :9100)."""
+"""Cliente HTTP hacia el servicio TTS local (Docker en :9100, voz es-AR)."""
 
 from __future__ import annotations
 

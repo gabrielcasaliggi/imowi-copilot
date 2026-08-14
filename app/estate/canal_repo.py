@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -14,9 +16,44 @@ from app.estate.models import Abonado, ConversacionCanal, MensajeCanal
 _ULTIMO_MSG_PREVIEW_LEN = 120
 _ESTADOS_UNREAD = frozenset({"espera_agente", "con_agente"})
 
+# Claim corto en proceso: evita doble Whisper/TTS si Meta reintenta antes del commit.
+_CLAIMED_INBOUND_MIDS: dict[str, float] = {}
+_CLAIMED_LOCK = threading.Lock()
+_CLAIM_TTL_S = 3600.0
+_CLAIM_MAX = 8000
+
 
 def _now():
     return datetime.now(UTC)
+
+
+def try_claim_inbound_meta(meta_message_id: str) -> bool:
+    """True si este proceso puede procesar el wamid (primera vez en la ventana TTL)."""
+    mid = (meta_message_id or "").strip()[:191]
+    if not mid:
+        return True
+    now = time.time()
+    with _CLAIMED_LOCK:
+        if len(_CLAIMED_INBOUND_MIDS) > _CLAIM_MAX:
+            expired = [
+                k for k, ts in _CLAIMED_INBOUND_MIDS.items() if now - ts > _CLAIM_TTL_S
+            ]
+            for k in expired:
+                _CLAIMED_INBOUND_MIDS.pop(k, None)
+        prev = _CLAIMED_INBOUND_MIDS.get(mid)
+        if prev is not None and now - prev < _CLAIM_TTL_S:
+            return False
+        _CLAIMED_INBOUND_MIDS[mid] = now
+        return True
+
+
+def release_inbound_meta_claim(meta_message_id: str) -> None:
+    """Libera claim si falló el procesamiento (permite reintento local)."""
+    mid = (meta_message_id or "").strip()[:191]
+    if not mid:
+        return
+    with _CLAIMED_LOCK:
+        _CLAIMED_INBOUND_MIDS.pop(mid, None)
 
 
 def normalizar_telefono(raw: str) -> str:
@@ -155,6 +192,25 @@ def get_or_create_conversacion(
     db.flush()
     db.refresh(conv)
     return conv
+
+
+def inbound_meta_ya_procesado(db: Session, org_id: str, meta_message_id: str) -> bool:
+    """True si ya guardamos un inbound con ese wamid/meta id (idempotencia webhook)."""
+    mid = (meta_message_id or "").strip()[:191]
+    if not mid:
+        return False
+    return (
+        db.scalar(
+            select(MensajeCanal.id)
+            .where(
+                MensajeCanal.organizacion_id == org_id,
+                MensajeCanal.meta_message_id == mid,
+                MensajeCanal.direccion == "in",
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def add_mensaje(

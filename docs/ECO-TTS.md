@@ -1,20 +1,27 @@
-# Eco TTS — respuesta en audio por WhatsApp (Coqui VITS)
+# Eco TTS — respuesta en audio por WhatsApp (voz femenina argentina)
 
-Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audio**.  
-Motor actual: **Coqui TTS** modelo `tts_models/es/css10/vits` (español, natural en CPU).  
-Si TTS falla o el texto no es apto (URLs, muy largo), cae a texto.
+Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audio**.
 
-## Por qué Coqui (y no Piper)
+## Voz (default)
 
-Piper era liviano pero sonaba robótico y, con Opus 24k “voip”, **pegaba el techo de volumen (0 dB)** → voz “cortada”.  
-Coqui VITS español + Opus 64k + loudnorm/limiter suaviza picos y mejora naturalidad.
+| | |
+|---|---|
+| Motor | **Microsoft Edge TTS** (`edge-tts`) |
+| Voz | **`es-AR-ElenaNeural`** — femenina, español argentino |
+| Alternativa masculina | `es-AR-TomasNeural` |
+| Offline | `TTS_ENGINE=coqui` (VITS `es/css10`, acento España; más RAM) |
+
+Por qué no Coqui CSS10 para esto: ese modelo es español peninsular, no rioplatense.  
+XTTS fine-tune AR existe, pero pide ~4–8 GB RAM / speaker reference — el server actual no lo bancá cómodo.
+
+Edge TTS es liviano, rápido (menos riesgo de reintentos Meta) y suena natural en es-AR.
 
 ## Flujo
 
 1. WA audio → Whisper (STT) → texto  
 2. Motor N1 genera respuesta  
 3. `texto_para_habla()` (marca, DNI, sin .com)  
-4. Coqui → WAV → ffmpeg (fade + limiter + loudnorm) → OGG Opus 64k  
+4. Edge Elena → MP3 → ffmpeg (fade + limiter + loudnorm) → OGG Opus 64k  
 5. WhatsApp `type=audio`
 
 ## Levantar en el server
@@ -23,49 +30,43 @@ Coqui VITS español + Opus 64k + loudnorm/limiter suaviza picos y mejora natural
 cd /opt/operations-hub
 git pull origin main
 
-# Parar el loop si está reiniciando
-sudo docker compose -f docker-compose.tts.yml stop
-
-# Rebuild CON cache limpia (instala torch CPU)
 sudo docker compose -f docker-compose.tts.yml build --no-cache
 sudo docker compose -f docker-compose.tts.yml up -d
 
-sudo docker compose -f docker-compose.tts.yml logs -f --tail=80
-# Esperar: "Coqui listo" / health ready=true
-
 curl -s http://127.0.0.1:9100/health
+# {"engine":"edge","voice":"es-AR-ElenaNeural","ready":true,...}
 ```
 
-Si ves `PyTorch was not found`, el build viejo quedó cacheado: repetí `build --no-cache`.
+El contenedor necesita **salida a Internet** (HTTPS a los endpoints de Edge).
 
 En `/opt/operations-hub/.env`:
 
 ```env
 TTS_ENABLED=true
 TTS_URL=http://127.0.0.1:9100
-TTS_TIMEOUT_S=90
+TTS_TIMEOUT_S=45
+```
+
+Opcional (compose / env del contenedor):
+
+```env
+TTS_ENGINE=edge
+TTS_VOICE=es-AR-ElenaNeural
+# TTS_RATE=+5%
+# TTS_PITCH=-2Hz
 ```
 
 ```bash
 sudo systemctl restart operations-hub-api
 ```
 
-**RAM:** reservar ~2–4 GB para el contenedor (`mem_limit: 4g` en el compose).
-
-## Calidad / encode
-
-| Antes (Piper) | Ahora (Coqui) |
-|---------------|---------------|
-| Opus 24k voip | Opus **64k** audio |
-| Picos a 0 dB | limiter + loudnorm −1.5 dB TP |
-| Voz robótica | VITS español CSS10 |
-
-## DNI por audio
-
-Sigue valiendo formato `24,914,867`, dígitos sueltos y palabras (“dos cuatro…”).
+**RAM:** Edge ~poco (compose `mem_limit: 1g`). Con 6 GB en el host sobra margen para API + Whisper + Next.  
+XTTS fine-tune AR local queda viable más adelante si preferís offline 100 %.
 
 ## Notas
 
 - Solo WhatsApp; Inbox de agentes sigue en texto.  
 - Mensajes con link / QR → texto.  
-- XTTS (clon de voz) queda como upgrade futuro: mismo puerto, otro `TTS_MODEL`.
+- Avisos operativos (CSAT gracias, «ya derivado») **siempre en texto**; no TTS.  
+- El webhook WA ACK’ea a Meta en background (evita reintentos mientras sintetiza).  
+- Coqui / XTTS AR quedan como upgrade si más adelante hay GPU o más RAM.

@@ -1,6 +1,5 @@
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
 python-multipart==0.0.20
-# torch/torchaudio se instalan en el Dockerfile (index CPU de pytorch.org)
-coqui-tts>=0.24.0,<0.26
-numpy>=1.22.0,<2.1
+edge-tts>=6.1.0,<8
+pydantic>=2.0,<3
