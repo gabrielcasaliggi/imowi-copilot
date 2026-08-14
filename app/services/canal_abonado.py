@@ -1134,11 +1134,33 @@ def _origen_ticket(canal: str) -> str:
     }.get(canal or "", "Canal")
 
 
-def _dispatch_outbound(conv: ConversacionCanal, texto: str) -> dict:
+def _dispatch_outbound(
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    prefer_audio: bool = False,
+) -> dict:
     canal = conv.canal or ""
     if canal == "whatsapp":
         # Preferir wa_id (from de Meta); telefono puede diferir en formato AR
         dest = (conv.wa_id or conv.telefono or "").strip()
+        if prefer_audio:
+            try:
+                from app.services.tts import sintetizar_audio
+                from app.services.whatsapp_client import enviar_audio as enviar_audio_wa
+
+                audio = sintetizar_audio(texto)
+                if audio:
+                    result = enviar_audio_wa(dest, audio)
+                    if result.get("ok"):
+                        return result
+                    logger.warning(
+                        "WhatsApp audio send falló; fallback texto to=%s detail=%s",
+                        dest,
+                        (result.get("detail") or result.get("reason") or "")[:200],
+                    )
+            except Exception:
+                logger.exception("TTS/audio WA falló; fallback texto dest=%s", dest)
         return enviar_texto_wa(dest, texto)
     if canal == "telegram":
         dest = conv.wa_id or conv.telefono
@@ -1156,14 +1178,21 @@ def _enviar_respuesta(
 ) -> str:
     crepo.add_mensaje(db, org_id, conv.id, direccion="out", autor="bot", texto=texto)
     if enviar_externo and _es_canal_externo(conv.canal):
-        delivery = _dispatch_outbound(conv, texto)
+        prefer_audio = False
+        if (conv.canal or "") == "whatsapp":
+            try:
+                prefer_audio = bool(crepo.get_contexto(conv).get("responder_en_audio"))
+            except Exception:
+                prefer_audio = False
+        delivery = _dispatch_outbound(conv, texto, prefer_audio=prefer_audio)
         if not delivery.get("ok") or delivery.get("simulated"):
             logger.warning(
-                "Outbound canal=%s conv=%s ok=%s simulated=%s detail=%s",
+                "Outbound canal=%s conv=%s ok=%s simulated=%s type=%s detail=%s",
                 conv.canal,
                 conv.id,
                 delivery.get("ok"),
                 delivery.get("simulated"),
+                delivery.get("type") or "text",
                 (delivery.get("detail") or delivery.get("reason") or "")[:200],
             )
     return texto
@@ -1552,8 +1581,13 @@ def procesar_mensaje_entrante(
     wa_id: str = "",
     meta_message_id: str = "",
     usar_llama: bool = True,
+    entrada_audio: bool = False,
 ) -> dict:
-    """Procesa un mensaje del cliente. Retorna respuesta del bot o estado agente."""
+    """Procesa un mensaje del cliente. Retorna respuesta del bot o estado agente.
+
+    Si entrada_audio=True y canal=whatsapp, las respuestas del bot de este turno
+    se intentan enviar como nota de voz (TTS) con fallback a texto.
+    """
     texto = (texto or "").strip()
     if not texto:
         return {"ok": False, "error": "mensaje vacío"}
@@ -1576,10 +1610,19 @@ def procesar_mensaje_entrante(
         db.rollback()
         logger.exception("Error capturando voto CSAT canal=%s", canal)
 
+    conv: ConversacionCanal | None = None
     try:
         conv = crepo.get_or_create_conversacion(
             db, org_id, telefono=telefono, canal=canal, wa_id=wa_id
         )
+        if (canal or "") == "whatsapp":
+            ctx0 = crepo.get_contexto(conv)
+            if entrada_audio:
+                ctx0["responder_en_audio"] = True
+            else:
+                ctx0.pop("responder_en_audio", None)
+            crepo.set_contexto(conv, ctx0)
+            db.commit()
         crepo.add_mensaje(
             db,
             org_id,

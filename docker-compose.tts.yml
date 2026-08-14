@@ -1,0 +1,17 @@
+# Piper TTS — backend nativo apunta a localhost:9100
+# Uso: docker compose -f docker-compose.tts.yml up -d --build
+services:
+  tts:
+    build: ./tts
+    ports:
+      - "9100:9100"
+    environment:
+      TTS_VOICE: ${TTS_VOICE:-es_MX-claude-high}
+      TTS_MODEL_DIR: /models
+      TTS_MAX_CHARS: ${TTS_MAX_CHARS:-800}
+    volumes:
+      - tts-models:/models
+    restart: unless-stopped
+
+volumes:
+  tts-models:

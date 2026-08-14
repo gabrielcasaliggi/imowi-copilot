@@ -226,6 +226,20 @@ try:
 except ValueError:
     WHISPER_TIMEOUT_S = 30.0
 
+# Piper TTS (contenedor aislado; respuesta en audio WA si el abonado mandó nota de voz)
+# Levantar: docker compose -f docker-compose.tts.yml up -d --build
+TTS_URL = os.getenv("TTS_URL", "http://localhost:9100").strip().rstrip("/")
+TTS_ENABLED = os.getenv("TTS_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+try:
+    TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "45") or "45")
+except ValueError:
+    TTS_TIMEOUT_S = 45.0
+
 ESTADOS_TICKET_VALIDOS = ("Abierto", "En Revisión", "Cerrado")
 
 _DEFAULT_MOCK_USERS = {

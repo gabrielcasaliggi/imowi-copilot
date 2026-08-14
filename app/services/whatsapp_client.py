@@ -155,6 +155,82 @@ def enviar_texto(telefono_e164: str, texto: str) -> dict:
     return _post_messages(payload)
 
 
+def subir_media(
+    data: bytes,
+    *,
+    mime: str = "audio/ogg",
+    filename: str = "voice.ogg",
+) -> str:
+    """Sube bytes a Cloud API; retorna media_id o ''."""
+    raw = data or b""
+    if not raw:
+        return ""
+    cfg = _wa_cfg()
+    token = (cfg.get("token") or "").strip()
+    phone_id = (cfg.get("phone_number_id") or "").strip()
+    if not token or not phone_id:
+        logger.info("WhatsApp no configurado — media simulado (%s bytes)", len(raw))
+        return "simulated-media-id"
+    url = f"{_GRAPH}/{phone_id}/media"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            r = client.post(
+                url,
+                headers=headers,
+                data={"messaging_product": "whatsapp", "type": mime},
+                files={"file": (filename, raw, mime)},
+            )
+        if r.status_code >= 400:
+            logger.warning(
+                "WhatsApp media upload error %s: %s",
+                r.status_code,
+                r.text[:300],
+            )
+            return ""
+        mid = str((r.json() or {}).get("id") or "").strip()
+        return mid
+    except Exception:
+        logger.exception("WhatsApp subir_media falló")
+        return ""
+
+
+def enviar_audio(
+    telefono_e164: str,
+    audio_bytes: bytes,
+    *,
+    mime: str = "audio/ogg",
+    filename: str = "voice.ogg",
+) -> dict:
+    """Envía nota de voz / audio. Si falla upload o send, retorna ok=False."""
+    to = normalizar_destino_wa(telefono_e164)
+    if not to or not audio_bytes:
+        return {"ok": False, "reason": "destino_o_audio_vacio"}
+    cfg = _wa_cfg()
+    if not (cfg.get("token") and cfg.get("phone_number_id")):
+        logger.info(
+            "WhatsApp no configurado — audio simulado a %s bytes=%s",
+            to,
+            len(audio_bytes),
+        )
+        return {"ok": True, "simulated": True, "to": to, "type": "audio"}
+
+    media_id = subir_media(audio_bytes, mime=mime, filename=filename)
+    if not media_id:
+        return {"ok": False, "reason": "upload_media_failed", "to": to}
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "audio",
+        "audio": {"id": media_id},
+    }
+    result = _post_messages(payload)
+    result["media_id"] = media_id
+    result["type"] = "audio"
+    return result
+
+
 def descargar_media(media_id: str) -> bytes:
     """Descarga bytes de un media_id de Cloud API (audio, imagen, etc.)."""
     mid = (media_id or "").strip()

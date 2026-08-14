@@ -192,6 +192,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     if not text.strip():
                         omitidos += 1
                         continue
+                    entrada_audio = transcribed is not None
                     try:
                         procesar_mensaje_entrante(
                             db,
@@ -202,6 +203,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                             wa_id=from_wa,
                             meta_message_id=mid,
                             usar_llama=True,
+                            entrada_audio=entrada_audio,
                         )
                         procesados += 1
                         logger.warning(
