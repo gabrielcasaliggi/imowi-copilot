@@ -8,7 +8,7 @@ import time
 
 from sqlalchemy.orm import Session
 
-from app.config import BOT_DISPLAY_NAME, BOT_DISPLAY_NAME_SHORT
+from app.config import BOT_DISPLAY_NAME_SHORT
 from app.domain.flujos_abonado import (
     ajustar_intencion_a_padron,
     clasificar_intencion,
@@ -1677,7 +1677,7 @@ def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
             "Si ya sos abonado, intentá de nuevo con el DNI del titular."
         )
     return (
-        f"Hola, soy {BOT_DISPLAY_NAME}, la asistente de la Cooperativa Batán. "
+        "Hola, soy la asistente de la Cooperativa Batán. "
         "Todavía no identifiqué tu cuenta, así que no puedo ver saldos ni diagnosticar "
         "tu servicio de forma automática. "
         "Te derivo con un agente; te responden por este mismo chat. "
@@ -2432,7 +2432,7 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = (
-                    f"Hola, soy {BOT_DISPLAY_NAME}, la asistente de la Cooperativa Batán. "
+                    "Hola, soy la asistente de la Cooperativa Batán. "
                     "Para ayudarte, enviame tu DNI o número de socio. "
                     "Si preferís, escribí *agente*."
                 )

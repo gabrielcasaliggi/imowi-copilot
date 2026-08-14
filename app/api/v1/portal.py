@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import (
-    BOT_DISPLAY_NAME,
     OTP_LENGTH,
     OTP_MAX_ATTEMPTS,
     OTP_TTL_MINUTES,
@@ -20,7 +19,6 @@ from app.config import (
     PORTAL_AUTH_SECRET,
     PORTAL_JWT_AUD,
     PORTAL_TOKEN_HOURS,
-    PRODUCT_DISPLAY_NAME,
     WHATSAPP_DEFAULT_ORG_SLUG,
     es_produccion,
 )
@@ -276,21 +274,19 @@ def _abrir_conversacion_identificada(
         db.refresh(conv)
 
     if not msgs_previos:
-        from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
-
         nombre = (abo.nombre if abo else "") or ""
         primer = nombre.split()[0].title() if nombre.strip() else ""
         estado = ((abo.estado if abo else "") or "").lower()
         if estado == "baja":
             saludo = (
-                f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+                f"Hola{(' ' + primer) if primer else ''}, soy la asistente de la Cooperativa Batán. "
                 "Tu cuenta figura «de baja» en el padrón. "
                 "Igual puedo ayudarte (reactivación, factura u otro trámite). ¿Qué necesitás?"
             )
         else:
             menu = texto_menu_consulta(abo.servicio if abo else "")
             saludo = (
-                f"Hola{(' ' + primer) if primer else ''}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+                f"Hola{(' ' + primer) if primer else ''}, soy la asistente de la Cooperativa Batán. "
                 f"{menu}"
             )
         crepo.add_mensaje(
@@ -474,7 +470,7 @@ def portal_auth_verify(
         nombre = (abo.nombre if abo else hit.get("nombre") or "hola").split()[0]
         menu = texto_menu_consulta(abo.servicio if abo else "")
         saludo = (
-            f"Hola {nombre}, soy {BOT_DISPLAY_NAME}, de {PRODUCT_DISPLAY_NAME}. "
+            f"Hola {nombre}, soy la asistente de la Cooperativa Batán. "
             f"{menu}"
         )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)

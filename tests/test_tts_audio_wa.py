@@ -23,10 +23,10 @@ def test_texto_para_habla_marca_y_dni():
     assert ".com" not in low
     assert "documento" in low
     assert "dni" not in low
-    assert "echo" in low
+    assert "soy la asistente de la cooperativa batán" in low
+    assert "eko" not in low
+    assert "echo" not in low
     assert "ekao" not in low
-    assert "ée-co" not in low
-    assert "la asistente de la cooperativa batán" in low
     assert "de soporte batán" not in low
     assert "el asistente" not in low
 
@@ -41,8 +41,9 @@ def test_texto_para_habla_marca_y_dni():
 
     out3 = texto_para_habla("Hola, soy Eko, la asistente de la Cooperativa Batán.")
     low3 = out3.lower()
-    assert "echo" in low3
-    assert "ée-co" not in low3
+    assert "soy la asistente de la cooperativa batán" in low3
+    assert "eko" not in low3
+    assert "echo" not in low3
     assert "eka" not in low3
 
     out4 = texto_para_habla("El saldo pendiente es $3.248,04.")
@@ -82,7 +83,7 @@ def test_sintetizar_ok(monkeypatch):
             return _Resp()
 
     monkeypatch.setattr("app.services.tts.httpx.Client", _Client)
-    assert len(sintetizar_audio("Hola, soy Eco")) >= 64
+    assert len(sintetizar_audio("Hola, soy la asistente de la Cooperativa Batán")) >= 64
 
 
 def test_sintetizar_edge(monkeypatch):
