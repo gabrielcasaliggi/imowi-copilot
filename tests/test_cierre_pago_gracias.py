@@ -99,7 +99,8 @@ def test_espera_agente_cierra_si_resuelto(monkeypatch):
     )
     assert out["modo"] == "cerrado"
     assert conv.estado == "cerrado"
-    assert sent and "resuelto" in sent[0].lower()
+    assert sent and "de nada" in sent[0].lower()
+    assert "lindo día" in sent[0].lower() or "lindo dia" in sent[0].lower()
 
 
 def test_mensaje_cierre_calido():

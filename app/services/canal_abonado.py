@@ -1219,7 +1219,7 @@ def _cerrar_consulta_resuelta(
         resp = mensaje.strip()
     else:
         nom = (nombre or "").strip()
-        if not nom and (conv.abonado_id or "").strip():
+        if not nom and (getattr(conv, "abonado_id", None) or "").strip():
             abo = db.get(Abonado, conv.abonado_id)
             nom = _primer_nombre_cliente(abo)
         resp = _mensaje_cierre_calido(nom)
