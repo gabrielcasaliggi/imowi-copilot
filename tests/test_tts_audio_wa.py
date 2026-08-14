@@ -23,8 +23,9 @@ def test_texto_para_habla_marca_y_dni():
     assert ".com" not in low
     assert "documento" in low
     assert "dni" not in low
-    assert "éco" in low or "eco" in out or "ée-co" in low  # fonética TTS
+    assert "echo" in low
     assert "ekao" not in low
+    assert "ée-co" not in low
     assert "la asistente de la cooperativa batán" in low
     assert "de soporte batán" not in low
     assert "el asistente" not in low
@@ -40,7 +41,8 @@ def test_texto_para_habla_marca_y_dni():
 
     out3 = texto_para_habla("Hola, soy Eko, la asistente de la Cooperativa Batán.")
     low3 = out3.lower()
-    assert "ée-co" in low3  # acento en la E (no «Éco» → ekó)
+    assert "echo" in low3
+    assert "ée-co" not in low3
     assert "eka" not in low3
 
     out4 = texto_para_habla("El saldo pendiente es $3.248,04.")
