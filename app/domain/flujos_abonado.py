@@ -326,7 +326,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "general": [
         PasoPlaybook(
             "menu_servicio",
-            f"Hola, soy {BOT_DISPLAY_NAME}, el asistente de la Cooperativa Batán. "
+            f"Hola, soy {BOT_DISPLAY_NAME}, la asistente de la Cooperativa Batán. "
             "¿En qué te ayudo: internet, móvil IMOWI, teléfono fijo, Sensa/TV, factura o algo más?",
         ),
         PasoPlaybook(

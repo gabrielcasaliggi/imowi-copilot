@@ -62,16 +62,25 @@ def texto_para_habla(texto: str) -> str:
     for pat, rep in reemplazos:
         t = re.sub(pat, rep, t, flags=re.IGNORECASE)
 
+    # Voz TTS femenina (Elena AR): concordancia al hablar
+    t = re.sub(r"\bel asistente\b", "la asistente", t, flags=re.IGNORECASE)
+    t = re.sub(
+        r"\bsoy\s+(Eco|Eko)\s*,\s*el asistente\b",
+        r"soy \1, la asistente",
+        t,
+        flags=re.IGNORECASE,
+    )
+
     # “soy Eco/Eko, de Soporte Batán …” → asistente de la cooperativa
     t = re.sub(
         r"\bsoy\s+(Eco|Eko)\s*,\s*de\s+Soporte\s+Bat[aá]n\b",
-        r"soy \1, el asistente de la Cooperativa Batán",
+        r"soy \1, la asistente de la Cooperativa Batán",
         t,
         flags=re.IGNORECASE,
     )
     t = re.sub(
         r"\bsoy\s+(Eco|Eko)\s*,\s*de\s+Cooperativa\s+Bat[aá]n\b",
-        r"soy \1, el asistente de la Cooperativa Batán",
+        r"soy \1, la asistente de la Cooperativa Batán",
         t,
         flags=re.IGNORECASE,
     )

@@ -22,8 +22,9 @@ def test_texto_para_habla_marca_y_dni():
     assert "punto com" not in low
     assert ".com" not in low
     assert "de ene i" in low
-    assert "asistente de la cooperativa batán" in low
+    assert "la asistente de la cooperativa batán" in low
     assert "de soporte batán" not in low
+    assert "el asistente" not in low
 
 
 def test_sintetizar_deshabilitado(monkeypatch):

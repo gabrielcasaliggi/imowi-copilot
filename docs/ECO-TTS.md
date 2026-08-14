@@ -1,45 +1,51 @@
-# Eco TTS — respuesta en audio por WhatsApp (voz femenina argentina)
+# Eco TTS — voz femenina argentina (rioplatense)
 
-Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audio**.
-
-## Voz (default)
+Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audio** con:
 
 | | |
 |---|---|
-| Motor | **Microsoft Edge TTS** (`edge-tts`) |
-| Voz | **`es-AR-ElenaNeural`** — femenina, español argentino |
-| Alternativa masculina | `es-AR-TomasNeural` |
-| Offline | `TTS_ENGINE=coqui` (VITS `es/css10`, acento España; más RAM) |
+| Motor | Microsoft Edge TTS (`edge-tts`) |
+| Voz | **`es-AR-ElenaNeural`** — femenina, **es-AR** |
+| Acento | Argentino / rioplatense |
 
-Por qué no Coqui CSS10 para esto: ese modelo es español peninsular, no rioplatense.  
-XTTS fine-tune AR existe, pero pide ~4–8 GB RAM / speaker reference — el server actual no lo bancá cómodo.
+**No** se usa Coqui `css10` (español de España, tono masculino). Si escuchás esa voz, el contenedor viejo sigue vivo: hay que **recrear** (abajo).
 
-Edge TTS es liviano, rápido (menos riesgo de reintentos Meta) y suena natural en es-AR.
-
-## Flujo
-
-1. WA audio → Whisper (STT) → texto  
-2. Motor N1 genera respuesta  
-3. `texto_para_habla()` (marca, DNI, sin .com)  
-4. Edge Elena → MP3 → ffmpeg (fade + limiter + loudnorm) → OGG Opus 64k  
-5. WhatsApp `type=audio`
-
-## Levantar en el server
+## Deploy (obligatorio recreate)
 
 ```bash
 cd /opt/operations-hub
 git pull origin main
 
+# Tirar el Coqui viejo (nombre anterior) y el nuevo
+sudo docker compose -f docker-compose.tts.yml down
+sudo docker rm -f operations-hub-tts-elena-ar 2>/dev/null || true
+# por si quedó el servicio viejo sin container_name:
+sudo docker ps -a | grep -i tts || true
+
 sudo docker compose -f docker-compose.tts.yml build --no-cache
-sudo docker compose -f docker-compose.tts.yml up -d
+sudo docker compose -f docker-compose.tts.yml up -d --force-recreate
 
 curl -s http://127.0.0.1:9100/health
-# {"engine":"edge","voice":"es-AR-ElenaNeural","ready":true,...}
+# Debe decir:
+#   "voice":"es-AR-ElenaNeural"
+#   "gender":"Female"
+#   "locale":"es-AR"
+#   "ready":true
+
+# Probar audio (Elena diciendo una frase argentina):
+curl -s -X POST http://127.0.0.1:9100/synthesize \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Hola, soy Eco, la asistente de la Cooperativa Batán. ¿Cómo andás?"}' \
+  -o /tmp/elena.ogg
+# Escuchá /tmp/elena.ogg — tiene que sonar mujer argentina, no hombre de España.
+
+sudo systemctl restart operations-hub-api
 ```
 
-El contenedor necesita **salida a Internet** (HTTPS a los endpoints de Edge).
+El contenedor necesita **salida HTTPS** a Microsoft. Si `ready:false`, mirá:
+`sudo docker compose -f docker-compose.tts.yml logs --tail=80`
 
-En `/opt/operations-hub/.env`:
+## .env del API
 
 ```env
 TTS_ENABLED=true
@@ -47,26 +53,19 @@ TTS_URL=http://127.0.0.1:9100
 TTS_TIMEOUT_S=45
 ```
 
-Opcional (compose / env del contenedor):
+No hace falta `TTS_ENGINE` / `TTS_MODEL` (Coqui quedó fuera).
 
-```env
-TTS_ENGINE=edge
-TTS_VOICE=es-AR-ElenaNeural
-# TTS_RATE=+5%
-# TTS_PITCH=-2Hz
-```
+## Flujo
 
-```bash
-sudo systemctl restart operations-hub-api
-```
-
-**RAM:** Edge ~poco (compose `mem_limit: 1g`). Con 6 GB en el host sobra margen para API + Whisper + Next.  
-XTTS fine-tune AR local queda viable más adelante si preferís offline 100 %.
+1. WA audio → Whisper → texto  
+2. N1 genera respuesta  
+3. `texto_para_habla()`  
+4. Edge Elena → MP3 → ffmpeg → OGG Opus  
+5. WhatsApp `type=audio`
 
 ## Notas
 
-- Solo WhatsApp; Inbox de agentes sigue en texto.  
-- Mensajes con link / QR → texto.  
-- Avisos operativos (CSAT gracias, «ya derivado») **siempre en texto**; no TTS.  
-- El webhook WA ACK’ea a Meta en background (evita reintentos mientras sintetiza).  
-- Coqui / XTTS AR quedan como upgrade si más adelante hay GPU o más RAM.
+- Solo WhatsApp; inbox agentes en texto.  
+- Avisos operativos (CSAT / «ya derivado») en texto, sin TTS.  
+- Webhook ACK en background.  
+- Con 6 GB RAM en el host, Edge deja margen de sobra; XTTS AR local queda como upgrade offline futuro.
