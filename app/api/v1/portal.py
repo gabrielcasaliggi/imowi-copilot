@@ -24,6 +24,7 @@ from app.config import (
     WHATSAPP_DEFAULT_ORG_SLUG,
     es_produccion,
 )
+from app.domain.flujos_abonado import texto_menu_consulta
 from app.estate import canal_repo as crepo
 from app.estate import repository as repo
 from app.estate.database import get_db
@@ -39,7 +40,6 @@ from app.estate.security import (
     valid_pin,
     verify_pin,
 )
-from app.domain.flujos_abonado import texto_menu_consulta
 from app.services import auth_security as aseg
 from app.services import email as email_svc
 from app.services.billtrack import lookup_abonado_por_dni

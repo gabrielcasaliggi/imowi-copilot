@@ -308,11 +308,12 @@ def test_reiteracion_temprana_no_ticket():
 
 def test_padron_solo_movil_no_diagnostica_internet():
     """Si el padrón no tiene internet fijo, no ofrecer fibra/Wi‑Fi ni asumir corte."""
+    from sqlalchemy import select
+
     from app.estate import canal_repo as crepo
     from app.estate.database import get_session_factory
     from app.estate.models import Abonado, ConversacionCanal, Organization
     from app.services.canal_abonado import procesar_mensaje_entrante
-    from sqlalchemy import select
 
     tel = "5492235599991"
     Session = get_session_factory()
@@ -439,9 +440,10 @@ def test_wifi_parcial_no_cierra_resuelto():
 
 def test_inbox_pide_agente_ya_no_ticket_en_primer_turno():
     """Regresión del comportamiento anterior: 1er pedido humano ≠ ticket."""
+    from sqlalchemy import select
+
     from app.estate.database import get_session_factory
     from app.estate.models import ConversacionCanal
-    from sqlalchemy import select
 
     tel = "5492235560199"
     Session = get_session_factory()
