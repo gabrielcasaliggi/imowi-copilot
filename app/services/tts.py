@@ -124,9 +124,10 @@ def texto_para_habla(texto: str) -> str:
         (r"\bQR\b", "código QR"),
         (r"\bOV\b", "oficina virtual"),
         (r"\bN\.?\s*º\s*de\s*socio\b", "número de socio"),
-        # Nombre del bot: "Eko"/"Eco" lo lee como "Ekao"
-        (r"\bEko\b", "Éco"),
-        (r"\bEco\b", "Éco"),
+        # Nombre del bot: "Eko"/"Eco" → acento en la E (Ée-co), no en la O
+        (r"\bEko\b", "Ée-co"),
+        (r"\bEco\b", "Ée-co"),
+        (r"\bÉco\b", "Ée-co"),
     ]
     for pat, rep in reemplazos:
         t = re.sub(pat, rep, t, flags=re.IGNORECASE)
@@ -134,14 +135,14 @@ def texto_para_habla(texto: str) -> str:
     # Voz femenina Elena: concordancia
     t = re.sub(r"\bel asistente\b", "la asistente", t, flags=re.IGNORECASE)
     t = re.sub(
-        r"\bsoy\s+Éco\s*,\s*de\s+Soporte\s+Bat[aá]n\b",
-        "soy Éco, la asistente de la Cooperativa Batán",
+        r"\bsoy\s+Ée-?co\s*,\s*de\s+Soporte\s+Bat[aá]n\b",
+        "soy Ée-co, la asistente de la Cooperativa Batán",
         t,
         flags=re.IGNORECASE,
     )
     t = re.sub(
-        r"\bsoy\s+Éco\s*,\s*de\s+Cooperativa\s+Bat[aá]n\b",
-        "soy Éco, la asistente de la Cooperativa Batán",
+        r"\bsoy\s+Ée-?co\s*,\s*de\s+Cooperativa\s+Bat[aá]n\b",
+        "soy Ée-co, la asistente de la Cooperativa Batán",
         t,
         flags=re.IGNORECASE,
     )
