@@ -23,15 +23,20 @@ Coqui VITS español + Opus 64k + loudnorm/limiter suaviza picos y mejora natural
 cd /opt/operations-hub
 git pull origin main
 
-# Rebuild (cambia la imagen: PyTorch + modelo)
-sudo docker compose -f docker-compose.tts.yml up -d --build
+# Parar el loop si está reiniciando
+sudo docker compose -f docker-compose.tts.yml stop
 
-# Primera vez descarga el modelo (~unos minutos). Ver:
-sudo docker compose -f docker-compose.tts.yml logs -f --tail=100
+# Rebuild CON cache limpia (instala torch CPU)
+sudo docker compose -f docker-compose.tts.yml build --no-cache
+sudo docker compose -f docker-compose.tts.yml up -d
+
+sudo docker compose -f docker-compose.tts.yml logs -f --tail=80
+# Esperar: "Coqui listo" / health ready=true
 
 curl -s http://127.0.0.1:9100/health
-# {"ok":true,"engine":"coqui","model":"tts_models/es/css10/vits","ready":true,...}
 ```
+
+Si ves `PyTorch was not found`, el build viejo quedó cacheado: repetí `build --no-cache`.
 
 En `/opt/operations-hub/.env`:
 

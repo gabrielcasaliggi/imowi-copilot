@@ -40,6 +40,15 @@ def _load_tts():
     os.environ.setdefault("TTS_HOME", str(MODEL_DIR))
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
+    try:
+        import torch  # noqa: F401
+        import torchaudio  # noqa: F401
+    except ImportError as e:
+        raise RuntimeError(
+            "Falta PyTorch/Torchaudio en la imagen. Rebuild: "
+            "docker compose -f docker-compose.tts.yml build --no-cache"
+        ) from e
+
     from TTS.api import TTS
 
     logger.info("Cargando Coqui model=%s (puede demorar la 1ª vez)", TTS_MODEL)
@@ -59,7 +68,14 @@ def _load_tts():
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _tts
-    _tts = _load_tts()
+    try:
+        _tts = _load_tts()
+    except Exception:
+        logger.exception(
+            "TTS no pudo iniciar (revisá torch en la imagen). "
+            "El proceso queda arriba con ready=false para no spamear restart."
+        )
+        _tts = None
     yield
     _tts = None
 

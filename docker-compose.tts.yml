@@ -1,5 +1,6 @@
 # Coqui TTS (español VITS) — calidad superior a Piper
 # Uso: docker compose -f docker-compose.tts.yml up -d --build
+# Si falla por PyTorch:  docker compose -f docker-compose.tts.yml build --no-cache
 # API: POST http://localhost:9100/synthesize  {"text":"..."} → audio/ogg
 #
 # Requisitos server: ~2–4 GB RAM libres para el modelo. Primera subida descarga pesos.
@@ -17,8 +18,8 @@ services:
       COQUI_TOS_AGREED: "1"
     volumes:
       - tts-models:/models
-    restart: unless-stopped
-    # Evitar OOM killer agresivo en VPS chicos
+    # on-failure evita loop infinito si el build quedó mal
+    restart: on-failure
     mem_limit: 4g
 
 volumes:
