@@ -545,11 +545,17 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "conexión",
             "conexion",
             "el problema",
+            "un problema",
+            "tengo un problema",
+            "problema con",
+            "el servicio",
             "móvil",
             "movil",
             "imowi",
             "después pago",
             "despues pago",
+            "pago después",
+            "pago despues",
             "más tarde",
             "mas tarde",
             "ahora no",
@@ -563,13 +569,46 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
     # "no tengo internet" menciona internet pero no elige diagnóstico
     if "internet" in t and not niega_producto_internet(t):
         tecnico = True
+    pospone_pago = any(
+        k in t
+        for k in (
+            "después pago",
+            "despues pago",
+            "pago después",
+            "pago despues",
+            "la pago después",
+            "la pago despues",
+            "pago más tarde",
+            "pago mas tarde",
+            "más tarde",
+            "mas tarde",
+            "ahora no",
+            "ahora tengo",
+            "ahora el problema",
+            "después la factura",
+            "despues la factura",
+            "la factura después",
+            "la factura despues",
+        )
+    )
     if paga and not tecnico:
         return "pago"
     if tecnico and not paga:
         return "tecnico"
     if paga and tecnico:
-        # "pagar después y seguí con internet" → técnico; "primero pagar" → pago
-        if any(k in t for k in ("después pago", "despues pago", "más tarde", "mas tarde", "ahora no")):
+        # "la pago después / ahora el servicio" → técnico; "primero pagar" → pago
+        if pospone_pago or any(
+            k in t
+            for k in (
+                "problema",
+                "diagnóstico",
+                "diagnostico",
+                "seguí",
+                "segui",
+                "seguir",
+                "el servicio",
+            )
+        ):
             return "tecnico"
         if any(k in t for k in ("primero", "antes", "pagar y", "pago y")):
             return "pago"
@@ -647,14 +686,14 @@ def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
     m = parse_monto(getattr(abonado, "deuda_monto", None))
     monto = formatear_monto_ars(m) if m is not None else str(abonado.deuda_monto or "0")
     if (intencion_tecnica or "").startswith("movil"):
-        tema = "el móvil"
+        tema = "del móvil"
     elif (intencion_tecnica or "").startswith("wifi"):
-        tema = "el WiFi"
+        tema = "del WiFi"
     else:
-        tema = "internet"
+        tema = "de internet"
     return (
         f"Antes de seguir: en tu cuenta figura un saldo pendiente de ${monto}. "
-        f"¿Querés que te ayude primero a pagar, o seguimos con el diagnóstico de {tema}?"
+        f"¿Querés que te ayude primero a pagar, o seguimos con el diagnóstico {tema}?"
     )
 
 
