@@ -1,17 +1,25 @@
-# Piper TTS — backend nativo apunta a localhost:9100
+# Coqui TTS (español VITS) — calidad superior a Piper
 # Uso: docker compose -f docker-compose.tts.yml up -d --build
+# API: POST http://localhost:9100/synthesize  {"text":"..."} → audio/ogg
+#
+# Requisitos server: ~2–4 GB RAM libres para el modelo. Primera subida descarga pesos.
 services:
   tts:
     build: ./tts
     ports:
       - "9100:9100"
     environment:
-      TTS_VOICE: ${TTS_VOICE:-es_MX-claude-high}
+      TTS_MODEL: ${TTS_MODEL:-tts_models/es/css10/vits}
       TTS_MODEL_DIR: /models
+      TTS_HOME: /models
       TTS_MAX_CHARS: ${TTS_MAX_CHARS:-800}
+      TTS_OPUS_BITRATE: ${TTS_OPUS_BITRATE:-64k}
+      COQUI_TOS_AGREED: "1"
     volumes:
       - tts-models:/models
     restart: unless-stopped
+    # Evitar OOM killer agresivo en VPS chicos
+    mem_limit: 4g
 
 volumes:
   tts-models:

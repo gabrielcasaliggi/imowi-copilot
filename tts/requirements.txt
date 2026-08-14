@@ -1,4 +1,6 @@
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
-piper-tts>=1.2.0
-onnxruntime>=1.16.0
+python-multipart==0.0.20
+# Coqui TTS (español VITS). Python 3.10–3.11 recomendado.
+coqui-tts>=0.24.0
+numpy>=1.22.0,<2.1

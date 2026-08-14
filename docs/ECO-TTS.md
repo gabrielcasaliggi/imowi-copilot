@@ -1,45 +1,66 @@
-# Eco TTS — respuesta en audio por WhatsApp
+# Eco TTS — respuesta en audio por WhatsApp (Coqui VITS)
 
-Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audio** (Piper local). Si TTS falla o el texto no es apto (URLs, mensajes muy largos), cae a texto.
+Cuando el abonado manda una **nota de voz** por WhatsApp, Eco responde en **audio**.  
+Motor actual: **Coqui TTS** modelo `tts_models/es/css10/vits` (español, natural en CPU).  
+Si TTS falla o el texto no es apto (URLs, muy largo), cae a texto.
+
+## Por qué Coqui (y no Piper)
+
+Piper era liviano pero sonaba robótico y, con Opus 24k “voip”, **pegaba el techo de volumen (0 dB)** → voz “cortada”.  
+Coqui VITS español + Opus 64k + loudnorm/limiter suaviza picos y mejora naturalidad.
 
 ## Flujo
 
 1. WA audio → Whisper (STT) → texto  
 2. Motor N1 genera respuesta  
-3. Si el turno entró como audio → normalización hablada → Piper (TTS) → OGG Opus → WhatsApp `type=audio`  
-4. Fallback: texto
+3. `texto_para_habla()` (marca, DNI, sin .com)  
+4. Coqui → WAV → ffmpeg (fade + limiter + loudnorm) → OGG Opus 64k  
+5. WhatsApp `type=audio`
 
-## Calidad de voz
-
-- Piper con `length_scale` un poco más lento (menos “robot apurado”).
-- Antes de sintetizar, `texto_para_habla()`:
-  - “soy Eco, de Soporte Batán…” → “soy Eco, el asistente de la Cooperativa Batán”
-  - `DNI` → “de ene i”; sin dominios `.com`/`.coop`
-  - Mensajes de audio acotados (~420 caracteres)
-
-## DNI por audio
-
-El STT a menudo manda `24,914,867`, `24 914 867` o “dos cuatro nueve…”. El extractor acepta formato AR, dígitos sueltos y palabras numéricas.
-
-## Levantar Piper
+## Levantar en el server
 
 ```bash
-docker compose -f docker-compose.tts.yml up -d --build
-curl -s http://localhost:9100/health
+cd /opt/operations-hub
+git pull origin main
+
+# Rebuild (cambia la imagen: PyTorch + modelo)
+sudo docker compose -f docker-compose.tts.yml up -d --build
+
+# Primera vez descarga el modelo (~unos minutos). Ver:
+sudo docker compose -f docker-compose.tts.yml logs -f --tail=100
+
+curl -s http://127.0.0.1:9100/health
+# {"ok":true,"engine":"coqui","model":"tts_models/es/css10/vits","ready":true,...}
 ```
 
-## Config API (`.env` del hub)
+En `/opt/operations-hub/.env`:
 
 ```env
 TTS_ENABLED=true
-TTS_URL=http://localhost:9100
-TTS_TIMEOUT_S=45
+TTS_URL=http://127.0.0.1:9100
+TTS_TIMEOUT_S=90
 ```
 
-Reiniciar `operations-hub-api` tras editar `.env`. Si cambió `tts/app.py`, rebuild del contenedor.
+```bash
+sudo systemctl restart operations-hub-api
+```
+
+**RAM:** reservar ~2–4 GB para el contenedor (`mem_limit: 4g` en el compose).
+
+## Calidad / encode
+
+| Antes (Piper) | Ahora (Coqui) |
+|---------------|---------------|
+| Opus 24k voip | Opus **64k** audio |
+| Picos a 0 dB | limiter + loudnorm −1.5 dB TP |
+| Voz robótica | VITS español CSS10 |
+
+## DNI por audio
+
+Sigue valiendo formato `24,914,867`, dígitos sueltos y palabras (“dos cuatro…”).
 
 ## Notas
 
-- Solo WhatsApp; Telegram sigue en texto.
-- Mensajes con link o muy largos → texto (p. ej. QR de pago).
-- Agentes en Inbox siguen respondiendo en texto.
+- Solo WhatsApp; Inbox de agentes sigue en texto.  
+- Mensajes con link / QR → texto.  
+- XTTS (clon de voz) queda como upgrade futuro: mismo puerto, otro `TTS_MODEL`.

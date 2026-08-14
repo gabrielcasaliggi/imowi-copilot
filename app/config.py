@@ -236,9 +236,9 @@ TTS_ENABLED = os.getenv("TTS_ENABLED", "false").strip().lower() in (
     "on",
 )
 try:
-    TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "45") or "45")
+    TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "90") or "90")
 except ValueError:
-    TTS_TIMEOUT_S = 45.0
+    TTS_TIMEOUT_S = 90.0
 
 ESTADOS_TICKET_VALIDOS = ("Abierto", "En Revisión", "Cerrado")
 

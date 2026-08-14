@@ -1,4 +1,7 @@
-"""Servicio HTTP: texto → audio (Piper TTS) en OGG Opus para WhatsApp."""
+"""Servicio HTTP: texto → audio con Coqui TTS (español VITS) → OGG Opus.
+
+Calidad superior a Piper. Misma API: POST /synthesize → audio/ogg
+"""
 
 from __future__ import annotations
 
@@ -6,10 +9,11 @@ import logging
 import os
 import subprocess
 import tempfile
-import urllib.request
+import wave
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -18,67 +22,49 @@ logger = logging.getLogger("tts")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 MODEL_DIR = Path(os.getenv("TTS_MODEL_DIR", "/models")).resolve()
-# Voz española (MX) — buena calidad en CPU. Override con TTS_VOICE.
-TTS_VOICE = os.getenv("TTS_VOICE", "es_MX-claude-high").strip() or "es_MX-claude-high"
+# Español VITS (CSS10) — natural en CPU. Alt: tts_models/multilingual/multi-dataset/xtts_v2 (más pesado)
+TTS_MODEL = (
+    os.getenv("TTS_MODEL", "tts_models/es/css10/vits").strip()
+    or "tts_models/es/css10/vits"
+)
 MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "800") or "800")
+OPUS_BITRATE = os.getenv("TTS_OPUS_BITRATE", "64k").strip() or "64k"
 
-# Rel paths bajo rhasspy/piper-voices
-_VOICE_HF: dict[str, tuple[str, str]] = {
-    "es_MX-claude-high": (
-        "es/es_MX/claude/high/es_MX-claude-high.onnx",
-        "es/es_MX/claude/high/es_MX-claude-high.onnx.json",
-    ),
-    "es_MX-claude-medium": (
-        "es/es_MX/claude/medium/es_MX-claude-medium.onnx",
-        "es/es_MX/claude/medium/es_MX-claude-medium.onnx.json",
-    ),
-    "es_ES-mls_10246-low": (
-        "es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx",
-        "es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json",
-    ),
-}
-
-_voice = None
+_tts = None
+_sample_rate = 22050
 
 
-def _hf_url(rel: str) -> str:
-    return f"https://huggingface.co/rhasspy/piper-voices/resolve/main/{rel}"
-
-
-def _ensure_voice_files(name: str) -> tuple[Path, Path]:
-    if name not in _VOICE_HF:
-        raise RuntimeError(f"Voz TTS desconocida: {name}. Opciones: {sorted(_VOICE_HF)}")
+def _load_tts():
+    global _sample_rate
+    os.environ.setdefault("COQUI_TOS_AGREED", "1")
+    os.environ.setdefault("TTS_HOME", str(MODEL_DIR))
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    onnx_rel, json_rel = _VOICE_HF[name]
-    onnx_path = MODEL_DIR / Path(onnx_rel).name
-    json_path = MODEL_DIR / Path(json_rel).name
-    for path, rel in ((onnx_path, onnx_rel), (json_path, json_rel)):
-        if path.exists() and path.stat().st_size > 1000:
-            continue
-        url = _hf_url(rel)
-        logger.info("Descargando voz Piper %s → %s", name, path.name)
-        urllib.request.urlretrieve(url, path)  # noqa: S310 — URL fija HF
-    return onnx_path, json_path
 
+    from TTS.api import TTS
 
-def _load_voice():
-    from piper import PiperVoice
-
-    onnx_path, _json_path = _ensure_voice_files(TTS_VOICE)
-    logger.info("Cargando Piper voice=%s path=%s", TTS_VOICE, onnx_path)
-    return PiperVoice.load(str(onnx_path))
+    logger.info("Cargando Coqui model=%s (puede demorar la 1ª vez)", TTS_MODEL)
+    engine = TTS(model_name=TTS_MODEL, progress_bar=False)
+    # sample rate del modelo
+    try:
+        _sample_rate = int(engine.synthesizer.output_sample_rate)
+    except Exception:
+        try:
+            _sample_rate = int(getattr(engine, "output_sample_rate", None) or 22050)
+        except Exception:
+            _sample_rate = 22050
+    logger.info("Coqui listo sr=%s", _sample_rate)
+    return engine
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _voice
-    _voice = _load_voice()
-    logger.info("TTS Piper listo voice=%s", TTS_VOICE)
+    global _tts
+    _tts = _load_tts()
     yield
-    _voice = None
+    _tts = None
 
 
-app = FastAPI(title="Piper TTS", lifespan=lifespan)
+app = FastAPI(title="Coqui TTS (es)", lifespan=lifespan)
 
 
 class SynthIn(BaseModel):
@@ -87,60 +73,97 @@ class SynthIn(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "voice": TTS_VOICE, "ready": _voice is not None}
+    return {
+        "ok": True,
+        "engine": "coqui",
+        "model": TTS_MODEL,
+        "ready": _tts is not None,
+        "sample_rate": _sample_rate,
+    }
+
+
+def _synthesize_wav_file(text: str, wav_path: Path) -> None:
+    assert _tts is not None
+    # API: lista de floats o escribe a archivo
+    try:
+        _tts.tts_to_file(text=text, file_path=str(wav_path))
+        if wav_path.exists() and wav_path.stat().st_size > 1000:
+            return
+    except TypeError:
+        # algunas versiones no aceptan file_path igual
+        pass
+
+    wav = _tts.tts(text=text)
+    arr = np.asarray(wav, dtype=np.float32)
+    if arr.ndim > 1:
+        arr = arr.reshape(-1)
+    # clip suave antes de int16
+    peak = float(np.max(np.abs(arr))) if arr.size else 0.0
+    if peak > 0.99:
+        arr = arr * (0.90 / peak)
+    elif peak > 0:
+        arr = arr * min(1.0, 0.90 / peak) if peak > 0.90 else arr
+    pcm = np.clip(arr * 32767.0, -32768, 32767).astype(np.int16)
+    with wave.open(str(wav_path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(_sample_rate)
+        wf.writeframes(pcm.tobytes())
 
 
 def _wav_to_ogg_opus(wav_path: Path, ogg_path: Path) -> None:
+    """Anti-clip + fade + loudnorm + Opus de calidad (no voip 24k)."""
+    # Duración para fade-out
+    dur = 0.0
+    try:
+        with wave.open(str(wav_path), "rb") as wf:
+            frames = wf.getnframes()
+            rate = wf.getframerate() or 1
+            dur = frames / float(rate)
+    except Exception:
+        dur = 0.0
+    fade_out_st = max(0.0, dur - 0.12) if dur > 0.25 else 0.0
+
+    af_parts = [
+        "apad=pad_dur=0.18",
+        "afade=t=in:st=0:d=0.06",
+    ]
+    if fade_out_st > 0:
+        af_parts.append(f"afade=t=out:st={fade_out_st:.3f}:d=0.10")
+    # Limitar picos (el Piper viejo llegaba a 0 dB y “cortaba”)
+    af_parts.append("alimiter=limit=0.95:level=false")
+    af_parts.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+    af = ",".join(af_parts)
+
     cmd = [
         "ffmpeg",
         "-y",
         "-i",
         str(wav_path),
+        "-af",
+        af,
         "-c:a",
         "libopus",
         "-b:a",
-        "24k",
+        OPUS_BITRATE,
         "-vbr",
         "on",
         "-application",
-        "voip",
+        "audio",
+        "-ar",
+        "48000",
+        "-ac",
+        "1",
         str(ogg_path),
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg falló: {(proc.stderr or '')[-400:]}")
-
-
-def _synthesize_wav(text: str, wav_path: Path) -> None:
-    import wave
-
-    with wave.open(str(wav_path), "wb") as wav_file:
-        # Un poco más pausado = menos “robot apurado”
-        syn_cfg = None
-        try:
-            from piper import SynthesisConfig
-
-            syn_cfg = SynthesisConfig(
-                length_scale=1.12,
-                noise_scale=0.5,
-                noise_w_scale=0.7,
-                normalize_audio=True,
-            )
-        except Exception:
-            syn_cfg = None
-
-        if hasattr(_voice, "synthesize_wav"):
-            if syn_cfg is not None:
-                _voice.synthesize_wav(text, wav_file, syn_config=syn_cfg)
-            else:
-                _voice.synthesize_wav(text, wav_file)
-        else:
-            _voice.synthesize(text, wav_file)
+        raise RuntimeError(f"ffmpeg falló: {(proc.stderr or '')[-500:]}")
 
 
 @app.post("/synthesize")
 def synthesize(body: SynthIn):
-    if _voice is None:
+    if _tts is None:
         raise HTTPException(503, "TTS no listo")
     text = (body.text or "").strip()
     if not text:
@@ -153,7 +176,7 @@ def synthesize(body: SynthIn):
             tmp_path = Path(tmp)
             wav_path = tmp_path / "out.wav"
             ogg_path = tmp_path / "out.ogg"
-            _synthesize_wav(text, wav_path)
+            _synthesize_wav_file(text, wav_path)
             _wav_to_ogg_opus(wav_path, ogg_path)
             data = ogg_path.read_bytes()
     except Exception as e:
