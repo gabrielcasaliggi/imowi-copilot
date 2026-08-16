@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Botmaker RAG chunk",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "content",
+    "metadata"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "collection",
+        "status",
+        "rag_ready",
+        "privacy",
+        "language",
+        "version"
+      ],
+      "properties": {
+        "collection": {
+          "enum": [
+            "01_soporte_internet",
+            "02_facturacion_pagos",
+            "03_comercial_administracion",
+            "04_servicios_adicionales",
+            "05_operacion_escalamiento"
+          ]
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved"
+          ]
+        },
+        "rag_ready": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

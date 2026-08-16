@@ -343,9 +343,10 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "1) Reiniciar: desenchufar ONT y router 30s. Encender primero la ONT, esperar "
                 "   luz PON verde fija (~1 min), luego encender router.\n"
                 "2) Verificar luces ONT: PON=verde fijo (enlace OK), LOS=apagada (sin alarma). "
-                "   Si LOS está en rojo → corte de fibra en algún punto del tramo.\n"
-                "3) Cable de fibra: verificar que no esté doblado, aplastado por muebles ni "
-                "   desenchufado del conector SC/APC (verde) en la ONT.\n"
+                "   Si LOS está en rojo → alarma óptica: NO manipular el cable amarillo; "
+                "   derivar N2 (visita). Completar preguntas no equivale a resolver.\n"
+                "3) Cables de energía y red (UTP) firmes, sin daño visible. "
+                "   No desconectar ni doblar la fibra.\n"
                 "4) Probar cable vs WiFi: si por cable al router anda, el problema es WiFi.\n"
                 "5) Si nada de lo anterior resuelve → N2 (posible corte de fibra en la acometida "
                 "   o falla en el splitter/OLT de la central). Registrar dirección y síntoma.\n"
@@ -471,6 +472,23 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "7) Si por cable da <50% del plan → escalar N2 indicando plan y resultado."
             ),
         ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Internet — cortes o intermitencia",
+            categoria="Internet",
+            contenido=(
+                "Cuando el servicio se cae y vuelve (no es un corte total):\n"
+                "1) Consultar incidente masivo de zona antes de pedir pruebas.\n"
+                "2) ¿Afecta a uno, varios o todos los dispositivos?\n"
+                "3) ¿Ocurre por WiFi, por cable o por ambos? Si solo WiFi y el cable anda → playbook WiFi.\n"
+                "4) Frecuencia: cada cuánto se corta y cuánto tarda en volver.\n"
+                "5) Luces durante el corte: ¿cambia PON/LOS/DSL/WAN?\n"
+                "6) Si no hay alarma física ni incidente: reinicio controlado y prueba de estabilidad.\n"
+                "7) Si sigue inestable → N2 con frecuencia, luces y acciones N1. "
+                "No repetir el diagnóstico ya hecho.\n"
+                "Playbook: internet_intermitente."
+            ),
+        ),
 
         # ==================== WIFI ====================
         KnowledgeArticle(
@@ -489,6 +507,21 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "   dejar WiFi para celulares/tablets.\n"
                 "7) Si muchas habitaciones sin señal → sugerir access point o mesh (comercial).\n"
                 "La cooperativa puede ofrecer instalación de extensores (consultar comercial)."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="WiFi — cambiar clave o nombre de red",
+            categoria="Internet",
+            contenido=(
+                "Cambio de contraseña o SSID (no es falla de cobertura):\n"
+                "1) Confirmar si quieren cambiar clave, nombre de red o ambos.\n"
+                "2) Acceso: etiqueta de fábrica debajo del módem/router, o gestión remota autorizada. "
+                "   Nunca pedir ni registrar la clave actual en el chat.\n"
+                "3) Usar el flujo del modelo; no improvisar parámetros.\n"
+                "4) Avisar que todos los dispositivos deberán reconectarse.\n"
+                "5) Validar con un dispositivo. Si no hay acceso al equipo → derivar N2.\n"
+                "Playbook: cambio_clave_wifi."
             ),
         ),
 
@@ -726,6 +759,44 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "2) Si es un cargo que no se puede explicar en N1 → derivar a agente con "
                 "   acceso al sistema de facturación.\n"
                 "3) Siempre ser empático: 'Entiendo la preocupación, vamos a revisarlo'."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Facturación — descargar factura o talón",
+            categoria="Facturación",
+            contenido=(
+                "Descarga de factura, boleta o talón/cupón:\n"
+                "1) Confirmar si necesita factura, boleta o talón para pagar.\n"
+                "2) Pedir período si hay varios.\n"
+                "3) Autogestión: https://ov.batan.coop — no inventar adjuntos en el chat.\n"
+                "4) Si no puede autenticarse → pedir DNI/N.º de socio y derivar.\n"
+                "Playbook: facturacion_descarga."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Facturación — informar un pago",
+            categoria="Facturación",
+            contenido=(
+                "Si el abonado quiere avisar que pagó:\n"
+                "1) NO es necesario avisar: la imputación y la rehabilitación son automáticas.\n"
+                "2) No afirmar acreditación sin consultar el sistema.\n"
+                "3) Aviso opcional en Mi Cuenta ov.batan.coop.\n"
+                "4) Si pagó hace varias horas y no figura → derivar N2 con medio y fecha.\n"
+                "Playbook: facturacion_informar_pago."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Facturación — estado de cuenta",
+            categoria="Facturación",
+            contenido=(
+                "Consulta de saldo, vencimiento o estado de factura:\n"
+                "1) Mostrar solo el dato del padrón/BillTrack; no inventar montos.\n"
+                "2) Identificado: usar deuda_monto. Invitado: pedir DNI.\n"
+                "3) Si disputa el saldo → playbook facturacion_reclamo / derivar.\n"
+                "Playbook: facturacion_estado_cuenta."
             ),
         ),
 

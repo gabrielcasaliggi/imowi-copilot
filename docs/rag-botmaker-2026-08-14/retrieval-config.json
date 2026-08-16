@@ -1,0 +1,13 @@
+{
+  "model": "BAAI/bge-m3",
+  "model_revision": "local_cached",
+  "offline": true,
+  "device": "cpu",
+  "dimensions": 1024,
+  "dtype": "float32",
+  "normalized": true,
+  "similarity": "cosine_or_dot_product",
+  "max_sequence_length": 1024,
+  "text_template": "{title}\\n{content}",
+  "chunk_count": 301
+}

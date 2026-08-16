@@ -1,0 +1,5 @@
+{"index":0,"id":"05_operacion_escalamiento:intent:hablar_agente","title":"Solicitud directa de agente","collection":"05_operacion_escalamiento"}
+{"index":1,"id":"05_operacion_escalamiento:policy:contrato-operativo-n1","title":"Contrato operativo propuesto para N1","collection":"05_operacion_escalamiento"}
+{"index":2,"id":"05_operacion_escalamiento:policy:handoff-n2","title":"Handoff contextual a N2","collection":"05_operacion_escalamiento"}
+{"index":3,"id":"05_operacion_escalamiento:policy:limites-seguridad","title":"Límites de seguridad N1","collection":"05_operacion_escalamiento"}
+{"index":4,"id":"05_operacion_escalamiento:policy:validacion-y-metricas","title":"Validación y métricas propuestas","collection":"05_operacion_escalamiento"}

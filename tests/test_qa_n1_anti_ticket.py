@@ -235,6 +235,16 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert any("BAI" in c or "puerto AZUL" in c for c in by_title.values())
     assert "100M" in by_title["Planes internet Ecolan — vigentes"]
     assert "600M" in by_title["Planes internet Ecolan — vigentes"]
+    ftth = by_title["Internet FTTH (fibra óptica) — sin servicio"]
+    assert "NO manipular" in ftth or "no manipular" in ftth.lower()
+    assert "LOS" in ftth
+    assert "Internet — cortes o intermitencia" in by_title
+    assert "internet_intermitente" in by_title["Internet — cortes o intermitencia"]
+    assert "WiFi — cambiar clave o nombre de red" in by_title
+    assert "cambio_clave_wifi" in by_title["WiFi — cambiar clave o nombre de red"]
+    assert "Facturación — descargar factura o talón" in by_title
+    assert "ov.batan.coop" in by_title["Facturación — informar un pago"]
+    assert "facturacion_estado_cuenta" in by_title["Facturación — estado de cuenta"]
 
 
 def test_playbooks_imowi_apn_y_autogestion_batan():
@@ -264,6 +274,74 @@ def test_playbooks_menu_y_portal_mencionan_servicios():
     portal = PLAYBOOKS["portal_tramites"][0].pregunta.lower()
     assert "ov.batan.coop" in portal
     assert any(p.id == "cable_wan_bai" for p in PLAYBOOKS["internet_radio"])
+
+
+def test_playbooks_botmaker_intermitente_clave_wifi_y_los():
+    from app.domain.flujos_abonado import PLAYBOOKS, tag_para_intencion
+    from app.services.diagnostico_n1 import es_intencion_diagnostico
+
+    assert clasificar_intencion("se me cae el internet a cada rato") == "internet_intermitente"
+    assert clasificar_intencion("el servicio va y viene, es intermitente") == "internet_intermitente"
+    assert clasificar_intencion("quiero cambiar la clave del wifi") == "cambio_clave_wifi"
+    assert clasificar_intencion("cambiar el nombre del wifi") == "cambio_clave_wifi"
+    assert clasificar_intencion("no llega wifi al fondo") == "wifi"
+    assert clasificar_intencion("cómo va mi reclamo técnico") == "estado_reclamo"
+    assert clasificar_intencion("se me corta la fibra") == "internet_ftth"
+
+    inter = PLAYBOOKS["internet_intermitente"]
+    assert inter[0].id == "alcance_cortes"
+    assert any(p.id == "frecuencia_cortes" for p in inter)
+    assert any(p.id == "turno_campo_intermitente" for p in inter)
+    assert tag_para_intencion("internet_intermitente") == "[TEC_INTERMITENCIA]"
+    assert es_intencion_diagnostico("internet_intermitente") is True
+
+    clave = PLAYBOOKS["cambio_clave_wifi"]
+    assert clave[0].id == "cambio_clave_wifi_detalle"
+    assert any("etiqueta" in p.pregunta.lower() for p in clave)
+    assert es_intencion_diagnostico("cambio_clave_wifi") is True
+
+    cable = next(p.pregunta for p in PLAYBOOKS["internet_ftth"] if p.id == "cable_fibra")
+    assert "sin tocar" in cable.lower() or "sin desconectar" in cable.lower()
+    assert "amarillo" in cable.lower()
+    radio = next(p.pregunta for p in PLAYBOOKS["internet_radio"] if p.id == "cable_wan_bai")
+    assert "antena" in radio.lower()
+    assert any(p.id == "validacion_navegacion_adsl" for p in PLAYBOOKS["internet_adsl"])
+    assert any(p.id == "medio_prueba" for p in PLAYBOOKS["internet_lento"])
+    assert any(p.id == "conexion_cableada" for p in PLAYBOOKS["wifi"])
+    assert PLAYBOOKS["estado_reclamo"][0].id == "estado_reclamo_detalle"
+
+
+def test_playbooks_facturacion_botmaker_desglose():
+    from app.domain.flujos_abonado import PLAYBOOKS, intencion_es_facturacion, tag_para_intencion
+    from app.services.diagnostico_n1 import es_intencion_diagnostico
+    from app.services.outages import intencion_bloquea_outage
+
+    assert clasificar_intencion("cómo pago la factura") == "facturacion_pago"
+    assert clasificar_intencion("quiero descargar el talón de pago") == "facturacion_descarga"
+    assert clasificar_intencion("ya pagué y no figura el pago") == "facturacion_informar_pago"
+    assert clasificar_intencion("mandame la factura por mail") == "facturacion_factura"
+    assert clasificar_intencion("cuánto debo, estado de cuenta") == "facturacion_estado_cuenta"
+    assert clasificar_intencion("me cobraron de más este mes") == "facturacion_reclamo"
+    assert clasificar_intencion("pagué y sigue cortado el servicio") == "reactivacion_pago"
+    assert clasificar_intencion("Me cortaron por falta de pago, como pago") == "corte_deuda"
+    # Dos motivos de factura → enrutador
+    assert clasificar_intencion(
+        "Queria saber cuanto me vino en mi factura de internet y cual es la web para abonarla?"
+    ) == "facturacion"
+
+    pago = next(p.pregunta for p in PLAYBOOKS["facturacion_pago"] if p.id == "medios_pago_qr")
+    assert "Fiserv" in pago
+    assert "ov.batan.coop" in pago
+    assert "acredita" in pago.lower() or "acreditación" in pago.lower()
+    informar = PLAYBOOKS["facturacion_informar_pago"][0].pregunta.lower()
+    assert "no hace falta" in informar or "reactiva solo" in informar
+    assert PLAYBOOKS["facturacion"][0].id == "triaje_motivo"
+    assert tag_para_intencion("facturacion_pago") == "[PAGOS_QR]"
+    assert es_intencion_diagnostico("facturacion_pago") is True
+    assert es_intencion_diagnostico("corte_deuda") is False
+    assert intencion_es_facturacion("facturacion_descarga") is True
+    assert intencion_bloquea_outage("facturacion_pago") is True
+    assert intencion_bloquea_outage("reactivacion_pago") is True
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +492,7 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
     msg = "tengo problemas con imowi y quiero reclamar por una factura con aumento"
     # IMOWI + factura sin síntoma técnico de fallo = solo facturación (no dual).
     assert set(detectar_temas_duales(msg)) == {"facturacion"}
-    assert clasificar_intencion(msg) == "facturacion"
+    assert clasificar_intencion(msg) == "facturacion_reclamo"
     # Dual real: síntoma técnico + factura.
     assert set(detectar_temas_duales("internet lento y factura con aumento")) == {
         "tecnico",

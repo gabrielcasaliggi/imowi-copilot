@@ -1,12 +1,16 @@
 """Playbooks N1 — Cooperativa Batán / Ecolan Tecnologías.
 
 Catálogo:
-- Internet FTTH (fibra), BAI/Wireless/radio, ADSL
+- Internet FTTH (fibra), BAI/Wireless/radio, ADSL, intermitencia, clave Wi‑Fi
 - TV OTT Sensa (+ Android TV Box / packs)
 - Telefonía móvil IMOWI y telefonía fija
 - Ecolan B2B (Data Center, VMs, enlaces dedicados, housing/hosting)
 - Facturación / pagos QR Fiserv + Mi Cuenta ov.batan.coop
 - Trámites digitales batan.coop
+
+Los flujos de internet técnico incorporan pasos y reglas del catálogo
+`docs/rag-botmaker-2026-08-14` (blueprints N1 curados). Copy y APN/QR
+siguen siendo de Batán; no se importan embeddings ni texto de clientes.
 """
 
 from __future__ import annotations
@@ -33,12 +37,22 @@ class PasoPlaybook:
 TAG_POR_INTENCION: dict[str, str] = {
     "corte_deuda": "[PAGOS_QR]",
     "facturacion": "[PAGOS_QR]",
+    "facturacion_pago": "[PAGOS_QR]",
+    "facturacion_descarga": "[PAGOS_QR]",
+    "facturacion_informar_pago": "[PAGOS_QR]",
+    "facturacion_factura": "[PAGOS_QR]",
+    "facturacion_estado_cuenta": "[PAGOS_QR]",
+    "facturacion_reclamo": "[PAGOS_QR]",
+    "reactivacion_pago": "[PAGOS_QR]",
     "internet_ftth": "[TEC_FTTH]",
     "internet_radio": "[TEC_WIRELESS]",
     "internet_adsl": "[TEC_ADSL]",
     "internet": "[TEC_FTTH]",
     "internet_lento": "[TEC_FTTH]",
+    "internet_intermitente": "[TEC_INTERMITENCIA]",
     "wifi": "[TEC_WIRELESS]",
+    "cambio_clave_wifi": "[TEC_WIFI]",
+    "estado_reclamo": "[HANDOFF_HUMANO]",
     "movil": "[TEL_MOVIL]",
     "movil_datos": "[TEL_MOVIL]",
     "movil_llamadas": "[TEL_MOVIL]",
@@ -79,9 +93,107 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "facturacion": [
         PasoPlaybook(
             "triaje_motivo",
-            "¿Es por un aumento respecto al mes anterior, un cobro que no reconocés, "
-            "copia/saldo de factura, o necesitás saber cómo pagar?",
+            "¿Qué necesitás: pagar, descargar factura/talón, avisar un pago, "
+            "que te manden la factura, consultar deuda, o reclamar un cobro?",
         ),
+        PasoPlaybook(
+            "identificar_cuenta",
+            "Para mirar tu cuenta necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
+        ),
+        PasoPlaybook(
+            "derivar_factura",
+            "Con lo que contás hace falta revisar la cuenta adentro. ¿Te derivo con facturación?",
+        ),
+    ],
+    "facturacion_pago": [
+        PasoPlaybook(
+            "medios_pago_qr",
+            "Podés pagar con el QR Fiserv de la factura (Mercado Pago, MODO, etc.) "
+            "o en Mi Cuenta ov.batan.coop (también ov.batan.coop/#/pagar con DNI). "
+            "No te puedo confirmar la acreditación hasta que figure en el sistema. "
+            "¿Pudiste entrar al medio de pago?",
+        ),
+        PasoPlaybook(
+            "talon_si_falta",
+            "Si no tenés el QR, la boleta/talón está en Mi Cuenta. ¿Me pasás DNI o N.º de socio para ubicarla?",
+        ),
+        PasoPlaybook(
+            "validacion_pago",
+            "¿Pudiste pagar o preferís que te derive con facturación?",
+        ),
+    ],
+    "facturacion_descarga": [
+        PasoPlaybook(
+            "tipo_documento",
+            "¿Necesitás la factura, la boleta o el talón/cupón para pagar?",
+        ),
+        PasoPlaybook(
+            "periodo_descarga",
+            "¿De qué mes o período es?",
+        ),
+        PasoPlaybook(
+            "ov_descarga",
+            "En Mi Cuenta ov.batan.coop podés descargar el documento. "
+            "Si no entras, pasame DNI o N.º de socio. ¿Pudiste abrirla?",
+        ),
+        PasoPlaybook(
+            "derivar_descarga",
+            "Si no aparece el período, ¿querés que te derive para que te la manden?",
+        ),
+    ],
+    "facturacion_informar_pago": [
+        PasoPlaybook(
+            "informar_pago_detalle",
+            "Cuando el pago se acredita, el servicio se reactiva solo: no hace falta avisarlo. "
+            "¿Querés consultar por qué todavía no figura, o cargar el aviso en Mi Cuenta?",
+        ),
+        PasoPlaybook(
+            "aviso_pago_ov",
+            "El aviso de pago está en ov.batan.coop. No puedo afirmar que ya se acreditó "
+            "hasta que el sistema lo muestre. ¿Pudiste cargar el aviso o sigue sin figurar?",
+        ),
+        PasoPlaybook(
+            "identificar_pago",
+            "¿Me pasás DNI o N.º de socio, medio y fecha del pago?",
+        ),
+        PasoPlaybook(
+            "derivar_informar_pago",
+            "Si ya pasó el plazo y no figura, ¿te derivo con facturación?",
+        ),
+    ],
+    "facturacion_factura": [
+        PasoPlaybook(
+            "solicitud_factura_detalle",
+            "¿Qué período necesitás y cómo la querés: PDF en Mi Cuenta o que te la manden?",
+        ),
+        PasoPlaybook(
+            "ov_factura",
+            "La factura está en ov.batan.coop. ¿Pudiste descargarla o preferís que te la envíen?",
+        ),
+        PasoPlaybook(
+            "identificar_factura",
+            "Para ubicarla necesito DNI del titular o N.º de socio. ¿Me lo pasás?",
+        ),
+        PasoPlaybook(
+            "derivar_solicitud_factura",
+            "Si no aparece o hay que corregir datos fiscales, ¿te derivo?",
+        ),
+    ],
+    "facturacion_estado_cuenta": [
+        PasoPlaybook(
+            "estado_cuenta_detalle",
+            "¿Querés el saldo, el vencimiento o el estado de una factura?",
+        ),
+        PasoPlaybook(
+            "identificar_cuenta",
+            "Pasame DNI o N.º de socio y te digo lo que figura en el padrón, sin inventar montos.",
+        ),
+        PasoPlaybook(
+            "validacion_estado",
+            "¿Con ese dato te alcanza, o querés que te derive para revisarlo adentro?",
+        ),
+    ],
+    "facturacion_reclamo": [
         PasoPlaybook(
             "detalle_importe",
             "¿De qué mes es la factura y qué monto ves (o cuánto era antes vs ahora)?",
@@ -92,16 +204,32 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "identificar_cuenta",
-            "Para mirar tu cuenta necesito el DNI del titular o N.º de socio. ¿Me lo pasás?",
+            "Para mirar el detalle necesito DNI del titular o N.º de socio. ¿Me lo pasás?",
         ),
         PasoPlaybook(
-            "guia_pago_si_aplica",
-            "Si es para pagar: usá el QR Fiserv de la boleta (Mercado Pago, MODO, etc.). "
-            "¿Pudiste pagar o preferís que te derive?",
+            "confirmacion_diferencia",
+            "Si después de ver el detalle la diferencia sigue, no te puedo prometer un ajuste. "
+            "¿Te derivo con facturación?",
+        ),
+    ],
+    "reactivacion_pago": [
+        PasoPlaybook(
+            "reactivacion_pago_detalle",
+            "Si el pago ya está acreditado, la rehabilitación es automática; no hace falta avisarlo. "
+            "¿El pago ya figura y el servicio sigue cortado?",
         ),
         PasoPlaybook(
-            "derivar_factura",
-            "Con lo que contás hace falta revisar la cuenta adentro. ¿Te derivo con facturación?",
+            "plazo_reactivacion",
+            "El tiempo de imputación depende del medio (QR, Rapipago, etc.). "
+            "¿Hace cuánto pagaste y por qué medio?",
+        ),
+        PasoPlaybook(
+            "identificar_reactivacion",
+            "Pasame DNI o N.º de socio para ver estado y saldo reales. ¿Me lo pasás?",
+        ),
+        PasoPlaybook(
+            "derivar_reactivacion",
+            "Si ya pasó varias horas y sigue cortado, lo ve facturación. ¿Te derivo?",
         ),
     ],
     "internet_ftth": [
@@ -111,11 +239,14 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "reinicio_ont",
             "Desenchufá ONT y router 30 segundos; prendé primero la ONT y después el router. ¿Volvió?",
         ),
-        # Solo si hay LOS/rojo; si PON está verde el motor saltea este paso.
-        PasoPlaybook("cable_fibra", "¿El cable amarillo está bien enchufado, sin dobleces fuertes?"),
+        # Energía/UTP solamente. LOS roja → el motor escala a N2; no pedir manipular fibra.
+        PasoPlaybook(
+            "cable_fibra",
+            "Sin tocar el cable amarillo de fibra: ¿el de energía y el de red (UTP) están firmes, sin daño visible?",
+        ),
         PasoPlaybook(
             "servicio_tras_optica",
-            "Con la fibra en verde el enlace óptico está bien. ¿Ya te anda internet o sigue sin servicio?",
+            "Con la fibra en verde el enlace óptico está bien. Probá abrir dos páginas. ¿Ya navega?",
         ),
         PasoPlaybook("wifi_vs_cable_ftth", "¿Falla también por cable al router, o solo el WiFi?"),
         PasoPlaybook(
@@ -127,7 +258,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("poe_antena", "Ok, por antena (BAI). ¿La fuente PoE tiene la lucecita prendida?"),
         PasoPlaybook(
             "cable_wan_bai",
-            "El cable del inyector PoE (salida LAN) va al puerto azul/Internet del router. ¿Está así?",
+            "El cable del inyector PoE (salida LAN) va al puerto azul/Internet del router. "
+            "No desconectes el de la antena si no está identificado. ¿Está así?",
         ),
         PasoPlaybook(
             "reinicio_cpe",
@@ -136,6 +268,10 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("led_enlace", "¿El LED de enlace está fijo o parpadea/rojo?"),
         PasoPlaybook("linea_vista", "¿La antena sigue con vista libre a la torre?"),
         PasoPlaybook("zona_vecinos", "¿Les pasa también a vecinos, o solo en tu casa?"),
+        PasoPlaybook(
+            "validacion_navegacion_radio",
+            "Después de estabilizar, ¿ya podés navegar en un equipo?",
+        ),
         PasoPlaybook(
             "turno_campo_radio",
             "Si sigue igual, hace falta técnico. ¿Abro el ticket para una visita?",
@@ -150,6 +286,10 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook("luces_adsl", "¿La luz DSL/Sync quedó fija o sigue parpadeando?"),
         PasoPlaybook("cable_telefono", "¿Probaste el módem en la toma principal de la calle?"),
+        PasoPlaybook(
+            "validacion_navegacion_adsl",
+            "¿La luz DSL quedó fija y ya podés navegar?",
+        ),
         PasoPlaybook("persistencia_adsl", "Si no vuelve, ¿querés que te derive con un técnico?"),
     ],
     "internet": [
@@ -165,6 +305,10 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     ],
     "internet_lento": [
         PasoPlaybook("cuantos_dispositivos", "¿Cuántos equipos hay conectados al WiFi ahora?"),
+        PasoPlaybook(
+            "medio_prueba",
+            "¿La lentitud la notás por WiFi o también por cable al router?",
+        ),
         PasoPlaybook("horario_lento", "¿Es lento todo el día o más a la tarde/noche?"),
         PasoPlaybook(
             "test_velocidad",
@@ -179,6 +323,10 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     ],
     "wifi": [
         PasoPlaybook("zona_wifi", "¿El WiFi falla en toda la casa o solo lejos del router?"),
+        PasoPlaybook(
+            "conexion_cableada",
+            "¿Por cable al router hay internet, o tampoco navega?",
+        ),
         PasoPlaybook("otros_dispositivos_wifi", "¿Les pasa a todos los equipos o solo a uno?"),
         PasoPlaybook("reinicio_router_wifi", "¿Reiniciaste el router 30 segundos? ¿Mejoró?"),
         PasoPlaybook(
@@ -188,6 +336,69 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("banda_wifi", "Si tenés 2.4 y 5 GHz, ¿probaste la otra red?"),
         PasoPlaybook("canal_interferencia", "¿Podés alejar el router de microondas u otros equipos?"),
         PasoPlaybook("derivar_wifi", "Si sigue mal, ¿querés que te derive?"),
+    ],
+    "internet_intermitente": [
+        PasoPlaybook(
+            "alcance_cortes",
+            "¿Los cortes te pasan en todos los equipos o solo en uno?",
+        ),
+        PasoPlaybook(
+            "medio_conexion",
+            "¿Se corta por WiFi, por cable al router, o por los dos?",
+        ),
+        PasoPlaybook(
+            "frecuencia_cortes",
+            "¿Cada cuánto se corta y cuánto tarda en volver?",
+        ),
+        PasoPlaybook(
+            "luces_durante_corte",
+            "Cuando se corta, ¿cambia o se apaga alguna luz del módem/ONT?",
+        ),
+        PasoPlaybook(
+            "reinicio_intermitente",
+            "Reiniciá el equipo 30 segundos y dejalo un rato. ¿Se mantuvo estable?",
+        ),
+        PasoPlaybook(
+            "turno_campo_intermitente",
+            "Si sigue cortándose hace falta técnico. ¿Abro el ticket?",
+        ),
+    ],
+    "cambio_clave_wifi": [
+        PasoPlaybook(
+            "cambio_clave_wifi_detalle",
+            "¿Querés cambiar la contraseña, el nombre de la red, o las dos cosas?",
+        ),
+        PasoPlaybook(
+            "clave_wifi_etiqueta",
+            "En la etiqueta del módem/router están el nombre y la clave de fábrica. "
+            "¿Tenés acceso al equipo para cambiarla?",
+        ),
+        PasoPlaybook(
+            "aviso_reconexion",
+            "Después del cambio todos los dispositivos tienen que volver a conectarse con la clave nueva. ¿Listo para probar uno?",
+        ),
+        PasoPlaybook(
+            "validacion_wifi_nueva",
+            "¿Ese dispositivo conectó y navega con la configuración nueva?",
+        ),
+        PasoPlaybook(
+            "derivar_clave_wifi",
+            "Si no podés entrar al equipo o el cambio no queda, ¿querés que te derive?",
+        ),
+    ],
+    "estado_reclamo": [
+        PasoPlaybook(
+            "estado_reclamo_detalle",
+            "¿Tenés un reclamo o visita técnica abierta que quieras consultar?",
+        ),
+        PasoPlaybook(
+            "dato_reclamo",
+            "Pasame DNI, N.º de socio o el número de ticket si lo tenés.",
+        ),
+        PasoPlaybook(
+            "derivar_reclamo",
+            "El estado real lo confirma un agente con el sistema. ¿Te derivo para que te lo confirmen?",
+        ),
     ],
     "movil": [
         PasoPlaybook(
@@ -564,7 +775,28 @@ def es_saludo_solo(texto: str) -> bool:
 
 def intencion_es_internet(intencion: str) -> bool:
     intent = (intencion or "").strip()
-    return intent.startswith("internet") or intent in ("wifi", "internet_lento")
+    return intent.startswith("internet") or intent in (
+        "wifi",
+        "internet_lento",
+        "cambio_clave_wifi",
+    )
+
+
+INTENCIONES_FACTURACION = frozenset({
+    "corte_deuda",
+    "facturacion",
+    "facturacion_pago",
+    "facturacion_descarga",
+    "facturacion_informar_pago",
+    "facturacion_factura",
+    "facturacion_estado_cuenta",
+    "facturacion_reclamo",
+    "reactivacion_pago",
+})
+
+
+def intencion_es_facturacion(intencion: str) -> bool:
+    return (intencion or "").strip() in INTENCIONES_FACTURACION
 
 
 def ajustar_intencion_a_padron(
@@ -694,6 +926,204 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     return ajustar_intencion_a_padron(intent, servicio_abonado, texto)
 
 
+def _clasificar_intencion_facturacion(t: str) -> str | None:
+    """Parte facturación al estilo Botmaker; si hay varios motivos, queda el enrutador."""
+    hits: list[str] = []
+
+    if any(
+        k in t
+        for k in (
+            "pagué y sigue",
+            "pague y sigue",
+            "pagué y no anda",
+            "pague y no anda",
+            "pagué y sigue cortado",
+            "pague y sigue cortado",
+            "no se reactiv",
+            "no se rehabil",
+        )
+    ) or (
+        any(k in t for k in ("ya pagué", "ya pague", "pagué", "pague"))
+        and any(k in t for k in ("cortado", "suspend", "sin servicio", "no se reactiva"))
+    ):
+        hits.append("reactivacion_pago")
+
+    if any(
+        k in t
+        for k in (
+            "me cortaron",
+            "cortaron el servicio",
+            "cortaron por",
+            "corte por deuda",
+            "por falta de pago",
+            "sin servicio por deuda",
+            "suspendido por",
+        )
+    ):
+        hits.append("corte_deuda")
+
+    if any(
+        k in t
+        for k in (
+            "ya pagué",
+            "ya pague",
+            "ya aboné",
+            "ya abone",
+            "informar pago",
+            "informar un pago",
+            "avisar el pago",
+            "avisar un pago",
+            "aviso de pago",
+            "no figura el pago",
+            "no se acredit",
+            "no se refleja",
+            "pagué pero",
+            "pague pero",
+            "comprobante de pago",
+        )
+    ):
+        hits.append("facturacion_informar_pago")
+
+    if any(
+        k in t
+        for k in (
+            "descargar factura",
+            "descargar la factura",
+            "descargar boleta",
+            "talón",
+            "talon de pago",
+            "talón de pago",
+            "cupón de pago",
+            "cupon de pago",
+            "copia de factura",
+            "copia de la factura",
+            "copia de boleta",
+            "pdf de la factura",
+        )
+    ):
+        hits.append("facturacion_descarga")
+
+    if any(
+        k in t
+        for k in (
+            "no me llegó la factura",
+            "no me llego la factura",
+            "mandame la factura",
+            "enviame la factura",
+            "envíame la factura",
+            "enviar factura",
+            "factura por mail",
+            "factura por correo",
+            "necesito la factura",
+            "recibir factura",
+        )
+    ):
+        hits.append("facturacion_factura")
+
+    if any(
+        k in t
+        for k in (
+            "aumento",
+            "aumentó",
+            "mas cara",
+            "más cara",
+            "cobro de más",
+            "cobro de mas",
+            "me cobraron de más",
+            "me cobraron de mas",
+            "no reconozco",
+            "cobro que no",
+            "importe mal",
+            "factura distinta",
+        )
+    ):
+        hits.append("facturacion_reclamo")
+
+    if any(
+        k in t
+        for k in (
+            "estado de mi cuenta",
+            "estado de cuenta",
+            "estado de la cuenta",
+            "consultar cuenta",
+            "consulta de cuenta",
+            "saldo de cuenta",
+            "cómo está mi cuenta",
+            "como esta mi cuenta",
+            "cuanto debo",
+            "cuánto debo",
+            "si tengo deuda",
+            "tengo deuda",
+            "consultar deuda",
+            "consultar saldo",
+            "ver mi saldo",
+            "ver el saldo",
+            "cuanto me vino",
+            "cuánto me vino",
+            "vencimiento",
+        )
+    ):
+        hits.append("facturacion_estado_cuenta")
+
+    if any(
+        k in t
+        for k in (
+            "como pago",
+            "cómo pago",
+            "quiero pagar",
+            "medios de pago",
+            "pagar factura",
+            "pagar la factura",
+            "pagar con qr",
+            "donde pago",
+            "dónde pago",
+            "para abonar",
+            "web para abonar",
+            "como abono",
+            "cómo abono",
+        )
+    ):
+        hits.append("facturacion_pago")
+
+    generic = any(
+        k in t
+        for k in (
+            "factura",
+            "factur",
+            "boleta",
+            "saldo",
+            "deuda",
+            "pago",
+            "qr",
+            "fiserv",
+            "mercado pago",
+            "cuenta corriente",
+            "resumen",
+            "recibo",
+            "abonar",
+        )
+    )
+    if generic:
+        hits.append("facturacion")
+
+    if not hits:
+        return None
+    if "corte_deuda" in hits:
+        return "corte_deuda"
+    if "reactivacion_pago" in hits:
+        return "reactivacion_pago"
+    uniq: list[str] = []
+    for h in hits:
+        if h not in uniq:
+            uniq.append(h)
+    especificos = [h for h in uniq if h != "facturacion"]
+    if len(especificos) == 1:
+        return especificos[0]
+    if len(especificos) > 1:
+        return "facturacion"
+    return "facturacion"
+
+
 def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
     t = (texto or "").lower().replace("fatura", "factura")
 
@@ -721,25 +1151,9 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
     )):
         return "portal_tramites"
 
-    if any(k in t for k in (
-        "estado de mi cuenta", "estado de cuenta", "estado de la cuenta",
-        "consultar cuenta", "consulta de cuenta", "consultar el estado",
-        "mi cuenta", "saldo de cuenta", "cómo está mi cuenta", "como esta mi cuenta",
-        "aumento", "aumentó", "más cara", "mas cara", "subió", "subio",
-        "cobro de más", "cobro de mas", "me cobraron de más", "me cobraron de mas",
-        "si tengo deuda", "tengo deuda", "cuanto debo", "cuánto debo",
-        "si debo", "hay deuda", "consultar deuda", "consultar saldo",
-        "saber si tengo", "ver mi saldo", "ver el saldo",
-    )):
-        return "facturacion"
-
-    if any(k in t for k in (
-        "deuda", "corte", "suspend", "factur", "pago", "saldo", "boleta",
-        "cuenta corriente", "resumen", "recibo", "qr", "fiserv", "mercado pago",
-    )):
-        if any(k in t for k in ("copia", "resumen", "comprobante", "factura", "cuenta", "aumento")):
-            return "facturacion"
-        return "corte_deuda"
+    billed = _clasificar_intencion_facturacion(t)
+    if billed:
+        return billed
 
     if any(k in t for k in (
         "dar de alta", "alta", "cambio de plan", "cambiar plan", "mejorar plan",
@@ -800,9 +1214,33 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
         return "internet_lento"
 
     if any(k in t for k in (
+        "cambiar clave wifi", "cambiar la clave del wifi", "cambiar contraseña wifi",
+        "cambiar la contraseña del wifi", "cambiar nombre wifi", "cambiar el nombre del wifi",
+        "cambiar ssid", "nueva clave wifi", "cambiar password wifi",
+        "cambiar la clave de wifi", "cambiar contraseña de wifi",
+    )):
+        return "cambio_clave_wifi"
+
+    if any(k in t for k in (
         "wifi", "wi-fi", "señal wifi", "no llega wifi", "wifi no funciona",
     )):
         return "wifi"
+
+    if any(k in t for k in (
+        "se corta", "se cortan", "intermiten", "intermitente",
+        "va y viene", "se cae y vuelve", "se me cae", "se cae el internet",
+        "a cada rato se corta",
+        "cada tanto se corta",
+    )):
+        return "internet_intermitente"
+
+    if any(k in t for k in (
+        "estado de mi reclamo", "estado del reclamo", "cómo va mi reclamo",
+        "como va mi reclamo", "cómo va el reclamo", "como va el reclamo",
+        "seguimiento del reclamo", "número de reclamo", "numero de reclamo",
+        "estado de la visita técnica", "estado de la visita tecnica",
+    )):
+        return "estado_reclamo"
 
     if any(k in t for k in (
         "modem", "módem", "router", "internet fijo",
@@ -1344,11 +1782,19 @@ def resolver_prioridad_tema(texto: str) -> str | None:
 def intencion_desde_tema(tema: str, texto_original: str = "") -> str:
     """Mapea tema dual → intención concreta."""
     if tema == "facturacion":
+        if texto_original:
+            intent = clasificar_intencion(texto_original)
+            if intencion_es_facturacion(intent):
+                return intent
         return "facturacion"
     # técnico: reclasificar con el texto original si aporta, si no internet genérico
     if texto_original:
         intent = clasificar_intencion(texto_original)
-        if intent not in ("facturacion", "corte_deuda", "general", "portal_tramites", "alta_plan"):
+        if not intencion_es_facturacion(intent) and intent not in (
+            "general",
+            "portal_tramites",
+            "alta_plan",
+        ):
             return intent
     return "internet"
 
@@ -1471,7 +1917,10 @@ def resumen_handoff(
         "internet_adsl": "ADSL",
         "internet": "Internet",
         "internet_lento": "Internet",
+        "internet_intermitente": "Internet intermitente",
         "wifi": "WiFi",
+        "cambio_clave_wifi": "Clave WiFi",
+        "estado_reclamo": "Estado de reclamo",
         "movil": "Móvil",
         "movil_datos": "Móvil datos",
         "movil_llamadas": "Móvil llamadas",
@@ -1480,6 +1929,13 @@ def resumen_handoff(
         "ecolan_b2b": "Ecolan B2B",
         "corte_deuda": "Facturación/Pagos",
         "facturacion": "Facturación",
+        "facturacion_pago": "Pago de factura",
+        "facturacion_descarga": "Descarga de factura",
+        "facturacion_informar_pago": "Aviso de pago",
+        "facturacion_factura": "Solicitud de factura",
+        "facturacion_estado_cuenta": "Estado de cuenta",
+        "facturacion_reclamo": "Reclamo de factura",
+        "reactivacion_pago": "Reactivación por pago",
         "alta_plan": "Alta/plan",
         "no_tecnico": "No técnico",
         "general": "General",

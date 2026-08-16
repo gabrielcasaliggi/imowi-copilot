@@ -22,6 +22,7 @@ from app.domain.flujos_abonado import (
     es_saludo_solo,
     indica_resuelto,
     intencion_desde_tema,
+    intencion_es_facturacion,
     intencion_es_internet,
     misma_queja,
     niega_producto_internet,
@@ -65,6 +66,7 @@ _INTENCIONES_PPPOE = frozenset({
     "internet_adsl",
     "internet_radio",
     "internet_lento",
+    "internet_intermitente",
     "wifi",
 })
 
@@ -619,11 +621,6 @@ def _pide_pago_o_reactivar(texto: str) -> bool:
     return any(
         k in t
         for k in (
-            "como pago",
-            "cómo pago",
-            "quiero pagar",
-            "pagar la deuda",
-            "pagar la factura",
             "me cortaron",
             "cortaron por",
             "falta de pago",
@@ -631,8 +628,6 @@ def _pide_pago_o_reactivar(texto: str) -> bool:
             "reactivación",
             "reactivacion",
             "sin servicio por deuda",
-            "fiserv",
-            "pagar con qr",
         )
     )
 
@@ -652,10 +647,9 @@ def _deberia_priorizar_corte_deuda(
     if _pide_pago_o_reactivar(texto):
         return True
     estado = (abonado.estado or "").lower()
-    if estado in ("corte", "suspendido") and intencion_clasificada in (
-        "",
-        "general",
-        "corte_deuda",
+    if estado in ("corte", "suspendido") and (
+        intencion_es_facturacion(intencion_clasificada)
+        or intencion_clasificada in ("", "general")
     ):
         return True
     return False
@@ -663,7 +657,7 @@ def _deberia_priorizar_corte_deuda(
 
 def _intencion_es_tecnica(intencion: str) -> bool:
     intent = (intencion or "").strip()
-    if not intent or intent in ("facturacion", "corte_deuda", "general", "multi_tema", "aviso_deuda"):
+    if not intent or intent in ("general", "multi_tema", "aviso_deuda") or intencion_es_facturacion(intent):
         return False
     return es_intencion_diagnostico(intent)
 
@@ -2159,7 +2153,7 @@ def procesar_mensaje_entrante(
     # Cierre temprano: tras QR/pago o factura, "perfecto/gracias" no debe abrir ticket.
     # No aplica en aviso_deuda (elección pagar vs diagnóstico): ahí «no entiendo» ≠ cierre.
     _intent_ctx = str(ctx.get("intencion") or "").strip()
-    if _intent_ctx in ("corte_deuda", "facturacion"):
+    if intencion_es_facturacion(_intent_ctx):
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
         if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
@@ -2989,7 +2983,7 @@ def procesar_mensaje_entrante(
 
     # Refinar internet → radio / ADSL tras la pregunta de tipo de acceso
     # Si aclara que NO tiene fijo y solo móvil/IMOWI → saltar a playbook móvil
-    if intencion.startswith("internet") or intencion in ("wifi", "internet_lento"):
+    if intencion_es_internet(intencion):
         if _debe_explicar_sin_internet(abonado, texto, intencion):
             ctx["intencion"] = "general"
             ctx["paso_idx"] = 0
@@ -3278,7 +3272,7 @@ def procesar_mensaje_entrante(
         return diag
 
     # Corte/pago o factura: "sí, perfecto, gracias" cierra (no avanzar playbook ni escalar)
-    if intencion in ("corte_deuda", "facturacion"):
+    if intencion_es_facturacion(intencion):
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
         if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):

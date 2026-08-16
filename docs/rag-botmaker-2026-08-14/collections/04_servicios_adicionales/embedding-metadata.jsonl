@@ -1,0 +1,45 @@
+{"index":0,"id":"04_servicios_adicionales:intent:credenciales_acceso","title":"Recuperar o cambiar credenciales de acceso","collection":"04_servicios_adicionales"}
+{"index":1,"id":"04_servicios_adicionales:intent:guia_telefonica","title":"Consultar guía telefónica","collection":"04_servicios_adicionales"}
+{"index":2,"id":"04_servicios_adicionales:intent:movil_portabilidad","title":"Portabilidad o servicio móvil","collection":"04_servicios_adicionales"}
+{"index":3,"id":"04_servicios_adicionales:intent:telefonia_fija","title":"Falla o consulta de telefonía fija","collection":"04_servicios_adicionales"}
+{"index":4,"id":"04_servicios_adicionales:intent:tv_sensa","title":"Consulta o falla de TV Sensa","collection":"04_servicios_adicionales"}
+{"index":5,"id":"04_servicios_adicionales:playbook:credenciales_acceso:handoff","title":"Recuperar o cambiar credenciales de acceso — salida y handoff","collection":"04_servicios_adicionales"}
+{"index":6,"id":"04_servicios_adicionales:playbook:credenciales_acceso:overview","title":"Recuperar o cambiar credenciales de acceso","collection":"04_servicios_adicionales"}
+{"index":7,"id":"04_servicios_adicionales:playbook:credenciales_acceso:rule:01","title":"Recuperar o cambiar credenciales de acceso — regla 1","collection":"04_servicios_adicionales"}
+{"index":8,"id":"04_servicios_adicionales:playbook:credenciales_acceso:rule:02","title":"Recuperar o cambiar credenciales de acceso — regla 2","collection":"04_servicios_adicionales"}
+{"index":9,"id":"04_servicios_adicionales:playbook:credenciales_acceso:rule:03","title":"Recuperar o cambiar credenciales de acceso — regla 3","collection":"04_servicios_adicionales"}
+{"index":10,"id":"04_servicios_adicionales:playbook:credenciales_acceso:step:accion_1","title":"Recuperar o cambiar credenciales de acceso — accion_1","collection":"04_servicios_adicionales"}
+{"index":11,"id":"04_servicios_adicionales:playbook:credenciales_acceso:step:credenciales_acceso_detalle","title":"Recuperar o cambiar credenciales de acceso — credenciales_acceso_detalle","collection":"04_servicios_adicionales"}
+{"index":12,"id":"04_servicios_adicionales:playbook:credenciales_acceso:step:validacion_resultado","title":"Recuperar o cambiar credenciales de acceso — validacion_resultado","collection":"04_servicios_adicionales"}
+{"index":13,"id":"04_servicios_adicionales:playbook:guia_telefonica:handoff","title":"Consultar guía telefónica — salida y handoff","collection":"04_servicios_adicionales"}
+{"index":14,"id":"04_servicios_adicionales:playbook:guia_telefonica:overview","title":"Consultar guía telefónica","collection":"04_servicios_adicionales"}
+{"index":15,"id":"04_servicios_adicionales:playbook:guia_telefonica:rule:01","title":"Consultar guía telefónica — regla 1","collection":"04_servicios_adicionales"}
+{"index":16,"id":"04_servicios_adicionales:playbook:guia_telefonica:rule:02","title":"Consultar guía telefónica — regla 2","collection":"04_servicios_adicionales"}
+{"index":17,"id":"04_servicios_adicionales:playbook:guia_telefonica:rule:03","title":"Consultar guía telefónica — regla 3","collection":"04_servicios_adicionales"}
+{"index":18,"id":"04_servicios_adicionales:playbook:guia_telefonica:step:accion_1","title":"Consultar guía telefónica — accion_1","collection":"04_servicios_adicionales"}
+{"index":19,"id":"04_servicios_adicionales:playbook:guia_telefonica:step:guia_telefonica_detalle","title":"Consultar guía telefónica — guia_telefonica_detalle","collection":"04_servicios_adicionales"}
+{"index":20,"id":"04_servicios_adicionales:playbook:guia_telefonica:step:validacion_resultado","title":"Consultar guía telefónica — validacion_resultado","collection":"04_servicios_adicionales"}
+{"index":21,"id":"04_servicios_adicionales:playbook:movil:handoff","title":"Portabilidad o servicio móvil — salida y handoff","collection":"04_servicios_adicionales"}
+{"index":22,"id":"04_servicios_adicionales:playbook:movil:overview","title":"Portabilidad o servicio móvil","collection":"04_servicios_adicionales"}
+{"index":23,"id":"04_servicios_adicionales:playbook:movil:rule:01","title":"Portabilidad o servicio móvil — regla 1","collection":"04_servicios_adicionales"}
+{"index":24,"id":"04_servicios_adicionales:playbook:movil:rule:02","title":"Portabilidad o servicio móvil — regla 2","collection":"04_servicios_adicionales"}
+{"index":25,"id":"04_servicios_adicionales:playbook:movil:rule:03","title":"Portabilidad o servicio móvil — regla 3","collection":"04_servicios_adicionales"}
+{"index":26,"id":"04_servicios_adicionales:playbook:movil:step:accion_1","title":"Portabilidad o servicio móvil — accion_1","collection":"04_servicios_adicionales"}
+{"index":27,"id":"04_servicios_adicionales:playbook:movil:step:movil_portabilidad_detalle","title":"Portabilidad o servicio móvil — movil_portabilidad_detalle","collection":"04_servicios_adicionales"}
+{"index":28,"id":"04_servicios_adicionales:playbook:movil:step:validacion_resultado","title":"Portabilidad o servicio móvil — validacion_resultado","collection":"04_servicios_adicionales"}
+{"index":29,"id":"04_servicios_adicionales:playbook:telefonia_fija:handoff","title":"Falla o consulta de telefonía fija — salida y handoff","collection":"04_servicios_adicionales"}
+{"index":30,"id":"04_servicios_adicionales:playbook:telefonia_fija:overview","title":"Falla o consulta de telefonía fija","collection":"04_servicios_adicionales"}
+{"index":31,"id":"04_servicios_adicionales:playbook:telefonia_fija:rule:01","title":"Falla o consulta de telefonía fija — regla 1","collection":"04_servicios_adicionales"}
+{"index":32,"id":"04_servicios_adicionales:playbook:telefonia_fija:rule:02","title":"Falla o consulta de telefonía fija — regla 2","collection":"04_servicios_adicionales"}
+{"index":33,"id":"04_servicios_adicionales:playbook:telefonia_fija:rule:03","title":"Falla o consulta de telefonía fija — regla 3","collection":"04_servicios_adicionales"}
+{"index":34,"id":"04_servicios_adicionales:playbook:telefonia_fija:step:accion_1","title":"Falla o consulta de telefonía fija — accion_1","collection":"04_servicios_adicionales"}
+{"index":35,"id":"04_servicios_adicionales:playbook:telefonia_fija:step:telefonia_fija_detalle","title":"Falla o consulta de telefonía fija — telefonia_fija_detalle","collection":"04_servicios_adicionales"}
+{"index":36,"id":"04_servicios_adicionales:playbook:telefonia_fija:step:validacion_resultado","title":"Falla o consulta de telefonía fija — validacion_resultado","collection":"04_servicios_adicionales"}
+{"index":37,"id":"04_servicios_adicionales:playbook:tv_sensa:handoff","title":"Consulta o falla de TV Sensa — salida y handoff","collection":"04_servicios_adicionales"}
+{"index":38,"id":"04_servicios_adicionales:playbook:tv_sensa:overview","title":"Consulta o falla de TV Sensa","collection":"04_servicios_adicionales"}
+{"index":39,"id":"04_servicios_adicionales:playbook:tv_sensa:rule:01","title":"Consulta o falla de TV Sensa — regla 1","collection":"04_servicios_adicionales"}
+{"index":40,"id":"04_servicios_adicionales:playbook:tv_sensa:rule:02","title":"Consulta o falla de TV Sensa — regla 2","collection":"04_servicios_adicionales"}
+{"index":41,"id":"04_servicios_adicionales:playbook:tv_sensa:rule:03","title":"Consulta o falla de TV Sensa — regla 3","collection":"04_servicios_adicionales"}
+{"index":42,"id":"04_servicios_adicionales:playbook:tv_sensa:step:accion_1","title":"Consulta o falla de TV Sensa — accion_1","collection":"04_servicios_adicionales"}
+{"index":43,"id":"04_servicios_adicionales:playbook:tv_sensa:step:tv_sensa_detalle","title":"Consulta o falla de TV Sensa — tv_sensa_detalle","collection":"04_servicios_adicionales"}
+{"index":44,"id":"04_servicios_adicionales:playbook:tv_sensa:step:validacion_resultado","title":"Consulta o falla de TV Sensa — validacion_resultado","collection":"04_servicios_adicionales"}

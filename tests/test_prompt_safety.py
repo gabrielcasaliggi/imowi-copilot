@@ -487,7 +487,7 @@ def test_facturacion_en_diagnostico_y_bloquea_dump_pagos(monkeypatch):
         es_intencion_diagnostico,
     )
 
-    assert clasificar_intencion("quiero saber porque me vino la factura con aumento") == "facturacion"
+    assert clasificar_intencion("quiero saber porque me vino la factura con aumento") == "facturacion_reclamo"
     assert es_intencion_diagnostico("facturacion") is True
     dump = (
         "Para saldo o copia de factura identifícate con DNI en el portal. "

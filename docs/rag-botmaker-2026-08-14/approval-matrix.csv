@@ -1,0 +1,32 @@
+collection,document,title,status,privacy_review,technical_review,functional_review,integration_test,rag_approval
+01_soporte_internet,collections/01_soporte_internet/documents/cambio_clave_wifi.md,Cambiar contraseña o nombre Wi‑Fi,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/estado_reclamo.md,Consultar estado de reclamo técnico,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet.md,Enrutador de consultas de Internet,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet_adsl.md,Sin Internet — ADSL,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet_ftth.md,Sin Internet — Fibra/FTTH,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet_intermitente.md,Cortes o intermitencia,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet_lento.md,Baja velocidad,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet_radio.md,Sin Internet — Inalámbrico/Radio,draft,pending,pending,pending,pending,pending
+01_soporte_internet,collections/01_soporte_internet/documents/internet_wifi.md,Cobertura o conexión Wi‑Fi,draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion.md,Enrutador de facturación,draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion_descarga.md,"Descargar factura, boleta o talón de pago",draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion_estado_cuenta.md,"Consultar deuda, vencimiento o estado de cuenta",draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion_factura.md,Solicitar o recibir factura,draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion_informar_pago.md,Informar pago realizado,draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion_pago.md,Pagar factura,draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/facturacion_reclamo.md,Cobro o importe no reconocido,draft,pending,pending,pending,pending,pending
+02_facturacion_pagos,collections/02_facturacion_pagos/documents/reactivacion_pago.md,Reactivar servicio después de pagar,draft,pending,pending,pending,pending,pending
+03_comercial_administracion,collections/03_comercial_administracion/documents/baja_servicio.md,Solicitud de baja del servicio,draft,pending,pending,pending,pending,pending
+03_comercial_administracion,collections/03_comercial_administracion/documents/cambio_plan.md,Cambiar plan o velocidad,draft,pending,pending,pending,pending,pending
+03_comercial_administracion,collections/03_comercial_administracion/documents/cambio_titularidad.md,Cambio de titularidad,draft,pending,pending,pending,pending,pending
+03_comercial_administracion,collections/03_comercial_administracion/documents/cobertura.md,Consultar cobertura o contratar servicio,draft,pending,pending,pending,pending,pending
+03_comercial_administracion,collections/03_comercial_administracion/documents/instalacion.md,Consultar instalación o visita técnica,draft,pending,pending,pending,pending,pending
+04_servicios_adicionales,collections/04_servicios_adicionales/documents/credenciales_acceso.md,Recuperar o cambiar credenciales de acceso,draft,pending,pending,pending,pending,pending
+04_servicios_adicionales,collections/04_servicios_adicionales/documents/guia_telefonica.md,Consultar guía telefónica,draft,pending,pending,pending,pending,pending
+04_servicios_adicionales,collections/04_servicios_adicionales/documents/movil.md,Portabilidad o servicio móvil,draft,pending,pending,pending,pending,pending
+04_servicios_adicionales,collections/04_servicios_adicionales/documents/telefonia_fija.md,Falla o consulta de telefonía fija,draft,pending,pending,pending,pending,pending
+04_servicios_adicionales,collections/04_servicios_adicionales/documents/tv_sensa.md,Consulta o falla de TV Sensa,draft,pending,pending,pending,pending,pending
+05_operacion_escalamiento,collections/05_operacion_escalamiento/documents/contrato_operativo_n1.md,Contrato Operativo N1,draft_proposal,pending,pending,pending,pending,pending
+05_operacion_escalamiento,collections/05_operacion_escalamiento/documents/handoff_n2.md,Handoff N2,draft_proposal,pending,pending,pending,pending,pending
+05_operacion_escalamiento,collections/05_operacion_escalamiento/documents/limites_seguridad.md,Limites Seguridad,draft_proposal,pending,pending,pending,pending,pending
+05_operacion_escalamiento,collections/05_operacion_escalamiento/documents/validacion_y_metricas.md,Validacion Y Metricas,draft_proposal,pending,pending,pending,pending,pending

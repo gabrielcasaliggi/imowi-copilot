@@ -1,0 +1,130 @@
+{"index":0,"id":"01_soporte_internet:intent:cambio_clave_wifi","title":"Cambiar contraseña o nombre Wi‑Fi","collection":"01_soporte_internet"}
+{"index":1,"id":"01_soporte_internet:intent:cortes_intermitencia","title":"Cortes o conexión intermitente","collection":"01_soporte_internet"}
+{"index":2,"id":"01_soporte_internet:intent:estado_reclamo","title":"Consultar estado de reclamo técnico","collection":"01_soporte_internet"}
+{"index":3,"id":"01_soporte_internet:intent:lentitud","title":"Baja velocidad o lentitud","collection":"01_soporte_internet"}
+{"index":4,"id":"01_soporte_internet:intent:sin_internet","title":"Sin Internet o servicio caído","collection":"01_soporte_internet"}
+{"index":5,"id":"01_soporte_internet:intent:wifi_conectividad","title":"Problema de cobertura o conexión Wi‑Fi","collection":"01_soporte_internet"}
+{"index":6,"id":"01_soporte_internet:playbook:cambio_clave_wifi:handoff","title":"Cambiar contraseña o nombre Wi‑Fi — salida y handoff","collection":"01_soporte_internet"}
+{"index":7,"id":"01_soporte_internet:playbook:cambio_clave_wifi:overview","title":"Cambiar contraseña o nombre Wi‑Fi","collection":"01_soporte_internet"}
+{"index":8,"id":"01_soporte_internet:playbook:cambio_clave_wifi:rule:01","title":"Cambiar contraseña o nombre Wi‑Fi — regla 1","collection":"01_soporte_internet"}
+{"index":9,"id":"01_soporte_internet:playbook:cambio_clave_wifi:rule:02","title":"Cambiar contraseña o nombre Wi‑Fi — regla 2","collection":"01_soporte_internet"}
+{"index":10,"id":"01_soporte_internet:playbook:cambio_clave_wifi:rule:03","title":"Cambiar contraseña o nombre Wi‑Fi — regla 3","collection":"01_soporte_internet"}
+{"index":11,"id":"01_soporte_internet:playbook:cambio_clave_wifi:step:accion_1","title":"Cambiar contraseña o nombre Wi‑Fi — accion_1","collection":"01_soporte_internet"}
+{"index":12,"id":"01_soporte_internet:playbook:cambio_clave_wifi:step:accion_2","title":"Cambiar contraseña o nombre Wi‑Fi — accion_2","collection":"01_soporte_internet"}
+{"index":13,"id":"01_soporte_internet:playbook:cambio_clave_wifi:step:cambio_clave_wifi_contexto","title":"Cambiar contraseña o nombre Wi‑Fi — cambio_clave_wifi_contexto","collection":"01_soporte_internet"}
+{"index":14,"id":"01_soporte_internet:playbook:cambio_clave_wifi:step:cambio_clave_wifi_detalle","title":"Cambiar contraseña o nombre Wi‑Fi — cambio_clave_wifi_detalle","collection":"01_soporte_internet"}
+{"index":15,"id":"01_soporte_internet:playbook:cambio_clave_wifi:step:validacion_resultado","title":"Cambiar contraseña o nombre Wi‑Fi — validacion_resultado","collection":"01_soporte_internet"}
+{"index":16,"id":"01_soporte_internet:playbook:estado_reclamo:handoff","title":"Consultar estado de reclamo técnico — salida y handoff","collection":"01_soporte_internet"}
+{"index":17,"id":"01_soporte_internet:playbook:estado_reclamo:overview","title":"Consultar estado de reclamo técnico","collection":"01_soporte_internet"}
+{"index":18,"id":"01_soporte_internet:playbook:estado_reclamo:rule:01","title":"Consultar estado de reclamo técnico — regla 1","collection":"01_soporte_internet"}
+{"index":19,"id":"01_soporte_internet:playbook:estado_reclamo:rule:02","title":"Consultar estado de reclamo técnico — regla 2","collection":"01_soporte_internet"}
+{"index":20,"id":"01_soporte_internet:playbook:estado_reclamo:rule:03","title":"Consultar estado de reclamo técnico — regla 3","collection":"01_soporte_internet"}
+{"index":21,"id":"01_soporte_internet:playbook:estado_reclamo:step:accion_1","title":"Consultar estado de reclamo técnico — accion_1","collection":"01_soporte_internet"}
+{"index":22,"id":"01_soporte_internet:playbook:estado_reclamo:step:estado_reclamo_detalle","title":"Consultar estado de reclamo técnico — estado_reclamo_detalle","collection":"01_soporte_internet"}
+{"index":23,"id":"01_soporte_internet:playbook:estado_reclamo:step:validacion_resultado","title":"Consultar estado de reclamo técnico — validacion_resultado","collection":"01_soporte_internet"}
+{"index":24,"id":"01_soporte_internet:playbook:internet:handoff","title":"Enrutador de consultas de Internet — salida y handoff","collection":"01_soporte_internet"}
+{"index":25,"id":"01_soporte_internet:playbook:internet:overview","title":"Enrutador de consultas de Internet","collection":"01_soporte_internet"}
+{"index":26,"id":"01_soporte_internet:playbook:internet:rule:01","title":"Enrutador de consultas de Internet — regla 1","collection":"01_soporte_internet"}
+{"index":27,"id":"01_soporte_internet:playbook:internet:rule:02","title":"Enrutador de consultas de Internet — regla 2","collection":"01_soporte_internet"}
+{"index":28,"id":"01_soporte_internet:playbook:internet:rule:03","title":"Enrutador de consultas de Internet — regla 3","collection":"01_soporte_internet"}
+{"index":29,"id":"01_soporte_internet:playbook:internet:rule:04","title":"Enrutador de consultas de Internet — regla 4","collection":"01_soporte_internet"}
+{"index":30,"id":"01_soporte_internet:playbook:internet:rule:05","title":"Enrutador de consultas de Internet — regla 5","collection":"01_soporte_internet"}
+{"index":31,"id":"01_soporte_internet:playbook:internet:rule:06","title":"Enrutador de consultas de Internet — regla 6","collection":"01_soporte_internet"}
+{"index":32,"id":"01_soporte_internet:playbook:internet:rule:07","title":"Enrutador de consultas de Internet — regla 7","collection":"01_soporte_internet"}
+{"index":33,"id":"01_soporte_internet:playbook:internet:step:tecnologia_servicio","title":"Enrutador de consultas de Internet — tecnologia_servicio","collection":"01_soporte_internet"}
+{"index":34,"id":"01_soporte_internet:playbook:internet:step:tipo_problema_internet","title":"Enrutador de consultas de Internet — tipo_problema_internet","collection":"01_soporte_internet"}
+{"index":35,"id":"01_soporte_internet:playbook:internet_adsl:handoff","title":"Sin Internet — ADSL — salida y handoff","collection":"01_soporte_internet"}
+{"index":36,"id":"01_soporte_internet:playbook:internet_adsl:overview","title":"Sin Internet — ADSL","collection":"01_soporte_internet"}
+{"index":37,"id":"01_soporte_internet:playbook:internet_adsl:rule:01","title":"Sin Internet — ADSL — regla 1","collection":"01_soporte_internet"}
+{"index":38,"id":"01_soporte_internet:playbook:internet_adsl:rule:02","title":"Sin Internet — ADSL — regla 2","collection":"01_soporte_internet"}
+{"index":39,"id":"01_soporte_internet:playbook:internet_adsl:rule:03","title":"Sin Internet — ADSL — regla 3","collection":"01_soporte_internet"}
+{"index":40,"id":"01_soporte_internet:playbook:internet_adsl:rule:04","title":"Sin Internet — ADSL — regla 4","collection":"01_soporte_internet"}
+{"index":41,"id":"01_soporte_internet:playbook:internet_adsl:rule:05","title":"Sin Internet — ADSL — regla 5","collection":"01_soporte_internet"}
+{"index":42,"id":"01_soporte_internet:playbook:internet_adsl:step:cableado_telefonico","title":"Sin Internet — ADSL — cableado_telefonico","collection":"01_soporte_internet"}
+{"index":43,"id":"01_soporte_internet:playbook:internet_adsl:step:dispositivos_afectados","title":"Sin Internet — ADSL — dispositivos_afectados","collection":"01_soporte_internet"}
+{"index":44,"id":"01_soporte_internet:playbook:internet_adsl:step:estado_incidente","title":"Sin Internet — ADSL — estado_incidente","collection":"01_soporte_internet"}
+{"index":45,"id":"01_soporte_internet:playbook:internet_adsl:step:estado_led_dsl","title":"Sin Internet — ADSL — estado_led_dsl","collection":"01_soporte_internet"}
+{"index":46,"id":"01_soporte_internet:playbook:internet_adsl:step:estado_led_internet","title":"Sin Internet — ADSL — estado_led_internet","collection":"01_soporte_internet"}
+{"index":47,"id":"01_soporte_internet:playbook:internet_adsl:step:estado_led_power","title":"Sin Internet — ADSL — estado_led_power","collection":"01_soporte_internet"}
+{"index":48,"id":"01_soporte_internet:playbook:internet_adsl:step:reinicio_controlado","title":"Sin Internet — ADSL — reinicio_controlado","collection":"01_soporte_internet"}
+{"index":49,"id":"01_soporte_internet:playbook:internet_adsl:step:reinicio_previo","title":"Sin Internet — ADSL — reinicio_previo","collection":"01_soporte_internet"}
+{"index":50,"id":"01_soporte_internet:playbook:internet_adsl:step:ruido_linea","title":"Sin Internet — ADSL — ruido_linea","collection":"01_soporte_internet"}
+{"index":51,"id":"01_soporte_internet:playbook:internet_adsl:step:tiempo_problema","title":"Sin Internet — ADSL — tiempo_problema","collection":"01_soporte_internet"}
+{"index":52,"id":"01_soporte_internet:playbook:internet_adsl:step:validacion_navegacion","title":"Sin Internet — ADSL — validacion_navegacion","collection":"01_soporte_internet"}
+{"index":53,"id":"01_soporte_internet:playbook:internet_ftth:handoff","title":"Sin Internet — Fibra/FTTH — salida y handoff","collection":"01_soporte_internet"}
+{"index":54,"id":"01_soporte_internet:playbook:internet_ftth:overview","title":"Sin Internet — Fibra/FTTH","collection":"01_soporte_internet"}
+{"index":55,"id":"01_soporte_internet:playbook:internet_ftth:rule:01","title":"Sin Internet — Fibra/FTTH — regla 1","collection":"01_soporte_internet"}
+{"index":56,"id":"01_soporte_internet:playbook:internet_ftth:rule:02","title":"Sin Internet — Fibra/FTTH — regla 2","collection":"01_soporte_internet"}
+{"index":57,"id":"01_soporte_internet:playbook:internet_ftth:rule:03","title":"Sin Internet — Fibra/FTTH — regla 3","collection":"01_soporte_internet"}
+{"index":58,"id":"01_soporte_internet:playbook:internet_ftth:rule:04","title":"Sin Internet — Fibra/FTTH — regla 4","collection":"01_soporte_internet"}
+{"index":59,"id":"01_soporte_internet:playbook:internet_ftth:rule:05","title":"Sin Internet — Fibra/FTTH — regla 5","collection":"01_soporte_internet"}
+{"index":60,"id":"01_soporte_internet:playbook:internet_ftth:rule:06","title":"Sin Internet — Fibra/FTTH — regla 6","collection":"01_soporte_internet"}
+{"index":61,"id":"01_soporte_internet:playbook:internet_ftth:step:cables_ont","title":"Sin Internet — Fibra/FTTH — cables_ont","collection":"01_soporte_internet"}
+{"index":62,"id":"01_soporte_internet:playbook:internet_ftth:step:conexion_cableada","title":"Sin Internet — Fibra/FTTH — conexion_cableada","collection":"01_soporte_internet"}
+{"index":63,"id":"01_soporte_internet:playbook:internet_ftth:step:dispositivos_afectados","title":"Sin Internet — Fibra/FTTH — dispositivos_afectados","collection":"01_soporte_internet"}
+{"index":64,"id":"01_soporte_internet:playbook:internet_ftth:step:estado_incidente","title":"Sin Internet — Fibra/FTTH — estado_incidente","collection":"01_soporte_internet"}
+{"index":65,"id":"01_soporte_internet:playbook:internet_ftth:step:estado_led_los","title":"Sin Internet — Fibra/FTTH — estado_led_los","collection":"01_soporte_internet"}
+{"index":66,"id":"01_soporte_internet:playbook:internet_ftth:step:estado_led_pon","title":"Sin Internet — Fibra/FTTH — estado_led_pon","collection":"01_soporte_internet"}
+{"index":67,"id":"01_soporte_internet:playbook:internet_ftth:step:estado_led_power","title":"Sin Internet — Fibra/FTTH — estado_led_power","collection":"01_soporte_internet"}
+{"index":68,"id":"01_soporte_internet:playbook:internet_ftth:step:luces_post_reinicio","title":"Sin Internet — Fibra/FTTH — luces_post_reinicio","collection":"01_soporte_internet"}
+{"index":69,"id":"01_soporte_internet:playbook:internet_ftth:step:reinicio_controlado","title":"Sin Internet — Fibra/FTTH — reinicio_controlado","collection":"01_soporte_internet"}
+{"index":70,"id":"01_soporte_internet:playbook:internet_ftth:step:reinicio_previo","title":"Sin Internet — Fibra/FTTH — reinicio_previo","collection":"01_soporte_internet"}
+{"index":71,"id":"01_soporte_internet:playbook:internet_ftth:step:tiempo_problema","title":"Sin Internet — Fibra/FTTH — tiempo_problema","collection":"01_soporte_internet"}
+{"index":72,"id":"01_soporte_internet:playbook:internet_ftth:step:validacion_navegacion","title":"Sin Internet — Fibra/FTTH — validacion_navegacion","collection":"01_soporte_internet"}
+{"index":73,"id":"01_soporte_internet:playbook:internet_intermitente:handoff","title":"Cortes o intermitencia — salida y handoff","collection":"01_soporte_internet"}
+{"index":74,"id":"01_soporte_internet:playbook:internet_intermitente:overview","title":"Cortes o intermitencia","collection":"01_soporte_internet"}
+{"index":75,"id":"01_soporte_internet:playbook:internet_intermitente:rule:01","title":"Cortes o intermitencia — regla 1","collection":"01_soporte_internet"}
+{"index":76,"id":"01_soporte_internet:playbook:internet_intermitente:rule:02","title":"Cortes o intermitencia — regla 2","collection":"01_soporte_internet"}
+{"index":77,"id":"01_soporte_internet:playbook:internet_intermitente:rule:03","title":"Cortes o intermitencia — regla 3","collection":"01_soporte_internet"}
+{"index":78,"id":"01_soporte_internet:playbook:internet_intermitente:rule:04","title":"Cortes o intermitencia — regla 4","collection":"01_soporte_internet"}
+{"index":79,"id":"01_soporte_internet:playbook:internet_intermitente:step:dispositivos_afectados","title":"Cortes o intermitencia — dispositivos_afectados","collection":"01_soporte_internet"}
+{"index":80,"id":"01_soporte_internet:playbook:internet_intermitente:step:estado_incidente","title":"Cortes o intermitencia — estado_incidente","collection":"01_soporte_internet"}
+{"index":81,"id":"01_soporte_internet:playbook:internet_intermitente:step:frecuencia_cortes","title":"Cortes o intermitencia — frecuencia_cortes","collection":"01_soporte_internet"}
+{"index":82,"id":"01_soporte_internet:playbook:internet_intermitente:step:luces_durante_corte","title":"Cortes o intermitencia — luces_durante_corte","collection":"01_soporte_internet"}
+{"index":83,"id":"01_soporte_internet:playbook:internet_intermitente:step:medio_conexion","title":"Cortes o intermitencia — medio_conexion","collection":"01_soporte_internet"}
+{"index":84,"id":"01_soporte_internet:playbook:internet_intermitente:step:reinicio_controlado","title":"Cortes o intermitencia — reinicio_controlado","collection":"01_soporte_internet"}
+{"index":85,"id":"01_soporte_internet:playbook:internet_intermitente:step:validacion_estabilidad","title":"Cortes o intermitencia — validacion_estabilidad","collection":"01_soporte_internet"}
+{"index":86,"id":"01_soporte_internet:playbook:internet_lento:handoff","title":"Baja velocidad — salida y handoff","collection":"01_soporte_internet"}
+{"index":87,"id":"01_soporte_internet:playbook:internet_lento:overview","title":"Baja velocidad","collection":"01_soporte_internet"}
+{"index":88,"id":"01_soporte_internet:playbook:internet_lento:rule:01","title":"Baja velocidad — regla 1","collection":"01_soporte_internet"}
+{"index":89,"id":"01_soporte_internet:playbook:internet_lento:rule:02","title":"Baja velocidad — regla 2","collection":"01_soporte_internet"}
+{"index":90,"id":"01_soporte_internet:playbook:internet_lento:rule:03","title":"Baja velocidad — regla 3","collection":"01_soporte_internet"}
+{"index":91,"id":"01_soporte_internet:playbook:internet_lento:rule:04","title":"Baja velocidad — regla 4","collection":"01_soporte_internet"}
+{"index":92,"id":"01_soporte_internet:playbook:internet_lento:step:dispositivos_afectados","title":"Baja velocidad — dispositivos_afectados","collection":"01_soporte_internet"}
+{"index":93,"id":"01_soporte_internet:playbook:internet_lento:step:distancia_wifi","title":"Baja velocidad — distancia_wifi","collection":"01_soporte_internet"}
+{"index":94,"id":"01_soporte_internet:playbook:internet_lento:step:estado_incidente","title":"Baja velocidad — estado_incidente","collection":"01_soporte_internet"}
+{"index":95,"id":"01_soporte_internet:playbook:internet_lento:step:medio_prueba","title":"Baja velocidad — medio_prueba","collection":"01_soporte_internet"}
+{"index":96,"id":"01_soporte_internet:playbook:internet_lento:step:plan_contratado","title":"Baja velocidad — plan_contratado","collection":"01_soporte_internet"}
+{"index":97,"id":"01_soporte_internet:playbook:internet_lento:step:resultado_medicion","title":"Baja velocidad — resultado_medicion","collection":"01_soporte_internet"}
+{"index":98,"id":"01_soporte_internet:playbook:internet_lento:step:segunda_medicion","title":"Baja velocidad — segunda_medicion","collection":"01_soporte_internet"}
+{"index":99,"id":"01_soporte_internet:playbook:internet_lento:step:uso_simultaneo","title":"Baja velocidad — uso_simultaneo","collection":"01_soporte_internet"}
+{"index":100,"id":"01_soporte_internet:playbook:internet_radio:handoff","title":"Sin Internet — Inalámbrico/Radio — salida y handoff","collection":"01_soporte_internet"}
+{"index":101,"id":"01_soporte_internet:playbook:internet_radio:overview","title":"Sin Internet — Inalámbrico/Radio","collection":"01_soporte_internet"}
+{"index":102,"id":"01_soporte_internet:playbook:internet_radio:rule:01","title":"Sin Internet — Inalámbrico/Radio — regla 1","collection":"01_soporte_internet"}
+{"index":103,"id":"01_soporte_internet:playbook:internet_radio:rule:02","title":"Sin Internet — Inalámbrico/Radio — regla 2","collection":"01_soporte_internet"}
+{"index":104,"id":"01_soporte_internet:playbook:internet_radio:rule:03","title":"Sin Internet — Inalámbrico/Radio — regla 3","collection":"01_soporte_internet"}
+{"index":105,"id":"01_soporte_internet:playbook:internet_radio:rule:04","title":"Sin Internet — Inalámbrico/Radio — regla 4","collection":"01_soporte_internet"}
+{"index":106,"id":"01_soporte_internet:playbook:internet_radio:rule:05","title":"Sin Internet — Inalámbrico/Radio — regla 5","collection":"01_soporte_internet"}
+{"index":107,"id":"01_soporte_internet:playbook:internet_radio:step:cables_poe","title":"Sin Internet — Inalámbrico/Radio — cables_poe","collection":"01_soporte_internet"}
+{"index":108,"id":"01_soporte_internet:playbook:internet_radio:step:dispositivos_afectados","title":"Sin Internet — Inalámbrico/Radio — dispositivos_afectados","collection":"01_soporte_internet"}
+{"index":109,"id":"01_soporte_internet:playbook:internet_radio:step:energia_poe","title":"Sin Internet — Inalámbrico/Radio — energia_poe","collection":"01_soporte_internet"}
+{"index":110,"id":"01_soporte_internet:playbook:internet_radio:step:estado_cpe","title":"Sin Internet — Inalámbrico/Radio — estado_cpe","collection":"01_soporte_internet"}
+{"index":111,"id":"01_soporte_internet:playbook:internet_radio:step:estado_incidente","title":"Sin Internet — Inalámbrico/Radio — estado_incidente","collection":"01_soporte_internet"}
+{"index":112,"id":"01_soporte_internet:playbook:internet_radio:step:luces_router","title":"Sin Internet — Inalámbrico/Radio — luces_router","collection":"01_soporte_internet"}
+{"index":113,"id":"01_soporte_internet:playbook:internet_radio:step:reinicio_controlado","title":"Sin Internet — Inalámbrico/Radio — reinicio_controlado","collection":"01_soporte_internet"}
+{"index":114,"id":"01_soporte_internet:playbook:internet_radio:step:reinicio_previo","title":"Sin Internet — Inalámbrico/Radio — reinicio_previo","collection":"01_soporte_internet"}
+{"index":115,"id":"01_soporte_internet:playbook:internet_radio:step:tiempo_problema","title":"Sin Internet — Inalámbrico/Radio — tiempo_problema","collection":"01_soporte_internet"}
+{"index":116,"id":"01_soporte_internet:playbook:internet_radio:step:validacion_navegacion","title":"Sin Internet — Inalámbrico/Radio — validacion_navegacion","collection":"01_soporte_internet"}
+{"index":117,"id":"01_soporte_internet:playbook:internet_wifi:handoff","title":"Cobertura o conexión Wi‑Fi — salida y handoff","collection":"01_soporte_internet"}
+{"index":118,"id":"01_soporte_internet:playbook:internet_wifi:overview","title":"Cobertura o conexión Wi‑Fi","collection":"01_soporte_internet"}
+{"index":119,"id":"01_soporte_internet:playbook:internet_wifi:rule:01","title":"Cobertura o conexión Wi‑Fi — regla 1","collection":"01_soporte_internet"}
+{"index":120,"id":"01_soporte_internet:playbook:internet_wifi:rule:02","title":"Cobertura o conexión Wi‑Fi — regla 2","collection":"01_soporte_internet"}
+{"index":121,"id":"01_soporte_internet:playbook:internet_wifi:rule:03","title":"Cobertura o conexión Wi‑Fi — regla 3","collection":"01_soporte_internet"}
+{"index":122,"id":"01_soporte_internet:playbook:internet_wifi:rule:04","title":"Cobertura o conexión Wi‑Fi — regla 4","collection":"01_soporte_internet"}
+{"index":123,"id":"01_soporte_internet:playbook:internet_wifi:step:conexion_cableada","title":"Cobertura o conexión Wi‑Fi — conexion_cableada","collection":"01_soporte_internet"}
+{"index":124,"id":"01_soporte_internet:playbook:internet_wifi:step:dispositivos_afectados","title":"Cobertura o conexión Wi‑Fi — dispositivos_afectados","collection":"01_soporte_internet"}
+{"index":125,"id":"01_soporte_internet:playbook:internet_wifi:step:error_wifi","title":"Cobertura o conexión Wi‑Fi — error_wifi","collection":"01_soporte_internet"}
+{"index":126,"id":"01_soporte_internet:playbook:internet_wifi:step:olvidar_red","title":"Cobertura o conexión Wi‑Fi — olvidar_red","collection":"01_soporte_internet"}
+{"index":127,"id":"01_soporte_internet:playbook:internet_wifi:step:red_visible","title":"Cobertura o conexión Wi‑Fi — red_visible","collection":"01_soporte_internet"}
+{"index":128,"id":"01_soporte_internet:playbook:internet_wifi:step:ubicacion_prueba","title":"Cobertura o conexión Wi‑Fi — ubicacion_prueba","collection":"01_soporte_internet"}
+{"index":129,"id":"01_soporte_internet:playbook:internet_wifi:step:validacion_wifi","title":"Cobertura o conexión Wi‑Fi — validacion_wifi","collection":"01_soporte_internet"}

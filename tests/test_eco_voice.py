@@ -134,7 +134,7 @@ def test_doble_tema_y_prioridad():
     corr = "no es un problema tecnico, necesito saber cuanto me vino en la factura"
     assert pide_humano(corr) is False
     assert parece_consulta_nueva(corr) is True
-    assert clasificar_intencion(corr) == "facturacion"
+    assert clasificar_intencion(corr) == "facturacion_estado_cuenta"
     assert pide_humano("mandame un tecnico") is True
 
 

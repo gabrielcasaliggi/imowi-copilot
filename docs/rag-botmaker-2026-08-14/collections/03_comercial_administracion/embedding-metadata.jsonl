@@ -1,0 +1,46 @@
+{"index":0,"id":"03_comercial_administracion:intent:baja_servicio","title":"Solicitud de baja del servicio","collection":"03_comercial_administracion"}
+{"index":1,"id":"03_comercial_administracion:intent:cambio_plan","title":"Cambiar plan o velocidad","collection":"03_comercial_administracion"}
+{"index":2,"id":"03_comercial_administracion:intent:cambio_titularidad","title":"Cambio de titularidad","collection":"03_comercial_administracion"}
+{"index":3,"id":"03_comercial_administracion:intent:cobertura_contratacion","title":"Consultar cobertura o contratar servicio","collection":"03_comercial_administracion"}
+{"index":4,"id":"03_comercial_administracion:intent:seguimiento_instalacion","title":"Consultar instalación o visita técnica","collection":"03_comercial_administracion"}
+{"index":5,"id":"03_comercial_administracion:playbook:baja_servicio:handoff","title":"Solicitud de baja del servicio — salida y handoff","collection":"03_comercial_administracion"}
+{"index":6,"id":"03_comercial_administracion:playbook:baja_servicio:overview","title":"Solicitud de baja del servicio","collection":"03_comercial_administracion"}
+{"index":7,"id":"03_comercial_administracion:playbook:baja_servicio:rule:01","title":"Solicitud de baja del servicio — regla 1","collection":"03_comercial_administracion"}
+{"index":8,"id":"03_comercial_administracion:playbook:baja_servicio:rule:02","title":"Solicitud de baja del servicio — regla 2","collection":"03_comercial_administracion"}
+{"index":9,"id":"03_comercial_administracion:playbook:baja_servicio:rule:03","title":"Solicitud de baja del servicio — regla 3","collection":"03_comercial_administracion"}
+{"index":10,"id":"03_comercial_administracion:playbook:baja_servicio:step:accion_1","title":"Solicitud de baja del servicio — accion_1","collection":"03_comercial_administracion"}
+{"index":11,"id":"03_comercial_administracion:playbook:baja_servicio:step:accion_2","title":"Solicitud de baja del servicio — accion_2","collection":"03_comercial_administracion"}
+{"index":12,"id":"03_comercial_administracion:playbook:baja_servicio:step:baja_servicio_detalle","title":"Solicitud de baja del servicio — baja_servicio_detalle","collection":"03_comercial_administracion"}
+{"index":13,"id":"03_comercial_administracion:playbook:baja_servicio:step:validacion_resultado","title":"Solicitud de baja del servicio — validacion_resultado","collection":"03_comercial_administracion"}
+{"index":14,"id":"03_comercial_administracion:playbook:cambio_plan:handoff","title":"Cambiar plan o velocidad — salida y handoff","collection":"03_comercial_administracion"}
+{"index":15,"id":"03_comercial_administracion:playbook:cambio_plan:overview","title":"Cambiar plan o velocidad","collection":"03_comercial_administracion"}
+{"index":16,"id":"03_comercial_administracion:playbook:cambio_plan:rule:01","title":"Cambiar plan o velocidad — regla 1","collection":"03_comercial_administracion"}
+{"index":17,"id":"03_comercial_administracion:playbook:cambio_plan:rule:02","title":"Cambiar plan o velocidad — regla 2","collection":"03_comercial_administracion"}
+{"index":18,"id":"03_comercial_administracion:playbook:cambio_plan:rule:03","title":"Cambiar plan o velocidad — regla 3","collection":"03_comercial_administracion"}
+{"index":19,"id":"03_comercial_administracion:playbook:cambio_plan:step:accion_1","title":"Cambiar plan o velocidad — accion_1","collection":"03_comercial_administracion"}
+{"index":20,"id":"03_comercial_administracion:playbook:cambio_plan:step:cambio_plan_detalle","title":"Cambiar plan o velocidad — cambio_plan_detalle","collection":"03_comercial_administracion"}
+{"index":21,"id":"03_comercial_administracion:playbook:cambio_plan:step:validacion_resultado","title":"Cambiar plan o velocidad — validacion_resultado","collection":"03_comercial_administracion"}
+{"index":22,"id":"03_comercial_administracion:playbook:cambio_titularidad:handoff","title":"Cambio de titularidad — salida y handoff","collection":"03_comercial_administracion"}
+{"index":23,"id":"03_comercial_administracion:playbook:cambio_titularidad:overview","title":"Cambio de titularidad","collection":"03_comercial_administracion"}
+{"index":24,"id":"03_comercial_administracion:playbook:cambio_titularidad:rule:01","title":"Cambio de titularidad — regla 1","collection":"03_comercial_administracion"}
+{"index":25,"id":"03_comercial_administracion:playbook:cambio_titularidad:rule:02","title":"Cambio de titularidad — regla 2","collection":"03_comercial_administracion"}
+{"index":26,"id":"03_comercial_administracion:playbook:cambio_titularidad:rule:03","title":"Cambio de titularidad — regla 3","collection":"03_comercial_administracion"}
+{"index":27,"id":"03_comercial_administracion:playbook:cambio_titularidad:step:accion_1","title":"Cambio de titularidad — accion_1","collection":"03_comercial_administracion"}
+{"index":28,"id":"03_comercial_administracion:playbook:cambio_titularidad:step:cambio_titularidad_detalle","title":"Cambio de titularidad — cambio_titularidad_detalle","collection":"03_comercial_administracion"}
+{"index":29,"id":"03_comercial_administracion:playbook:cambio_titularidad:step:validacion_resultado","title":"Cambio de titularidad — validacion_resultado","collection":"03_comercial_administracion"}
+{"index":30,"id":"03_comercial_administracion:playbook:cobertura:handoff","title":"Consultar cobertura o contratar servicio — salida y handoff","collection":"03_comercial_administracion"}
+{"index":31,"id":"03_comercial_administracion:playbook:cobertura:overview","title":"Consultar cobertura o contratar servicio","collection":"03_comercial_administracion"}
+{"index":32,"id":"03_comercial_administracion:playbook:cobertura:rule:01","title":"Consultar cobertura o contratar servicio — regla 1","collection":"03_comercial_administracion"}
+{"index":33,"id":"03_comercial_administracion:playbook:cobertura:rule:02","title":"Consultar cobertura o contratar servicio — regla 2","collection":"03_comercial_administracion"}
+{"index":34,"id":"03_comercial_administracion:playbook:cobertura:rule:03","title":"Consultar cobertura o contratar servicio — regla 3","collection":"03_comercial_administracion"}
+{"index":35,"id":"03_comercial_administracion:playbook:cobertura:step:accion_1","title":"Consultar cobertura o contratar servicio — accion_1","collection":"03_comercial_administracion"}
+{"index":36,"id":"03_comercial_administracion:playbook:cobertura:step:cobertura_contratacion_detalle","title":"Consultar cobertura o contratar servicio — cobertura_contratacion_detalle","collection":"03_comercial_administracion"}
+{"index":37,"id":"03_comercial_administracion:playbook:cobertura:step:validacion_resultado","title":"Consultar cobertura o contratar servicio — validacion_resultado","collection":"03_comercial_administracion"}
+{"index":38,"id":"03_comercial_administracion:playbook:instalacion:handoff","title":"Consultar instalación o visita técnica — salida y handoff","collection":"03_comercial_administracion"}
+{"index":39,"id":"03_comercial_administracion:playbook:instalacion:overview","title":"Consultar instalación o visita técnica","collection":"03_comercial_administracion"}
+{"index":40,"id":"03_comercial_administracion:playbook:instalacion:rule:01","title":"Consultar instalación o visita técnica — regla 1","collection":"03_comercial_administracion"}
+{"index":41,"id":"03_comercial_administracion:playbook:instalacion:rule:02","title":"Consultar instalación o visita técnica — regla 2","collection":"03_comercial_administracion"}
+{"index":42,"id":"03_comercial_administracion:playbook:instalacion:rule:03","title":"Consultar instalación o visita técnica — regla 3","collection":"03_comercial_administracion"}
+{"index":43,"id":"03_comercial_administracion:playbook:instalacion:step:accion_1","title":"Consultar instalación o visita técnica — accion_1","collection":"03_comercial_administracion"}
+{"index":44,"id":"03_comercial_administracion:playbook:instalacion:step:seguimiento_instalacion_detalle","title":"Consultar instalación o visita técnica — seguimiento_instalacion_detalle","collection":"03_comercial_administracion"}
+{"index":45,"id":"03_comercial_administracion:playbook:instalacion:step:validacion_resultado","title":"Consultar instalación o visita técnica — validacion_resultado","collection":"03_comercial_administracion"}

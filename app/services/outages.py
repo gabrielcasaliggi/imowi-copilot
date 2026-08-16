@@ -9,13 +9,14 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.domain.flujos_abonado import INTENCIONES_FACTURACION
 from app.estate import repository as repo
 from app.estate.models import Abonado, NetworkOutage
 
 logger = logging.getLogger("operations_hub")
 
-_INTENCIONES_NO_OUTAGE = frozenset(
-    {"facturacion", "corte_deuda", "aviso_deuda", "multi_tema"}
+_INTENCIONES_NO_OUTAGE = INTENCIONES_FACTURACION | frozenset(
+    {"aviso_deuda", "multi_tema"}
 )
 
 # Cache corto del inventario NAS (por proceso)

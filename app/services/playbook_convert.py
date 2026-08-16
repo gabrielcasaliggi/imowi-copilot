@@ -26,6 +26,18 @@ _ALIASES: dict[str, str] = {
     "legal": "no_tecnico",
     "administrativo": "facturacion",
     "comercial": "alta_plan",
+    "sin_internet": "internet",
+    "cortes_intermitencia": "internet_intermitente",
+    "wifi_conectividad": "wifi",
+    "lentitud": "internet_lento",
+    "telefonia_fija": "telefono_fija",
+    "pagar_factura": "facturacion_pago",
+    "descargar_factura_talon": "facturacion_descarga",
+    "informar_pago": "facturacion_informar_pago",
+    "solicitud_factura": "facturacion_factura",
+    "estado_cuenta": "facturacion_estado_cuenta",
+    "cobro_no_reconocido": "facturacion_reclamo",
+    "reactivacion_pago": "reactivacion_pago",
 }
 
 _SYSTEM = """Sos un asistente que convierte guías de soporte a playbooks N1.

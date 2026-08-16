@@ -1,0 +1,145 @@
+{
+  "version": "2026-08-14.1",
+  "status": "draft",
+  "default": "05_operacion_escalamiento",
+  "routes": [
+    {
+      "intent": "sin_internet",
+      "collection": "01_soporte_internet",
+      "title": "Sin Internet o servicio caído",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "cortes_intermitencia",
+      "collection": "01_soporte_internet",
+      "title": "Cortes o conexión intermitente",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "wifi_conectividad",
+      "collection": "01_soporte_internet",
+      "title": "Problema de cobertura o conexión Wi‑Fi",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "lentitud",
+      "collection": "01_soporte_internet",
+      "title": "Baja velocidad o lentitud",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "cambio_clave_wifi",
+      "collection": "01_soporte_internet",
+      "title": "Cambiar contraseña o nombre Wi‑Fi",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "estado_reclamo",
+      "collection": "01_soporte_internet",
+      "title": "Consultar estado de reclamo técnico",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "pagar_factura",
+      "collection": "02_facturacion_pagos",
+      "title": "Pagar factura",
+      "mode": "autoservicio"
+    },
+    {
+      "intent": "descargar_factura_talon",
+      "collection": "02_facturacion_pagos",
+      "title": "Descargar factura, boleta o talón de pago",
+      "mode": "autoservicio"
+    },
+    {
+      "intent": "informar_pago",
+      "collection": "02_facturacion_pagos",
+      "title": "Informar pago realizado",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "solicitud_factura",
+      "collection": "02_facturacion_pagos",
+      "title": "Solicitar o recibir factura",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "estado_cuenta",
+      "collection": "02_facturacion_pagos",
+      "title": "Consultar deuda, vencimiento o estado de cuenta",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "reactivacion_pago",
+      "collection": "02_facturacion_pagos",
+      "title": "Reactivar servicio después de pagar",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "baja_servicio",
+      "collection": "03_comercial_administracion",
+      "title": "Solicitud de baja del servicio",
+      "mode": "recoleccion_y_derivacion"
+    },
+    {
+      "intent": "cobertura_contratacion",
+      "collection": "03_comercial_administracion",
+      "title": "Consultar cobertura o contratar servicio",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "seguimiento_instalacion",
+      "collection": "03_comercial_administracion",
+      "title": "Consultar instalación o visita técnica",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "cambio_plan",
+      "collection": "03_comercial_administracion",
+      "title": "Cambiar plan o velocidad",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "cambio_titularidad",
+      "collection": "03_comercial_administracion",
+      "title": "Cambio de titularidad",
+      "mode": "recoleccion_y_derivacion"
+    },
+    {
+      "intent": "movil_portabilidad",
+      "collection": "04_servicios_adicionales",
+      "title": "Portabilidad o servicio móvil",
+      "mode": "recoleccion_y_derivacion"
+    },
+    {
+      "intent": "tv_sensa",
+      "collection": "04_servicios_adicionales",
+      "title": "Consulta o falla de TV Sensa",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "credenciales_acceso",
+      "collection": "04_servicios_adicionales",
+      "title": "Recuperar o cambiar credenciales de acceso",
+      "mode": "gestion_con_integracion"
+    },
+    {
+      "intent": "telefonia_fija",
+      "collection": "04_servicios_adicionales",
+      "title": "Falla o consulta de telefonía fija",
+      "mode": "diagnostico_guiado"
+    },
+    {
+      "intent": "guia_telefonica",
+      "collection": "04_servicios_adicionales",
+      "title": "Consultar guía telefónica",
+      "mode": "autoservicio"
+    },
+    {
+      "intent": "hablar_agente",
+      "collection": "05_operacion_escalamiento",
+      "title": "Solicitud directa de agente",
+      "mode": "escape"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{"index":0,"id":"02_facturacion_pagos:intent:descargar_factura_talon","title":"Descargar factura, boleta o talón de pago","collection":"02_facturacion_pagos"}
+{"index":1,"id":"02_facturacion_pagos:intent:estado_cuenta","title":"Consultar deuda, vencimiento o estado de cuenta","collection":"02_facturacion_pagos"}
+{"index":2,"id":"02_facturacion_pagos:intent:informar_pago","title":"Informar pago realizado","collection":"02_facturacion_pagos"}
+{"index":3,"id":"02_facturacion_pagos:intent:pagar_factura","title":"Pagar factura","collection":"02_facturacion_pagos"}
+{"index":4,"id":"02_facturacion_pagos:intent:reactivacion_pago","title":"Reactivar servicio después de pagar","collection":"02_facturacion_pagos"}
+{"index":5,"id":"02_facturacion_pagos:intent:solicitud_factura","title":"Solicitar o recibir factura","collection":"02_facturacion_pagos"}
+{"index":6,"id":"02_facturacion_pagos:playbook:facturacion:handoff","title":"Enrutador de facturación — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":7,"id":"02_facturacion_pagos:playbook:facturacion:overview","title":"Enrutador de facturación","collection":"02_facturacion_pagos"}
+{"index":8,"id":"02_facturacion_pagos:playbook:facturacion:rule:01","title":"Enrutador de facturación — regla 1","collection":"02_facturacion_pagos"}
+{"index":9,"id":"02_facturacion_pagos:playbook:facturacion:rule:02","title":"Enrutador de facturación — regla 2","collection":"02_facturacion_pagos"}
+{"index":10,"id":"02_facturacion_pagos:playbook:facturacion:rule:03","title":"Enrutador de facturación — regla 3","collection":"02_facturacion_pagos"}
+{"index":11,"id":"02_facturacion_pagos:playbook:facturacion:rule:04","title":"Enrutador de facturación — regla 4","collection":"02_facturacion_pagos"}
+{"index":12,"id":"02_facturacion_pagos:playbook:facturacion:rule:05","title":"Enrutador de facturación — regla 5","collection":"02_facturacion_pagos"}
+{"index":13,"id":"02_facturacion_pagos:playbook:facturacion:rule:06","title":"Enrutador de facturación — regla 6","collection":"02_facturacion_pagos"}
+{"index":14,"id":"02_facturacion_pagos:playbook:facturacion:step:tipo_consulta_facturacion","title":"Enrutador de facturación — tipo_consulta_facturacion","collection":"02_facturacion_pagos"}
+{"index":15,"id":"02_facturacion_pagos:playbook:facturacion_descarga:handoff","title":"Descargar factura, boleta o talón de pago — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":16,"id":"02_facturacion_pagos:playbook:facturacion_descarga:overview","title":"Descargar factura, boleta o talón de pago","collection":"02_facturacion_pagos"}
+{"index":17,"id":"02_facturacion_pagos:playbook:facturacion_descarga:rule:01","title":"Descargar factura, boleta o talón de pago — regla 1","collection":"02_facturacion_pagos"}
+{"index":18,"id":"02_facturacion_pagos:playbook:facturacion_descarga:rule:02","title":"Descargar factura, boleta o talón de pago — regla 2","collection":"02_facturacion_pagos"}
+{"index":19,"id":"02_facturacion_pagos:playbook:facturacion_descarga:rule:03","title":"Descargar factura, boleta o talón de pago — regla 3","collection":"02_facturacion_pagos"}
+{"index":20,"id":"02_facturacion_pagos:playbook:facturacion_descarga:rule:04","title":"Descargar factura, boleta o talón de pago — regla 4","collection":"02_facturacion_pagos"}
+{"index":21,"id":"02_facturacion_pagos:playbook:facturacion_descarga:step:accion_1","title":"Descargar factura, boleta o talón de pago — accion_1","collection":"02_facturacion_pagos"}
+{"index":22,"id":"02_facturacion_pagos:playbook:facturacion_descarga:step:accion_2","title":"Descargar factura, boleta o talón de pago — accion_2","collection":"02_facturacion_pagos"}
+{"index":23,"id":"02_facturacion_pagos:playbook:facturacion_descarga:step:descargar_factura_talon_detalle","title":"Descargar factura, boleta o talón de pago — descargar_factura_talon_detalle","collection":"02_facturacion_pagos"}
+{"index":24,"id":"02_facturacion_pagos:playbook:facturacion_descarga:step:validacion_resultado","title":"Descargar factura, boleta o talón de pago — validacion_resultado","collection":"02_facturacion_pagos"}
+{"index":25,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:handoff","title":"Consultar deuda, vencimiento o estado de cuenta — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":26,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:overview","title":"Consultar deuda, vencimiento o estado de cuenta","collection":"02_facturacion_pagos"}
+{"index":27,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:rule:01","title":"Consultar deuda, vencimiento o estado de cuenta — regla 1","collection":"02_facturacion_pagos"}
+{"index":28,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:rule:02","title":"Consultar deuda, vencimiento o estado de cuenta — regla 2","collection":"02_facturacion_pagos"}
+{"index":29,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:rule:03","title":"Consultar deuda, vencimiento o estado de cuenta — regla 3","collection":"02_facturacion_pagos"}
+{"index":30,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:step:accion_1","title":"Consultar deuda, vencimiento o estado de cuenta — accion_1","collection":"02_facturacion_pagos"}
+{"index":31,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:step:estado_cuenta_detalle","title":"Consultar deuda, vencimiento o estado de cuenta — estado_cuenta_detalle","collection":"02_facturacion_pagos"}
+{"index":32,"id":"02_facturacion_pagos:playbook:facturacion_estado_cuenta:step:validacion_resultado","title":"Consultar deuda, vencimiento o estado de cuenta — validacion_resultado","collection":"02_facturacion_pagos"}
+{"index":33,"id":"02_facturacion_pagos:playbook:facturacion_factura:handoff","title":"Solicitar o recibir factura — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":34,"id":"02_facturacion_pagos:playbook:facturacion_factura:overview","title":"Solicitar o recibir factura","collection":"02_facturacion_pagos"}
+{"index":35,"id":"02_facturacion_pagos:playbook:facturacion_factura:rule:01","title":"Solicitar o recibir factura — regla 1","collection":"02_facturacion_pagos"}
+{"index":36,"id":"02_facturacion_pagos:playbook:facturacion_factura:rule:02","title":"Solicitar o recibir factura — regla 2","collection":"02_facturacion_pagos"}
+{"index":37,"id":"02_facturacion_pagos:playbook:facturacion_factura:rule:03","title":"Solicitar o recibir factura — regla 3","collection":"02_facturacion_pagos"}
+{"index":38,"id":"02_facturacion_pagos:playbook:facturacion_factura:step:accion_1","title":"Solicitar o recibir factura — accion_1","collection":"02_facturacion_pagos"}
+{"index":39,"id":"02_facturacion_pagos:playbook:facturacion_factura:step:solicitud_factura_detalle","title":"Solicitar o recibir factura — solicitud_factura_detalle","collection":"02_facturacion_pagos"}
+{"index":40,"id":"02_facturacion_pagos:playbook:facturacion_factura:step:validacion_resultado","title":"Solicitar o recibir factura — validacion_resultado","collection":"02_facturacion_pagos"}
+{"index":41,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:handoff","title":"Informar pago realizado — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":42,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:overview","title":"Informar pago realizado","collection":"02_facturacion_pagos"}
+{"index":43,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:rule:01","title":"Informar pago realizado — regla 1","collection":"02_facturacion_pagos"}
+{"index":44,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:rule:02","title":"Informar pago realizado — regla 2","collection":"02_facturacion_pagos"}
+{"index":45,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:rule:03","title":"Informar pago realizado — regla 3","collection":"02_facturacion_pagos"}
+{"index":46,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:step:accion_1","title":"Informar pago realizado — accion_1","collection":"02_facturacion_pagos"}
+{"index":47,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:step:accion_2","title":"Informar pago realizado — accion_2","collection":"02_facturacion_pagos"}
+{"index":48,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:step:informar_pago_detalle","title":"Informar pago realizado — informar_pago_detalle","collection":"02_facturacion_pagos"}
+{"index":49,"id":"02_facturacion_pagos:playbook:facturacion_informar_pago:step:validacion_resultado","title":"Informar pago realizado — validacion_resultado","collection":"02_facturacion_pagos"}
+{"index":50,"id":"02_facturacion_pagos:playbook:facturacion_pago:handoff","title":"Pagar factura — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":51,"id":"02_facturacion_pagos:playbook:facturacion_pago:overview","title":"Pagar factura","collection":"02_facturacion_pagos"}
+{"index":52,"id":"02_facturacion_pagos:playbook:facturacion_pago:rule:01","title":"Pagar factura — regla 1","collection":"02_facturacion_pagos"}
+{"index":53,"id":"02_facturacion_pagos:playbook:facturacion_pago:rule:02","title":"Pagar factura — regla 2","collection":"02_facturacion_pagos"}
+{"index":54,"id":"02_facturacion_pagos:playbook:facturacion_pago:rule:03","title":"Pagar factura — regla 3","collection":"02_facturacion_pagos"}
+{"index":55,"id":"02_facturacion_pagos:playbook:facturacion_pago:step:accion_1","title":"Pagar factura — accion_1","collection":"02_facturacion_pagos"}
+{"index":56,"id":"02_facturacion_pagos:playbook:facturacion_pago:step:accion_2","title":"Pagar factura — accion_2","collection":"02_facturacion_pagos"}
+{"index":57,"id":"02_facturacion_pagos:playbook:facturacion_pago:step:pagar_factura_detalle","title":"Pagar factura — pagar_factura_detalle","collection":"02_facturacion_pagos"}
+{"index":58,"id":"02_facturacion_pagos:playbook:facturacion_pago:step:validacion_resultado","title":"Pagar factura — validacion_resultado","collection":"02_facturacion_pagos"}
+{"index":59,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:handoff","title":"Cobro o importe no reconocido — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":60,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:overview","title":"Cobro o importe no reconocido","collection":"02_facturacion_pagos"}
+{"index":61,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:rule:01","title":"Cobro o importe no reconocido — regla 1","collection":"02_facturacion_pagos"}
+{"index":62,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:rule:02","title":"Cobro o importe no reconocido — regla 2","collection":"02_facturacion_pagos"}
+{"index":63,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:step:confirmacion_diferencia","title":"Cobro o importe no reconocido — confirmacion_diferencia","collection":"02_facturacion_pagos"}
+{"index":64,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:step:consulta_movimientos","title":"Cobro o importe no reconocido — consulta_movimientos","collection":"02_facturacion_pagos"}
+{"index":65,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:step:detalle_factura","title":"Cobro o importe no reconocido — detalle_factura","collection":"02_facturacion_pagos"}
+{"index":66,"id":"02_facturacion_pagos:playbook:facturacion_reclamo:step:medio_pago","title":"Cobro o importe no reconocido — medio_pago","collection":"02_facturacion_pagos"}
+{"index":67,"id":"02_facturacion_pagos:playbook:reactivacion_pago:handoff","title":"Reactivar servicio después de pagar — salida y handoff","collection":"02_facturacion_pagos"}
+{"index":68,"id":"02_facturacion_pagos:playbook:reactivacion_pago:overview","title":"Reactivar servicio después de pagar","collection":"02_facturacion_pagos"}
+{"index":69,"id":"02_facturacion_pagos:playbook:reactivacion_pago:rule:01","title":"Reactivar servicio después de pagar — regla 1","collection":"02_facturacion_pagos"}
+{"index":70,"id":"02_facturacion_pagos:playbook:reactivacion_pago:rule:02","title":"Reactivar servicio después de pagar — regla 2","collection":"02_facturacion_pagos"}
+{"index":71,"id":"02_facturacion_pagos:playbook:reactivacion_pago:rule:03","title":"Reactivar servicio después de pagar — regla 3","collection":"02_facturacion_pagos"}
+{"index":72,"id":"02_facturacion_pagos:playbook:reactivacion_pago:step:accion_1","title":"Reactivar servicio después de pagar — accion_1","collection":"02_facturacion_pagos"}
+{"index":73,"id":"02_facturacion_pagos:playbook:reactivacion_pago:step:reactivacion_pago_detalle","title":"Reactivar servicio después de pagar — reactivacion_pago_detalle","collection":"02_facturacion_pagos"}
+{"index":74,"id":"02_facturacion_pagos:playbook:reactivacion_pago:step:validacion_resultado","title":"Reactivar servicio después de pagar — validacion_resultado","collection":"02_facturacion_pagos"}

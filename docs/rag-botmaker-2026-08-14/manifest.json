@@ -1,0 +1,374 @@
+{
+  "package": "rag-botmaker-isp",
+  "version": "2026-08-14.1",
+  "created_at": "2026-08-14",
+  "status": "draft_pending_human_approval",
+  "source": "n1 aggregated catalog and curated blueprints",
+  "excluded": [
+    "raw conversations",
+    "distilled conversation text",
+    "v4 prepared artifacts",
+    "PII",
+    "credentials"
+  ],
+  "collections": {
+    "01_soporte_internet": {
+      "title": "Soporte técnico de Internet",
+      "intents": 6,
+      "blueprints": 9,
+      "documents": 9,
+      "chunks": 130
+    },
+    "02_facturacion_pagos": {
+      "title": "Facturación y pagos",
+      "intents": 6,
+      "blueprints": 8,
+      "documents": 8,
+      "chunks": 75
+    },
+    "03_comercial_administracion": {
+      "title": "Comercial y administración",
+      "intents": 5,
+      "blueprints": 5,
+      "documents": 5,
+      "chunks": 46
+    },
+    "04_servicios_adicionales": {
+      "title": "Servicios adicionales",
+      "intents": 5,
+      "blueprints": 5,
+      "documents": 5,
+      "chunks": 45
+    },
+    "05_operacion_escalamiento": {
+      "title": "Operación N1 y escalamiento",
+      "intents": 1,
+      "blueprints": 0,
+      "documents": 4,
+      "chunks": 5
+    }
+  },
+  "totals": {
+    "intents": 23,
+    "blueprints": 27,
+    "documents": 31,
+    "chunks": 301
+  },
+  "privacy_scan": {
+    "status": "passed",
+    "findings": 0,
+    "patterns": [
+      "authorization",
+      "bearer",
+      "email",
+      "ipv4",
+      "mac",
+      "arg_phone"
+    ]
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2001,
+      "sha256": "019a48f0f232cd18480ae67cb42a1871fa021a2b191a66337a38a6b508db9868"
+    },
+    {
+      "path": "all-chunks.jsonl",
+      "bytes": 202615,
+      "sha256": "dbcdb7336fe5202db510e29c564b2c8104bae75ee18b406e6e243820941add1b"
+    },
+    {
+      "path": "all-embeddings.npy",
+      "bytes": 1233024,
+      "sha256": "ba7076bfb16544db3c1353979b67b744c4a369e40310433d6ae3a9244fbd4d51"
+    },
+    {
+      "path": "approval-matrix.csv",
+      "bytes": 5235,
+      "sha256": "54bf7706c60d33d1e7da680a0c63ebac9784405aad7ab8278f330bc73dd29fb6"
+    },
+    {
+      "path": "chunk.schema.json",
+      "bytes": 1024,
+      "sha256": "47cfafd31894615b2a3fc3abca6664eb920d89790daa302580196f78d0b11268"
+    },
+    {
+      "path": "collections/01_soporte_internet/README.md",
+      "bytes": 989,
+      "sha256": "c8500269bd26d9164102c7b6cfd5aab56b308f29888769ec579eb0800b9ddde9"
+    },
+    {
+      "path": "collections/01_soporte_internet/chunks.jsonl",
+      "bytes": 86419,
+      "sha256": "47e8dd485a24ecd2ebae5e044ef24bbb7a377e25ab95c2dbe1de1ba88a4a6f4d"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/cambio_clave_wifi.md",
+      "bytes": 1810,
+      "sha256": "4dc17bb345c4c5d2ec9fca5b96bdae27bacf8d9e04cf6b35addcd43daab044bc"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/estado_reclamo.md",
+      "bytes": 1637,
+      "sha256": "f4da1d5234cd9968b34893ae9657f4399d801885d6978f2e104b3003b6b207ba"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet.md",
+      "bytes": 2122,
+      "sha256": "975f1b073d54bc3a74866dc91f3e6bc11658005e60b8c5488bab177d0614f1e1"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet_adsl.md",
+      "bytes": 2915,
+      "sha256": "a97de0a89378d158e2b6d33f1cbc78e7405e816bb5fbc2ed28761b44231ae94b"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet_ftth.md",
+      "bytes": 3493,
+      "sha256": "9a31cf66ae45f932ed54cb0e54e33ca791a7005213f49dd90658b6b14a4c30d5"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet_intermitente.md",
+      "bytes": 2045,
+      "sha256": "4edfd77d733a48d6c86c9ae2d1558a469bfaf133032cc3b27482c2d1ee6d69d2"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet_lento.md",
+      "bytes": 2551,
+      "sha256": "f963b04e5b3b527047f8d1fe24a21502998cc5d2381d241493bcba4a164302ee"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet_radio.md",
+      "bytes": 2720,
+      "sha256": "2668e751b71899695df6c3fd7a98b415499eb0faed47d9a11a83fe63a612be64"
+    },
+    {
+      "path": "collections/01_soporte_internet/documents/internet_wifi.md",
+      "bytes": 2121,
+      "sha256": "f6d8339c4bb25c69fb97ec02bfaee7806094859d4cb5623ca2d1d50ec34a0c32"
+    },
+    {
+      "path": "collections/01_soporte_internet/embedding-metadata.jsonl",
+      "bytes": 21930,
+      "sha256": "8034fd5a23c1229b32b509bbdacd0c6b573f371f1d5f90ec2cf63a8aca3dedd1"
+    },
+    {
+      "path": "collections/01_soporte_internet/embeddings.npy",
+      "bytes": 532608,
+      "sha256": "ec63231f9beeeca0fc4776fd876ae7a08a495d1953d68aad734850dd71938f6a"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/README.md",
+      "bytes": 992,
+      "sha256": "8bc96ccd76fed0322a6de47d48d24fee3367df4b9f7c64c70f1236bd7d34c066"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/chunks.jsonl",
+      "bytes": 50898,
+      "sha256": "e7dd198599fe0f1a8318f1507d281505679a5c8c3855fd8e638151c6b3eace0b"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion.md",
+      "bytes": 1813,
+      "sha256": "ae03265f5056eee6f01671878b5488d7e5c3f378fdd1e4de65d76bb5fe46afc5"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion_descarga.md",
+      "bytes": 1792,
+      "sha256": "72397aee1f62358d117817a87a18a4d19d9d7149b40be699f9d21865507aae98"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion_estado_cuenta.md",
+      "bytes": 1572,
+      "sha256": "fbd452327f7e6e53b7c8a85a64b48eb01b35da403fdcc456eedabe812186186a"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion_factura.md",
+      "bytes": 1532,
+      "sha256": "8823cd1c3bb76c3aae6a0164832a7d9ab4984734eaa22434b08af9daaab47b6a"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion_informar_pago.md",
+      "bytes": 1737,
+      "sha256": "f37f732dac16ba51365a98a7f00dd7cee5bad089b9e11916e67ed0aafe134ce2"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion_pago.md",
+      "bytes": 1622,
+      "sha256": "484f37ead85dfbd2121d761a7858c486919af13694bf0a8c7bd2790f80861015"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/facturacion_reclamo.md",
+      "bytes": 1678,
+      "sha256": "fb6f92f30bab2538cba4616ee9a4a2e5fe92ed7ec5dc19a9660be200d964f088"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/documents/reactivacion_pago.md",
+      "bytes": 1652,
+      "sha256": "f8ff8153cb63d59d6837d90901967022ba9dd6765ff4cafa65aaf896cab308ab"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/embedding-metadata.jsonl",
+      "bytes": 12989,
+      "sha256": "c5f22014dce6b83e8a3d86cf0c24d1ac6f573cc013d333c1b4528cedcc91127d"
+    },
+    {
+      "path": "collections/02_facturacion_pagos/embeddings.npy",
+      "bytes": 307328,
+      "sha256": "859470812e7f63c9618dce7ca8303834bb50b43a10acff24695dd34b1590ebb7"
+    },
+    {
+      "path": "collections/03_comercial_administracion/README.md",
+      "bytes": 929,
+      "sha256": "cb851681522761473b2b69f93f1c69fbcfdca7464b27a442d4f1b6294dfa4d56"
+    },
+    {
+      "path": "collections/03_comercial_administracion/chunks.jsonl",
+      "bytes": 31303,
+      "sha256": "b8c50850059ccd63ff23887bd75d9eecf1c687425bb4c83530c461515f690ec7"
+    },
+    {
+      "path": "collections/03_comercial_administracion/documents/baja_servicio.md",
+      "bytes": 1691,
+      "sha256": "26c5dbc661690eecfd93fe843da19db50649ff5462faffe471c1e22b0ab56ccb"
+    },
+    {
+      "path": "collections/03_comercial_administracion/documents/cambio_plan.md",
+      "bytes": 1567,
+      "sha256": "0e504b033fedaa215427bc00d21953428cbef6b118eaed4ccc5b6e9e1976cb36"
+    },
+    {
+      "path": "collections/03_comercial_administracion/documents/cambio_titularidad.md",
+      "bytes": 1647,
+      "sha256": "e76bbcb802a6509599a4ef05f492272923f29ba192d37324cf512caa49443187"
+    },
+    {
+      "path": "collections/03_comercial_administracion/documents/cobertura.md",
+      "bytes": 1665,
+      "sha256": "eab3ca829c5d44b06d863b96c32e5a97e82fe85cb53ac3d89bdd10b924075514"
+    },
+    {
+      "path": "collections/03_comercial_administracion/documents/instalacion.md",
+      "bytes": 1700,
+      "sha256": "1012204f1557f642a0322f496fe01e714211eecca191a34c15998e6d15c5e0e8"
+    },
+    {
+      "path": "collections/03_comercial_administracion/embedding-metadata.jsonl",
+      "bytes": 8369,
+      "sha256": "2afeb0674113c493f0ae4a9d11e820bf87a10a6e12b01ae6d054885e33086847"
+    },
+    {
+      "path": "collections/03_comercial_administracion/embeddings.npy",
+      "bytes": 188544,
+      "sha256": "f465fa30e527ee621341bd92ee4c2f7a8e693bd07da3ec5ce8bbe6734ded8a42"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/README.md",
+      "bytes": 911,
+      "sha256": "4a597f1f1d15d0cd7f9444701bb3700e46a895f2c132c2a029dac78d0339225a"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/chunks.jsonl",
+      "bytes": 29740,
+      "sha256": "5070b7e4c81c3d0001576829d55849851dcda47c7b39e47437d97e356e8e6e04"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/documents/credenciales_acceso.md",
+      "bytes": 1634,
+      "sha256": "450a3f69130995180cf7e76bd3253d72c28ca55fd982c21653a0fcd12029d641"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/documents/guia_telefonica.md",
+      "bytes": 1522,
+      "sha256": "64fbd48d0c65986a25612896c455d0327c105674970fe56128aeec8f407930d1"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/documents/movil.md",
+      "bytes": 1548,
+      "sha256": "d86e9f5f018943c9a419e1e10bb62893d48f86ef76ff31c09684658c1b00a64f"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/documents/telefonia_fija.md",
+      "bytes": 1568,
+      "sha256": "2fbddad172bf4b65d6a5a1408819eb70a505fcce8723ee8b79971b9a0b0b8a9c"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/documents/tv_sensa.md",
+      "bytes": 1524,
+      "sha256": "b1eb35827d3db965a961fa1a966908719ab5bb4be4275e944bd7a796bb123d10"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/embedding-metadata.jsonl",
+      "bytes": 7933,
+      "sha256": "3a27e371c55098de1cd5e3716e7c733f6448e44cd1d6316898b2266b675c2a1e"
+    },
+    {
+      "path": "collections/04_servicios_adicionales/embeddings.npy",
+      "bytes": 184448,
+      "sha256": "f732fd03eb04381fc0112066702f5f2dc6575152865c130d6a864bf0032f606b"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/README.md",
+      "bytes": 644,
+      "sha256": "132bb3153c42b12d86e77daa1c9b02f5aadfaf60c8b9a3ad48563da630520a42"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/chunks.jsonl",
+      "bytes": 4255,
+      "sha256": "1779f83931697cdeb603a34403928cb36e78d2b585fc404fafb1e7ea0e2d0a48"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/documents/contrato_operativo_n1.md",
+      "bytes": 734,
+      "sha256": "583078051a939683c6e0a4540b5a96c628b83d536585ca9d47050c074eac74c8"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/documents/handoff_n2.md",
+      "bytes": 542,
+      "sha256": "bb2e44e56dd4cc8fe0f70d837f19d1e5ebdcb1928a48024474eb3f640c6febc9"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/documents/limites_seguridad.md",
+      "bytes": 658,
+      "sha256": "ceb9eb0fa7435831e691660de8e6380bee81fd04c97742dc2dfcfe9112dcef88"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/documents/validacion_y_metricas.md",
+      "bytes": 545,
+      "sha256": "b8657556972db5ba1b04e445dfe3f5a834dc2b2db964ff67de0873b574c47dfe"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/embedding-metadata.jsonl",
+      "bytes": 751,
+      "sha256": "01bf22c260239864af41990db8ed74396ec86d1fc8633cd41fe8fa901d4e44d1"
+    },
+    {
+      "path": "collections/05_operacion_escalamiento/embeddings.npy",
+      "bytes": 20608,
+      "sha256": "17d1646976f7af9ddb85e7d1bb05dc7b744d2dbec1a3e34d1ece368b0d55184e"
+    },
+    {
+      "path": "retrieval-config.json",
+      "bytes": 305,
+      "sha256": "eda75410f1cba95583cfd4164cfd2966cdd91fd7f701279db760a26276839c7c"
+    },
+    {
+      "path": "router.json",
+      "bytes": 4302,
+      "sha256": "107a85bb03fa7065e46533b8fbf4d7b2816be1a74b9ac9d6b27303f66ece1034"
+    }
+  ],
+  "embedding": {
+    "model": "BAAI/bge-m3",
+    "model_revision": "local_cached",
+    "offline": true,
+    "device": "cpu",
+    "dimensions": 1024,
+    "dtype": "float32",
+    "normalized": true,
+    "similarity": "cosine_or_dot_product",
+    "max_sequence_length": 1024,
+    "text_template": "{title}\\n{content}",
+    "chunk_count": 301
+  }
+}

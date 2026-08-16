@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from app.config import BOT_DISPLAY_NAME
-from app.domain.flujos_abonado import PasoPlaybook
+from app.domain.flujos_abonado import PasoPlaybook, intencion_es_facturacion
 
 logger = logging.getLogger("operations_hub")
 
@@ -19,7 +19,9 @@ INTENCIONES_DIAGNOSTICO = frozenset({
     "internet_adsl",
     "internet_radio",
     "internet_lento",
+    "internet_intermitente",
     "wifi",
+    "cambio_clave_wifi",
     "movil",
     "movil_datos",
     "movil_llamadas",
@@ -28,6 +30,13 @@ INTENCIONES_DIAGNOSTICO = frozenset({
     "no_tecnico",
     "ecolan_b2b",
     "facturacion",
+    "facturacion_pago",
+    "facturacion_descarga",
+    "facturacion_informar_pago",
+    "facturacion_factura",
+    "facturacion_estado_cuenta",
+    "facturacion_reclamo",
+    "reactivacion_pago",
 })
 
 # Heurísticas PON/LOS / cable amarillo: solo fibra. Nunca en TV OTT, móvil, factura, etc.
@@ -1078,7 +1087,7 @@ def diagnosticar_turno(
     kb_block = f"\nConocimiento útil (opcional):\n{wrap_untrusted('KB', kb, max_chars=800)}\n" if kb else ""
     turnos = max(0, int(turnos_diagnostico or 0))
     msg_safe = sanitize_user_text(mensaje_cliente)
-    es_facturacion = (intencion or "").strip() == "facturacion"
+    es_facturacion = intencion_es_facturacion(intencion)
     es_tv_sensa = (intencion or "").strip() == "tv_sensa"
     aplica_optica = aplica_optica_turno
 
