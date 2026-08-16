@@ -89,6 +89,63 @@ def test_portal_chat_y_agente_ve_cola():
     assert sample["canal_display"] == "Web"
 
 
+def test_portal_app_canal_y_device():
+    start = client.post(
+        "/api/v1/portal/auth/start",
+        json={"dni": "30111222", "org_slug": "coop-batan"},
+        headers={"X-Canal": "app"},
+    )
+    assert start.status_code == 200, start.text
+    otp = start.json()["debug_otp"]
+    verify = client.post(
+        "/api/v1/portal/auth/verify",
+        json={"challenge_id": start.json()["challenge_id"], "otp": otp, "org_slug": "coop-batan"},
+        headers={"X-Canal": "app"},
+    )
+    assert verify.status_code == 200, verify.text
+    data = verify.json()
+    assert data["conversacion"]["canal"] == "app"
+    assert data["conversacion"]["canal_display"] == "App"
+    token = data["portal_token"]
+    headers = {"Authorization": f"Bearer {token}", "X-Canal": "app"}
+
+    msg = client.post(
+        "/api/v1/portal/messages",
+        headers=headers,
+        json={"texto": "Hola"},
+    )
+    assert msg.status_code == 200, msg.text
+    assert msg.json()["conversacion"]["canal_display"] == "App"
+
+    bad = client.post(
+        "/api/v1/portal/devices",
+        headers=headers,
+        json={"expo_push_token": "esto-no-es-un-token-expo", "platform": "android"},
+    )
+    assert bad.status_code == 400
+
+    ok = client.post(
+        "/api/v1/portal/devices",
+        headers=headers,
+        json={
+            "expo_push_token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+            "platform": "android",
+            "device_name": "test",
+        },
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["status"] == "ok"
+    assert ok.json()["device_id"]
+
+
+def test_token_push_valido():
+    from app.services.app_push import token_push_valido
+
+    assert token_push_valido("ExponentPushToken[abc]")
+    assert not token_push_valido("ExponentPushToken[abc")
+    assert not token_push_valido("")
+
+
 def test_portal_pide_agente():
     sess = _portal_identified("26444555")
     token = sess["portal_token"]

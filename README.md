@@ -2,7 +2,7 @@
 
 Consola de soporte para **Cooperativa Batán**: portal web del abonado (bot N1 → agente), bandeja de agentes, tickets N2, base de conocimiento e IA.
 
-- Abonados: [`/portal`](./docs/PORTAL-ABONADO.md)  
+- Abonados: [`/portal`](./docs/PORTAL-ABONADO.md) y app nativa [`mobile/`](./mobile/README.md)  
 - Agentes/admin: login consola  
 - Roles y permisos (diseño): [`docs/RBAC-ROLES-PERMISOS.md`](./docs/RBAC-ROLES-PERMISOS.md)  
 - WhatsApp Meta: fase posterior  
@@ -15,11 +15,13 @@ Las APIs legacy de telemetría/JSC pueden existir en el backend pero **no forman
 Nginx (HTTPS)  ──►  Next.js :3000   (consola + portal)
                ──►  FastAPI :8000   ──►  PostgreSQL (Supabase / local)
                                     ──►  Groq / LLM compatible OpenAI
+App nativa (Expo) ──► FastAPI /api/v1/portal/*  (canal=app, mismo Eko)
 ```
 
 | Componente | Dónde | Qué hace |
 |------------|-------|----------|
 | **Frontend** | Next.js + systemd (nginx) | Consola ops + portal abonado |
+| **App abonado** | `mobile/` (Expo) | Eko en el smartphone: chat, voz, push |
 | **API** | FastAPI + systemd | Chat, RAG, tickets, auth JWT |
 | **DB** | PostgreSQL (Supabase u host) | Data Estate completo (`DATABASE_URL`) |
 | **LLM** | Groq (u otro) | Respuestas del Copilot |

@@ -58,14 +58,9 @@ def _parse_contexto(raw: str | None) -> dict:
 
 
 def _canal_display(canal: str) -> str:
-    c = (canal or "").lower()
-    if c in ("whatsapp", "simulate"):
-        return "WhatsApp"
-    if c == "telegram":
-        return "Telegram"
-    if c == "web":
-        return "Web"
-    return canal or "otro"
+    from app.domain.canales import canal_display
+
+    return canal_display(canal)
 
 
 def _match_agent(haystack: str, keys: set[str]) -> bool:

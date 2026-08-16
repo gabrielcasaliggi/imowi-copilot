@@ -325,7 +325,7 @@ def test_batan_ve_conversaciones_y_puede_tomar():
     assert listed.status_code == 200
     convs = [c for c in listed.json()["conversaciones"] if c["estado"] != "cerrado"]
     assert len(convs) >= 1
-    assert all(c.get("canal_display") in ("whatsapp", "WhatsApp", "Web") for c in convs)
+    assert all(c.get("canal_display") in ("whatsapp", "WhatsApp", "Web", "App") for c in convs)
 
     en_cola = next((c for c in convs if c["estado"] == "espera_agente"), convs[0])
     claim = client.post(

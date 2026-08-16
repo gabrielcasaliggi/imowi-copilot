@@ -1,4 +1,4 @@
-"""Portal web del abonado — auth DNI+OTP/PIN + chat (JWT typ=portal)."""
+"""Portal del abonado — auth DNI+OTP/PIN + chat (JWT typ=portal). Canales web y app."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,11 +22,12 @@ from app.config import (
     WHATSAPP_DEFAULT_ORG_SLUG,
     es_produccion,
 )
+from app.domain.canales import normalizar_canal_portal
 from app.domain.flujos_abonado import texto_menu_consulta
 from app.estate import canal_repo as crepo
 from app.estate import repository as repo
 from app.estate.database import get_db
-from app.estate.models import Abonado, PortalAbonadoLink, PortalOtpChallenge
+from app.estate.models import Abonado, PortalAbonadoLink, PortalDevice, PortalOtpChallenge
 from app.estate.security import (
     generate_otp,
     hash_dni,
@@ -87,6 +88,12 @@ class PortalSetPinIn(BaseModel):
     pin: str = Field(..., min_length=6, max_length=8)
 
 
+class PortalDeviceIn(BaseModel):
+    expo_push_token: str = Field(..., min_length=16, max_length=191)
+    platform: str = Field(default="", max_length=16)
+    device_name: str = Field(default="", max_length=80)
+
+
 def _org_slug(raw: str) -> str:
     return (raw or "").strip() or WHATSAPP_DEFAULT_ORG_SLUG or "coop-batan"
 
@@ -113,6 +120,14 @@ def _client_ip(request: Request | None) -> str:
     return ""
 
 
+def _canal_desde_request(request: Request | None, payload: dict | None = None) -> str:
+    header = ""
+    if request is not None:
+        header = request.headers.get("x-canal") or ""
+    jwt_canal = (payload or {}).get("canal") or ""
+    return normalizar_canal_portal(header or jwt_canal or "web")
+
+
 def _crear_portal_token(
     *,
     org_id: str,
@@ -123,6 +138,7 @@ def _crear_portal_token(
     dni: str = "",
     abonado_ref: str = "",
     identified: bool = False,
+    canal: str = "web",
 ) -> str:
     exp = datetime.now(UTC) + timedelta(hours=PORTAL_TOKEN_HOURS)
     return jwt.encode(
@@ -137,6 +153,7 @@ def _crear_portal_token(
             "dni": dni,
             "abonado_ref": abonado_ref,
             "identified": identified,
+            "canal": normalizar_canal_portal(canal),
             "jti": str(uuid.uuid4()),
             "exp": exp,
         },
@@ -230,6 +247,7 @@ def _abrir_conversacion_identificada(
     telefono: str,
     abonado_ref: str,
     hit: dict | None = None,
+    canal: str = "web",
 ) -> tuple:
     from app.services.billtrack import ensure_local_abonado
 
@@ -244,11 +262,12 @@ def _abrir_conversacion_identificada(
         tel = crepo.normalizar_telefono(abo.telefono_e164)
     if not tel:
         tel = f"portal{dni_n}"
-    conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal="web", wa_id=tel)
+    canal_n = normalizar_canal_portal(canal)
+    conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal=canal_n, wa_id=tel)
     msgs_previos = crepo.list_mensajes(db, conv.id)
     if abo and not conv.abonado_id:
         conv.abonado_id = abo.id
-    conv.canal = "web"
+    conv.canal = canal_n
     db.commit()
     db.refresh(conv)
     ctx = crepo.get_contexto(conv)
@@ -442,6 +461,7 @@ def portal_auth_verify(
         telefono=str(hit.get("telefono") or ""),
         abonado_ref=challenge.abonado_ref,
         hit=hit,
+        canal=_canal_desde_request(request),
     )
     token = _crear_portal_token(
         org_id=org.id,
@@ -452,6 +472,7 @@ def portal_auth_verify(
         dni=challenge.dni_normalized,
         abonado_ref=challenge.abonado_ref,
         identified=True,
+        canal=_canal_desde_request(request),
     )
     aseg.clear_failures(
         db, superficie="portal", actor=f"{org.slug}:{challenge.dni_normalized}", ip=ip
@@ -537,6 +558,7 @@ def portal_login_pin(
             telefono=str(hit.get("telefono") or ""),
             abonado_ref=link.abonado_ref,
             hit=hit,
+            canal=_canal_desde_request(request),
         )
         link.last_login_at = datetime.now(UTC)
         db.commit()
@@ -549,6 +571,7 @@ def portal_login_pin(
             dni=dni_n,
             abonado_ref=link.abonado_ref,
             identified=True,
+            canal=_canal_desde_request(request),
         )
         aseg.clear_failures(db, superficie="portal", actor=actor, ip=ip)
         aseg.record_login_event(
@@ -622,8 +645,9 @@ def abrir_sesion_portal(
 
     # Guest anónimo — ignorar DNI/tel para identificación (anti spoofing)
     tel = f"guest{uuid.uuid4().hex[:12]}"
-    conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal="web", wa_id=tel)
-    conv.canal = "web"
+    canal_n = _canal_desde_request(request)
+    conv = crepo.get_or_create_conversacion(db, org.id, telefono=tel, canal=canal_n, wa_id=tel)
+    conv.canal = canal_n
     db.commit()
     db.refresh(conv)
 
@@ -649,6 +673,7 @@ def abrir_sesion_portal(
         telefono=tel,
         abonado_id="",
         identified=False,
+        canal=canal_n,
     )
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
     if not mensajes:
@@ -689,13 +714,14 @@ def portal_enviar_mensaje(
 ):
     org_id = payload["org_id"]
     telefono = payload["telefono"]
+    canal = _canal_desde_request(None, payload)
     try:
         result = procesar_mensaje_entrante(
             db,
             org_id,
             telefono=telefono,
             texto=body.texto,
-            canal="web",
+            canal=canal,
             usar_llama=resolve_canal_usar_llama(db),
         )
         conv_id = result.get("conversacion_id") or payload["conversacion_id"]
@@ -736,3 +762,145 @@ def portal_obtener_conversacion(
         "conversacion": crepo.conversacion_to_dict(c, abonado=abo),
         "mensajes": mensajes,
     }
+
+
+def _respuesta_chat(db: Session, org_id: str, payload: dict, result: dict) -> dict:
+    conv_id = result.get("conversacion_id") or payload["conversacion_id"]
+    c = crepo.get_conversacion(db, org_id, conv_id)
+    abo = db.get(Abonado, c.abonado_id) if c and c.abonado_id else None
+    mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv_id)] if c else []
+    return {
+        **result,
+        "conversacion": crepo.conversacion_to_dict(c, abonado=abo) if c else None,
+        "mensajes": mensajes,
+    }
+
+
+@router.post("/portal/devices")
+def portal_register_device(
+    body: PortalDeviceIn,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    from app.services.app_push import token_push_valido
+
+    token = body.expo_push_token.strip()
+    if not token_push_valido(token):
+        raise HTTPException(400, "Token de push inválido")
+    if not payload.get("identified"):
+        raise HTTPException(403, "Sesión identificada requerida")
+
+    dni = str(payload.get("dni") or "")
+    link = None
+    if dni:
+        link = db.scalar(
+            select(PortalAbonadoLink).where(
+                PortalAbonadoLink.organizacion_id == payload["org_id"],
+                PortalAbonadoLink.dni_normalized == dni,
+            )
+        )
+    row = db.scalar(select(PortalDevice).where(PortalDevice.expo_push_token == token))
+    now = datetime.now(UTC)
+    platform = (body.platform or "").strip().lower()[:16]
+    name = (body.device_name or "").strip()[:80]
+    if row:
+        row.organizacion_id = payload["org_id"]
+        row.link_id = link.id if link else row.link_id
+        row.dni_normalized = dni or row.dni_normalized
+        row.conversacion_id = str(payload.get("conversacion_id") or row.conversacion_id)
+        row.platform = platform or row.platform
+        row.device_name = name or row.device_name
+        row.activo = "Sí"
+        row.last_seen_at = now
+    else:
+        row = PortalDevice(
+            organizacion_id=payload["org_id"],
+            link_id=link.id if link else "",
+            dni_normalized=dni,
+            conversacion_id=str(payload.get("conversacion_id") or ""),
+            expo_push_token=token,
+            platform=platform,
+            device_name=name,
+            last_seen_at=now,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"status": "ok", "device_id": row.id}
+
+
+@router.delete("/portal/devices")
+def portal_unregister_device(
+    body: PortalDeviceIn,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    token = body.expo_push_token.strip()
+    row = db.scalar(select(PortalDevice).where(PortalDevice.expo_push_token == token))
+    if row and row.organizacion_id == payload["org_id"]:
+        row.activo = "No"
+        db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/portal/audio")
+async def portal_enviar_audio(
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    from app.services.transcription import MSG_AUDIO_FALLBACK, transcribir_audio, whisper_disponible
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "Audio vacío")
+    if len(raw) > 8 * 1024 * 1024:
+        raise HTTPException(413, "Audio demasiado grande")
+    filename = (file.filename or "voice.m4a")[:80]
+    mime = (file.content_type or "audio/mp4").split(";")[0].strip() or "audio/mp4"
+    texto = transcribir_audio(raw, filename=filename, mime=mime) if whisper_disponible() else ""
+    if not texto:
+        texto = MSG_AUDIO_FALLBACK
+        # No corre N1 con el fallback: se persiste como respuesta del bot
+        conv_id = payload["conversacion_id"]
+        org_id = payload["org_id"]
+        crepo.add_mensaje(
+            db, org_id, conv_id, direccion="in", autor="cliente", texto="[audio]"
+        )
+        crepo.add_mensaje(
+            db, org_id, conv_id, direccion="out", autor="bot", texto=texto
+        )
+        c = crepo.get_conversacion(db, org_id, conv_id)
+        abo = db.get(Abonado, c.abonado_id) if c and c.abonado_id else None
+        return {
+            "ok": True,
+            "transcripcion": "",
+            "conversacion": crepo.conversacion_to_dict(c, abonado=abo) if c else None,
+            "mensajes": [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv_id)],
+        }
+
+    canal = _canal_desde_request(None, payload)
+    try:
+        result = procesar_mensaje_entrante(
+            db,
+            payload["org_id"],
+            telefono=payload["telefono"],
+            texto=texto,
+            canal=canal,
+            usar_llama=resolve_canal_usar_llama(db),
+            entrada_audio=True,
+        )
+        out = _respuesta_chat(db, payload["org_id"], payload, result)
+        out["transcripcion"] = texto
+        return out
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+
+        logging.getLogger("operations_hub").exception("portal/audio falló")
+        raise HTTPException(
+            503,
+            "No pudimos procesar el audio ahora. Probá de nuevo en unos segundos.",
+        ) from None
+

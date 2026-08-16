@@ -409,14 +409,35 @@ class Abonado(Base):
     organizacion: Mapped[Organization] = relationship(back_populates="abonados")
 
 
+class PortalDevice(Base):
+    """Dispositivo de la app abonado (Expo push token)."""
+
+    __tablename__ = "portal_devices"
+    __table_args__ = (UniqueConstraint("expo_push_token", name="uq_portal_device_token"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    link_id: Mapped[str] = mapped_column(String(36), default="", index=True)
+    dni_normalized: Mapped[str] = mapped_column(String(20), default="", index=True)
+    conversacion_id: Mapped[str] = mapped_column(String(36), default="", index=True)
+    expo_push_token: Mapped[str] = mapped_column(String(191), nullable=False, index=True)
+    platform: Mapped[str] = mapped_column(String(16), default="")
+    device_name: Mapped[str] = mapped_column(String(80), default="")
+    activo: Mapped[str] = mapped_column(String(8), default="Sí")
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    organizacion: Mapped[Organization] = relationship()
+
+
 class ConversacionCanal(Base):
-    """Hilo canal abonado (WhatsApp / Telegram / web / simulador) para inbox."""
+    """Hilo canal abonado (WhatsApp / Telegram / web / app / simulador) para inbox."""
 
     __tablename__ = "conversaciones_canal"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     organizacion_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
-    canal: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp|telegram|web|simulate
+    canal: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp|telegram|web|app|simulate
     wa_id: Mapped[str] = mapped_column(String(40), default="", index=True)  # wa_id o chat_id TG
     telefono: Mapped[str] = mapped_column(String(40), default="", index=True)  # E.164 o chat_id TG
     abonado_id: Mapped[str] = mapped_column(String(36), default="", index=True)

@@ -138,6 +138,18 @@ def create_outage(
         nas_reachable_at_declare=reachable_flag,
         created_by=ctx.usuario_email or ctx.usuario_nombre,
     )
+    try:
+        from app.services.app_push import notificar_incidente_app
+
+        notificar_incidente_app(
+            db,
+            ctx.organizacion_id,
+            title="Corte en la red",
+            body=mensaje,
+            data={"tipo": "incidente", "outage_id": o.id, "nas": shortname},
+        )
+    except Exception:
+        pass
     return {"status": "creado", "outage": outage_svc.outage_to_dict(o)}
 
 

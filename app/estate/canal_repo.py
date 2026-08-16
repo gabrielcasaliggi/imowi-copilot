@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.domain.canales import CANALES_PROPIOS, es_canal_propio
+from app.domain.canales import canal_display as etiqueta_canal
 from app.estate.models import Abonado, ConversacionCanal, MensajeCanal
 
 _ULTIMO_MSG_PREVIEW_LEN = 120
@@ -72,7 +74,7 @@ def normalizar_telefono(raw: str) -> str:
 
 
 def normalizar_identidad(canal: str, raw: str) -> str:
-    """Identidad por canal: E.164 (WA/web) o chat_id (Telegram)."""
+    """Identidad por canal: E.164 (WA/web/app) o chat_id (Telegram)."""
     s = (raw or "").strip()
     if (canal or "") == "telegram":
         if s.startswith("tg:"):
@@ -90,6 +92,7 @@ def _session_prefix(canal: str) -> str:
         "simulate": "wa",
         "telegram": "tg",
         "web": "web",
+        "app": "app",
     }.get(canal or "whatsapp", "ch")
 
 
@@ -152,11 +155,16 @@ def get_or_create_conversacion(
     wa = (wa_id or "").strip() or tel
     if canal_norm == "telegram":
         wa = normalizar_identidad("telegram", wa)
+    canal_filter = (
+        ConversacionCanal.canal.in_(tuple(CANALES_PROPIOS))
+        if es_canal_propio(canal_norm)
+        else ConversacionCanal.canal == canal_norm
+    )
     existing = db.scalar(
         select(ConversacionCanal)
         .where(
             ConversacionCanal.organizacion_id == org_id,
-            ConversacionCanal.canal == canal_norm,
+            canal_filter,
             ConversacionCanal.telefono == tel,
             ConversacionCanal.estado != "cerrado",
         )
@@ -173,6 +181,9 @@ def get_or_create_conversacion(
                 db.commit()
                 existing = None
     if existing:
+        if existing.canal != canal_norm:
+            existing.canal = canal_norm
+            db.commit()
         return existing
     prefix = _session_prefix(canal_norm)
     conv = ConversacionCanal(
@@ -437,14 +448,7 @@ def conversacion_to_dict(
     tiene_no_leidos: bool = False,
 ) -> dict:
     canal_raw = c.canal or "whatsapp"
-    if canal_raw in ("whatsapp", "simulate"):
-        canal_display = "WhatsApp"
-    elif canal_raw == "telegram":
-        canal_display = "Telegram"
-    elif canal_raw == "web":
-        canal_display = "Web"
-    else:
-        canal_display = canal_raw
+    canal_display = etiqueta_canal(canal_raw)
     ctx = get_contexto(c)
     es_visitante = bool(
         ctx.get("visitante")

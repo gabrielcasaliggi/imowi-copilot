@@ -13,3 +13,8 @@ data/
 
 # config.js generado en build Netlify (local usa el del repo con URL vacía)
 # config.js
+
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+

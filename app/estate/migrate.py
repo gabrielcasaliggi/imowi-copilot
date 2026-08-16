@@ -59,6 +59,7 @@ _AUTH_TABLES = (
     ("user_invites", "UserInvite"),
     ("portal_abonado_links", "PortalAbonadoLink"),
     ("portal_otp_challenges", "PortalOtpChallenge"),
+    ("portal_devices", "PortalDevice"),
 )
 
 

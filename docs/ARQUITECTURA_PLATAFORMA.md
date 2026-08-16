@@ -8,7 +8,8 @@
 
 ```mermaid
 flowchart TB
-    nextjs[Frontend Next.js] -->|api_v1| fastapi[FastAPI]
+    app[App nativa Expo] -->|portal API canal=app| fastapi[FastAPI]
+    nextjs[Frontend Next.js] -->|api_v1| fastapi
     fastapi -->|DATABASE_URL| postgres[(PostgreSQL)]
     fastapi -->|opcional mirror REST| supabaseRest[Tabla tickets legacy]
 ```

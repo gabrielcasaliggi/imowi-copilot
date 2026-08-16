@@ -1,4 +1,4 @@
-"""Motor N1 del canal abonado (WhatsApp / Telegram / web / simulador) + escalamiento N2."""
+"""Motor N1 del canal abonado (WhatsApp / Telegram / web / app / simulador) + escalamiento N2."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import time
 from sqlalchemy.orm import Session
 
 from app.config import BOT_DISPLAY_NAME_SHORT
+from app.domain.canales import enviar_externo as _enviar_externo
 from app.domain.flujos_abonado import (
     ajustar_intencion_a_padron,
     clasificar_intencion,
@@ -192,7 +193,7 @@ def _talvez_respuesta_outage(
     def _pack(msg: str, **extra):
         crepo.set_contexto(conv, ctx)
         db.commit()
-        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
         payload = {
             "ok": True,
             "modo": "bot",
@@ -1219,9 +1220,9 @@ def _cerrar_consulta_resuelta(
             abo = db.get(Abonado, conv.abonado_id)
             nom = _primer_nombre_cliente(abo)
         resp = _mensaje_cierre_calido(nom)
-    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
     enviar_encuesta_cierre(
-        db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+        db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
     )
     return {
         "ok": True,
@@ -1277,7 +1278,7 @@ def _manejar_menu_consulta_n1(
             )
         ):
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1289,7 +1290,7 @@ def _manejar_menu_consulta_n1(
             }
         if not elec:
             resp = f"No te entendí. {texto_menu_consulta(servicio_abo)}"
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1304,7 +1305,7 @@ def _manejar_menu_consulta_n1(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = texto_menu_tipo_consulta()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1334,7 +1335,7 @@ def _manejar_menu_consulta_n1(
         tipo = parse_menu_tipo_consulta(texto)
         if not tipo:
             resp = f"No te entendí. {texto_menu_tipo_consulta()}"
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -1394,7 +1395,7 @@ def _arrancar_intencion_menu(
         crepo.set_contexto(conv, ctx)
         db.commit()
         resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -1436,7 +1437,7 @@ def _arrancar_intencion_menu(
             org_id=org_id,
             consulta=texto,
         )
-    _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+    _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
         "modo": "bot",
@@ -1538,7 +1539,7 @@ def _responder_espera_agente(
                 "aviso_omitido": True,
             }
         _marcar_aviso_enviado()
-        _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -1571,7 +1572,7 @@ def _responder_espera_agente(
             f"También quedó anotado: {labels}. Te responden por este chat."
         )
     _marcar_aviso_enviado()
-    _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=(canal != "web"))
+    _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
         "modo": "espera_agente",
@@ -1723,7 +1724,7 @@ def _derivar_visitante(
         logger.warning("Fallo notify handoff visitante", exc_info=True)
     resp = (mensaje or mensaje_derivacion_visitante(motivo=motivo)).strip()
     if enviar_mensaje and resp:
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
         "modo": "espera_agente",
@@ -1846,7 +1847,7 @@ def _aplicar_diagnostico_ia(
         ctx["intencion"] = intencion
         crepo.set_contexto(conv, ctx)
         db.commit()
-        _enviar_respuesta(db, org_id, conv, pppoe_msg, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, pppoe_msg, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "diagnostico",
@@ -1897,7 +1898,7 @@ def _aplicar_diagnostico_ia(
         ctx["ultima_diag_motivo"] = "rama_wifi_post_pppoe"
         crepo.set_contexto(conv, ctx)
         db.commit()
-        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "diagnostico",
@@ -1998,7 +1999,7 @@ def _aplicar_diagnostico_ia(
             nota_temas=_nota_temas_pendientes(ctx),
             intencion=intencion,
         )
-        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -2015,9 +2016,9 @@ def _aplicar_diagnostico_ia(
         db.commit()
         if not mensaje or result.get("cierre_calido"):
             mensaje = _mensaje_cierre_calido(_primer_nombre_cliente(abonado))
-        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
         enviar_encuesta_cierre(
-            db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+            db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
         )
         return {
             "ok": True,
@@ -2031,7 +2032,7 @@ def _aplicar_diagnostico_ia(
 
     if not mensaje:
         mensaje = "Contame un poco más del problema para seguir el diagnóstico."
-    _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=(canal != "web"))
+    _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
         "modo": "bot",
@@ -2083,7 +2084,7 @@ def procesar_mensaje_entrante(
             canal=canal,
             wa_id=wa_id,
             meta_message_id=meta_message_id,
-            enviar_externo=(canal != "web"),
+            enviar_externo=_enviar_externo(canal),
         )
         if capturado is not None:
             return capturado
@@ -2219,7 +2220,7 @@ def procesar_mensaje_entrante(
                 ctx["menu_paso"] = "servicio"
                 crepo.set_contexto(conv, ctx)
                 db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2256,7 +2257,7 @@ def procesar_mensaje_entrante(
         ctx["identificado"] = True
         crepo.set_contexto(conv, ctx)
         db.commit()
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -2294,7 +2295,7 @@ def procesar_mensaje_entrante(
             f"Entiendo la molestia. Te derivo con un agente con el historial. "
             f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -2331,7 +2332,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -2368,7 +2369,7 @@ def procesar_mensaje_entrante(
             f"Dale, te derivo con un agente y le paso lo que charlamos. "
             f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -2394,7 +2395,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -2438,7 +2439,7 @@ def procesar_mensaje_entrante(
                 )
 
             # WhatsApp: una chance de DNI antes de derivar
-            if canal != "web" and not ctx.get("pidio_dni") and not ctx.get("invitado"):
+            if _enviar_externo(canal) and not ctx.get("pidio_dni") and not ctx.get("invitado"):
                 ctx["pidio_dni"] = True
                 crepo.set_contexto(conv, ctx)
                 db.commit()
@@ -2455,7 +2456,7 @@ def procesar_mensaje_entrante(
                         org_id=org_id,
                         consulta=texto,
                     )
-                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
                 return {
                     "ok": True,
                     "modo": "bot",
@@ -2495,7 +2496,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, saludo, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, saludo, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2531,7 +2532,7 @@ def procesar_mensaje_entrante(
             ctx.pop("invitado", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2549,7 +2550,7 @@ def procesar_mensaje_entrante(
             ctx.pop("invitado", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2587,7 +2588,7 @@ def procesar_mensaje_entrante(
         crepo.set_contexto(conv, ctx)
         db.commit()
         resp = f"¡Hola! {texto_menu_consulta(servicio_abo)}"
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -2608,7 +2609,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2660,7 +2661,7 @@ def procesar_mensaje_entrante(
                     "Decime cuál preferís: ¿te ayudo a pagar el saldo pendiente, "
                     "o seguimos con el diagnóstico del servicio?"
                 )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2689,7 +2690,7 @@ def procesar_mensaje_entrante(
             )
             crepo.set_contexto(conv, ctx)
             db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2707,7 +2708,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2748,7 +2749,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -2765,7 +2766,7 @@ def procesar_mensaje_entrante(
             resp = (
                 "Decime por cuál empezamos: ¿el internet o el aumento de la factura?"
             )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2798,7 +2799,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = _texto_aviso_deuda_tecnico(abonado, intent)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2845,7 +2846,7 @@ def procesar_mensaje_entrante(
                     "Veo dos cosas: el servicio de telefonía móvil y el tema de la factura. "
                     "¿Arrancamos por el móvil o por el aumento?"
                 )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2863,7 +2864,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2903,7 +2904,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2939,7 +2940,7 @@ def procesar_mensaje_entrante(
                     "Pasame tu DNI (solo el número) y te digo si hay saldo pendiente "
                     "y cómo abonar."
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -2971,7 +2972,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -2992,7 +2993,7 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3039,7 +3040,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3084,7 +3085,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3098,7 +3099,7 @@ def procesar_mensaje_entrante(
     if intencion == "general":
         if _debe_explicar_sin_internet(abonado, texto):
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3110,7 +3111,7 @@ def procesar_mensaje_entrante(
         nueva = clasificar_intencion(texto, servicio_abo)
         if _debe_explicar_sin_internet(abonado, texto, nueva):
             resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3137,7 +3138,7 @@ def procesar_mensaje_entrante(
                 crepo.set_contexto(conv, ctx)
                 db.commit()
                 resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
                 return {
                     "ok": True,
                     "modo": "bot",
@@ -3172,7 +3173,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3200,7 +3201,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -3246,7 +3247,7 @@ def procesar_mensaje_entrante(
                     org_id=org_id,
                     consulta=texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
             return {
                 "ok": True,
                 "modo": "bot",
@@ -3303,7 +3304,7 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
-        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "bot",
@@ -3351,7 +3352,7 @@ def procesar_mensaje_entrante(
             )
             if tid not in resp:
                 resp = f"{resp.rstrip('.')} Ticket {tid}."
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
             "modo": "espera_agente",
@@ -3397,7 +3398,7 @@ def procesar_mensaje_entrante(
                     "Entendido, no te derivo por ahora. Si más adelante necesitás "
                     "ayuda o querés hablar con un agente, escribí *agente*."
                 )
-                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
                 return {
                     "ok": True,
                     "modo": "bot",
@@ -3427,9 +3428,9 @@ def procesar_mensaje_entrante(
                 "¡Genial! Parece resuelto en N1. Si vuelve el problema, escribime de nuevo. "
                 "¡Gracias!"
             )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
             enviar_encuesta_cierre(
-                db, conv, origen=ORIGEN_BOT, enviar_externo=(canal != "web")
+                db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
             )
             return {
                 "ok": True,
@@ -3464,7 +3465,7 @@ def procesar_mensaje_entrante(
             org_id=org_id,
             consulta=texto,
         )
-    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=(canal != "web"))
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
         "modo": "bot",

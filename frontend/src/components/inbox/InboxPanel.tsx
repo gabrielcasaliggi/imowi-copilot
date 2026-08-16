@@ -32,6 +32,7 @@ import {
 function canalLabel(c: InboxConversation): string {
   const raw = c.canal_display || c.canal || "";
   if (raw === "Web" || raw === "web") return "Web";
+  if (raw === "App" || raw === "app") return "App";
   if (raw === "Telegram" || raw === "telegram") return "Telegram";
   if (raw === "simulate" || raw === "whatsapp" || raw === "WhatsApp" || !raw) return "WhatsApp";
   return raw;

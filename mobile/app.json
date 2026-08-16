@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Soporte Batán",
+    "slug": "soporte-batan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "soportebatan",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1220"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "coop.batan.soporte",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Eko usa el micrófono para que puedas consultar por voz.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2298A6"
+      },
+      "package": "coop.batan.soporte",
+      "permissions": [
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2298A6",
+          "sounds": [],
+          "defaultChannel": "eko"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Eko usa el micrófono para que puedas consultar por voz."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "https://ibot.ecolan.com",
+      "orgSlug": "coop-batan"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}

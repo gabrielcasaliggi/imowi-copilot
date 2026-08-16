@@ -227,6 +227,17 @@ def agent_send_message(
         delivery = enviar_texto_wa((c.wa_id or c.telefono or "").strip(), texto)
     elif c.canal == "telegram":
         delivery = enviar_texto_tg(c.wa_id or c.telefono, texto)
+    elif (c.canal or "") == "app":
+        from app.services.app_push import notificar_conversacion_app
+
+        delivery = notificar_conversacion_app(
+            db,
+            _org_id(ctx),
+            c.id,
+            title="Soporte Batán",
+            body=texto,
+            data={"tipo": "mensaje_agente"},
+        )
     else:
         delivery = {"ok": True, "simulated": True}
     if delivery.get("meta_message_id"):
