@@ -10,7 +10,12 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Audio } from "expo-av";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 
 import { api } from "../api";
 import { getToken } from "../session";
@@ -48,7 +53,7 @@ export function ChatScreen({
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(onNeedPin);
   const [recording, setRecording] = useState(false);
-  const recRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const listRef = useRef<FlatList<InboxMessage>>(null);
 
   const esperaAgente = conv.estado === "espera_agente";
@@ -122,12 +127,9 @@ export function ChatScreen({
   const toggleRec = async () => {
     if (recording) {
       try {
-        const rec = recRef.current;
-        recRef.current = null;
         setRecording(false);
-        if (!rec) return;
-        await rec.stopAndUnloadAsync();
-        const uri = rec.getURI();
+        await recorder.stop();
+        const uri = recorder.uri;
         if (!uri) return;
         setBusy(true);
         const res = await api.sendAudio(uri, token);
@@ -141,16 +143,14 @@ export function ChatScreen({
       return;
     }
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
         setError("Necesitamos el micrófono para consultas por voz.");
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      recRef.current = rec;
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setRecording(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo grabar");

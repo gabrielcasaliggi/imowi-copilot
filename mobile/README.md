@@ -27,17 +27,28 @@ npx expo start
 
 Escaneá el QR con Expo Go. En un emulador Android: `a`. El JWT se guarda en SecureStore.
 
-## APK de producción (sin tienda todavía)
+## APK (sin Play Store, sin dejar la PC encendida)
+
+Hace falta una cuenta gratis en [expo.dev](https://expo.dev/signup). El build corre en la nube de Expo (~10–20 min) y te deja un `.apk` para instalar a mano.
 
 ```bash
-cd mobile
-npx expo install expo-dev-client
-# Cuenta Expo + EAS:
+cd /home/gabriel/Documentos/Vertia/Copilot-Tickets/mobile
+
+# 1) Entrar a Expo (abre el navegador o pide usuario)
 npx eas-cli login
+
+# 2) Vincular el proyecto (solo la primera vez: Create a new project)
+npx eas-cli init --non-interactive || npx eas-cli init
+
+# 3) Generar APK de preview, apuntado a ibot.ecolan.com
 npx eas-cli build -p android --profile preview
 ```
 
-El `.apk` se instala en los celulares de la cooperativa. Play Store / App Store es el paso siguiente (cuenta Google Play + Apple Developer).
+Cuando termine, Expo muestra un link. Descargá el `.apk` al celular y abrilo (puede pedir “instalar apps desconocidas”).
+
+La primera vez EAS genera un keystore de Android; dejalo que lo guarde él (no lo pierdas: sirve para actualizar la app después).
+
+Play Store / App Store es el paso siguiente, no hace falta para usarla en la cooperativa.
 
 ## Variables
 

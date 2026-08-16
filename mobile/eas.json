@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 16.0.0"
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -8,11 +9,23 @@
       "distribution": "internal"
     },
     "preview": {
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ibot.ecolan.com",
+        "EXPO_PUBLIC_ORG_SLUG": "coop-batan"
+      }
     },
-    "production": {}
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ibot.ecolan.com",
+        "EXPO_PUBLIC_ORG_SLUG": "coop-batan"
+      }
+    }
   }
 }
