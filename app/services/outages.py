@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import re
 import time
+from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,8 @@ logger = logging.getLogger("operations_hub")
 _INTENCIONES_NO_OUTAGE = INTENCIONES_FACTURACION | frozenset(
     {"aviso_deuda", "multi_tema"}
 )
+
+_TZ_AR = ZoneInfo("America/Argentina/Buenos_Aires")
 
 # Cache corto del inventario NAS (por proceso)
 _NAS_CACHE: dict[str, Any] = {"ts": 0.0, "items": []}
@@ -59,43 +63,98 @@ def health_nas(db: Session | None, shortname: str) -> dict[str, Any]:
     return status.to_dict()
 
 
+def _eta_validada_flag(value: str | None) -> bool:
+    return (value or "Sí").strip().lower() in ("sí", "si", "yes", "1", "true")
+
+
+def formatear_hora_validacion(dt: datetime | None) -> str:
+    """Hora local Argentina de la declaración del incidente."""
+    if dt is None:
+        return ""
+    aware = dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+    return aware.astimezone(_TZ_AR).strftime("%H:%M")
+
+
+def mensaje_desde_outage(outage: NetworkOutage) -> str:
+    """Plantilla determinística: solo datos del registro (sin inventar)."""
+    hora = formatear_hora_validacion(outage.started_at)
+    alcance = (outage.alcance or "total").strip().lower()
+    comentario = " ".join((outage.comentario or "").split()).strip()
+
+    if alcance == "parcial":
+        intro = "Detectamos una incidencia que afecta de forma parcial a tu zona."
+        if comentario:
+            det = comentario[:200].rstrip(".")
+            intro = f"{intro} {det}."
+    else:
+        intro = "Detectamos una incidencia que afecta a tu zona."
+
+    if hora:
+        validacion = f"El equipo de operaciones la validó a las {hora}."
+    else:
+        validacion = "El equipo de operaciones la validó."
+
+    if _eta_validada_flag(outage.eta_validada) and (outage.eta_minutos or 0) > 0:
+        eta_part = (
+            f"La estimación actual de restitución es de {int(outage.eta_minutos)} minutos."
+        )
+    else:
+        eta_part = (
+            "Todavía no hay una estimación de restitución confirmada; "
+            "te avisamos cuando la tengamos."
+        )
+
+    cierre = (
+        "Te avisaremos si cambia el estado. "
+        "No es necesario generar otro reclamo."
+    )
+    return f"{intro} {validacion} {eta_part} {cierre}"
+
+
+def mensaje_seguimiento_outage(outage: NetworkOutage) -> str:
+    """Recordatorio factual mientras el incidente sigue activo."""
+    hora = formatear_hora_validacion(outage.started_at)
+    if hora:
+        base = f"Seguimos con la incidencia validada a las {hora}."
+    else:
+        base = "Seguimos con la incidencia validada por operaciones."
+    if _eta_validada_flag(outage.eta_validada):
+        eta = f" Estimación actual: {int(outage.eta_minutos or 45)} min."
+    else:
+        eta = " Aún sin ETA confirmada; te avisamos ante novedades."
+    individual = (
+        " Si el problema parece solo en tu domicilio, decime y revisamos tu conexión."
+    )
+    return f"{base}{eta}{individual}"
+
+
 def plantilla_mensaje_cliente(
     *,
     alcance: str,
     comentario: str,
     eta_minutos: int,
     nas_shortname: str = "",
+    started_at: datetime | None = None,
+    eta_validada: str = "Sí",
 ) -> str:
-    """Fallback determinístico (sin LLM)."""
-    eta = max(1, int(eta_minutos or 45))
-    comentario_n = " ".join((comentario or "").split()).strip()
-    alcance_n = (alcance or "total").strip().lower()
-    zona = nas_shortname.strip() or "tu zona de cobertura"
-
-    if alcance_n == "parcial":
-        base = (
-            f"Detectamos un inconveniente técnico en un sector de la cobertura "
-            f"asociada a tu nodo ({zona})."
-        )
-    else:
-        base = (
-            f"Detectamos un inconveniente técnico masivo en la zona de cobertura "
-            f"de tu nodo ({zona})."
-        )
-
-    detalle = ""
-    if comentario_n:
-        # Resumen corto y seguro para el abonado
-        detalle = f" Detalle operativo: {comentario_n[:220]}"
-        if not detalle.endswith("."):
-            detalle += "."
-
-    return (
-        f"{base}{detalle} "
-        f"El equipo de guardia ya se encuentra trabajando en el lugar. "
-        f"Tiempo estimado de solución: {eta} min. "
-        "No es necesario que generes un reclamo."
+    """Compat tests/API: delega en mensaje_desde_outage."""
+    stub = SimpleNamespaceOutage(
+        alcance=alcance,
+        comentario=comentario,
+        eta_minutos=eta_minutos,
+        eta_validada=eta_validada,
+        started_at=started_at or datetime.now(UTC),
+        nas_shortname=nas_shortname,
     )
+    return mensaje_desde_outage(stub)  # type: ignore[arg-type]
+
+
+class SimpleNamespaceOutage:
+    """Stub mínimo para plantilla sin persistir."""
+
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 
 def generar_mensaje_cliente(
@@ -104,55 +163,63 @@ def generar_mensaje_cliente(
     comentario: str,
     eta_minutos: int,
     nas_shortname: str = "",
-    usar_ia: bool = True,
+    usar_ia: bool = False,
+    started_at: datetime | None = None,
+    eta_validada: str = "Sí",
 ) -> str:
-    """Genera una vez el texto para WhatsApp; fallback a plantilla si falla la IA."""
-    fallback = plantilla_mensaje_cliente(
+    """Genera el texto para WhatsApp. Por defecto determinístico (no inventa)."""
+    base = plantilla_mensaje_cliente(
         alcance=alcance,
         comentario=comentario,
         eta_minutos=eta_minutos,
         nas_shortname=nas_shortname,
+        started_at=started_at,
+        eta_validada=eta_validada,
     )
     if not usar_ia:
-        return fallback
+        return base
 
     comentario_n = (comentario or "").strip()
     if not comentario_n:
-        return fallback
+        return base
 
+    hora = formatear_hora_validacion(started_at)
+    eta_txt = (
+        f"{eta_minutos} minutos (validada por operaciones)"
+        if _eta_validada_flag(eta_validada)
+        else "sin confirmar aún"
+    )
     try:
         from app.llm import chat_completion
 
         prompt = (
-            "Redactá UN solo mensaje breve en español rioplatense para un abonado de ISP "
-            "por WhatsApp. Tono calmo y claro. Sin saludos largos, sin emojis, sin prometer "
-            "cosas no dichas. Incluí: qué tipo de inconveniente (masivo o parcial según alcance), "
-            "que la guardia ya trabaja, ETA en minutos, y que NO hace falta generar reclamo. "
-            "Si el comentario indica alcance parcial (rama de fibra, calle, NAP), dejalo claro "
-            "sin datos internos técnicos innecesarios.\n\n"
-            f"NAS: {nas_shortname or 'desconocido'}\n"
+            "Redactá UN mensaje breve en español rioplatense para WhatsApp. "
+            "Tono calmo. NO inventes datos: usá SOLO los hechos provistos.\n"
+            "Debe incluir: incidencia en la zona, que operaciones VALIDÓ el incidente "
+            f"(hora {hora or 'no indicada'}), ETA ({eta_txt}), aviso de cambios, "
+            "y que no hace falta otro reclamo.\n"
             f"Alcance: {alcance}\n"
-            f"ETA minutos: {eta_minutos}\n"
-            f"Comentario del agente: {comentario_n}\n"
+            f"Comentario operativo (puede resumirse): {comentario_n}\n"
         )
         text = chat_completion(
             [
                 {
                     "role": "system",
-                    "content": "Sos redactor de avisos operativos de un ISP cooperativo.",
+                    "content": (
+                        "Sos redactor de avisos operativos. Nunca inventes horarios ni ETAs."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.2,
+            temperature=0.1,
         ).strip()
-        # Una sola línea/párrafo razonable
         text = " ".join(text.split())
         if len(text) < 40:
-            return fallback
+            return base
         return text[:900]
     except Exception:
         logger.exception("No se pudo generar mensaje_cliente con IA; uso plantilla")
-        return fallback
+        return base
 
 
 def resolver_nas_abonado(db: Session, abonado: Abonado | None) -> str:
@@ -222,28 +289,18 @@ def buscar_outage_para_abonado(
 def mensaje_para_conversacion(
     outage: NetworkOutage, *, ya_informado: bool
 ) -> str:
-    base = (outage.mensaje_cliente or "").strip()
-    if not base:
-        base = plantilla_mensaje_cliente(
-            alcance=outage.alcance,
-            comentario=outage.comentario,
-            eta_minutos=outage.eta_minutos,
-            nas_shortname=outage.nas_shortname,
-        )
     if not ya_informado:
-        return base
-    eta = outage.eta_minutos or 45
-    return (
-        f"El equipo de guardia sigue trabajando en el inconveniente de tu zona. "
-        f"ETA aproximado: {eta} min. No hace falta generar un reclamo; "
-        "si el servicio vuelve, avisame."
-    )
+        cached = (outage.mensaje_cliente or "").strip()
+        if cached:
+            return cached
+        return mensaje_desde_outage(outage)
+    return mensaje_seguimiento_outage(outage)
 
 
 def mensaje_ack_outage() -> str:
     return (
         "De nada. Mientras dure el incidente no hace falta que generes un reclamo. "
-        "Si después de la reparación sigue fallando, escribime."
+        "Si después de la reparación sigue fallando solo en tu casa, escribime."
     )
 
 
@@ -254,7 +311,6 @@ def mensaje_ack_outage_corto() -> str:
 def mensaje_resolucion_outage(outage: NetworkOutage | None = None) -> str:
     zona = ""
     if outage is not None and (outage.nas_shortname or "").strip():
-        # Nombre legible sin exponer jerga técnica innecesaria
         zona = " de tu zona de cobertura"
     return (
         f"El incidente{zona} ya fue resuelto por el equipo de guardia. "
@@ -344,7 +400,6 @@ def es_ack_outage(texto: str) -> bool:
     if t.startswith("ok ") and len(t) <= 20:
         return True
     parts = t.split()
-    # "bien gracias", "si gracias", "dale mil gracias"
     if 1 < len(parts) <= 4 and parts[-1] in ("gracias", "graciass"):
         return True
     return False
@@ -397,6 +452,27 @@ def pide_estado_outage(texto: str) -> bool:
     )
 
 
+def cliente_indica_problema_individual(texto: str) -> bool:
+    """El abonado cree que la falla es solo suya (no masiva)."""
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "solo a mi",
+            "solo en mi",
+            "solo mi casa",
+            "solo en casa",
+            "mis vecinos",
+            "vecinos tienen",
+            "vecinos si",
+            "a los demás",
+            "a los demas",
+            "problema individual",
+            "solo yo",
+        )
+    )
+
+
 def outage_to_dict(o: NetworkOutage) -> dict[str, Any]:
     return {
         "id": o.id,
@@ -407,6 +483,8 @@ def outage_to_dict(o: NetworkOutage) -> dict[str, Any]:
         "comentario": o.comentario,
         "mensaje_cliente": o.mensaje_cliente,
         "eta_minutos": o.eta_minutos,
+        "eta_validada": o.eta_validada,
+        "validado_a": formatear_hora_validacion(o.started_at),
         "nas_reachable_at_declare": o.nas_reachable_at_declare,
         "estado": o.estado,
         "fuente": o.fuente,

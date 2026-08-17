@@ -613,6 +613,8 @@ export interface NetworkOutage {
   comentario: string;
   mensaje_cliente: string;
   eta_minutos: number;
+  eta_validada?: string;
+  validado_a?: string;
   nas_reachable_at_declare: string;
   estado: string;
   fuente: string;

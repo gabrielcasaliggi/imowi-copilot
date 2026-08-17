@@ -169,6 +169,7 @@ def _talvez_respuesta_outage(
     from app.estate import repository as repo
     from app.services.outages import (
         buscar_outage_para_abonado,
+        cliente_indica_problema_individual,
         es_ack_outage,
         intencion_bloquea_outage,
         mensaje_ack_outage,
@@ -241,6 +242,14 @@ def _talvez_respuesta_outage(
             _limpiar_ctx_outage(ctx)
             crepo.set_contexto(conv, ctx)
             db.commit()
+        return None
+
+    # Falla aparentemente individual → diagnóstico N1 (no insistir con plantilla masiva)
+    if ctx.get("outage_individual") or cliente_indica_problema_individual(texto):
+        if cliente_indica_problema_individual(texto):
+            ctx["outage_individual"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
         return None
 
     ya = was_informed and str(cached_id or "") == outage.id

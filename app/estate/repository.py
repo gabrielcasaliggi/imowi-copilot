@@ -2037,6 +2037,7 @@ def create_network_outage(
     comentario: str = "",
     mensaje_cliente: str = "",
     eta_minutos: int = 45,
+    eta_validada: str = "Sí",
     nas_reachable_at_declare: str = "",
     created_by: str = "",
     fuente: str = "manual",
@@ -2050,6 +2051,7 @@ def create_network_outage(
         comentario=(comentario or "").strip(),
         mensaje_cliente=(mensaje_cliente or "").strip(),
         eta_minutos=max(1, int(eta_minutos or 45)),
+        eta_validada=(eta_validada or "Sí").strip() or "Sí",
         nas_reachable_at_declare=(nas_reachable_at_declare or "").strip(),
         estado="activo",
         fuente=(fuente or "manual").strip() or "manual",
@@ -2071,6 +2073,7 @@ def update_network_outage(
     comentario: str | None = None,
     mensaje_cliente: str | None = None,
     eta_minutos: int | None = None,
+    eta_validada: str | None = None,
 ) -> NetworkOutage:
     if alcance is not None:
         outage.alcance = (alcance or "total").strip().lower() or "total"
@@ -2082,6 +2085,8 @@ def update_network_outage(
         outage.mensaje_cliente = (mensaje_cliente or "").strip()
     if eta_minutos is not None:
         outage.eta_minutos = max(1, int(eta_minutos))
+    if eta_validada is not None:
+        outage.eta_validada = (eta_validada or "No").strip() or "No"
     outage.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(outage)

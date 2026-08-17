@@ -664,6 +664,7 @@ export const api = {
       tipo?: string;
       comentario: string;
       eta_minutos?: number;
+      eta_validada?: boolean;
       usar_ia?: boolean;
     },
     tenantSlug?: string,

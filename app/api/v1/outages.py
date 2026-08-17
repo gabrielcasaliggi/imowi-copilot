@@ -22,7 +22,8 @@ class OutageCreate(BaseModel):
     tipo: str = "DOWN"
     comentario: str = Field(min_length=1, max_length=4000)
     eta_minutos: int = Field(default=45, ge=1, le=24 * 60)
-    usar_ia: bool = True
+    eta_validada: bool = True
+    usar_ia: bool = False
 
 
 class OutageUpdate(BaseModel):
@@ -30,7 +31,8 @@ class OutageUpdate(BaseModel):
     tipo: str | None = None
     comentario: str | None = None
     eta_minutos: int | None = Field(default=None, ge=1, le=24 * 60)
-    usar_ia: bool = True
+    eta_validada: bool | None = None
+    usar_ia: bool = False
 
 
 @router.get("/nas")
@@ -118,13 +120,7 @@ def create_outage(
     if alcance not in ("total", "parcial"):
         alcance = "total"
 
-    mensaje = outage_svc.generar_mensaje_cliente(
-        alcance=alcance,
-        comentario=body.comentario,
-        eta_minutos=body.eta_minutos,
-        nas_shortname=shortname,
-        usar_ia=body.usar_ia,
-    )
+    eta_flag = "Sí" if body.eta_validada else "No"
     o = repo.create_network_outage(
         db,
         ctx.organizacion_id,
@@ -133,11 +129,22 @@ def create_outage(
         alcance=alcance,
         tipo=body.tipo,
         comentario=body.comentario,
-        mensaje_cliente=mensaje,
+        mensaje_cliente="",
         eta_minutos=body.eta_minutos,
+        eta_validada=eta_flag,
         nas_reachable_at_declare=reachable_flag,
         created_by=ctx.usuario_email or ctx.usuario_nombre,
     )
+    mensaje = outage_svc.generar_mensaje_cliente(
+        alcance=alcance,
+        comentario=body.comentario,
+        eta_minutos=body.eta_minutos,
+        nas_shortname=shortname,
+        usar_ia=body.usar_ia,
+        started_at=o.started_at,
+        eta_validada=eta_flag,
+    )
+    o = repo.update_network_outage(db, o, mensaje_cliente=mensaje)
     try:
         from app.services.app_push import notificar_incidente_app
 
@@ -169,7 +176,17 @@ def update_outage(
     alcance = body.alcance if body.alcance is not None else o.alcance
     comentario = body.comentario if body.comentario is not None else o.comentario
     eta = body.eta_minutos if body.eta_minutos is not None else o.eta_minutos
-    regenerar = body.comentario is not None or body.alcance is not None or body.eta_minutos is not None
+    eta_flag = (
+        ("Sí" if body.eta_validada else "No")
+        if body.eta_validada is not None
+        else o.eta_validada
+    )
+    regenerar = (
+        body.comentario is not None
+        or body.alcance is not None
+        or body.eta_minutos is not None
+        or body.eta_validada is not None
+    )
     mensaje = o.mensaje_cliente
     if regenerar:
         mensaje = outage_svc.generar_mensaje_cliente(
@@ -178,6 +195,8 @@ def update_outage(
             eta_minutos=eta or 45,
             nas_shortname=o.nas_shortname,
             usar_ia=body.usar_ia,
+            started_at=o.started_at,
+            eta_validada=eta_flag,
         )
     o = repo.update_network_outage(
         db,
@@ -187,6 +206,7 @@ def update_outage(
         comentario=body.comentario,
         mensaje_cliente=mensaje if regenerar else None,
         eta_minutos=body.eta_minutos,
+        eta_validada=eta_flag if body.eta_validada is not None else None,
     )
     return {"status": "actualizado", "outage": outage_svc.outage_to_dict(o)}
 

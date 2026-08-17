@@ -132,6 +132,7 @@ class NetworkOutage(Base):
     comentario: Mapped[str] = mapped_column(Text, default="")
     mensaje_cliente: Mapped[str] = mapped_column(Text, default="")
     eta_minutos: Mapped[int] = mapped_column(Integer, default=45)
+    eta_validada: Mapped[str] = mapped_column(String(8), default="Sí")  # Sí|No
     nas_reachable_at_declare: Mapped[str] = mapped_column(String(8), default="")  # Sí|No|""
     estado: Mapped[str] = mapped_column(String(16), default="activo", index=True)  # activo|resuelto
     fuente: Mapped[str] = mapped_column(String(24), default="manual")

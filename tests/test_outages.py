@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from datetime import UTC, datetime
+
 from app.estate import repository as repo
 from app.estate.models import Abonado
 from app.radius.client import RadiusNasClient, parse_all_nas
@@ -29,13 +31,18 @@ def test_parse_all_nas_payload_real():
 
 
 def test_plantilla_parcial_incluye_comentario():
+    started = datetime(2026, 8, 17, 17, 5, tzinfo=UTC)
     msg = outage_svc.plantilla_mensaje_cliente(
         alcance="parcial",
         comentario="Rama de fibra caída en calle San Martín",
         eta_minutos=45,
         nas_shortname="apposada",
+        started_at=started,
+        eta_validada="Sí",
     )
-    assert "inconveniente" in msg.lower()
+    assert "incidencia" in msg.lower()
+    assert "validó" in msg.lower()
+    assert "14:05" in msg
     assert "45" in msg
     assert "reclamo" in msg.lower()
     assert "San Martín" in msg
@@ -47,9 +54,30 @@ def test_plantilla_total():
         comentario="",
         eta_minutos=30,
         nas_shortname="apchapa",
+        started_at=datetime(2026, 8, 17, 12, 0, tzinfo=UTC),
+        eta_validada="Sí",
     )
-    assert "masivo" in msg.lower()
+    assert "incidencia" in msg.lower()
+    assert "validó" in msg.lower()
     assert "30" in msg
+
+
+def test_plantilla_sin_eta_validada():
+    msg = outage_svc.plantilla_mensaje_cliente(
+        alcance="total",
+        comentario="",
+        eta_minutos=45,
+        eta_validada="No",
+    )
+    assert "validó" in msg.lower()
+    assert "45" not in msg
+    assert "estimación" in msg.lower() or "confirmada" in msg.lower()
+
+
+def test_cliente_indica_problema_individual():
+    assert outage_svc.cliente_indica_problema_individual("mis vecinos tienen internet")
+    assert outage_svc.cliente_indica_problema_individual("solo en mi casa")
+    assert not outage_svc.cliente_indica_problema_individual("no tengo internet")
 
 
 def test_outage_activo_por_nas_match(db):
@@ -171,14 +199,16 @@ def test_mensaje_ya_informado_sin_nombre_tecnico():
         alcance="total",
         comentario="x",
         eta_minutos=40,
+        eta_validada="Sí",
+        started_at=datetime(2026, 8, 17, 14, 5, tzinfo=UTC),
         nas_shortname="apposada",
     )
     first = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
     again = outage_svc.mensaje_para_conversacion(o, ya_informado=True)
     assert first == "Mensaje largo del incidente."
-    assert "guardia" in again.lower()
+    assert "validada" in again.lower()
     assert "apposada" not in again
-    assert "reclamo" in again.lower()
+    assert "domicilio" in again.lower()
 
 
 def test_es_ack_outage():
@@ -223,7 +253,11 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
         org_id,
         nas_shortname="apposada",
         comentario="corte",
-        mensaje_cliente="Detectamos un inconveniente técnico masivo en tu zona.",
+        mensaje_cliente=(
+            "Detectamos una incidencia que afecta a tu zona. "
+            "El equipo de operaciones la validó. "
+            "La estimación actual de restitución es de 45 minutos."
+        ),
         eta_minutos=45,
     )
 
@@ -261,7 +295,8 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
     )
     assert resp is not None
     assert resp["ok"] is True
-    assert "inconveniente" in resp["respuesta"].lower()
+    assert "incidencia" in resp["respuesta"].lower()
+    assert "validó" in resp["respuesta"].lower()
     assert resp["outage_nas"] == "apposada"
     assert "ticket_id" not in resp
     assert sent.get("texto")
@@ -282,6 +317,13 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
     )
     assert resp3 is not None
     assert "cualquier cosa" in resp3["respuesta"].lower()
+
+    # Problema aparentemente individual → no interceptar (N1)
+    resp4 = _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="Mis vecinos tienen internet"
+    )
+    assert resp4 is None
+    assert ctx.get("outage_individual") is True
 
 
 def test_interceptor_avisa_cuando_se_resuelve(db, monkeypatch):

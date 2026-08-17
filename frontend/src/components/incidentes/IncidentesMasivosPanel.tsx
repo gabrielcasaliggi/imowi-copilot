@@ -30,6 +30,7 @@ export function IncidentesMasivosPanel() {
   const [alcance, setAlcance] = useState<"total" | "parcial">("total");
   const [tipo, setTipo] = useState("DOWN");
   const [eta, setEta] = useState(45);
+  const [etaValidada, setEtaValidada] = useState(true);
   const [comentario, setComentario] = useState("");
   const [error, setError] = useState("");
 
@@ -122,6 +123,7 @@ export function IncidentesMasivosPanel() {
           tipo,
           comentario: comentario.trim(),
           eta_minutos: eta,
+          eta_validada: etaValidada,
         },
         tenantSlug,
       );
@@ -266,6 +268,16 @@ export function IncidentesMasivosPanel() {
           </label>
         </div>
 
+        <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer w-fit">
+          <input
+            type="checkbox"
+            className="rounded border-slate-600 bg-slate-800 text-teal-500 focus:ring-teal-500/40"
+            checked={etaValidada}
+            onChange={(e) => setEtaValidada(e.target.checked)}
+          />
+          ETA confirmada por operaciones (si no, el bot no la comunica al cliente)
+        </label>
+
         <label className="block space-y-1.5">
           <span className="text-xs font-mono uppercase tracking-wider text-slate-500">
             Comentario para el bot (obligatorio)
@@ -310,7 +322,10 @@ export function IncidentesMasivosPanel() {
                     </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {o.alcance} · {o.tipo} · ETA {o.eta_minutos} min · {o.created_by || "—"}
+                    {o.alcance} · {o.tipo} · ETA{" "}
+                    {o.eta_validada === "No" ? "sin confirmar" : `${o.eta_minutos} min`}
+                    {o.validado_a ? ` · validado ${o.validado_a}` : ""} ·{" "}
+                    {o.created_by || "—"}
                   </p>
                 </div>
                 <Button

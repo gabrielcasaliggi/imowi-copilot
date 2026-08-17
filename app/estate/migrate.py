@@ -46,6 +46,10 @@ _CONVERSACION_CANAL_COLUMNS: dict[str, str] = {
     "agente_last_read_at": "DATETIME",
 }
 
+_NETWORK_OUTAGE_COLUMNS: dict[str, str] = {
+    "eta_validada": "VARCHAR(8) DEFAULT 'Sí'",
+}
+
 _SLA_COLUMNS: dict[str, str] = {
     "sla_policy": "VARCHAR(32) DEFAULT ''",
     "sla_due_at": "DATETIME",
@@ -165,6 +169,15 @@ def migrate_schema(engine: Engine) -> list[str]:
             cambios.append("ticket_notifications.ticket_id FK dropped")
 
     insp = inspect(engine)
+    insp = inspect(engine)
+    if insp.has_table("network_outages"):
+        existentes_out = {c["name"] for c in insp.get_columns("network_outages")}
+        for col, ddl in _NETWORK_OUTAGE_COLUMNS.items():
+            if col not in existentes_out:
+                _add_column(engine, "network_outages", col, ddl)
+                cambios.append(f"network_outages.{col}")
+                logger.info("Migración: columna agregada network_outages.%s", col)
+
     cambios.extend(_ensure_auth_tables(engine, insp))
     return cambios
 
