@@ -309,6 +309,11 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert "NO manipular" in ftth or "no manipular" in ftth.lower()
     assert "LOS" in ftth
     assert "Internet — cortes o intermitencia" in by_title
+    assert "N1 hogareño — luces PON y LOS" in by_title
+    assert "N1 hogareño — cable vs WiFi" in by_title
+    assert "N1 hogareño — lentitud en horario pico" in by_title
+    assert "N1 hogareño — PoE y antena de techo" in by_title
+    assert "LOS" in by_title["N1 hogareño — luces PON y LOS"]
     assert "internet_intermitente" in by_title["Internet — cortes o intermitencia"]
     assert "WiFi — cambiar clave o nombre de red" in by_title
     assert "cambio_clave_wifi" in by_title["WiFi — cambiar clave o nombre de red"]

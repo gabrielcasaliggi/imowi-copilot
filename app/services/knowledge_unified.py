@@ -15,14 +15,18 @@ def buscar_unificado(
     query: str,
     *,
     limit_tenant: int = 5,
+    incluir_rag_global: bool = True,
 ) -> dict:
     """
     Consulta ambas fuentes de conocimiento y devuelve contexto consolidado.
-    Prioriza tenant si hay match; complementa con RAG global.
+    Prioriza tenant si hay match; complementa con RAG global (opcional).
+
+    El canal abonado debe pasar incluir_rag_global=False: el dump histórico
+    de tickets (Base_de_Conocimiento_Tickets.md) ensucia el prompt N1.
     """
     consulta = (query or "").strip()
     tenant_hits = repo.search_kb(db, org_id, consulta, limit=limit_tenant) if consulta else []
-    rag = buscar_contexto(consulta) if consulta else None
+    rag = buscar_contexto(consulta) if (consulta and incluir_rag_global) else None
 
     articulos: list[dict] = []
     for a in tenant_hits:

@@ -190,3 +190,26 @@ def test_portal_guest_mensaje_deuda_no_500(monkeypatch):
         (body.get("conversacion") or {}).get("estado") == "espera_agente"
     )
     assert "internal server" not in (body.get("respuesta") or "").lower()
+
+
+def test_portal_delete_account_borra_pin():
+    sess = _portal_identified("30111222")
+    token = sess["portal_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    pin = client.post(
+        "/api/v1/portal/auth/set-pin",
+        headers=headers,
+        json={"pin": "123456"},
+    )
+    assert pin.status_code == 200, pin.text
+
+    gone = client.post("/api/v1/portal/account/delete", headers=headers, json={})
+    assert gone.status_code == 200, gone.text
+    assert gone.json()["status"] == "ok"
+
+    login = client.post(
+        "/api/v1/portal/auth/login-pin",
+        json={"dni": "30111222", "pin": "123456", "org_slug": "coop-batan"},
+    )
+    assert login.status_code == 400

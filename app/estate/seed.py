@@ -489,6 +489,49 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "Playbook: internet_intermitente."
             ),
         ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — luces PON y LOS",
+            categoria="Internet",
+            contenido=(
+                "Abonado hogareño FTTH. Preguntar luces de la ONT (cajita blanca) "
+                "antes de WiFi o visita.\n"
+                "PON verde fija + LOS apagada = enlace óptico OK: seguir con reinicio 30s "
+                "y cable vs WiFi. Completar preguntas no es resolver.\n"
+                "LOS roja o encendida = alarma óptica: no pedir pruebas de WiFi ni "
+                "tocar el cable amarillo. Escalar visita de campo (N2 cooperativa), no NOC móvil."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — cable vs WiFi",
+            categoria="Internet",
+            contenido=(
+                "Si por cable al router navega y por WiFi no: el problema es la red del hogar. "
+                "Playbook wifi (zona, 2.4/5 GHz, reinicio, etiqueta). No abrir visita de fibra "
+                "ni ticket N2 de planta. Si tampoco navega por cable, volver a FTTH/radio/ADSL."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — lentitud en horario pico",
+            categoria="Internet",
+            contenido=(
+                "Lentitud de tarde/noche con muchos equipos: pedir test en fast.com por cable. "
+                "Si el cable da >70% del plan, orientar saturación del WiFi/hogar; no escalar al NOC. "
+                "Si el cable da <50% del plan de forma estable, recién ahí N2 cooperativa."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — PoE y antena de techo",
+            categoria="Internet",
+            contenido=(
+                "Internet radio/BAI: luz del inyector PoE, cable al puerto WAN/azul del router, "
+                "reinicio PoE+router 30s, LED de enlace del CPE, línea de vista. "
+                "Si PoE OK, reinicio hecho y sigue caído → N2 cooperativa (campo), no IMOWI NOC."
+            ),
+        ),
 
         # ==================== WIFI ====================
         KnowledgeArticle(

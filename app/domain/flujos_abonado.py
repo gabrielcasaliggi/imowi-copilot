@@ -302,6 +302,11 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "tipo_acceso",
             "¿Tenés fibra (cajita blanca), antena en el techo, o internet por teléfono (ADSL)?",
         ),
+        PasoPlaybook(
+            "confirmar_acceso",
+            "Para no derivarte de más: ¿ves una cajita blanca con un cable amarillo (fibra), "
+            "una antena en el techo, o el módem entra por el teléfono?",
+        ),
     ],
     "internet_lento": [
         PasoPlaybook("cuantos_dispositivos", "¿Cuántos equipos hay conectados al WiFi ahora?"),
@@ -579,6 +584,20 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
 
 def tag_para_intencion(intencion: str) -> str:
     return TAG_POR_INTENCION.get((intencion or "").strip(), "[HANDOFF_HUMANO]")
+
+
+def destino_n2_canal(intencion: str) -> tuple[str, str]:
+    """Destino y etiqueta de proveedor para un N2 del canal abonado.
+
+    Internet hogareño / visita de campo → cooperativa.
+    Móvil IMOWI → NOC. No mandar FTTH al destino de red móvil.
+    """
+    intent = (intencion or "").strip()
+    if intent.startswith("movil"):
+        return "imowi_noc", "NOC"
+    if intent == "ecolan_b2b":
+        return "cooperativa", "Ecolan"
+    return "cooperativa", "Cooperativa / campo"
 
 
 def tiene_internet_fijo(servicio_abonado: str) -> bool:
@@ -1324,6 +1343,56 @@ def refinar_intencion_internet(texto: str) -> str | None:
     return None
 
 
+def refinar_playbook_internet(texto: str) -> str | None:
+    """Sale del triaje `internet` hacia tecnología o síntoma (wifi/lento/cortes)."""
+    tech = refinar_intencion_internet(texto)
+    if tech:
+        return tech
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "solo el wifi",
+            "solo wifi",
+            "solo el wi-fi",
+            "solo wi-fi",
+            "solo el wi fi",
+            "es el wifi",
+            "es el wi-fi",
+            "no llega el wifi",
+            "wifi no llega",
+            "el wifi no",
+        )
+    ):
+        return "wifi"
+    if any(
+        k in t
+        for k in (
+            "lento",
+            "lenta",
+            "velocidad",
+            "speed",
+            "tarda",
+            "demora",
+            "baja velocidad",
+        )
+    ):
+        return "internet_lento"
+    if any(
+        k in t
+        for k in (
+            "se corta",
+            "se cortan",
+            "intermiten",
+            "va y viene",
+            "se cae y vuelve",
+            "se me cae",
+        )
+    ):
+        return "internet_intermitente"
+    return None
+
+
 def _token_en_texto(texto: str, token: str) -> bool:
     """Match de token con límites de palabra para evitar 'si'∈'quisiera'."""
     t = (token or "").lower().strip()
@@ -1915,8 +1984,38 @@ def detecta_frustracion(texto: str, ctx: dict) -> bool:
     """True si reitera la misma queja *después* de avance N1 real (paso_idx ≥ 2).
 
     No abre ticket por repetir el síntoma al inicio del playbook (triaje).
+    Tampoco si el mensaje es una respuesta de diagnóstico (reinicio, luces, cable).
     """
+    intent = str(ctx.get("intencion") or "")
+    if intent in ("internet", "wifi", "internet_lento"):
+        return False
     if not misma_queja(texto, ctx):
+        return False
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "reinici",
+            "desenchuf",
+            "por cable",
+            "living",
+            "lejos",
+            "pon",
+            " los",
+            "fibra",
+            "equipos",
+            "fast.com",
+            "cajita",
+            "wifi",
+            "wi-fi",
+            "lento",
+            "noche",
+            "etiqueta",
+            "2.4",
+            "5 ghz",
+            "microondas",
+        )
+    ):
         return False
     return int(ctx.get("paso_idx") or 0) >= 2
 

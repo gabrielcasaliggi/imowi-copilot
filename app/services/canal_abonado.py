@@ -15,6 +15,7 @@ from app.domain.flujos_abonado import (
     clasificar_intencion,
     contiene_sintoma_canal,
     declara_solo_movil_sin_fijo,
+    destino_n2_canal,
     detecta_frustracion,
     detectar_temas_duales,
     es_escape_agente,
@@ -32,7 +33,7 @@ from app.domain.flujos_abonado import (
     parse_menu_tipo_consulta,
     pide_humano,
     pide_humano_en_flujo_activo,
-    refinar_intencion_internet,
+    refinar_playbook_internet,
     registrar_queja,
     resolver_prioridad_tema,
     respuesta_paso_ok,
@@ -947,7 +948,13 @@ def _kb_fragmento(
     try:
         from app.services import knowledge_unified
 
-        kb = knowledge_unified.buscar_unificado(db, org_id, consulta, limit_tenant=3)
+        kb = knowledge_unified.buscar_unificado(
+            db,
+            org_id,
+            consulta,
+            limit_tenant=3,
+            incluir_rag_global=False,
+        )
         ctx = (kb.get("kb_contexto") or "").strip()
         if not ctx:
             return ""
@@ -1086,6 +1093,7 @@ def _crear_ticket_n2(
         f"[ORIGEN: {BOT_DISPLAY_NAME_SHORT}] {tag} Escalamiento N2 canal abonado ({nombre}): "
         f"{motivo}.{extra_temas} {handoff}"
     )
+    destino, proveedor = destino_n2_canal(str(intent))
     t = ticket_bridge.crear_ticket(
         db,
         org_id,
@@ -1096,8 +1104,8 @@ def _crear_ticket_n2(
         categoria=str(intent).replace("_", " ").title() if intent else "Canal Abonado",
         creado_por=f"bot:{conv.telefono}",
         nivel="N2",
-        destino="imowi_noc",
-        proveedor="NOC",
+        destino=destino,
+        proveedor=proveedor,
         motivo_escalamiento=f"{tag} {motivo}",
         evidencia=evidencia,
         acciones_n1_realizadas=handoff,
@@ -2059,6 +2067,32 @@ def _aplicar_diagnostico_ia(
         ctx["enlace_optico_ok"] = True
     crepo.set_contexto(conv, ctx)
     db.commit()
+
+    if accion == "escalate" and intencion == "internet":
+        from app.services.diagnostico_n1 import _MOTIVOS_OPTICOS
+
+        motivo_e = str(result.get("motivo") or "")
+        if motivo_e not in _MOTIVOS_OPTICOS and not any(
+            x in motivo_e.lower() for x in ("agente", "humano", "pedido")
+        ):
+            refinada = refinar_playbook_internet(texto)
+            if refinada:
+                intencion = refinada
+                ctx["intencion"] = refinada
+                ctx["paso_idx"] = 0
+                ctx["pasos_cubiertos"] = []
+                conv.servicio_detectado = refinada
+            accion = "ask"
+            result = dict(result)
+            result["accion"] = "ask"
+            pasos_i = _playbooks(db).get(intencion) or []
+            mensaje = (
+                pasos_i[0].pregunta
+                if pasos_i
+                else "¿Tenés fibra (cajita blanca), antena en el techo, o internet por teléfono (ADSL)?"
+            )
+            crepo.set_contexto(conv, ctx)
+            db.commit()
 
     if accion == "escalate":
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
@@ -3152,7 +3186,7 @@ def procesar_mensaje_entrante(
             }
 
     if intencion == "internet":
-        refinada = refinar_intencion_internet(texto)
+        refinada = refinar_playbook_internet(texto)
         if refinada:
             intencion = refinada
             ctx["intencion"] = intencion
@@ -3416,6 +3450,39 @@ def procesar_mensaje_entrante(
                 "intencion": intencion,
             }
 
+    if intencion in ("internet", "internet_ftth"):
+        from app.services.diagnostico_n1 import detectar_falla_optica_escalar
+
+        opt = detectar_falla_optica_escalar(texto, crepo.list_mensajes(db, conv.id))
+        if opt:
+            tid = _crear_ticket_n2(
+                db,
+                org_id,
+                conv,
+                abonado,
+                f"Falla óptica N1: {opt}",
+                intencion=intencion,
+                paso_idx=int(ctx.get("paso_idx") or 0),
+                ctx=ctx,
+            )
+            resp = _mensaje_cierre_escalamiento(
+                tid,
+                motivo=opt,
+                mensaje_ia="",
+                nota_temas=_nota_temas_pendientes(ctx),
+                intencion=intencion,
+            )
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "espera_agente",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "ticket_id": tid,
+                "intencion": intencion,
+            }
+
     # Continuación: técnicos con diagnóstico IA (sin sí/no rígido del playbook)
     diag = _aplicar_diagnostico_ia(
         db,
@@ -3476,6 +3543,8 @@ def procesar_mensaje_entrante(
     def _escalar(motivo: str) -> dict:
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
+        nonlocal intencion, pasos, paso_idx
+
         # Nunca abrir ticket si el abonado está cerrando (gracias/perfecto/listo)
         if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
             return _cerrar_consulta_resuelta(
@@ -3483,6 +3552,32 @@ def procesar_mensaje_entrante(
                 org_id,
                 conv,
                 canal=canal,
+            )
+        # El triaje `internet` no es N1 agotado: refinar o repreguntar, nunca ticket.
+        if intencion == "internet":
+            refinada = refinar_playbook_internet(texto) or refinar_playbook_internet(
+                str(ctx.get("ultima_respuesta_libre") or "")
+            )
+            pb2 = _playbooks(db)
+            if refinada and (pb2.get(refinada) or []):
+                intencion = refinada
+                ctx["intencion"] = intencion
+                ctx["paso_idx"] = 0
+                ctx["diag_turnos"] = 0
+                ctx["pasos_cubiertos"] = []
+                conv.servicio_detectado = intencion
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                pasos = pb2.get(intencion) or pb2["general"]
+                paso_idx = 0
+                return _preguntar(0)
+            idx = min(max(len(pasos) - 1, 0), max(paso_idx, 0))
+            ctx["paso_idx"] = idx
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return _preguntar(
+                idx,
+                prefijo="Todavía no ubico si es fibra, radio o ADSL; no te derivo todavía. ",
             )
         tid = _crear_ticket_n2(
             db,

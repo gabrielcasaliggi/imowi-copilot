@@ -706,6 +706,48 @@ def portal_logout(response: Response):
     return {"status": "ok"}
 
 
+@router.post("/portal/account/delete")
+def portal_delete_account(
+    response: Response,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Borra PIN, dispositivos y vínculo de la app. El padrón de la cooperativa no se toca."""
+    if not payload.get("identified") or not payload.get("dni"):
+        raise HTTPException(403, "Sesión identificada requerida")
+    org_id = payload["org_id"]
+    dni = str(payload["dni"])
+    devices = db.scalars(
+        select(PortalDevice).where(
+            PortalDevice.organizacion_id == org_id,
+            PortalDevice.dni_normalized == dni,
+        )
+    ).all()
+    for row in devices:
+        db.delete(row)
+    otps = db.scalars(
+        select(PortalOtpChallenge).where(
+            PortalOtpChallenge.organizacion_id == org_id,
+            PortalOtpChallenge.dni_normalized == dni,
+        )
+    ).all()
+    for row in otps:
+        db.delete(row)
+    link = db.scalar(
+        select(PortalAbonadoLink).where(
+            PortalAbonadoLink.organizacion_id == org_id,
+            PortalAbonadoLink.dni_normalized == dni,
+        )
+    )
+    if link:
+        db.delete(link)
+    from app.http_cookies import clear_portal_cookie
+
+    clear_portal_cookie(response)
+    db.commit()
+    return {"status": "ok"}
+
+
 @router.post("/portal/messages")
 def portal_enviar_mensaje(
     body: PortalMessageIn,
