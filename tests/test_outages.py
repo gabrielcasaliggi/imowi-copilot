@@ -226,9 +226,9 @@ def test_get_all_nas_client(monkeypatch):
 
 
 def test_mensaje_ya_informado_sin_nombre_tecnico():
-    # Cache sin "validó" → se regenera plantilla autorizada
+    # Siempre plantilla viva desde started_at (no cache con hora inventada)
     o = SimpleNamespace(
-        mensaje_cliente="Mensaje largo del incidente.",
+        mensaje_cliente="Mensaje largo del incidente con validó a las 99:99.",
         alcance="total",
         comentario="x",
         eta_minutos=40,
@@ -239,16 +239,18 @@ def test_mensaje_ya_informado_sin_nombre_tecnico():
     first = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
     again = outage_svc.mensaje_para_conversacion(o, ya_informado=True)
     assert "validó" in first.lower()
+    assert "11:05" in first  # 14:05 UTC → AR
+    assert "99:99" not in first
     assert "40" in first
     assert "validada" in again.lower()
     assert "apposada" not in again
     assert "domicilio" in again.lower()
 
-    # Cache con "validó" se respeta
+    # Cache viejo con otra hora → se ignora; manda started_at
     o2 = SimpleNamespace(
         mensaje_cliente=(
             "Detectamos una incidencia que afecta a tu zona. "
-            "El equipo de operaciones la validó a las 11:05. "
+            "El equipo de operaciones la validó a las 12:49. "
             "La estimación actual de restitución es de 40 minutos. "
             "Te avisaremos si cambia el estado. No es necesario generar otro reclamo."
         ),
@@ -256,10 +258,33 @@ def test_mensaje_ya_informado_sin_nombre_tecnico():
         comentario="x",
         eta_minutos=40,
         eta_validada="Sí",
-        started_at=datetime(2026, 8, 17, 14, 5, tzinfo=UTC),
+        started_at=datetime(2026, 8, 17, 16, 30, tzinfo=UTC),  # → 13:30 AR
         nas_shortname="apposada",
     )
-    assert outage_svc.mensaje_para_conversacion(o2, ya_informado=False) == o2.mensaje_cliente
+    live = outage_svc.mensaje_para_conversacion(o2, ya_informado=False)
+    assert "13:30" in live
+    assert "12:49" not in live
+
+
+def test_hora_validacion_sigue_started_at():
+    msg = outage_svc.plantilla_mensaje_cliente(
+        alcance="parcial",
+        comentario="Corte en ramal por calle 16 informado a las 13hs",
+        eta_minutos=45,
+        started_at=datetime(2026, 8, 19, 15, 49, tzinfo=UTC),  # 12:49 AR
+        eta_validada="Sí",
+    )
+    assert "12:49" in msg
+    assert "calle 16" in msg
+    msg2 = outage_svc.plantilla_mensaje_cliente(
+        alcance="parcial",
+        comentario="Corte en ramal por calle 16 informado a las 13hs",
+        eta_minutos=45,
+        started_at=datetime(2026, 8, 19, 16, 7, tzinfo=UTC),  # 13:07 AR
+        eta_validada="Sí",
+    )
+    assert "13:07" in msg2
+    assert "12:49" not in msg2
 
 
 def test_es_ack_outage():

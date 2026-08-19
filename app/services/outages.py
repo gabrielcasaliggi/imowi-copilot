@@ -69,20 +69,44 @@ def _eta_validada_flag(value: str | None) -> bool:
 
 
 def formatear_hora_validacion(dt: datetime | None) -> str:
-    """Hora local Argentina de la declaración/validación del incidente."""
+    """Hora local Argentina de la declaración/carga del incidente."""
     if dt is None:
         return ""
     aware = dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
     return aware.astimezone(_TZ_AR).strftime("%H:%M")
 
 
+_RE_HORA_VALIDO = re.compile(
+    r"(valid[oó]\s+a\s+las\s+)\d{1,2}:\d{2}",
+    flags=re.IGNORECASE,
+)
+
+
+def _inyectar_hora_validacion(texto: str, started_at: datetime | None) -> str:
+    """Reemplaza cualquier 'validó a las HH:MM' por la hora real de carga."""
+    hora = formatear_hora_validacion(started_at)
+    if not hora or not (texto or "").strip():
+        return texto or ""
+    if _RE_HORA_VALIDO.search(texto):
+        return _RE_HORA_VALIDO.sub(rf"\g<1>{hora}", texto, count=1)
+    # Si dice "validó" sin hora, insertarla
+    low = texto.lower()
+    if "validó" in low or "valido" in low:
+        return re.sub(
+            r"(valid[oó])(\s+por operaciones)?(\.)?",
+            rf"\1 a las {hora}\3",
+            texto,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return texto
+
+
 def mensaje_desde_outage(outage: NetworkOutage) -> str:
     """Plantilla determinística autorizada por operaciones (sin inventar).
 
-    Ejemplo:
-    «Detectamos una incidencia que afecta a tu zona. El equipo de operaciones la
-    validó a las 14:05. La estimación actual de restitución es de 45 minutos.
-    Te avisaremos si cambia el estado. No es necesario generar otro reclamo.»
+    La hora de «validó a las HH:MM» sale siempre de outage.started_at
+    (momento en que se cargó/declaró el incidente), nunca de un ejemplo fijo.
     """
     hora = formatear_hora_validacion(outage.started_at)
     alcance = (outage.alcance or "total").strip().lower()
@@ -231,7 +255,8 @@ def generar_mensaje_cliente(
             return base
         if "validó" not in text.lower() and "valido" not in text.lower():
             return base
-        return text[:900]
+        # Forzar la hora real de carga (nunca dejar HH:MM inventada por la IA)
+        return _inyectar_hora_validacion(text[:900], started_at)
     except Exception:
         logger.exception("No se pudo generar mensaje_cliente con IA; uso plantilla")
         return base
@@ -240,17 +265,12 @@ def generar_mensaje_cliente(
 def mensaje_para_conversacion(
     outage: NetworkOutage, *, ya_informado: bool
 ) -> str:
-    """Mensaje al abonado: plantilla viva; cache solo si ya trae 'validó'."""
+    """Mensaje al abonado siempre desde datos vivos del incidente.
+
+    No reutilizar mensaje_cliente cacheado: ahí podía quedar una hora vieja o
+    inventada por IA. La hora de validación = started_at (carga del incidente).
+    """
     if not ya_informado:
-        cached = (outage.mensaje_cliente or "").strip()
-        if cached and "validó" in cached.lower():
-            # Si el cache promete minutos pero la ETA no está validada → regenerar
-            if (
-                not _eta_validada_flag(outage.eta_validada)
-                and re.search(r"\b\d+\s*min", cached, flags=re.IGNORECASE)
-            ):
-                return mensaje_desde_outage(outage)
-            return cached
         return mensaje_desde_outage(outage)
     return mensaje_seguimiento_outage(outage)
 
