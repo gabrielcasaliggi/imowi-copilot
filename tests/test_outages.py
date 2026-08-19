@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from app.estate import repository as repo
 from app.estate.models import Abonado
