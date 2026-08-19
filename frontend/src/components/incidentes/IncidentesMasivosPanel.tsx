@@ -30,7 +30,7 @@ export function IncidentesMasivosPanel() {
   const [alcance, setAlcance] = useState<"total" | "parcial">("total");
   const [tipo, setTipo] = useState("DOWN");
   const [eta, setEta] = useState(45);
-  const [etaValidada, setEtaValidada] = useState(true);
+  const [etaValidada, setEtaValidada] = useState(false);
   const [comentario, setComentario] = useState("");
   const [error, setError] = useState("");
 

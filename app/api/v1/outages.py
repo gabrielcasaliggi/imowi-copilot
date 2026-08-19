@@ -22,7 +22,7 @@ class OutageCreate(BaseModel):
     tipo: str = "DOWN"
     comentario: str = Field(min_length=1, max_length=4000)
     eta_minutos: int = Field(default=45, ge=1, le=24 * 60)
-    eta_validada: bool = True
+    eta_validada: bool = False
     usar_ia: bool = False
 
 

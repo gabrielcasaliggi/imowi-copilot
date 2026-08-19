@@ -74,6 +74,39 @@ def test_plantilla_sin_eta_validada():
     assert "estimación" in msg.lower() or "confirmada" in msg.lower()
 
 
+def test_mensaje_para_conversacion_regenera_texto_viejo_sin_valido():
+    o = SimpleNamespace(
+        mensaje_cliente="Hay un corte de fibra en tu zona. ETA 45 min.",
+        alcance="total",
+        comentario="",
+        eta_minutos=45,
+        eta_validada="Sí",
+        started_at=datetime(2026, 8, 17, 17, 5, tzinfo=UTC),
+        nas_shortname="apposada",
+    )
+    msg = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
+    assert "validó" in msg.lower()
+    assert "14:05" in msg
+    assert "45" in msg
+    assert "Hay un corte de fibra" not in msg
+
+
+def test_mensaje_para_conversacion_no_inventa_eta_sin_validar():
+    o = SimpleNamespace(
+        mensaje_cliente="",
+        alcance="total",
+        comentario="",
+        eta_minutos=45,
+        eta_validada="No",
+        started_at=datetime(2026, 8, 17, 17, 5, tzinfo=UTC),
+        nas_shortname="apposada",
+    )
+    msg = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
+    assert "validó" in msg.lower()
+    assert "45" not in msg
+    assert "confirmada" in msg.lower() or "confirmada" in msg.lower() or "todavía" in msg.lower()
+
+
 def test_cliente_indica_problema_individual():
     assert outage_svc.cliente_indica_problema_individual("mis vecinos tienen internet")
     assert outage_svc.cliente_indica_problema_individual("solo en mi casa")
@@ -194,6 +227,7 @@ def test_get_all_nas_client(monkeypatch):
 
 
 def test_mensaje_ya_informado_sin_nombre_tecnico():
+    # Cache sin "validó" → se regenera plantilla autorizada
     o = SimpleNamespace(
         mensaje_cliente="Mensaje largo del incidente.",
         alcance="total",
@@ -205,10 +239,28 @@ def test_mensaje_ya_informado_sin_nombre_tecnico():
     )
     first = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
     again = outage_svc.mensaje_para_conversacion(o, ya_informado=True)
-    assert first == "Mensaje largo del incidente."
+    assert "validó" in first.lower()
+    assert "40" in first
     assert "validada" in again.lower()
     assert "apposada" not in again
     assert "domicilio" in again.lower()
+
+    # Cache con "validó" se respeta
+    o2 = SimpleNamespace(
+        mensaje_cliente=(
+            "Detectamos una incidencia que afecta a tu zona. "
+            "El equipo de operaciones la validó a las 11:05. "
+            "La estimación actual de restitución es de 40 minutos. "
+            "Te avisaremos si cambia el estado. No es necesario generar otro reclamo."
+        ),
+        alcance="total",
+        comentario="x",
+        eta_minutos=40,
+        eta_validada="Sí",
+        started_at=datetime(2026, 8, 17, 14, 5, tzinfo=UTC),
+        nas_shortname="apposada",
+    )
+    assert outage_svc.mensaje_para_conversacion(o2, ya_informado=False) == o2.mensaje_cliente
 
 
 def test_es_ack_outage():

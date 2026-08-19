@@ -298,8 +298,9 @@ def _talvez_respuesta_outage(
     t = (texto or "").strip()
     if t and len(t) <= 60 and not parece_consulta_nueva(texto):
         msg = (
-            "Todavía hay un incidente activo en tu zona; la guardia sigue trabajando. "
-            "No hace falta reclamo. Si ya te anda, avisame."
+            "Seguimos con la incidencia validada por operaciones en tu zona. "
+            "Te avisaremos si cambia el estado; no hace falta otro reclamo. "
+            "Si ya te anda, avisame."
         )
         return _pack(
             msg,

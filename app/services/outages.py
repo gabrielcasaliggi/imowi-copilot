@@ -64,11 +64,12 @@ def health_nas(db: Session | None, shortname: str) -> dict[str, Any]:
 
 
 def _eta_validada_flag(value: str | None) -> bool:
-    return (value or "Sí").strip().lower() in ("sí", "si", "yes", "1", "true")
+    """Solo True si operaciones marcó la ETA como validada. Vacío = no inventar."""
+    return (value or "").strip().lower() in ("sí", "si", "yes", "1", "true")
 
 
 def formatear_hora_validacion(dt: datetime | None) -> str:
-    """Hora local Argentina de la declaración del incidente."""
+    """Hora local Argentina de la declaración/validación del incidente."""
     if dt is None:
         return ""
     aware = dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
@@ -76,7 +77,13 @@ def formatear_hora_validacion(dt: datetime | None) -> str:
 
 
 def mensaje_desde_outage(outage: NetworkOutage) -> str:
-    """Plantilla determinística: solo datos del registro (sin inventar)."""
+    """Plantilla determinística autorizada por operaciones (sin inventar).
+
+    Ejemplo:
+    «Detectamos una incidencia que afecta a tu zona. El equipo de operaciones la
+    validó a las 14:05. La estimación actual de restitución es de 45 minutos.
+    Te avisaremos si cambia el estado. No es necesario generar otro reclamo.»
+    """
     hora = formatear_hora_validacion(outage.started_at)
     alcance = (outage.alcance or "total").strip().lower()
     comentario = " ".join((outage.comentario or "").split()).strip()
@@ -118,10 +125,10 @@ def mensaje_seguimiento_outage(outage: NetworkOutage) -> str:
         base = f"Seguimos con la incidencia validada a las {hora}."
     else:
         base = "Seguimos con la incidencia validada por operaciones."
-    if _eta_validada_flag(outage.eta_validada):
-        eta = f" Estimación actual: {int(outage.eta_minutos or 45)} min."
+    if _eta_validada_flag(outage.eta_validada) and (outage.eta_minutos or 0) > 0:
+        eta = f" Estimación actual de restitución: {int(outage.eta_minutos)} min."
     else:
-        eta = " Aún sin ETA confirmada; te avisamos ante novedades."
+        eta = " Aún sin estimación de restitución confirmada; te avisamos ante novedades."
     individual = (
         " Si el problema parece solo en tu domicilio, decime y revisamos tu conexión."
     )
@@ -135,7 +142,7 @@ def plantilla_mensaje_cliente(
     eta_minutos: int,
     nas_shortname: str = "",
     started_at: datetime | None = None,
-    eta_validada: str = "Sí",
+    eta_validada: str = "No",
 ) -> str:
     """Compat tests/API: delega en mensaje_desde_outage."""
     stub = SimpleNamespaceOutage(
@@ -165,7 +172,7 @@ def generar_mensaje_cliente(
     nas_shortname: str = "",
     usar_ia: bool = False,
     started_at: datetime | None = None,
-    eta_validada: str = "Sí",
+    eta_validada: str = "No",
 ) -> str:
     """Genera el texto para WhatsApp. Por defecto determinístico (no inventa)."""
     base = plantilla_mensaje_cliente(
@@ -198,6 +205,7 @@ def generar_mensaje_cliente(
             "Debe incluir: incidencia en la zona, que operaciones VALIDÓ el incidente "
             f"(hora {hora or 'no indicada'}), ETA ({eta_txt}), aviso de cambios, "
             "y que no hace falta otro reclamo.\n"
+            "Si la ETA no está confirmada, NO menciones minutos concretos.\n"
             f"Alcance: {alcance}\n"
             f"Comentario operativo (puede resumirse): {comentario_n}\n"
         )
@@ -216,10 +224,35 @@ def generar_mensaje_cliente(
         text = " ".join(text.split())
         if len(text) < 40:
             return base
+        # Guardrail: no publicar ETA inventada por el LLM
+        if not _eta_validada_flag(eta_validada) and re.search(
+            r"\b\d+\s*min", text, flags=re.IGNORECASE
+        ):
+            return base
+        if "validó" not in text.lower() and "valido" not in text.lower():
+            return base
         return text[:900]
     except Exception:
         logger.exception("No se pudo generar mensaje_cliente con IA; uso plantilla")
         return base
+
+
+def mensaje_para_conversacion(
+    outage: NetworkOutage, *, ya_informado: bool
+) -> str:
+    """Mensaje al abonado: plantilla viva; cache solo si ya trae 'validó'."""
+    if not ya_informado:
+        cached = (outage.mensaje_cliente or "").strip()
+        if cached and "validó" in cached.lower():
+            # Si el cache promete minutos pero la ETA no está validada → regenerar
+            if (
+                not _eta_validada_flag(outage.eta_validada)
+                and re.search(r"\b\d+\s*min", cached, flags=re.IGNORECASE)
+            ):
+                return mensaje_desde_outage(outage)
+            return cached
+        return mensaje_desde_outage(outage)
+    return mensaje_seguimiento_outage(outage)
 
 
 def resolver_nas_abonado(db: Session, abonado: Abonado | None) -> str:
@@ -248,6 +281,7 @@ def resolver_nas_abonado(db: Session, abonado: Abonado | None) -> str:
 def outage_activo_para_nas(
     db: Session, org_id: str, nas: str
 ) -> NetworkOutage | None:
+    """Un solo incidente activo por NAS. Si hay varios registros, gana el match exacto."""
     key = normalizar_nas_key(nas)
     if not key:
         return None
@@ -284,17 +318,6 @@ def buscar_outage_para_abonado(
         return None, ""
     o = outage_activo_para_nas(db, org_id, nas)
     return o, nas
-
-
-def mensaje_para_conversacion(
-    outage: NetworkOutage, *, ya_informado: bool
-) -> str:
-    if not ya_informado:
-        cached = (outage.mensaje_cliente or "").strip()
-        if cached:
-            return cached
-        return mensaje_desde_outage(outage)
-    return mensaje_seguimiento_outage(outage)
 
 
 def mensaje_ack_outage() -> str:
