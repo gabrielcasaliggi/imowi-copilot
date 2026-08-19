@@ -54,6 +54,132 @@ _MOTIVOS_OPTICOS = frozenset({
     "pon_verde_enlace_ok",
 })
 
+_MSG_APN_ANDROID = (
+    "En Android andá a Ajustes > Redes móviles o Conexiones > "
+    "Nombres de punto de acceso (APN). Creá o editá uno con Nombre = imowi y "
+    "APN = apn1.catel.org.ar (el resto en blanco). Guardalo, seleccioná ese APN "
+    "y reiniciá los datos. ¿Navega?"
+)
+
+_MSG_APN_IOS = (
+    "En iPhone 11 en adelante o con eSIM el APN suele ser automático. "
+    "Si es un modelo más viejo: Configuración > Datos celulares > Opciones > "
+    "Red de datos celulares → Punto de acceso = apn1.catel.org.ar y Usuario = imowi. "
+    "¿Quedó bien?"
+)
+
+
+def detectar_so_movil(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None = None,
+) -> str | None:
+    """Detecta Android / iOS declarado por el abonado. No asume por apps."""
+    chunks: list[str] = [str(mensaje_cliente or "")]
+    for m in historial_mensajes or []:
+        autor = getattr(m, "autor", None) or (m.get("autor") if isinstance(m, dict) else "")
+        texto = getattr(m, "texto", None) or (m.get("texto") if isinstance(m, dict) else "")
+        if not texto and isinstance(m, dict):
+            texto = m.get("contenido") or m.get("mensaje") or ""
+        a = str(autor or "").lower()
+        if a in ("cliente", "abonado", "user", "usuario") or a.startswith("abon"):
+            chunks.append(str(texto or ""))
+        dire = getattr(m, "direccion", None) or (m.get("direccion") if isinstance(m, dict) else "")
+        if str(dire or "").lower() in ("in", "inbound", "entrada"):
+            chunks.append(str(texto or ""))
+
+    t = " ".join(chunks).lower()
+    if any(
+        k in t
+        for k in (
+            "no es iphone",
+            "no es un iphone",
+            "no es ios",
+            "no tengo iphone",
+            "no uso iphone",
+        )
+    ):
+        return "android"
+
+    ios_hit = any(
+        k in t
+        for k in (
+            "iphone",
+            "ios",
+            "es un iphone",
+            "tengo iphone",
+            "mi iphone",
+        )
+    )
+    android_hit = any(
+        k in t
+        for k in (
+            "android",
+            "es android",
+            "moto g",
+            "moto e",
+            "moto ",
+            "motorola",
+            "samsung",
+            "galaxy",
+            "xiaomi",
+            "redmi",
+            "huawei",
+            "honor",
+            "tcl",
+            "nokia",
+            "pixel",
+            "oneplus",
+        )
+    )
+    if android_hit and not ios_hit:
+        return "android"
+    if ios_hit and not android_hit:
+        return "ios"
+    if android_hit and ios_hit:
+        t_now = (mensaje_cliente or "").lower()
+        if any(k in t_now for k in ("android", "moto", "samsung", "xiaomi", "no es iphone")):
+            return "android"
+        if any(k in t_now for k in ("iphone", "ios")):
+            return "ios"
+    return None
+
+
+def _mensaje_apn_para_otro_so(mensaje: str, so: str) -> bool:
+    """True si el bot habla de APN/pasos del SO contrario."""
+    m = (mensaje or "").lower()
+    if so == "android":
+        return any(
+            k in m
+            for k in (
+                "iphone",
+                "datos celulares",
+                "punto de acceso",
+                "red de datos celulares",
+                "si es un iphone",
+                "modelo 11",
+            )
+        )
+    if so == "ios":
+        return any(
+            k in m
+            for k in (
+                "android",
+                "nombres de punto de acceso",
+                "ajustes > redes",
+                "ajustes > conexiones",
+                "nombre = imowi",
+            )
+        )
+    return False
+
+
+def _corregir_apn_segun_so(mensaje: str, so: str | None) -> tuple[str, str | None]:
+    if not so or not _mensaje_apn_para_otro_so(mensaje, so):
+        return mensaje, None
+    if so == "android":
+        return _MSG_APN_ANDROID, "bloqueado_apn_so_android"
+    return _MSG_APN_IOS, "bloqueado_apn_so_ios"
+
 MIN_TURNOS_ANTES_ESCALAR = 4
 
 _AFIRMACIONES = (
@@ -1089,7 +1215,9 @@ def diagnosticar_turno(
     msg_safe = sanitize_user_text(mensaje_cliente)
     es_facturacion = intencion_es_facturacion(intencion)
     es_tv_sensa = (intencion or "").strip() == "tv_sensa"
+    es_movil = (intencion or "").strip() in ("movil", "movil_datos", "movil_llamadas")
     aplica_optica = aplica_optica_turno
+    so_movil = detectar_so_movil(mensaje_cliente, historial_mensajes) if es_movil else None
 
     if es_facturacion:
         det = _facturacion_deterministica(
@@ -1140,12 +1268,29 @@ def diagnosticar_turno(
             "- Buffering/calidad: WiFi/velocidad en ese equipo; no inventes potencias ONT.\n"
         )
 
+    reglas_movil = ""
+    if es_movil:
+        so_txt = so_movil or "desconocido"
+        reglas_movil = (
+            "\nReglas EXTRA — móvil IMOWI (prioridad alta):\n"
+            f"- Sistema operativo YA declarado por el abonado: {so_txt}.\n"
+            "- Si dijo Android / Moto / Samsung / Xiaomi / etc.: NUNCA des pasos de iPhone "
+            "(Datos celulares, Punto de acceso, eSIM iPhone, modelo 11). "
+            "Usá solo APN Android: Nombre imowi / APN apn1.catel.org.ar.\n"
+            "- Si dijo iPhone/iOS: NUNCA des pasos de Android (Ajustes > Redes/Conexiones > APN).\n"
+            "- Si el SO aún es desconocido, preguntá UNA sola vez Android o iPhone; "
+            "después no vuelvas a preguntar.\n"
+            "- Si el abonado corrige («no es iPhone, es Android»), pedí perdón en una frase "
+            "y continuá SOLO con el SO correcto.\n"
+            "- No inventes cobertura de zona ni estado de la línea en el core.\n"
+        )
+
     system = with_anti_injection(
         system_prompt_eco_n1(
             intencion=intencion,
             turnos=turnos,
             min_turnos_antes_escalar=MIN_TURNOS_ANTES_ESCALAR,
-            reglas_extra=reglas_facturacion + reglas_tv,
+            reglas_extra=reglas_facturacion + reglas_tv + reglas_movil,
             contexto_abonado=contexto_abonado,
         )
     )
@@ -1154,12 +1299,14 @@ def diagnosticar_turno(
         historial_mensajes,
         max_msgs=HISTORIAL_CHAT_MAX_MSGS,
     )
+    so_line = f"- SO móvil detectado: {so_movil}\n" if so_movil else ""
     # Instrucción estructurada al final (el historial ya trae el último mensaje del cliente)
     task = (
         f"Estado del diagnóstico (interno):\n"
         f"- Intención: {sanitize_user_text(intencion, max_chars=80)}\n"
         f"- Turnos de diagnóstico ya hechos: {turnos}\n"
         f"- Pasos ya cubiertos: {', '.join(pasos_cubiertos) or '(ninguno)'}\n"
+        f"{so_line}"
         f"- Checklist guía:\n{checklist_txt}\n"
         f"{kb_block}"
         f"Último mensaje del cliente (referencia):\n"
@@ -1484,6 +1631,13 @@ def diagnosticar_turno(
             if len(mensaje) < 8:
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]
+
+        # SO ya declarado → no dar APN del sistema contrario
+        if es_movil and accion == "ask":
+            mensaje, motivo_so = _corregir_apn_segun_so(mensaje, so_movil)
+            if motivo_so:
+                motivo = motivo_so
+                paso = paso or "apn_datos"
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"

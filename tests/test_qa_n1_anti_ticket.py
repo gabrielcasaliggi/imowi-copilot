@@ -170,6 +170,61 @@ def test_clasifica_datos_moviles_coloquial():
     assert contiene_sintoma_canal("no me andan los datos moviles") is True
 
 
+def test_detectar_so_movil_y_bloquea_apn_iphone():
+    import json
+    from unittest.mock import patch
+
+    from app.services.diagnostico_n1 import (
+        _MSG_APN_ANDROID,
+        detectar_so_movil,
+        diagnosticar_turno,
+    )
+
+    assert detectar_so_movil("Es android, ya te dije que es un Moto g72") == "android"
+    assert detectar_so_movil("No es iPhone, es android") == "android"
+    assert detectar_so_movil("tengo un iPhone 13") == "ios"
+    hist = [
+        {"autor": "cliente", "texto": "Es un Moto g72"},
+        {"autor": "bot", "texto": "¿Android o iPhone?"},
+    ]
+    assert detectar_so_movil("ya te dije", hist) == "android"
+
+    def _fake(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Para iPhone anteriores, andá a Configuración > Datos celulares > "
+                    "Opciones > Red de datos celulares. Poné APN: apn1.catel.org.ar "
+                    "y Usuario: imowi. ¿Te funcionó?"
+                ),
+                "paso_cubierto": "apn_datos",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch("app.llm.chat_completion", side_effect=_fake):
+        out = diagnosticar_turno(
+            intencion="movil_datos",
+            checklist=[
+                {"id": "apn_datos", "pregunta": "Revisá el APN Android…"},
+            ],
+            historial_mensajes=[
+                {"autor": "cliente", "texto": "Es android, es un Moto g72"},
+            ],
+            mensaje_cliente="No es iPhone, es android",
+            turnos_diagnostico=3,
+            pasos_cubiertos=["datos_activados", "so_dispositivo"],
+        )
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "bloqueado_apn_so_android"
+    assert "iphone" not in (out.get("mensaje") or "").lower()
+    assert "android" in (out.get("mensaje") or "").lower()
+    assert "apn1.catel.org.ar" in (out.get("mensaje") or "")
+    assert out["mensaje"] == _MSG_APN_ANDROID
+
+
 def test_typo_internet_clasifica():
     assert clasificar_intencion("ola no anda el interntt, no me carga nadaa") == "internet"
     assert clasificar_intencion("Me cortaron por falta de pago, como pago") == "corte_deuda"

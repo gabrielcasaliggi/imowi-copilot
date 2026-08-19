@@ -410,9 +410,11 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("modo_avion", "Modo avión 15 segundos y desactivalo. ¿Volvió?"),
         PasoPlaybook(
             "apn_imovi",
-            "En Android: Nombre imowi y APN apn1.catel.org.ar. "
-            "En iPhone 11+ o eSIM suele ser automático; si es más viejo, "
-            "Punto de acceso = apn1.catel.org.ar y usuario = imowi. ¿Quedó bien?",
+            "Si es Android: Ajustes > Redes móviles/Conexiones > APN. "
+            "Nombre = imowi, APN = apn1.catel.org.ar (resto en blanco). Guardá y elegí ese APN. "
+            "Si es iPhone 11+ o eSIM suele ser automático; si es más viejo: "
+            "Datos celulares > Opciones > Red de datos → APN apn1.catel.org.ar y usuario imowi. "
+            "¿Me confirmás si es Android o iPhone y si quedó bien?",
         ),
         PasoPlaybook("otra_sim_o_tel", "Si podés, ¿probaste esa SIM en otro teléfono?"),
         PasoPlaybook(
@@ -431,10 +433,17 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "u oficina — no uses la autogestión de imowi.com.ar.",
         ),
         PasoPlaybook(
+            "so_dispositivo",
+            "¿Tu celular es Android o iPhone? (si ya lo dijiste, seguimos con el APN de ese sistema)",
+        ),
+        PasoPlaybook(
             "apn_datos",
-            "Revisá el APN: Android Nombre imowi / APN apn1.catel.org.ar. "
-            "iPhone 11+ o eSIM suele ser automático; si es más viejo, "
-            "Punto de acceso = apn1.catel.org.ar y usuario = imowi. ¿Quedó bien?",
+            "APN según el sistema que ya confirmó el abonado — NO mezcles Android e iPhone. "
+            "Android: Ajustes > Redes móviles/Conexiones > Nombres de punto de acceso (APN). "
+            "Creá o editá Nombre = imowi, APN = apn1.catel.org.ar (resto en blanco). "
+            "Guardá, seleccioná ese APN y reiniciá los datos. ¿Navega? "
+            "Solo si dijo iPhone: iPhone 11+ o eSIM = automático; si es más viejo → "
+            "Datos celulares > Opciones > Red de datos → APN apn1.catel.org.ar y usuario imowi.",
         ),
         PasoPlaybook("roaming_datos", "¿Estás en tu zona habitual o de viaje?"),
         PasoPlaybook("prueba_wifi_off", "Apagá el WiFi del celular y probá solo datos. ¿Navega?"),
