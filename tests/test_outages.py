@@ -452,6 +452,67 @@ def test_interceptor_avisa_cuando_se_resuelve(db, monkeypatch):
     assert not ctx.get("outage_resuelto_avisado")
 
 
+def test_post_resolucion_no_inicia_diagnostico_internet(db, monkeypatch):
+    """Tras '¿Ya te anda?', 'No' abre N1 internet (no menú genérico)."""
+    session, org_id = db
+    abo = Abonado(organizacion_id=org_id, dni="30111225", nombre="Test")
+    session.add(abo)
+    session.commit()
+    o = repo.create_network_outage(
+        session,
+        org_id,
+        nas_shortname="mkfobatan2",
+        comentario="parcial",
+        mensaje_cliente="Hay un corte parcial.",
+    )
+    repo.resolve_network_outage(session, o)
+    monkeypatch.setattr(outage_svc, "resolver_nas_abonado", lambda *a, **k: "mkfobatan2")
+    monkeypatch.setattr("app.services.canal_abonado.crepo.set_contexto", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.abonado_to_dict", lambda a: {"dni": a.dni}
+    )
+    monkeypatch.setattr("app.services.canal_abonado._enviar_respuesta", lambda *a, **k: None)
+    conv = SimpleNamespace(
+        id="c-post-no",
+        estado="bot",
+        contexto_json="{}",
+        servicio_detectado="",
+        ticket_id="",
+    )
+    ctx: dict = {"outage_resuelto_avisado": o.id}
+    resp = _talvez_respuesta_outage(
+        session, org_id, conv, abo, ctx, canal="web", texto="No"
+    )
+    assert resp is not None
+    assert resp.get("intencion") == "internet"
+    assert "diagnóstico" in resp["respuesta"].lower() or "diagnostico" in resp[
+        "respuesta"
+    ].lower()
+    assert "no te entendí" not in resp["respuesta"].lower()
+    assert "factura" not in resp["respuesta"].lower()
+    assert ctx.get("intencion") == "internet"
+    assert not ctx.get("outage_resuelto_avisado")
+    assert "¿ya te anda" not in resp["respuesta"].lower()
+
+
+def test_niega_servicio_ok_post_outage():
+    from app.services.outages import (
+        es_ack_outage,
+        mensaje_resolucion_outage,
+        niega_servicio_ok_post_outage,
+    )
+
+    assert niega_servicio_ok_post_outage("No")
+    assert niega_servicio_ok_post_outage("sigue igual")
+    assert niega_servicio_ok_post_outage("todavia no")
+    assert not niega_servicio_ok_post_outage("Si")
+    assert not niega_servicio_ok_post_outage("gracias")
+    assert not niega_servicio_ok_post_outage("ya anda")
+    assert es_ack_outage("Si")
+    assert "otra cosa" not in mensaje_resolucion_outage().lower()
+    assert "¿ya te anda el servicio?" in mensaje_resolucion_outage().lower()
+
+
 def test_cliente_salir_aviso_deuda():
     from app.services.canal_abonado import _cliente_salir_aviso_deuda
 

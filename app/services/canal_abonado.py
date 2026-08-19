@@ -227,6 +227,34 @@ def _talvez_respuesta_outage(
                 nota_ticket="[Outage] Abonado confirmó post-resolución de incidente masivo.",
             )
 
+        # "No" / sigue mal tras «¿Ya te anda?» → diagnóstico N1 de internet
+        if ctx.get("outage_resuelto_avisado"):
+            from app.services.outages import niega_servicio_ok_post_outage
+
+            if niega_servicio_ok_post_outage(texto) or contiene_sintoma_canal(texto):
+                _limpiar_ctx_outage(ctx)
+                ctx["intencion"] = "internet"
+                ctx["paso_idx"] = 0
+                ctx["diag_turnos"] = 0
+                ctx["pasos_cubiertos"] = []
+                ctx["post_outage_n1"] = True
+                if hasattr(conv, "servicio_detectado"):
+                    conv.servicio_detectado = "internet"
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                pb = _playbooks(db)
+                pasos = pb.get("internet") or pb["general"]
+                pregunta = (
+                    pasos[0].pregunta
+                    if pasos
+                    else "¿Les pasa a todos los equipos o solo a uno?"
+                )
+                msg = (
+                    "Dale, entonces seguimos con el diagnóstico. "
+                    f"{pregunta}"
+                )
+                return _pack(msg, intencion="internet", post_outage_n1=True)
+
         # Incidente que teníamos cacheado fue resuelto → avisar una vez
         if cached_id and was_informed and not ctx.get("outage_resuelto_avisado"):
             prev = repo.get_network_outage(db, org_id, cached_id)

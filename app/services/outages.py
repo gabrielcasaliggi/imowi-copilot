@@ -357,7 +357,57 @@ def mensaje_resolucion_outage(outage: NetworkOutage | None = None) -> str:
         zona = " de tu zona de cobertura"
     return (
         f"El incidente{zona} ya fue resuelto por el equipo de guardia. "
-        "¿Ya te anda el servicio o necesitás ayuda con otra cosa?"
+        "¿Ya te anda el servicio?"
+    )
+
+
+def niega_servicio_ok_post_outage(texto: str) -> bool:
+    """Tras '¿Ya te anda?': No / sigue mal → seguir con diagnóstico N1."""
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?😊]+", " ", t)
+    t = " ".join(t.split())
+    if not t or len(t) > 80:
+        return False
+    if es_ack_outage(texto) and t not in ("no", "nop", "nope", "nah"):
+        # "sí", "gracias", "ya anda" no son negación
+        return False
+    if t in {
+        "no",
+        "nop",
+        "nope",
+        "nah",
+        "noo",
+        "nooo",
+        "sigue",
+        "igual",
+        "nada",
+        "tampoco",
+    }:
+        return True
+    return any(
+        k in t
+        for k in (
+            "no anda",
+            "no funciona",
+            "sigue sin",
+            "sigue igual",
+            "sigue mal",
+            "sigue el problema",
+            "sigue la falla",
+            "sigue fallando",
+            "todavía no",
+            "todavia no",
+            "aún no",
+            "aun no",
+            "sin servicio",
+            "sin internet",
+            "no me anda",
+            "no me funciona",
+            "no volvió",
+            "no volvio",
+            "no recuperó",
+            "no recupero",
+        )
     )
 
 
