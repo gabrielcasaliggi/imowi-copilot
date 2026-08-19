@@ -10,12 +10,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-} from "expo-audio";
 
 import { api } from "../api";
 import { getToken } from "../session";
@@ -52,8 +46,6 @@ export function ChatScreen({
   const [error, setError] = useState("");
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(onNeedPin);
-  const [recording, setRecording] = useState(false);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const listRef = useRef<FlatList<InboxMessage>>(null);
 
   const esperaAgente = conv.estado === "espera_agente";
@@ -121,39 +113,6 @@ export function ChatScreen({
       setError(err instanceof Error ? err.message : "No se pudo guardar el PIN");
     } finally {
       setBusy(false);
-    }
-  };
-
-  const toggleRec = async () => {
-    if (recording) {
-      try {
-        setRecording(false);
-        await recorder.stop();
-        const uri = recorder.uri;
-        if (!uri) return;
-        setBusy(true);
-        const res = await api.sendAudio(uri, token);
-        if (res.conversacion) setConv(res.conversacion);
-        setMensajes(res.mensajes || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo enviar el audio");
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-    try {
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        setError("Necesitamos el micrófono para consultas por voz.");
-        return;
-      }
-      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      setRecording(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo grabar");
     }
   };
 
@@ -267,12 +226,6 @@ export function ChatScreen({
           returnKeyType="send"
         />
         <Pressable
-          onPress={() => void toggleRec()}
-          style={[styles.iconBtn, recording && styles.recOn]}
-        >
-          <Text style={styles.iconTxt}>{recording ? "■" : "🎤"}</Text>
-        </Pressable>
-        <Pressable
           onPress={() => void send(texto)}
           disabled={busy || !texto.trim()}
           style={[styles.sendBtn, (!texto.trim() || busy) && styles.btnOff]}
@@ -329,18 +282,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  recOn: { backgroundColor: "#7f1d1d", borderColor: colors.danger },
-  iconTxt: { fontSize: 16 },
   sendBtn: {
     backgroundColor: colors.brand,
     borderRadius: 14,

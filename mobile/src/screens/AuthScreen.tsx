@@ -24,7 +24,7 @@ export function AuthScreen({
   onAuthed,
 }: {
   branding: Branding;
-  onAuthed: (payload: AuthPayload, dni: string) => void;
+  onAuthed: (payload: AuthPayload, dni?: string) => void;
 }) {
   const [mode, setMode] = useState<Mode>("pin");
   const [step, setStep] = useState<Step>("auth");
