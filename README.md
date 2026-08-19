@@ -30,6 +30,18 @@ Prod actual: `https://ibot.ecolan.com`. Guía: [DEPLOY.md](./DEPLOY.md) · [docs
 
 ---
 
+## Flujo de desarrollo
+
+El trabajo **nuevo** entra por GitHub (no aplica a lo ya mergeado en `main`):
+
+1. **Issue** con alcance, fuera de alcance y criterio de hecho.
+2. **Branch** desde `main` (`feat/…` o `fix/…`).
+3. **PR** hacia `main`. CI (ruff, pytest, build, smoke) es la puerta.
+
+Un issue, un PR. Hotfix urgente de producción puede ir directo a `main` con un commit chico.
+
+---
+
 ## Desarrollo local
 
 ### Requisitos
