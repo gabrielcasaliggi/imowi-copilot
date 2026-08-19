@@ -581,12 +581,12 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "   Modelos anteriores: Configuración > Datos celulares > Opciones > "
                 "   Red de datos celulares → Punto de acceso internet = apn1.catel.org.ar · "
                 "   Nombre de usuario = imowi.\n"
-                "4) Sin datos del abono (FAQ): sigue WhatsApp mensajería (textos/audios/fotos/"
+                "3) Sin datos del abono (FAQ): sigue WhatsApp mensajería (textos/audios/fotos/"
                 "   videos) y páginas educativas; para el resto hay que comprar un bono.\n"
-                "5) Bonos: Autogestión Batán https://ov.batan.coop u oficina Cooperativa Batán. "
+                "4) Bonos: Autogestión Batán https://ov.batan.coop u oficina Cooperativa Batán. "
                 "   NO orientar a la autogestión de imowi.com.ar (es de otra cooperativa).\n"
-                "6) Apagar WiFi del celular y probar solo datos.\n"
-                "7) Si persiste → escalar N2 con MSISDN y si la señal está OK."
+                "5) Apagar WiFi del celular y probar solo datos.\n"
+                "6) Si persiste → escalar N2 con MSISDN y si la señal está OK."
             ),
         ),
         KnowledgeArticle(
