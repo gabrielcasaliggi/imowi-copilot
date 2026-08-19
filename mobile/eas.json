@@ -22,9 +22,19 @@
       "android": {
         "buildType": "app-bundle"
       },
+      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://ibot.ecolan.com",
         "EXPO_PUBLIC_ORG_SLUG": "coop-batan"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": true
       }
     }
   }

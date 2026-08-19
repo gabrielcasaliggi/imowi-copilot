@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api";
-import { ORG_SLUG } from "../config";
+import { ORG_SLUG, PRIVACY_URL } from "../config";
 import { saveSession } from "../session";
 import { colors, type Branding } from "../theme";
 import type { AuthPayload } from "../types";
@@ -197,6 +198,9 @@ export function AuthScreen({
       )}
 
       {error ? <Text style={styles.err}>{error}</Text> : null}
+      <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} hitSlop={8}>
+        <Text style={styles.link}>Política de privacidad</Text>
+      </Pressable>
     </KeyboardAvoidingView>
   );
 }

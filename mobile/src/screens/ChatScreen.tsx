@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -10,15 +12,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-} from "expo-audio";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api";
+import { PRIVACY_URL } from "../config";
 import { MessageText } from "../MessageText";
 import { getToken } from "../session";
 import { colors, type Branding } from "../theme";
@@ -55,8 +52,6 @@ export function ChatScreen({
   const [error, setError] = useState("");
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(onNeedPin);
-  const [recording, setRecording] = useState(false);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const listRef = useRef<FlatList<InboxMessage>>(null);
 
   const esperaAgente = conv.estado === "espera_agente";
@@ -64,7 +59,6 @@ export function ChatScreen({
   const encuestaPendiente = Boolean(conv.contexto?.encuesta_pendiente);
   const nombre = conv.abonado?.nombre?.split(" ")[0] || "";
   const topPad = Math.max(insets.top, 12) + 8;
-  // Samsung / 3-botones: insets.bottom suele ser ~48; sumamos aire para no pegar al home
   const bottomPad = Math.max(insets.bottom, 12) + 10;
 
   const refresh = useCallback(async () => {
@@ -130,37 +124,28 @@ export function ChatScreen({
     }
   };
 
-  const toggleRec = async () => {
-    if (recording) {
-      try {
-        setRecording(false);
-        await recorder.stop();
-        const uri = recorder.uri;
-        if (!uri) return;
-        setBusy(true);
-        const res = await api.sendAudio(uri, token);
-        if (res.conversacion) setConv(res.conversacion);
-        setMensajes(res.mensajes || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo enviar el audio");
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-    try {
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        setError("Necesitamos el micrófono para consultas por voz.");
-        return;
-      }
-      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      setRecording(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo grabar");
-    }
+  const onDeleteAccount = () => {
+    Alert.alert(
+      "Eliminar datos de la app",
+      "Se borra el PIN y los datos de esta app. El padrón de la cooperativa no se modifica. ¿Continuamos?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                await api.deleteAccount(token);
+                onExit();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "No se pudieron borrar los datos");
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   if (showPin) {
@@ -203,9 +188,17 @@ export function ChatScreen({
             {nombre ? ` · ${nombre}` : ""}
           </Text>
         </View>
-        <Pressable onPress={onExit} hitSlop={12}>
-          <Text style={styles.link}>Salir</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={onExit} hitSlop={12}>
+            <Text style={styles.headerLink}>Salir</Text>
+          </Pressable>
+          <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} hitSlop={8}>
+            <Text style={styles.headerLink}>Privacidad</Text>
+          </Pressable>
+          <Pressable onPress={onDeleteAccount} hitSlop={8}>
+            <Text style={styles.dangerLink}>Eliminar datos</Text>
+          </Pressable>
+        </View>
       </View>
 
       {esperaAgente ? (
@@ -275,12 +268,6 @@ export function ChatScreen({
           returnKeyType="send"
         />
         <Pressable
-          onPress={() => void toggleRec()}
-          style={[styles.iconBtn, recording && styles.recOn]}
-        >
-          <Text style={styles.iconTxt}>{recording ? "■" : "🎤"}</Text>
-        </Pressable>
-        <Pressable
           onPress={() => void send(texto)}
           disabled={busy || !texto.trim()}
           style={[styles.sendBtn, (!texto.trim() || busy) && styles.btnOff]}
@@ -302,6 +289,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
   headerSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  headerActions: { alignItems: "flex-end", gap: 4 },
+  headerLink: { color: colors.muted, fontSize: 13 },
+  dangerLink: { color: colors.danger, fontSize: 12 },
   banner: {
     color: colors.amber,
     backgroundColor: "rgba(251,191,36,0.1)",
@@ -339,18 +329,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  recOn: { backgroundColor: "#7f1d1d", borderColor: colors.danger },
-  iconTxt: { fontSize: 16 },
   sendBtn: {
     backgroundColor: colors.brand,
     borderRadius: 14,

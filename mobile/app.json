@@ -2,10 +2,11 @@
   "expo": {
     "name": "EKO-Asistente",
     "slug": "soporte-batan",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
     "scheme": "soportebatan",
     "splash": {
       "image": "./assets/splash.png",
@@ -14,13 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "coop.batan.soporte",
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Eko usa el micrófono para que puedas consultar por voz.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
-      }
+      "bundleIdentifier": "coop.batan.soporte"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,36 +23,18 @@
         "backgroundColor": "#2298A6"
       },
       "package": "coop.batan.soporte",
-      "versionCode": 3,
+      "versionCode": 5,
       "softwareKeyboardLayoutMode": "resize",
-      "permissions": [
-        "RECORD_AUDIO",
-        "POST_NOTIFICATIONS",
-        "VIBRATE",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+      "edgeToEdgeEnabled": false,
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID"
       ]
     },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#2298A6",
-          "sounds": [],
-          "defaultChannel": "eko"
-        }
-      ],
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "Eko usa el micrófono para que puedas consultar por voz."
-        }
-      ]
-    ],
+    "plugins": [],
     "extra": {
       "apiUrl": "https://ibot.ecolan.com",
       "orgSlug": "coop-batan",
+      "privacyUrl": "https://ibot.ecolan.com/privacidad",
       "eas": {
         "projectId": "1256fca1-cf0c-4567-9317-b6338cd97d44"
       }

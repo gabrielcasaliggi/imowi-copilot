@@ -3,7 +3,6 @@ import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { api } from "./src/api";
-import { registerPush } from "./src/push";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { ChatScreen } from "./src/screens/ChatScreen";
 import { clearSession, loadSession } from "./src/session";
@@ -19,7 +18,7 @@ export default function App() {
   const [mensajes, setMensajes] = useState<InboxMessage[]>([]);
 
   useEffect(() => {
-    void api.branding().then(setBranding);
+    void api.branding().then(setBranding).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -31,7 +30,6 @@ export default function App() {
         setToken(stored.token);
         setConv(data.conversacion);
         setMensajes(data.mensajes || []);
-        void registerPush(stored.token).catch(() => {});
       } catch {
         await clearSession();
       } finally {
@@ -45,7 +43,6 @@ export default function App() {
     setConv(payload.conversacion);
     setMensajes(payload.mensajes || []);
     setNeedPin(payload.has_pin === false);
-    void registerPush(payload.portal_token).catch(() => {});
   };
 
   const onExit = async () => {
@@ -56,32 +53,30 @@ export default function App() {
     setNeedPin(false);
   };
 
-  if (booting) {
-    return (
-      <View style={styles.boot}>
-        <StatusBar barStyle="light-content" />
-        <ActivityIndicator color={colors.brand} />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaProvider>
-      <View style={styles.root}>
-        <StatusBar barStyle="light-content" />
-        {conv && token ? (
-          <ChatScreen
-            branding={branding}
-            conv={conv}
-            mensajes={mensajes}
-            token={token}
-            onNeedPin={needPin}
-            onExit={() => void onExit()}
-          />
-        ) : (
-          <AuthScreen branding={branding} onAuthed={onAuthed} />
-        )}
-      </View>
+      {booting ? (
+        <View style={styles.boot}>
+          <StatusBar barStyle="light-content" />
+          <ActivityIndicator color={colors.brand} />
+        </View>
+      ) : (
+        <View style={styles.root}>
+          <StatusBar barStyle="light-content" />
+          {conv && token ? (
+            <ChatScreen
+              branding={branding}
+              conv={conv}
+              mensajes={mensajes}
+              token={token}
+              onNeedPin={needPin}
+              onExit={() => void onExit()}
+            />
+          ) : (
+            <AuthScreen branding={branding} onAuthed={onAuthed} />
+          )}
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }

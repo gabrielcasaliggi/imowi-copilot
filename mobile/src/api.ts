@@ -85,6 +85,10 @@ export const api = {
     );
   },
 
+  deleteAccount(token: string) {
+    return postJson<{ status: string }>("/api/v1/portal/account/delete", {}, token);
+  },
+
   send(texto: string, token: string) {
     return postJson<{
       ok: boolean;
