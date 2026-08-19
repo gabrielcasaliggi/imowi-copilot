@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api";
 import { ORG_SLUG } from "../config";
@@ -24,8 +25,11 @@ export function AuthScreen({
   onAuthed,
 }: {
   branding: Branding;
-  onAuthed: (payload: AuthPayload, dni: string) => void;
+  onAuthed: (payload: AuthPayload) => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const topPad = Math.max(insets.top, 12) + 8;
+  const bottomPad = Math.max(insets.bottom, 12) + 10;
   const [mode, setMode] = useState<Mode>("pin");
   const [step, setStep] = useState<Step>("auth");
   const [dni, setDni] = useState("");
@@ -38,7 +42,7 @@ export function AuthScreen({
 
   const finish = async (payload: AuthPayload) => {
     await saveSession(payload, dni.trim());
-    onAuthed(payload, dni.trim());
+    onAuthed(payload);
   };
 
   const onStartDni = async () => {
@@ -85,7 +89,7 @@ export function AuthScreen({
 
   return (
     <KeyboardAvoidingView
-      style={styles.wrap}
+      style={[styles.wrap, { paddingTop: topPad, paddingBottom: bottomPad }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Text style={styles.kicker}>{branding.orgHint} · Ecolan + IMOWI</Text>
@@ -198,7 +202,12 @@ export function AuthScreen({
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: "center" },
+  wrap: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 24,
+    justifyContent: "center",
+  },
   kicker: { color: colors.muted, fontSize: 12, marginBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: "700", marginBottom: 8 },
   sub: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 24 },

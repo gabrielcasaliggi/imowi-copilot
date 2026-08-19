@@ -16,8 +16,10 @@ import {
   setAudioModeAsync,
   useAudioRecorder,
 } from "expo-audio";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api";
+import { MessageText } from "../MessageText";
 import { getToken } from "../session";
 import { colors, type Branding } from "../theme";
 import type { InboxConversation, InboxMessage } from "../types";
@@ -45,6 +47,7 @@ export function ChatScreen({
   onNeedPin: boolean;
   onExit: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [conv, setConv] = useState(initialConv);
   const [mensajes, setMensajes] = useState(initialMsgs);
   const [texto, setTexto] = useState("");
@@ -60,6 +63,9 @@ export function ChatScreen({
   const conAgente = conv.estado === "con_agente";
   const encuestaPendiente = Boolean(conv.contexto?.encuesta_pendiente);
   const nombre = conv.abonado?.nombre?.split(" ")[0] || "";
+  const topPad = Math.max(insets.top, 12) + 8;
+  // Samsung / 3-botones: insets.bottom suele ser ~48; sumamos aire para no pegar al home
+  const bottomPad = Math.max(insets.bottom, 12) + 10;
 
   const refresh = useCallback(async () => {
     const t = token || (await getToken());
@@ -159,7 +165,7 @@ export function ChatScreen({
 
   if (showPin) {
     return (
-      <View style={styles.wrap}>
+      <View style={[styles.wrap, { paddingTop: topPad, paddingBottom: bottomPad }]}>
         <Text style={styles.title}>Creá un PIN</Text>
         <Text style={styles.sub}>Para entrar de nuevo sin código al email. 6 a 8 dígitos.</Text>
         <TextInput
@@ -184,9 +190,9 @@ export function ChatScreen({
 
   return (
     <KeyboardAvoidingView
-      style={styles.wrap}
+      style={[styles.wrap, { paddingTop: topPad }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={8}
+      keyboardVerticalOffset={Platform.OS === "ios" ? topPad : 0}
     >
       <View style={styles.header}>
         <View>
@@ -197,7 +203,7 @@ export function ChatScreen({
             {nombre ? ` · ${nombre}` : ""}
           </Text>
         </View>
-        <Pressable onPress={onExit}>
+        <Pressable onPress={onExit} hitSlop={12}>
           <Text style={styles.link}>Salir</Text>
         </Pressable>
       </View>
@@ -228,9 +234,11 @@ export function ChatScreen({
                   {item.autor === "agente" ? "Agente" : branding.botDisplayName}
                 </Text>
               ) : null}
-              <Text style={[styles.msg, mine ? styles.msgMine : styles.msgTheirs]}>
-                {item.texto}
-              </Text>
+              <MessageText
+                texto={item.texto}
+                style={[styles.msg, mine ? styles.msgMine : styles.msgTheirs]}
+                linkStyle={mine ? styles.linkMine : styles.linkTheirs}
+              />
             </View>
           );
         }}
@@ -249,7 +257,7 @@ export function ChatScreen({
 
       {error ? <Text style={styles.err}>{error}</Text> : null}
 
-      <View style={styles.composer}>
+      <View style={[styles.composer, { paddingBottom: bottomPad }]}>
         <TextInput
           value={texto}
           onChangeText={setTexto}
@@ -285,7 +293,7 @@ export function ChatScreen({
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.bg, paddingTop: 52, paddingHorizontal: 16 },
+  wrap: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 16 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -317,7 +325,9 @@ const styles = StyleSheet.create({
   msg: { fontSize: 15, lineHeight: 21 },
   msgMine: { color: "#fff" },
   msgTheirs: { color: colors.botText },
-  composer: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10 },
+  linkMine: { color: "#ECFEFF", textDecorationLine: "underline" },
+  linkTheirs: { color: colors.brandDark, textDecorationLine: "underline", fontWeight: "700" },
+  composer: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10 },
   composerInput: {
     flex: 1,
     backgroundColor: colors.card,

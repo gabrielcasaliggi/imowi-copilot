@@ -2,7 +2,7 @@
   "expo": {
     "name": "EKO-Asistente",
     "slug": "soporte-batan",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -28,7 +28,8 @@
         "backgroundColor": "#2298A6"
       },
       "package": "coop.batan.soporte",
-      "versionCode": 2,
+      "versionCode": 3,
+      "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "RECORD_AUDIO",
         "POST_NOTIFICATIONS",

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { api } from "./src/api";
 import { registerPush } from "./src/push";
@@ -65,21 +66,23 @@ export default function App() {
   }
 
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" />
-      {conv && token ? (
-        <ChatScreen
-          branding={branding}
-          conv={conv}
-          mensajes={mensajes}
-          token={token}
-          onNeedPin={needPin}
-          onExit={() => void onExit()}
-        />
-      ) : (
-        <AuthScreen branding={branding} onAuthed={onAuthed} />
-      )}
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" />
+        {conv && token ? (
+          <ChatScreen
+            branding={branding}
+            conv={conv}
+            mensajes={mensajes}
+            token={token}
+            onNeedPin={needPin}
+            onExit={() => void onExit()}
+          />
+        ) : (
+          <AuthScreen branding={branding} onAuthed={onAuthed} />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
 
