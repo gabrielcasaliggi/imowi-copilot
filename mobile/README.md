@@ -1,6 +1,8 @@
 # App abonado — Soporte Batán (Eko)
 
-Cliente nativo (Android / iOS) del **mismo motor N1** que el portal web. No hay bot aparte: auth DNI+OTP/PIN, chat, voz y push contra `https://ibot.ecolan.com`.
+Cliente nativo (Android / iOS) del **mismo motor N1** que el portal web. No hay bot aparte: auth DNI+OTP/PIN y chat contra `https://ibot.ecolan.com`.
+
+La build **1.0.1** sale **sin push ni micrófono**: `expo-notifications` exige FCM (`google-services.json`) y el APK no abría. Voz y push vuelven cuando haya Firebase.
 
 ## Qué usa
 
@@ -9,10 +11,10 @@ Cliente nativo (Android / iOS) del **mismo motor N1** que el portal web. No hay 
 | Branding | `GET /api/v1/public/branding` |
 | Login | `/api/v1/portal/auth/start\|verify\|login-pin\|set-pin` |
 | Chat | `POST /api/v1/portal/messages` (`X-Canal: app`) |
-| Voz | `POST /api/v1/portal/audio` |
-| Push | `POST /api/v1/portal/devices` |
+| Voz | `POST /api/v1/portal/audio` (API lista; no va en el APK 1.0.1) |
+| Push | `POST /api/v1/portal/devices` (API lista; no va en el APK 1.0.1) |
 
-La bandeja de agentes muestra el hilo como **App**. Un corte NAS dispara push a los dispositivos registrados.
+La bandeja de agentes muestra el hilo como **App**. Push por corte NAS vuelve con Firebase.
 
 ## Desarrollo
 
