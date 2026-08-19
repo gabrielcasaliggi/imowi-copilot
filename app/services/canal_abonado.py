@@ -745,6 +745,19 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "técnico",
             "tecnico",
             "fibra",
+            # Síntoma técnico = eligió seguir con el diagnóstico
+            "datos",
+            "señal",
+            "senal",
+            "no anda",
+            "no funciona",
+            "sin servicio",
+            "llamada",
+            "chip",
+            "sim",
+            "apn",
+            "celular",
+            "celu",
         )
     )
     # "no tengo internet" menciona internet pero no elige diagnóstico
@@ -1386,11 +1399,23 @@ def _arrancar_intencion_menu(
     usar_llama: bool,
     servicio_abo: str,
 ) -> dict:
+    # Si eligió «técnico» móvil pero el mismo mensaje ya trae el síntoma → afinar
+    if intencion == "movil":
+        refinada = clasificar_intencion(texto, servicio_abo)
+        if refinada in ("movil_datos", "movil_llamadas", "movil"):
+            intencion = refinada
     ctx["intencion"] = intencion
     ctx["paso_idx"] = 0
     ctx["diag_turnos"] = 0
     ctx["pasos_cubiertos"] = []
-    if intencion in ("internet", "internet_radio", "internet_adsl", "movil"):
+    if intencion in (
+        "internet",
+        "internet_radio",
+        "internet_adsl",
+        "movil",
+        "movil_datos",
+        "movil_llamadas",
+    ):
         conv.servicio_detectado = intencion
     if (
         abonado
@@ -1416,30 +1441,55 @@ def _arrancar_intencion_menu(
         }
     crepo.set_contexto(conv, ctx)
     db.commit()
-    diag = _aplicar_diagnostico_ia(
-        db,
-        org_id,
-        conv,
-        abonado,
-        texto,
-        canal=canal,
-        ctx=ctx,
-        intencion=intencion,
-        usar_llama=usar_llama,
+    # Respuesta corta de menú («técnico») → no diagnosticar aún; pedir el síntoma
+    solo_tipo = (texto or "").strip().lower() in (
+        "tecnico",
+        "técnico",
+        "tecnica",
+        "técnica",
+        "tema tecnico",
+        "tema técnico",
+        "comercial",
+        "administrativo",
+        "administrativa",
+        "facturacion",
+        "facturación",
     )
-    if diag is not None:
-        return diag
+    if not solo_tipo:
+        diag = _aplicar_diagnostico_ia(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intencion,
+            usar_llama=usar_llama,
+        )
+        if diag is not None:
+            return diag
     pb = _playbooks(db)
     pasos = pb.get(intencion) or pb["general"]
     pregunta = pasos[0].pregunta if pasos else "Contame qué necesitás."
     if intencion == "general":
         pregunta = texto_menu_consulta(servicio_abo)
-    if intencion == "movil":
+    if intencion in ("movil", "movil_datos", "movil_llamadas"):
         pregunta = (
             "Dale, vamos con el servicio de telefonía móvil. "
             "¿Qué te pasa: sin señal, sin datos o no podés llamar?"
         )
-    if usar_llama:
+        if intencion == "movil_datos":
+            pregunta = (
+                "Dale, vamos con los datos móviles. "
+                "¿Datos prendidos y sin modo avión?"
+            )
+        elif intencion == "movil_llamadas":
+            pregunta = (
+                "Dale, vamos con las llamadas. "
+                "¿No podés llamar, no te entran, o se cortan?"
+            )
+    if usar_llama and not solo_tipo:
         pregunta = _redactar_con_llama(
             pregunta,
             f"intencion={intencion} desde_menu=1",
@@ -1934,10 +1984,10 @@ def _aplicar_diagnostico_ia(
     turnos = int(ctx.get("diag_turnos") or 0)
     cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     kb = _kb_fragmento(db, org_id, texto)
+    # No usar pide_humano() suelto: «técnico» del menú no debe forzar escalate
     forzar = bool(
         es_escape_agente(texto)
         or pide_humano_en_flujo_activo(texto, ctx)
-        or pide_humano(texto)
     )
 
     from app.services.eco_voice import build_contexto_abonado
@@ -2286,6 +2336,27 @@ def procesar_mensaje_entrante(
         if outage_resp is not None:
             return outage_resp
 
+    # Menú post-ID ANTES de pide_humano: «Técnico» es opción de menú, no pedido de agente.
+    # Escape *agente* / pedido explícito de humano siguen teniendo prioridad sobre el menú.
+    if (
+        abonado
+        and ctx.get("menu_paso")
+        and not es_escape_agente(texto)
+        and not (pide_humano(texto) and not contiene_sintoma_canal(texto))
+    ):
+        menu_out = _manejar_menu_consulta_n1(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            usar_llama=usar_llama,
+        )
+        if menu_out is not None:
+            return menu_out
+
     # Frustración / reiteración: solo tras avance N1 real (paso_idx ≥ 2)
     # No aplicar a mensajes que son solo un DNI.
     if not _es_solo_dni(texto) and detecta_frustracion(texto, ctx):
@@ -2575,20 +2646,7 @@ def procesar_mensaje_entrante(
     intencion = ctx.get("intencion") or ""
     servicio_abo = abonado.servicio if abonado else ""
 
-    # Menú post-ID: servicio → (móvil) técnico/comercial/administrativo
-    if abonado and ctx.get("menu_paso"):
-        menu_out = _manejar_menu_consulta_n1(
-            db,
-            org_id,
-            conv,
-            abonado,
-            texto,
-            canal=canal,
-            ctx=ctx,
-            usar_llama=usar_llama,
-        )
-        if menu_out is not None:
-            return menu_out
+    # Menú ya se resolvió más arriba (antes de pide_humano)
 
     # Saludo corto: menú según padrón, sin deuda ni diagnóstico
     if es_saludo_solo(texto) and intencion in ("", "general"):
@@ -2712,6 +2770,11 @@ def procesar_mensaje_entrante(
         # Seguir técnico
         intencion = pendiente if _intencion_es_tecnica(pendiente) else "general"
         intencion = _intencion_compatible_padron(intencion, abonado, texto)
+        # Si eligió seguir contando el síntoma (datos/llamadas), afinar playbook
+        if intencion == "movil":
+            refinada = clasificar_intencion(texto, servicio_abo)
+            if refinada in ("movil_datos", "movil_llamadas"):
+                intencion = refinada
         if _debe_explicar_sin_internet(abonado, texto, intencion):
             ctx["intencion"] = "general"
             ctx.pop("intencion_tecnica_pendiente", None)
@@ -3091,6 +3154,64 @@ def procesar_mensaje_entrante(
                 pregunta = _redactar_con_llama(
                     pregunta,
                     f"intencion={intencion}",
+                    db=db,
+                    org_id=org_id,
+                    consulta=texto,
+                )
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": intencion,
+            }
+
+    # Móvil genérico → datos / llamadas cuando el abonado ya cuenta el síntoma
+    if intencion == "movil" and int(ctx.get("paso_idx") or 0) <= 1:
+        refinada_m = clasificar_intencion(texto, servicio_abo)
+        if refinada_m in ("movil_datos", "movil_llamadas"):
+            intencion = refinada_m
+            ctx["intencion"] = intencion
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            conv.servicio_detectado = intencion
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pb = _playbooks(db)
+            pasos = pb.get(intencion) or pb["general"]
+            diag = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+                usar_llama=usar_llama,
+            )
+            if diag is not None:
+                return diag
+            pregunta = pasos[0].pregunta if pasos else (
+                "Dale, vamos con los datos móviles. ¿Datos prendidos y sin modo avión?"
+            )
+            if intencion == "movil_datos":
+                pregunta = (
+                    "Dale, vamos con los datos móviles. "
+                    "¿Datos prendidos y sin modo avión?"
+                )
+            elif intencion == "movil_llamadas":
+                pregunta = (
+                    "Dale, vamos con las llamadas. "
+                    "¿No podés llamar, no te entran, o se cortan?"
+                )
+            if usar_llama:
+                pregunta = _redactar_con_llama(
+                    pregunta,
+                    f"intencion={intencion} refinada_desde_movil=1",
                     db=db,
                     org_id=org_id,
                     consulta=texto,

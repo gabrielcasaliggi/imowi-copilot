@@ -1253,9 +1253,11 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
         return "internet"
 
     if any(k in t for k in (
-        "datos movil", "datos móvil", "sin datos", "no tengo datos",
-        "datos no funcionan", "internet del celular", "apn",
-        "se me acabaron los datos", "bono de datos", "comprar datos",
+        "datos movil", "datos móvil", "datos moviles", "datos móviles",
+        "sin datos", "no tengo datos", "no me andan los datos",
+        "no anda el dato", "no andan los datos", "datos del celu",
+        "datos del celular", "datos no funcionan", "internet del celular",
+        "apn", "se me acabaron los datos", "bono de datos", "comprar datos",
     )):
         return "movil_datos"
 
@@ -1565,6 +1567,21 @@ def pide_humano(texto: str) -> bool:
         "sin técnico",
     ):
         t = t.replace(neg, " ")
+    t = " ".join(t.split())
+    # Respuesta corta al menú «técnico / comercial / administrativo» ≠ pedir agente
+    if t in (
+        "tecnico",
+        "técnico",
+        "tecnica",
+        "técnica",
+        "tema tecnico",
+        "tema técnico",
+        "problema tecnico",
+        "problema técnico",
+        "es tecnico",
+        "es técnico",
+    ):
+        return False
     return any(
         k in t
         for k in (
@@ -1587,19 +1604,28 @@ def pide_humano(texto: str) -> bool:
             "llamenme",
             "llámenme",
             "me llamen",
-            "tecnico",
-            "técnico",
             "representante",
             "quiero hablar",
             "pasar con alguien",
-            "venir un tecnico",
-            "venir un técnico",
+            # Pedido explícito de técnico/visita (no la palabra suelta del menú)
+            "quiero un tecnico",
+            "quiero un técnico",
+            "quiero tecnico",
+            "quiero técnico",
+            "necesito un tecnico",
+            "necesito un técnico",
+            "mandame un tecnico",
+            "mandame un técnico",
             "mande un tecnico",
             "mande un técnico",
             "manda un tecnico",
             "manda un técnico",
             "envie un tecnico",
             "envíe un técnico",
+            "venir un tecnico",
+            "venir un técnico",
+            "que venga un tecnico",
+            "que venga un técnico",
             "que venga",
             "visita tecnica",
             "visita técnica",

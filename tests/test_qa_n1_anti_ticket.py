@@ -141,6 +141,11 @@ def test_escape_agente_y_sintoma():
     assert pide_humano("quiero un operador") is True
     assert pide_humano("nose como hacer eso, deberia venir un tecnico") is True
     assert pide_humano("tienen que mandar una visita técnica") is True
+    # Opción del menú móvil ≠ pedido de agente
+    assert pide_humano("Tecnico") is False
+    assert pide_humano("técnico") is False
+    assert pide_humano("tema tecnico") is False
+    assert pide_humano("mandame un tecnico") is True
     assert pide_humano_en_flujo_activo(
         "deberia venir un tecnico",
         {"intencion": "wifi", "diag_turnos": 2},
@@ -153,6 +158,16 @@ def test_escape_agente_y_sintoma():
         "quiero un operador",
         {"intencion": "", "diag_turnos": 0},
     ) is False
+    assert pide_humano_en_flujo_activo(
+        "Tecnico",
+        {"intencion": "movil", "diag_turnos": 0, "paso_idx": 0},
+    ) is False
+
+
+def test_clasifica_datos_moviles_coloquial():
+    assert clasificar_intencion("Si, no me andan los datos moviles en el celu") == "movil_datos"
+    assert clasificar_intencion("no andan los datos del celular") == "movil_datos"
+    assert contiene_sintoma_canal("no me andan los datos moviles") is True
 
 
 def test_typo_internet_clasifica():
@@ -588,3 +603,99 @@ def test_inbox_pide_agente_ya_no_ticket_en_primer_turno():
     assert r2.status_code == 200
     assert r2.json().get("ticket_id")
     assert r2.json().get("estado") == "espera_agente"
+
+
+def test_menu_movil_tecnico_no_ticket_inmediato():
+    """Regresión Armando: menú móvil → Técnico → síntoma datos → N1, sin ticket."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235599992"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "32123456"))
+        assert abo is not None
+        abo.servicio = "movil"
+        abo.deuda_monto = "0"
+        abo.estado = "activo"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(
+            conv,
+            {
+                "saludo": True,
+                "menu_paso": "servicio",
+                "intencion": "general",
+                "paso_idx": 0,
+            },
+        )
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Telefonia movil",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r1.get("estado") == "bot"
+    assert not r1.get("ticket_id")
+    resp1 = (r1.get("respuesta") or "").lower()
+    assert "técnico" in resp1 or "tecnico" in resp1
+    assert "comercial" in resp1
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Tecnico",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r2.get("estado") == "bot"
+    assert not r2.get("ticket_id")
+    assert r2.get("intencion") in ("movil", "movil_datos", "movil_llamadas")
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "ticket" not in resp2
+    assert "generé" not in resp2 and "genere" not in resp2
+    assert any(k in resp2 for k in ("datos", "señal", "senal", "llamar", "móvil", "movil"))
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Si, no me andan los datos moviles en el celu",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r3.get("estado") == "bot"
+    assert not r3.get("ticket_id")
+    assert r3.get("intencion") == "movil_datos"
+    resp3 = (r3.get("respuesta") or "").lower()
+    assert "ticket" not in resp3
+    assert "generé" not in resp3 and "genere" not in resp3
+    assert any(k in resp3 for k in ("datos", "avión", "avion", "apn", "abon"))
