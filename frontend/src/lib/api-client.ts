@@ -1073,8 +1073,12 @@ export const api = {
     return request<PlatformSettingsResponse>("/api/v1/admin/settings");
   },
 
-  llmMetrics(recent = 20) {
-    return request<LlmMetricsResponse>(`/api/v1/metrics/llm?recent=${recent}`);
+  llmMetrics(params?: { recent?: number; desde?: string; hasta?: string }) {
+    const qs = new URLSearchParams();
+    qs.set("recent", String(params?.recent ?? 20));
+    if (params?.desde) qs.set("desde", params.desde);
+    if (params?.hasta) qs.set("hasta", params.hasta);
+    return request<LlmMetricsResponse>(`/api/v1/metrics/llm?${qs}`);
   },
 
   updateAdminSettings(settings: Record<string, unknown>) {
@@ -1449,4 +1453,34 @@ export interface LlmMetricsResponse {
     completion_tokens: number;
     total_tokens: number;
   }[];
+  live?: {
+    calls_ok: number;
+    calls_error: number;
+    calls_total: number;
+    avg_latency_ms_ok: number;
+    window_size: number;
+    by_model: Record<string, number>;
+    recent: LlmMetricsResponse["recent"];
+  };
+  history?: {
+    desde: string | null;
+    hasta: string | null;
+    calls_ok: number;
+    calls_error: number;
+    calls_total: number;
+    avg_latency_ms_ok: number;
+    tokens_total: number;
+    by_model: Record<
+      string,
+      {
+        calls: number;
+        ok: number;
+        error: number;
+        tokens: number;
+        avg_latency_ms_ok: number;
+      }
+    >;
+    recent: (LlmMetricsResponse["recent"][number] & { actor?: string })[];
+    error?: string;
+  };
 }

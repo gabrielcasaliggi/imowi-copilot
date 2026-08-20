@@ -527,3 +527,21 @@ class PilotEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped[Organization] = relationship()
+
+
+class LlmCall(Base):
+    """Registro persistente de llamadas LLM (uso / latencia / errores)."""
+
+    __tablename__ = "llm_calls"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organizacion_id: Mapped[str] = mapped_column(String(36), default="", index=True)
+    actor: Mapped[str] = mapped_column(String(120), default="")
+    ok: Mapped[int] = mapped_column(Integer, default=1)  # 1=ok, 0=error
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    model: Mapped[str] = mapped_column(String(80), default="", index=True)
+    error: Mapped[str] = mapped_column(String(200), default="")
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
