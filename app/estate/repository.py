@@ -1180,12 +1180,27 @@ def dismiss_notifications_for_closed_tickets(
     return n_done
 
 
-def agent_performance(db: Session, org_id: str) -> dict:
-    """Performance operativa de agentes de una cooperativa."""
+def agent_performance(db: Session, org_id: str, *, admin_global: bool = False) -> dict:
+    """Performance operativa de agentes. Con admin_global agrega todas las orgs (imowi)."""
     from app.rbac import normalizar_rol_consola
 
-    users = [u for u in list_users_for_org(db, org_id) if normalizar_rol_consola(u.rol) == "agente"]
-    tickets = list_tickets(db, org_id)
+    if admin_global:
+        users = [
+            u
+            for u in db.scalars(select(User)).all()
+            if normalizar_rol_consola(u.rol) == "agente" and (u.activo or "Sí") != "No"
+        ]
+        tickets = list_tickets_all(db)
+        org_map = {o.id: o.nombre for o in list_organizations(db)}
+    else:
+        users = [
+            u
+            for u in list_users_for_org(db, org_id)
+            if normalizar_rol_consola(u.rol) == "agente"
+        ]
+        tickets = list_tickets(db, org_id)
+        org_map = {}
+
     abiertos = [t for t in tickets if t.estado != "Cerrado"]
 
     agentes = []
@@ -1215,17 +1230,22 @@ def agent_performance(db: Session, org_id: str) -> dict:
             )
         ]
         carga = len(asignados) + len(creados_abiertos)
-        agentes.append(
-            {
-                **user_to_dict(u),
-                "tickets_abiertos": carga,
-                "tickets_asignados": len(asignados),
-                "tickets_cerrados": len(cerrados),
-            }
-        )
+        row = {
+            **user_to_dict(u),
+            "tickets_abiertos": carga,
+            "tickets_asignados": len(asignados),
+            "tickets_cerrados": len(cerrados),
+        }
+        if admin_global:
+            row["organizacion"] = org_map.get(u.organizacion_id, "")
+        agentes.append(row)
     agentes.sort(key=lambda a: (-a["tickets_abiertos"], a["nombre"]))
-    return {"agentes": agentes, "total_agentes": len(agentes), "tickets_abiertos": len(abiertos)}
-
+    return {
+        "agentes": agentes,
+        "total_agentes": len(agentes),
+        "tickets_abiertos": len(abiertos),
+        "alcance": "global" if admin_global else "organizacion",
+    }
 
 def ticket_stats(
     db: Session,
@@ -1235,9 +1255,12 @@ def ticket_stats(
     desde: datetime | None = None,
     hasta: datetime | None = None,
 ) -> dict:
-    tickets = list_tickets_all(db) if admin_global else list_tickets(db, org_id)
-    tickets = [t for t in tickets if _ticket_en_rango(t, desde, hasta)]
+    all_tickets = list_tickets_all(db) if admin_global else list_tickets(db, org_id)
+    # Series/distribuciones: tickets creados en el rango (actividad del período)
+    tickets = [t for t in all_tickets if _ticket_en_rango(t, desde, hasta)]
     now = datetime.now(UTC)
+    # Backlog / top riesgo: snapshot de abiertos actuales (alineado con ops), no solo creados en rango
+    open_now = [t for t in all_tickets if t.estado != "Cerrado"]
 
     total = len(tickets)
     abiertos = sum(1 for t in tickets if t.estado != "Cerrado")
@@ -1305,10 +1328,8 @@ def ticket_stats(
     from app.estate.ticket_intelligence import calcular_prioridad
 
     backlog_items = []
-    for t in tickets:
-        if t.estado == "Cerrado":
-            continue
-        intel = calcular_prioridad(t, pool=tickets)
+    for t in open_now:
+        intel = calcular_prioridad(t, pool=open_now)
         sla = intel.get("sla") or {}
         backlog_items.append({
             "id": t.id,
@@ -1334,6 +1355,7 @@ def ticket_stats(
             "promedio_horas": promedio_horas,
             "tasa_cierre": round((cerrados / total) * 100, 1) if total else 0,
             "porcentaje_n2": round((n2 / total) * 100, 1) if total else 0,
+            "abiertos_ahora": len(open_now),
         },
         "series": {
             "diaria": daily,

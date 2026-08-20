@@ -19,6 +19,11 @@ from app.services.encuesta_satisfaccion import build_csat_analytics
 router = APIRouter(tags=["Analytics"])
 
 
+def _alcance_global(ctx: TenantContext) -> bool:
+    """Admin plataforma en tenant imowi: agrega todas las cooperativas."""
+    return bool(ctx.es_admin_imowi or ctx.puede("stats.global")) and ctx.organizacion_slug == "imowi"
+
+
 def _flatten_for_csv(prefix: str, value: object, rows: list[dict[str, str]]) -> None:
     """Aplana métricas escalares/listas simples a filas metric,value."""
     if value is None:
@@ -73,7 +78,7 @@ def export_analytics_csv(
     if not ctx.puede("reports.export"):
         raise HTTPException(403, "Sin permiso para exportar reportes")
 
-    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
+    admin_global = _alcance_global(ctx)
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
     rows: list[dict[str, str]] = [
@@ -141,7 +146,7 @@ def ticket_analytics(
         or ctx.puede("stats.agents")
     ):
         raise HTTPException(403, "Sin permiso para ver estadísticas de tickets")
-    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
+    admin_global = _alcance_global(ctx)
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
     stats = repo.ticket_stats(
@@ -167,7 +172,7 @@ def executive_dashboard(
 ):
     if not (ctx.puede("stats.global") or ctx.puede("stats.bot")):
         raise HTTPException(403, "Sin permiso para analytics ejecutivo / performance del bot")
-    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
+    admin_global = _alcance_global(ctx)
     data = executive_analytics(db, admin_global=admin_global, org_id=ctx.organizacion_id)
     return {"tenant": ctx.organizacion_slug, "alcance": "global" if admin_global else "organizacion", **data}
 
@@ -179,7 +184,8 @@ def agents_performance(
 ):
     if not (ctx.puede("stats.agents") or ctx.puede("stats.global")):
         raise HTTPException(403, "Sin permiso para ver performance de agentes")
-    data = repo.agent_performance(db, ctx.organizacion_id)
+    admin_global = _alcance_global(ctx)
+    data = repo.agent_performance(db, ctx.organizacion_id, admin_global=admin_global)
     return {"tenant": ctx.organizacion_slug, **data}
 
 
@@ -196,7 +202,7 @@ def ops_analytics(
         or ctx.puede("stats.agents")
     ):
         raise HTTPException(403, "Sin permiso para ver estadísticas operativas")
-    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
+    admin_global = _alcance_global(ctx)
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
     data = build_ops_analytics(
@@ -281,7 +287,7 @@ def csat_analytics(
 
     desde_dt = _parse_desde(desde)
     hasta_dt = _parse_hasta(hasta)
-    admin_global = ctx.puede("stats.global") and ctx.organizacion_slug == "imowi"
+    admin_global = _alcance_global(ctx)
 
     if puede_equipo:
         data = build_csat_analytics(

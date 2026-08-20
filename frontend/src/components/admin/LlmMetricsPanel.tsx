@@ -4,14 +4,21 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type LlmMetricsResponse } from "@/lib/api-client";
 import { GlassCard, KpiCard } from "@/components/ui/GlassCard";
 
+function localYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function defaultDesde(): string {
   const d = new Date();
   d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
+  return localYmd(d);
 }
 
 function defaultHasta(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localYmd(new Date());
 }
 
 function fmtTs(ts: number): string {

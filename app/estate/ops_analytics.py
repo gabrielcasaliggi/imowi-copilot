@@ -116,10 +116,13 @@ def build_ops_analytics(
 
     convs = list(db.scalars(conv_q).all())
     tickets = list(db.scalars(ticket_q).all())
+    from app.rbac import normalizar_rol_consola
+
     users = [
         u
         for u in db.scalars(user_q).all()
-        if (u.rol or "").lower() in ("agente", "supervisor") and (u.activo or "Sí") != "No"
+        if normalizar_rol_consola(u.rol) in ("agente", "supervisor")
+        and (u.activo or "Sí") != "No"
     ]
     org_names: dict[str, str] = {}
     if admin_global:

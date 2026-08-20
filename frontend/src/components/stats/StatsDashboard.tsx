@@ -8,14 +8,21 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
 import type { CsatAnalytics, CsatBlock, ExecutiveAnalytics, MeAnalytics, OpsAnalytics, StatsResponse } from "@/lib/types";
 
+function localYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function defaultDesde(): string {
   const d = new Date();
   d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
+  return localYmd(d);
 }
 
 function defaultHasta(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localYmd(new Date());
 }
 
 function fmtMin(v: number | null | undefined): string {
@@ -249,7 +256,7 @@ function CsatSection({ data }: { data: CsatAnalytics | null }) {
 
       {(bot || tec) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {bot && (
+          {bot && (bot.total ?? 0) > 0 && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">Distribución bot</h4>
               <BarList
@@ -262,7 +269,7 @@ function CsatSection({ data }: { data: CsatAnalytics | null }) {
               />
             </div>
           )}
-          {tec && (
+          {tec && (tec.total ?? 0) > 0 && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <h4 className="text-xs font-mono uppercase text-slate-500 mb-3">
                 Distribución agentes
@@ -487,7 +494,7 @@ function OpsSections({
 }
 
 export function StatsDashboard() {
-  const { selectTicket, tenantSlug, can, loadStats, stats } = useApp();
+  const { selectTicket, tenantSlug, can } = useApp();
   const canOps = can("stats.global") || can("stats.bot") || can("stats.agents");
   const canTeam = can("stats.agents") || can("stats.global");
   const selfOnly = can("stats.self") && !canOps;
@@ -517,6 +524,7 @@ export function StatsDashboard() {
         setMe(data);
         setCsat(csatData);
         setOps(null);
+        setTicketStats(null);
       } else {
         const [opsData, tStats, csatData] = await Promise.all([
           api.opsAnalytics({ desde, hasta }, tenantSlug),
@@ -527,14 +535,13 @@ export function StatsDashboard() {
         setTicketStats(tStats);
         setCsat(csatData);
         setMe(null);
-        void loadStats(desde, hasta);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar estadísticas");
     } finally {
       setLoading(false);
     }
-  }, [desde, hasta, tenantSlug, selfOnly, loadStats]);
+  }, [desde, hasta, tenantSlug, selfOnly]);
 
   useEffect(() => {
     void load();
@@ -581,7 +588,7 @@ export function StatsDashboard() {
     }
   };
 
-  const series = ticketStats || stats;
+  const series = ticketStats;
 
   const slaVencidos = useMemo(
     () => series?.backlog?.filter((t) => t.estado_sla === "Vencido").length ?? 0,
@@ -739,7 +746,7 @@ export function StatsDashboard() {
               onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}
             >
               <summary className="cursor-pointer px-4 py-3 text-xs font-mono uppercase text-slate-500 select-none">
-                Avanzado — lectura ejecutiva (ilustrativo)
+                Avanzado — lectura ejecutiva all-time (ilustrativo)
               </summary>
               <div className="px-4 pb-4 space-y-3 border-t border-slate-800">
                 {executive ? (
