@@ -104,13 +104,31 @@ def test_ticket_n2_ftth_destino_cooperativa(db_session):
 
 
 def test_loop_personas_n1_sin_n2_evitable():
-    ids = ["P01", "P03", "P04", "P06", "P07", "P08"]
+    ids = ["P01", "P03", "P04", "P06", "P07", "P08", "P09", "P10", "P11", "P12"]
     results = run_loop(ids=ids, client=client)
     by_id = {r.persona_id: r for r in results}
     for pid in ids:
         r = by_id[pid]
         assert r.ok, f"{pid} fallas={r.fallas} ticket={r.ticket_id} intent={r.intencion_final}"
         assert not r.n2_evitable, pid
+
+
+def test_playbook_ecolan_b2b_tiene_alcance():
+    ids = [p.id for p in PLAYBOOKS["ecolan_b2b"]]
+    assert "alcance_b2b" in ids
+    assert "prueba_minima_b2b" in ids
+    assert len(PLAYBOOKS["ecolan_b2b"]) >= 5
+
+
+def test_kb_b2b_seed_articulos():
+    from app.estate.seed import _articulos_kb_batan
+
+    titles = {a.titulo for a in _articulos_kb_batan("org-test")}
+    assert "B2B — triaje de alcance (1 usuario / sede / todos)" in titles
+    assert "B2B — enlace dedicado / IP fija" in titles
+    assert "B2B — VPN sucursal" in titles
+    assert "B2B — VM/DC caída con impacto" in titles
+    assert "N1 hogareño — adulto mayor y WhatsApp (línea OK)" in titles
 
 
 def test_loop_p02_optica_legitima():

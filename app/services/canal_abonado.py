@@ -1832,6 +1832,125 @@ def _derivar_visitante(
     }
 
 
+def _blob_contexto_b2b(texto: str, ctx: dict | None = None) -> str:
+    ctx = ctx or {}
+    return f"{texto or ''} {ctx.get('ultima_respuesta_libre') or ''}".lower()
+
+
+def _es_consulta_comercial_b2b(texto: str, ctx: dict | None = None) -> bool:
+    """Cotización / consulta comercial: no abrir ticket técnico N2."""
+    blob = _blob_contexto_b2b(texto, ctx)
+    comercial = any(
+        k in blob
+        for k in (
+            "cotiz",
+            "presupuesto",
+            "consulta comercial",
+            "sin urgencia",
+            "solo cotización",
+            "solo cotizacion",
+            "no hay nada caíd",
+            "no hay nada caid",
+            "no abras ticket",
+            "contacto comercial",
+        )
+    )
+    if not comercial:
+        return False
+    # Caída productiva explícita gana solo si no niegan la caída / no piden comercial
+    caida = any(
+        k in blob
+        for k in ("caído ahora", "caido ahora", "impacto productivo", "impacto operativo")
+    )
+    niega_caida = any(
+        k in blob
+        for k in (
+            "no hay nada caíd",
+            "no hay nada caid",
+            "sin urgencia",
+            "no abras ticket",
+            "contacto comercial",
+            "cotiz",
+            "presupuesto",
+        )
+    )
+    if caida and not niega_caida:
+        return False
+    return True
+
+
+def _vpn_un_usuario_hotspot_ok(texto: str, ctx: dict | None = None) -> bool:
+    """VPN de un solo usuario con hotspot OK → contención N1, no planta."""
+    blob = _blob_contexto_b2b(texto, ctx)
+    hotspot_ok = "hotspot" in blob and any(
+        k in blob for k in ("conecta", "anda", "funciona", "bien", "ok")
+    )
+    un_usuario = any(
+        k in blob
+        for k in (
+            "solo a un",
+            "solo a mí",
+            "solo a mi",
+            "un usuario",
+            "solo falla",
+            "mi pc",
+            "mi notebook",
+            "solo a mi pc",
+        )
+    ) or ("resto" in blob and any(k in blob for k in ("anda", "bien", "ok")))
+    sede_caida = any(
+        k in blob
+        for k in ("toda la sede", "toda la oficina", "todos los sitios")
+    ) and any(k in blob for k in ("caíd", "caid", "sin internet", "no hay internet"))
+    return bool(hotspot_ok and un_usuario and not sede_caida)
+
+
+def _contener_b2b_sin_ticket_n2(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Si aplica contención comercial/VPN N1, responde y no crea ticket."""
+    if intencion != "ecolan_b2b":
+        return None
+    if _es_consulta_comercial_b2b(texto, ctx):
+        resp = (
+            "Entendido: es consulta/cotización. No abro ticket técnico. "
+            "Podés dejar el contacto y comercial Ecolan te retoma. "
+            "Si más adelante hay una caída, avisame."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+    if _vpn_un_usuario_hotspot_ok(texto, ctx):
+        resp = (
+            "Si por hotspot la VPN conecta, el enlace de la sucursal probablemente está OK. "
+            "Revisá en ese PC: cliente VPN, credenciales y firewall. "
+            "No abro ticket de planta. Si después falla a toda la sede, avisame."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+    return None
+
+
 def _mensaje_cierre_escalamiento(
     tid: str,
     *,
@@ -2104,6 +2223,17 @@ def _aplicar_diagnostico_ia(
                 conv,
                 canal=canal,
             )
+        contenido_b2b = _contener_b2b_sin_ticket_n2(
+            db,
+            org_id,
+            conv,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intencion,
+        )
+        if contenido_b2b is not None:
+            return contenido_b2b
         tid = _crear_ticket_n2(
             db,
             org_id,
@@ -2423,6 +2553,17 @@ def procesar_mensaje_entrante(
     # No aplicar a mensajes que son solo un DNI.
     if not _es_solo_dni(texto) and detecta_frustracion(texto, ctx):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
+        contenido_b2b = _contener_b2b_sin_ticket_n2(
+            db,
+            org_id,
+            conv,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intent,
+        )
+        if contenido_b2b is not None:
+            return contenido_b2b
         paso = int(ctx.get("paso_idx") or 0)
         tid = _crear_ticket_n2(
             db,
@@ -3579,6 +3720,19 @@ def procesar_mensaje_entrante(
                 idx,
                 prefijo="Todavía no ubico si es fibra, radio o ADSL; no te derivo todavía. ",
             )
+        # Cotización / VPN un usuario con hotspot OK: no ticket técnico N2
+        if intencion == "ecolan_b2b":
+            contenido = _contener_b2b_sin_ticket_n2(
+                db,
+                org_id,
+                conv,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion=intencion,
+            )
+            if contenido is not None:
+                return contenido
         tid = _crear_ticket_n2(
             db,
             org_id,

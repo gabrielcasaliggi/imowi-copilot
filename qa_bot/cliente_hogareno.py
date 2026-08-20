@@ -38,6 +38,7 @@ class Hechos:
     pon: str = ""  # verde | unknown
     los: str = ""  # apagada | roja
     reinicio_hecho: bool = False
+    reinicio_resuelve: bool = False  # tras reinicio el servicio vuelve / se estabiliza
     cable_anda: bool | None = None
     wifi_zona: str = ""  # lejos | toda | ok
     n_equipos: int = 0
@@ -46,7 +47,19 @@ class Hechos:
     poe_luz: bool | None = None
     vecinos_ok: bool | None = None
     apertura: str = ""
-    tono: str = "vecino"  # vecino | malhumorado | typo
+    tono: str = "vecino"  # vecino | malhumorado | typo | mayor
+    # ADSL
+    tono_fijo: bool | None = None
+    filtro_ok: bool | None = None
+    dsl_fija_tras_reinicio: bool | None = None
+    # Clave WiFi
+    quiere_clave: bool = False
+    tiene_etiqueta: bool = False
+    # Adulto mayor / WhatsApp
+    sintoma_whatsapp: bool = False
+    deuda_manana: bool = False
+    # Intermitencia
+    frecuencia_cortes: str = ""
 
 
 @dataclass
@@ -209,6 +222,63 @@ PERSONAS: list[Persona] = [
             apertura="No tengo internet",
         ),
     ),
+    Persona(
+        id="P09",
+        nombre="Intermitencia estabiliza",
+        descripcion="Cortes periódicos; cable OK; reinicio estabiliza. N2 no.",
+        n2_esperado="nunca",
+        hechos=Hechos(
+            tecnologia="ftth",
+            reply_tecnologia="Fibra",
+            cable_anda=True,
+            reinicio_resuelve=True,
+            frecuencia_cortes="cada tanto, vuelve en unos minutos",
+            apertura="Se me corta el internet a cada rato y después vuelve",
+        ),
+    ),
+    Persona(
+        id="P10",
+        nombre="ADSL sync vuelve",
+        descripcion="ADSL; microfiltro + reinicio → DSL fija. N2 no.",
+        n2_esperado="nunca",
+        hechos=Hechos(
+            tecnologia="adsl",
+            reply_tecnologia="Es por el teléfono, ADSL",
+            tono_fijo=True,
+            filtro_ok=True,
+            reinicio_resuelve=True,
+            dsl_fija_tras_reinicio=True,
+            apertura="Se me cayó el internet, tengo ADSL por la línea del teléfono",
+        ),
+    ),
+    Persona(
+        id="P11",
+        nombre="Cambio clave WiFi",
+        descripcion="Quiere cambiar contraseña; tiene etiqueta; conecta. N2 no.",
+        n2_esperado="nunca",
+        hechos=Hechos(
+            tecnologia="ftth",
+            quiere_clave=True,
+            tiene_etiqueta=True,
+            apertura="Quiero cambiar la clave del WiFi",
+        ),
+    ),
+    Persona(
+        id="P12",
+        nombre="Adulto mayor WhatsApp",
+        descripcion="Línea OK; falla llamada WhatsApp; reinicio resuelve. N2 no.",
+        n2_esperado="nunca",
+        hechos=Hechos(
+            tecnologia="ftth",
+            reply_tecnologia="Fibra",
+            tono="mayor",
+            sintoma_whatsapp=True,
+            deuda_manana=True,
+            reinicio_resuelve=True,
+            cable_anda=True,
+            apertura="Hola, no me anda internet, soy mayor y no entiendo mucho",
+        ),
+    ),
 ]
 
 
@@ -235,8 +305,60 @@ def responder_como_cliente(
     if persona.id == "P07" and turno == 1:
         return "Es que no me anda internet"
 
+    if persona.id == "P12" and turno == 1 and any(
+        k in q for k in ("deuda", "saldo", "pagar", "pendiente")
+    ):
+        return "No, lo pago mañana, sigamos con el problema de internet"
+
+    if h.sintoma_whatsapp and any(
+        k in q for k in ("aparato", "dispositivo", "celular", "computadora", "tablet")
+    ):
+        return "En el celular, cuando lo llamo a mi hijo por WhatsApp"
+
+    if h.sintoma_whatsapp and any(k in q for k in ("whatsapp", "wasap", "llamada", "falla")):
+        return "Cuando lo llamo a veces no funciona el WhatsApp"
+
+    if h.quiere_clave:
+        if any(k in q for k in ("contraseña", "clave", "nombre de la red", "ssid", "las dos")):
+            return "La contraseña del WiFi"
+        if any(k in q for k in ("etiqueta", "acceso al equipo", "fábrica", "fabrica")):
+            return "Sí, tengo la etiqueta abajo del router"
+        if any(k in q for k in ("reconect", "probar", "dispositivo", "listo")):
+            return "Listo, ya conecté el celular con la clave nueva y navega"
+        if any(k in q for k in ("conectó", "conecto", "navega", "valid")):
+            return "Sí, ya anda"
+
+    # ADSL
+    if h.tecnologia == "adsl" or any(k in q for k in ("adsl", "microfiltro", "splitter", "dsl", "sync", "tono")):
+        if "tono" in q:
+            return "Sí, el fijo tiene tono" if h.tono_fijo else "No tiene tono"
+        if any(k in q for k in ("filtro", "splitter", "microfiltro")):
+            return "Sí, el filtro está puesto" if h.filtro_ok else "No sé del filtro"
+        if any(k in q for k in ("dsl", "sync", "parpade")):
+            if h.dsl_fija_tras_reinicio and h.reinicio_hecho:
+                return "Quedó fija la lucecita DSL y ya navego"
+            return "Sigue parpadeando"
+        if any(k in q for k in ("toma principal", "calle")):
+            return "Sí, lo probé en la toma de la calle"
+
+    # Intermitencia
+    if any(k in q for k in ("cada cuánto", "cada cuanto", "frecuencia", "cuánto tarda", "cuanto tarda")):
+        return h.frecuencia_cortes or "Cada tanto, unos minutos"
+
+    if any(k in q for k in ("se corta por", "por wifi", "por cable", "los dos")):
+        if h.cable_anda is True:
+            return "Por los dos a veces, pero más por WiFi"
+        return "Por los dos"
+
+    if any(k in q for k in ("estable", "mantuvo", "mejoró", "mejoro")):
+        if h.reinicio_resuelve and h.reinicio_hecho:
+            return "Sí, se mantuvo estable"
+        return "Sigue cortándose"
+
     # Luces / PON / LOS (antes de "fibra/cajita": el paso FTTH menciona esos términos)
     if any(k in q for k in (" los", "los ", "pon", "luces", "luz roja", "alarma")):
+        if h.frecuencia_cortes and "cambia" in q:
+            return "No, las luces no cambian cuando se corta"
         if h.los == "roja":
             return "La LOS está en rojo, hay una lucecita roja"
         if h.pon == "verde" and h.los == "apagada":
@@ -246,14 +368,29 @@ def responder_como_cliente(
         return "Tiene luces, no sé cuáles"
 
     if any(k in q for k in ("reinici", "desenchuf", "30 segundo", "30s", "30 segundos")):
+        if h.reinicio_hecho and h.reinicio_resuelve:
+            return "Ya reinicié y ahora anda bien"
         if h.reinicio_hecho:
             return "Ya reinicié 30 segundos y sigue igual"
         h.reinicio_hecho = True
         if h.los == "roja":
             return "Reinicié y la lucecita roja sigue"
+        if h.reinicio_resuelve:
+            if h.sintoma_whatsapp:
+                return "Listo, reinicié. Ahora le voy a llamar por WhatsApp a ver"
+            if h.tecnologia == "adsl":
+                return "Listo, reinicié el módem. La luz DSL quedó fija y ya navego"
+            if h.frecuencia_cortes:
+                return "Listo, reinicié. Por ahora se mantuvo estable"
+            return "Listo, reinicié y ya anda"
         return "Listo, reinicié. Sigue sin internet"
 
+    if h.sintoma_whatsapp and any(k in q for k in ("probaste", "llamar", "contestó", "contesto", "mejor")):
+        return "Sí me contestó, ya anda"
+
     if any(k in q for k in ("volvió", "volvio", "ya navega", "páginas", "paginas")):
+        if h.reinicio_resuelve and h.reinicio_hecho:
+            return "Sí, ya navega"
         if h.los == "roja":
             return "No, y sigue la luz roja"
         if h.cable_anda is True and h.wifi_zona == "lejos":
@@ -308,9 +445,17 @@ def responder_como_cliente(
             return "Anda lento, no es que esté cortado"
         if persona.id == "P03":
             return "Es solo el WiFi"
+        if persona.id == "P09":
+            return "Se corta y vuelve, no es que esté muerto del todo"
+        if h.sintoma_whatsapp:
+            return "Es cuando llamo por WhatsApp"
+        if h.quiere_clave:
+            return "Quiero cambiar la contraseña del WiFi"
         return "No me carga nada"
 
     if "todos los dispositivos" in q or "solo en uno" in q or "un dispositivo" in q:
+        if h.sintoma_whatsapp:
+            return "Me pasa en el celular"
         return "En todos los equipos"
 
     if any(k in q for k in ("agente", "deriv", "ticket", "visita", "técnico", "tecnico")):
@@ -318,10 +463,22 @@ def responder_como_cliente(
             return "Sí, derivame por favor"
         return "Prefiero seguir intentando acá"
 
-    if any(k in q for k in ("internet", "móvil", "movil", "factura", "en qué te", "en que te")):
+    if any(k in q for k in ("internet", "móvil", "movil", "factura", "en qué te", "en que te", "pagar")):
+        if h.deuda_manana and any(k in q for k in ("pagar", "deuda", "saldo")):
+            return "Lo pago mañana, sigamos con internet"
+        if h.quiere_clave:
+            return "Por el WiFi, quiero cambiar la clave"
         return "Por internet de casa"
 
     # Fallback: no repetir “sigue igual” (eso dispara N2 por frustración).
+    if h.quiere_clave:
+        return "Quiero cambiar la clave del WiFi"
+    if h.sintoma_whatsapp:
+        return "Es el WhatsApp en el celular"
+    if h.tecnologia == "adsl":
+        return h.reply_tecnologia or "Es ADSL por el teléfono"
+    if h.frecuencia_cortes:
+        return "Se corta a cada rato y después vuelve"
     if h.tecnologia == "radio":
         return "Reinicié antena y router y no volvió"
     if h.los == "roja":

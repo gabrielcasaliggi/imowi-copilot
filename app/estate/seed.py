@@ -586,6 +586,59 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             ),
         ),
 
+        # ==================== ECOLAN B2B ====================
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="B2B — triaje de alcance (1 usuario / sede / todos)",
+            categoria="Ecolan B2B",
+            contenido=(
+                "Antes de derivar Ecolan: preguntar alcance.\n"
+                "1 usuario → suele ser endpoint/VPN/WiFi local; N1 con hotspot y reinicio cliente.\n"
+                "Una sede/sucursal → enlace dedicado, CPE o switch de planta; reunir dirección y "
+                "síntoma antes de N2.\n"
+                "Todos los sitios → posible falla de plataforma/core; escalar con impacto SLA.\n"
+                "Cotización o consulta comercial: no abrir ticket técnico N2; orientar a comercial."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="B2B — enlace dedicado / IP fija",
+            categoria="Ecolan B2B",
+            contenido=(
+                "Enlace dedicado o IP fija caído:\n"
+                "1) Confirmar si afecta toda la sede o un VLAN/servicio.\n"
+                "2) Luces/estado del CPE; reinicio controlado del CPE si el cliente puede.\n"
+                "3) Probar salida por hotspot celular (¿es solo el enlace?).\n"
+                "4) Si la sede sigue sin servicio → N2 Ecolan (cooperativa), con dirección, "
+                "ID de enlace si lo tiene, e impacto. No destino IMOWI NOC."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="B2B — VPN sucursal",
+            categoria="Ecolan B2B",
+            contenido=(
+                "VPN de sucursal o remoto:\n"
+                "1) ¿Un usuario o todos los de la VPN?\n"
+                "2) Si un usuario: probar hotspot; reiniciar cliente VPN; credenciales/MFA.\n"
+                "3) Si funciona en hotspot y no en WiFi de la oficina → red local, no el túnel.\n"
+                "4) Si todos fallan → gateway/enlace/plataforma: N2 Ecolan con horario e impacto.\n"
+                "Playbook: ecolan_b2b."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="B2B — VM/DC caída con impacto",
+            categoria="Ecolan B2B",
+            contenido=(
+                "VM, housing o servicio en datacenter Ecolan caído con impacto productivo:\n"
+                "1) Identificar servicio (nombre VM / hosting) y desde cuándo.\n"
+                "2) Confirmar impacto (producción vs laboratorio).\n"
+                "3) No pedir reinicios caseros de ONT/WiFi hogareños.\n"
+                "4) Handoff N2 Ecolan legítimo con evidencia breve. Completar preguntas ≠ resolver."
+            ),
+        ),
+
         # ==================== TELEFONÍA FIJA ====================
         KnowledgeArticle(
             organizacion_id=org_id,

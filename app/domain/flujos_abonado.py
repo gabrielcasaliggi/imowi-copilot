@@ -525,10 +525,28 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "ecolan_b2b": [
         PasoPlaybook(
             "tipo_ecolan",
-            "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting o enlace dedicado?",
+            "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, "
+            "VPN de sucursal, o una cotización/consulta comercial?",
         ),
-        PasoPlaybook("impacto_sla", "¿Hay un servicio caído ahora o es una consulta/cotización?"),
-        PasoPlaybook("derivar_ecolan", "Estos casos los toma un especialista. ¿Te derivo?"),
+        PasoPlaybook(
+            "alcance_b2b",
+            "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+        ),
+        PasoPlaybook(
+            "impacto_sla",
+            "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización "
+            "sin urgencia?",
+        ),
+        PasoPlaybook(
+            "prueba_minima_b2b",
+            "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE "
+            "del enlace? Contame qué pasó.",
+        ),
+        PasoPlaybook(
+            "derivar_ecolan",
+            "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? "
+            "Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+        ),
     ],
     "alta_plan": [
         PasoPlaybook("tipo_alta", "¿Alta nueva o cambio de plan? ¿Internet, móvil, Sensa u otro?"),
@@ -1170,6 +1188,8 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
         "data center", "datacenter", "ecolan", "central virtual", "pbx",
         "housing", "hosting", "maquina virtual", "máquina virtual", " cloud",
         "enlace dedicado", "starlink", "ip fija", "vpn sucursal", "sla",
+        "cotizacion ecolan", "cotización ecolan", "presupuesto enlace",
+        "vpn de sucursal", "vm en el data", "vm en el datacenter",
     )):
         return "ecolan_b2b"
 
@@ -2041,7 +2061,15 @@ def detecta_frustracion(texto: str, ctx: dict) -> bool:
     Tampoco si el mensaje es una respuesta de diagnóstico (reinicio, luces, cable).
     """
     intent = str(ctx.get("intencion") or "")
-    if intent in ("internet", "wifi", "internet_lento"):
+    if intent in (
+        "internet",
+        "wifi",
+        "internet_lento",
+        "internet_intermitente",
+        "internet_adsl",
+        "cambio_clave_wifi",
+        "ecolan_b2b",
+    ):
         return False
     if not misma_queja(texto, ctx):
         return False
