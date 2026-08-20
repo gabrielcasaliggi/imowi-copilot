@@ -23,6 +23,8 @@ export function LlmMetricsPanel() {
   const [data, setData] = useState<LlmMetricsResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [probeMsg, setProbeMsg] = useState("");
   const [auto, setAuto] = useState(true);
 
   const load = useCallback(async () => {
@@ -37,6 +39,25 @@ export function LlmMetricsPanel() {
       setBusy(false);
     }
   }, []);
+
+  const probe = useCallback(async () => {
+    setProbing(true);
+    setProbeMsg("");
+    setError("");
+    try {
+      const res = await api.testAdminAi();
+      if (res.ok) {
+        setProbeMsg(`OK · ${res.model || "modelo"} · ${res.reply || "respuesta recibida"}`);
+      } else {
+        setProbeMsg(`Error · ${res.error || "sin detalle"}`);
+      }
+      await load();
+    } catch (err) {
+      setProbeMsg(err instanceof Error ? err.message : "Falló la prueba de IA");
+    } finally {
+      setProbing(false);
+    }
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -62,7 +83,7 @@ export function LlmMetricsPanel() {
           <h3 className="text-sm font-semibold text-slate-100">Métricas LLM</h3>
           <p className="text-[11px] text-slate-500 mt-0.5 max-w-xl">
             Contadores desde el último restart del API (memoria local). No es histórico largo ni
-            Prometheus.
+            Prometheus. Eco N1 solo suma acá cuando reescribe/diagnostica con IA.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -77,6 +98,14 @@ export function LlmMetricsPanel() {
           </label>
           <button
             type="button"
+            disabled={probing || busy}
+            onClick={() => void probe()}
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-ecolan-brand/40 bg-ecolan-brand/10 text-ecolan-brand hover:bg-ecolan-brand/15 disabled:opacity-50"
+          >
+            {probing ? "Probando…" : "Probar IA"}
+          </button>
+          <button
+            type="button"
             disabled={busy}
             onClick={() => void load()}
             className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-slate-600/80 text-slate-300 hover:bg-slate-800/50 disabled:opacity-50"
@@ -85,6 +114,18 @@ export function LlmMetricsPanel() {
           </button>
         </div>
       </div>
+
+      {probeMsg && (
+        <p
+          className={`text-sm rounded-xl px-4 py-2.5 border ${
+            probeMsg.startsWith("OK")
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+              : "border-rose-500/30 bg-rose-500/10 text-rose-200"
+          }`}
+        >
+          {probeMsg}
+        </p>
+      )}
 
       {error && (
         <p className="text-sm text-rose-300 border border-rose-500/30 rounded-xl px-4 py-2.5 bg-rose-500/10">
@@ -133,8 +174,8 @@ export function LlmMetricsPanel() {
             <GlassCard title="Últimas llamadas" variant="technical" className="lg:col-span-2">
               {!data.recent?.length ? (
                 <p className="text-xs text-slate-500">
-                  Todavía no hubo tráfico LLM en este proceso. Usá el portal/diagnóstico o “Probar
-                  IA” en Config.
+                  Todavía no hubo tráfico LLM en este proceso. Tocá «Probar IA» acá arriba, o
+                  chateá en el portal / bandeja con diagnóstico IA activo.
                 </p>
               ) : (
                 <div className="overflow-x-auto -mx-1">

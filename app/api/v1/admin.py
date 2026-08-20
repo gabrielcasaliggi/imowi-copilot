@@ -510,23 +510,21 @@ def test_ai_connection(
     _: UsuarioSesion = Depends(requiere_admin),
     db: Session = Depends(get_db),
 ):
+    from app.llm import chat_completion
     from app.services.platform_settings import resolve_ai
 
     cfg = resolve_ai(db)
     try:
-        from openai import OpenAI
-
-        client = OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"] or "ollama")
-        resp = client.chat.completions.create(
-            model=cfg["model"],
-            messages=[{"role": "user", "content": "Respondé solo: ok"}],
+        text = chat_completion(
+            [{"role": "user", "content": "Respondé solo: ok"}],
             temperature=0,
-            max_tokens=8,
-        )
-        text = (resp.choices[0].message.content or "").strip()
+        ).strip()
         return {"ok": True, "model": cfg["model"], "base_url": cfg["base_url"], "reply": text[:80]}
     except Exception as e:
-        return {"ok": False, "model": cfg["model"], "base_url": cfg["base_url"], "error": str(e)[:240]}
+        # chat_completion ya registró el error en métricas; devolver detalle usable en UI
+        detail = getattr(e, "detail", None)
+        err = detail if isinstance(detail, str) else str(e)
+        return {"ok": False, "model": cfg["model"], "base_url": cfg["base_url"], "error": err[:240]}
 
 
 @router.post("/admin/playbooks/convert")

@@ -186,20 +186,13 @@ def convert_document_to_playbooks(db: Session | None, texto: str) -> dict[str, A
     # Acotar input: documentos largos ralentizan mucho modelos locales/remotos
     texto_ia = texto if len(texto) <= 10_000 else texto[:10_000] + "\n\n[…truncado…]"
 
+    from app.llm import chat_completion
     from app.services.platform_settings import resolve_ai
 
     cfg = resolve_ai(db)
-    from openai import OpenAI
-
     try:
-        client = OpenAI(
-            base_url=cfg["base_url"],
-            api_key=cfg["api_key"] or "ollama",
-            timeout=90.0,
-        )
-        resp = client.chat.completions.create(
-            model=cfg["model"],
-            messages=[
+        content = chat_completion(
+            [
                 {"role": "system", "content": _SYSTEM},
                 {
                     "role": "user",
@@ -211,12 +204,12 @@ def convert_document_to_playbooks(db: Session | None, texto: str) -> dict[str, A
                 },
             ],
             temperature=0.2,
-            max_tokens=2048,
-        )
-        content = (resp.choices[0].message.content or "").strip()
+            json_mode=True,
+        ).strip()
         parsed = _extract_json(content)
         result = normalize_playbooks_payload(parsed)
         result["fuente"] = "ia"
+        result["model"] = cfg.get("model") or ""
         return result
     except Exception as e:
         # Timeout / red / JSON inválido / modelo caído → fallback usable
@@ -225,12 +218,16 @@ def convert_document_to_playbooks(db: Session | None, texto: str) -> dict[str, A
         except ValueError:
             if isinstance(e, ValueError):
                 raise e from None
+            detail = getattr(e, "detail", None)
+            msg = detail if isinstance(detail, str) else str(e)
             raise ValueError(
-                f"La IA falló ({str(e)[:160]}) y el fallback tampoco pudo armar flujos."
+                f"La IA falló ({msg[:160]}) y el fallback tampoco pudo armar flujos."
             ) from e
+        detail = getattr(e, "detail", None)
+        msg = detail if isinstance(detail, str) else str(e)
         fb["fuente"] = "fallback"
         fb["aviso"] = (
-            f"La IA no pudo completar la conversión ({str(e)[:120]}). "
+            f"La IA no pudo completar la conversión ({msg[:120]}). "
             "Se generó un borrador automático; revisalo antes de guardar."
         )
         return fb
