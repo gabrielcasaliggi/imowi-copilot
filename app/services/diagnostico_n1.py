@@ -1467,8 +1467,18 @@ def diagnosticar_turno(
             paso = "otros_dispositivos_wifi"
 
         if accion == "resolved":
+            from app.domain.flujos_abonado import confirma_contacto_sin_servicio
+
             t = (mensaje_cliente or "").lower()
-            if any(
+            if confirma_contacto_sin_servicio(mensaje_cliente):
+                accion = "ask"
+                motivo = "bloqueado_resolved_solo_contacto"
+                mensaje = (
+                    "Buenísimo que te hayan contestado. "
+                    "¿Ya te anda el servicio o seguís con el mismo problema?"
+                )
+                paso = "confirmar_servicio_post_contacto"
+            elif any(
                 k in t
                 for k in (
                     "no anda", "no funciona", "sigue", "problema", "falla",

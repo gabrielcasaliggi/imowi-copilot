@@ -1459,12 +1459,63 @@ def parece_consulta_nueva(texto: str) -> bool:
     return any(k in t for k in aperturas)
 
 
+def confirma_contacto_sin_servicio(texto: str) -> bool:
+    """True si solo dice que le contestaron/llamaron, sin confirmar que el servicio anda.
+
+    Evita cerrar N1 / encuesta ante «si me contestó» (p.ej. Whisper: «si me contesto»).
+    """
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", " ", t)
+    t = " ".join(t.split())
+    if not t or len(t) > 120:
+        return False
+    # «me llamo X» = nombre; no es callback
+    if re.search(r"\bme llamo\b", t) and "llamaron" not in t and "llamó" not in t:
+        return False
+    if not any(
+        k in t
+        for k in (
+            "me contest",
+            "me respondieron",
+            "me contactaron",
+            "me llamaron",
+            "me llamó",
+            "me llamo,",
+            "ya me contest",
+            "ya me llam",
+        )
+    ):
+        return False
+    if any(
+        k in t
+        for k in (
+            "anda",
+            "funciona",
+            "anduvo",
+            "solucion",
+            "resuelto",
+            "volvió",
+            "volvio",
+            "mejoró",
+            "mejoro",
+            "ya está",
+            "ya esta",
+            "todo bien",
+        )
+    ):
+        return False
+    return True
+
+
 def respuesta_paso_ok(texto: str) -> bool | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
     # Saludos y consultas nuevas no son sí/no de un paso de playbook
     if es_saludo_corto(t) or parece_consulta_nueva(t):
+        return None
+    # «me contestó» ≠ paso OK de servicio (ni cierre N1)
+    if confirma_contacto_sin_servicio(t):
         return None
     # Respuestas informativas con "aún no / no lo pagué" ≠ fallo de diagnóstico
     if re.search(r"\b(aun|aún|todavia|todavía)\s+no\b", t):
@@ -1504,6 +1555,9 @@ def indica_resuelto(texto: str) -> bool:
     if not t:
         return False
     if parece_consulta_nueva(t) or es_saludo_corto(t):
+        return False
+    # «me contestó / me llamaron» ≠ servicio OK
+    if confirma_contacto_sin_servicio(t):
         return False
     # Problema parcial / contraste → nunca cerrar como resuelto
     if any(

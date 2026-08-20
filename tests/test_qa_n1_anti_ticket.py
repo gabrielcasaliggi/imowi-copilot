@@ -105,6 +105,21 @@ def test_indica_resuelto_no_cierra_cobertura_parcial():
     assert indica_resuelto("ya funciona") is True
 
 
+def test_si_me_contesto_no_cierra_como_resuelto():
+    """«si me contestó» (Whisper: contesto) ≠ servicio OK ni paso playbook."""
+    from app.domain.flujos_abonado import (
+        confirma_contacto_sin_servicio,
+        respuesta_paso_ok,
+    )
+
+    for msg in ("si me contesto", "si me contestó", "sí me contestaron", "me llamaron"):
+        assert confirma_contacto_sin_servicio(msg) is True
+        assert indica_resuelto(msg) is False
+        assert respuesta_paso_ok(msg) is None
+    assert confirma_contacto_sin_servicio("me contestó y ya anda") is False
+    assert indica_resuelto("me contestó y ya anda todo") is True
+
+
 def test_indica_resuelto_cierre_wifi_gracias_ticket():
     msg = (
         "impecable, si ahí moví un poco más cerca del baño en el rutor wifi "
