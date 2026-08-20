@@ -532,6 +532,24 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "Si PoE OK, reinicio hecho y sigue caído → N2 cooperativa (campo), no IMOWI NOC."
             ),
         ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — adulto mayor y WhatsApp (línea OK)",
+            categoria="Internet",
+            contenido=(
+                "Si el abonado dice «no anda internet» pero es adulto mayor o da respuestas "
+                "poco claras: bajar el tono técnico, guiar paso a paso y preguntar en qué "
+                "aparato y qué hace cuando falla (celular, TV, llamadas).\n\n"
+                "Si hay saldo pendiente y la sesión PPPoE/fibra está activa: informar la deuda, "
+                "ofrecer pagar después y seguir el diagnóstico técnico si lo pide. "
+                "Deuda no implica corte si la sesión sigue up.\n\n"
+                "Si la línea está OK y el problema es llamar por WhatsApp (usa WiFi): "
+                "orientar reinicio del router (desenchufar 30s, enchufar de nuevo) y pedir "
+                "que pruebe la llamada otra vez. Si vuelve, cerrar N1. No abrir visita ni N2.\n\n"
+                "Si por cable al router anda y solo falla WhatsApp/WiFi lejos: playbook WiFi, "
+                "no planta. No escalar por «no entiendo» o respuestas vagas: aclarar y guiar."
+            ),
+        ),
 
         # ==================== WIFI ====================
         KnowledgeArticle(

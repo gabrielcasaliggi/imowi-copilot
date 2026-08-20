@@ -328,7 +328,12 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert "N1 hogareño — cable vs WiFi" in by_title
     assert "N1 hogareño — lentitud en horario pico" in by_title
     assert "N1 hogareño — PoE y antena de techo" in by_title
+    assert "N1 hogareño — adulto mayor y WhatsApp (línea OK)" in by_title
     assert "LOS" in by_title["N1 hogareño — luces PON y LOS"]
+    whatsapp = by_title["N1 hogareño — adulto mayor y WhatsApp (línea OK)"]
+    assert "WhatsApp" in whatsapp
+    assert "PPPoE" in whatsapp or "sesión" in whatsapp.lower()
+    assert "No abrir visita" in whatsapp or "no abrir visita" in whatsapp.lower()
     assert "internet_intermitente" in by_title["Internet — cortes o intermitencia"]
     assert "WiFi — cambiar clave o nombre de red" in by_title
     assert "cambio_clave_wifi" in by_title["WiFi — cambiar clave o nombre de red"]
