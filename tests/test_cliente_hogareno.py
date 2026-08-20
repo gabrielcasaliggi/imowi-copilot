@@ -113,6 +113,55 @@ def test_loop_personas_n1_sin_n2_evitable():
         assert not r.n2_evitable, pid
 
 
+def test_loop_facturacion_sin_n2_evitable():
+    ids = ["P13", "P14", "P15"]
+    results = run_loop(ids=ids, client=client)
+    by_id = {r.persona_id: r for r in results}
+    for pid in ids:
+        r = by_id[pid]
+        assert r.ok, f"{pid} fallas={r.fallas} ticket={r.ticket_id} transcript={r.transcript}"
+        assert not r.n2_evitable, pid
+
+
+def test_loop_facturacion_reclamo_legitimo():
+    p16 = next(p for p in PERSONAS if p.id == "P16")
+    r = run_persona(client, p16)
+    assert not r.n2_evitable, r.fallas
+    assert r.ticket_creado, r.transcript
+    assert r.n2_legitimo or r.ok
+
+
+def test_kb_facturacion_n1_seed():
+    from app.estate.seed import _articulos_kb_batan
+
+    titles = {a.titulo for a in _articulos_kb_batan("org-test")}
+    assert "Facturación N1 — cuándo cerrar y cuándo derivar" in titles
+    assert "Facturación — medios de pago" in titles
+
+
+def test_loop_sensa_sin_n2_evitable():
+    results = run_loop(ids=["P17"], client=client)
+    r = results[0]
+    assert r.ok, f"P17 fallas={r.fallas} transcript={r.transcript}"
+    assert not r.n2_evitable
+
+
+def test_loop_sensa_error_cuenta_legitimo():
+    p18 = next(p for p in PERSONAS if p.id == "P18")
+    r = run_persona(client, p18)
+    assert not r.n2_evitable, r.fallas
+    assert r.ticket_creado, r.transcript
+    assert r.n2_legitimo or r.ok
+
+
+def test_kb_sensa_n1_seed():
+    from app.estate.seed import _articulos_kb_batan
+
+    titles = {a.titulo for a in _articulos_kb_batan("org-test")}
+    assert "TV Sensa N1 — cuándo cerrar y cuándo derivar" in titles
+    assert "TV OTT Sensa — sin reproducción o no abre" in titles
+
+
 def test_playbook_ecolan_b2b_tiene_alcance():
     ids = [p.id for p in PLAYBOOKS["ecolan_b2b"]]
     assert "alcance_b2b" in ids

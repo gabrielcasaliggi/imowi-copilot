@@ -60,6 +60,20 @@ class Hechos:
     deuda_manana: bool = False
     # Intermitencia
     frecuencia_cortes: str = ""
+    # Facturación (curado Botmaker)
+    tema_factura: str = ""  # pagar | informar | reactivar | reclamo
+    pago_hace: str = ""  # ej. "20 minutos" | "8 horas"
+    medio_pago: str = ""
+    reclamo_mes: str = ""
+    reclamo_monto: str = ""
+    reclamo_persiste: bool = False
+    # TV Sensa (curado Botmaker)
+    tema_sensa: str = ""  # app | box
+    sensa_internet_ok: bool = True
+    sensa_dispositivo: str = ""
+    sensa_app_abre: bool = False
+    sensa_sintoma: str = ""
+    sensa_acciones_resuelven: bool = False
 
 
 @dataclass
@@ -68,7 +82,7 @@ class Persona:
     nombre: str
     descripcion: str
     hechos: Hechos
-    n2_esperado: str  # nunca | optica | post_n1_radio
+    n2_esperado: str  # nunca | optica | post_n1_radio | legitimo_factura | legitimo_sensa
     max_turnos: int = 10
     dni: str = "30111222"
 
@@ -279,6 +293,89 @@ PERSONAS: list[Persona] = [
             apertura="Hola, no me anda internet, soy mayor y no entiendo mucho",
         ),
     ),
+    Persona(
+        id="P13",
+        nombre="Quiere pagar factura",
+        descripcion="Medios de pago / QR; confirma acceso. N2 no (Botmaker pagar).",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_factura="pagar",
+            apertura="Hola, quiero pagar la factura",
+        ),
+    ),
+    Persona(
+        id="P14",
+        nombre="Avisa que pagó",
+        descripcion="Quiere informar pago; N1 explica auto. N2 no.",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_factura="informar",
+            pago_hace="hace una hora",
+            medio_pago="Mercado Pago QR",
+            apertura="Hola, ya pagué, les aviso el pago",
+        ),
+    ),
+    Persona(
+        id="P15",
+        nombre="Reactivación reciente",
+        descripcion="Pagó hace 20 min; acepta esperar plazo. N2 no.",
+        n2_esperado="nunca",
+        dni="27333444",
+        hechos=Hechos(
+            tema_factura="reactivar",
+            pago_hace="20 minutos",
+            medio_pago="QR Fiserv",
+            apertura="Pagué hace 20 minutos y sigue cortado el servicio",
+        ),
+    ),
+    Persona(
+        id="P16",
+        nombre="Reclamo de monto",
+        descripcion="No reconoce importe; diferencia persiste → N2 facturación legítimo.",
+        n2_esperado="legitimo_factura",
+        max_turnos=12,
+        dni="32123456",
+        hechos=Hechos(
+            tema_factura="reclamo",
+            reclamo_mes="marzo",
+            reclamo_monto="8500, antes pagaba 4500",
+            reclamo_persiste=True,
+            apertura="Me cobraron de más este mes, no reconozco el monto",
+        ),
+    ),
+    Persona(
+        id="P17",
+        nombre="Sensa app se arregla",
+        descripcion="App Sensa; internet OK; reinicio/actualizar resuelve. N2 no.",
+        n2_esperado="nunca",
+        hechos=Hechos(
+            tema_sensa="app",
+            sensa_internet_ok=True,
+            sensa_dispositivo="Smart TV",
+            sensa_app_abre=False,
+            sensa_sintoma="se queda cargando",
+            sensa_acciones_resuelven=True,
+            apertura="No me anda la app Sensa en la TV",
+        ),
+    ),
+    Persona(
+        id="P18",
+        nombre="Sensa error de cuenta",
+        descripcion="Internet OK; error de cuenta persiste tras N1 → N2 legítimo.",
+        n2_esperado="legitimo_sensa",
+        max_turnos=14,
+        hechos=Hechos(
+            tema_sensa="app",
+            sensa_internet_ok=True,
+            sensa_dispositivo="Smart TV",
+            sensa_app_abre=True,
+            sensa_sintoma="error de cuenta",
+            sensa_acciones_resuelven=False,
+            apertura="Sensa me da error de cuenta y no reproduce nada",
+        ),
+    ),
 ]
 
 
@@ -298,6 +395,87 @@ def responder_como_cliente(
 
     h = persona.hechos
     q = (pregunta_bot or "").lower()
+
+    # —— TV Sensa (P17–P18) ——
+    if h.tema_sensa:
+        if any(k in q for k in ("agente", "deriv", "ticket", "abrimos el ticket", "comercial")):
+            if persona.n2_esperado == "legitimo_sensa" and turno >= 3:
+                return "Sí, abrí el ticket por favor"
+            if h.sensa_acciones_resuelven:
+                return "No hace falta, ya mejoró, gracias"
+            return "Prefiero seguir un poco más"
+
+        if any(k in q for k in ("app/web", "decodificador", "android tv", "vamos con tv", "es la app")):
+            return "Es la app Sensa en la Smart TV" if h.tema_sensa == "app" else "Es el TV Box de la cooperativa"
+
+        if any(k in q for k in ("tenés internet", "tenes internet", "internet funcionando")):
+            return "Sí, internet anda bien en la casa" if h.sensa_internet_ok else "No, tampoco hay internet"
+
+        if any(k in q for k in ("desde qué equipo", "desde que equipo", "smart tv", "celular", "tv box")):
+            return f"Desde {h.sensa_dispositivo or 'la Smart TV'}"
+
+        if any(k in q for k in ("página de internet", "pagina de internet", "abrís alguna", "abris alguna")):
+            return "Sí, navego bien en esa TV" if h.sensa_internet_ok else "No navega"
+
+        if any(k in q for k in ("app o la web", "abre bien", "ni llega")):
+            return "Abre pero falla al ver" if h.sensa_app_abre else "Ni llega a entrar bien a la app"
+
+        if any(k in q for k in ("reproduce", "cargando", "error de cuenta", "calidad")):
+            return h.sensa_sintoma or "No reproduce"
+
+        if any(k in q for k in ("reiniciar", "actualizar sensa", "mejoró", "mejoro", "probá", "proba")):
+            if h.sensa_acciones_resuelven:
+                return "Sí, mejoró: ya reproduce bien, gracias"
+            return "Hice todo eso y sigue igual, error de cuenta"
+
+        return "Es un problema con Sensa en la TV"
+
+    # —— Facturación (P13–P16) ——
+    if h.tema_factura:
+        if any(k in q for k in ("agente", "deriv", "ticket", "facturación", "facturacion")):
+            if persona.n2_esperado == "legitimo_factura" and turno >= 2:
+                return "Sí, derivame con facturación por favor"
+            if h.tema_factura == "reactivar":
+                return "No, espero un rato más, gracias"
+            if h.tema_factura in ("pagar", "informar"):
+                return "No hace falta, gracias"
+            return "Prefiero seguir acá"
+
+        if h.tema_factura == "pagar":
+            if any(k in q for k in ("entrar", "medio de pago", "pudiste", "qr", "pagar")):
+                return "Sí, ya entré al QR de Mercado Pago, gracias"
+            if any(k in q for k in ("qué necesitás", "que necesitas", "pagar, descargar", "reclamar")):
+                return "Quiero pagar la factura"
+            return "Solo necesito pagar con el QR"
+
+        if h.tema_factura == "informar":
+            if any(k in q for k in ("dni", "socio", "medio", "fecha")):
+                return f"DNI {persona.dni}, pagué {h.pago_hace} por {h.medio_pago}"
+            if any(k in q for k in ("necesari", "automátic", "automatic", "avisar", "ov.batan")):
+                return "Ah perfecto, no hace falta avisar entonces, gracias"
+            if any(k in q for k in ("deriv", "figura", "plazo")):
+                return "Entendido, espero la imputación, gracias"
+            return "Solo quería avisar que ya pagué"
+
+        if h.tema_factura == "reactivar":
+            if any(k in q for k in ("hace cuánto", "hace cuanto", "medio", "pagaste")):
+                return f"Hace {h.pago_hace}, por {h.medio_pago}"
+            if any(k in q for k in ("figura", "acredit", "sigue cortado", "reactiv")):
+                return "No sé si figura todavía; pagué hace poco y sigo sin servicio"
+            if any(k in q for k in ("dni", "socio")):
+                return f"Mi DNI es {persona.dni}"
+            return "Pagué recién y todavía no vuelve el servicio"
+
+        if h.tema_factura == "reclamo":
+            if any(k in q for k in ("mes", "monto", "cuánto", "cuanto", "importe")):
+                return f"Es de {h.reclamo_mes}, veo {h.reclamo_monto}"
+            if any(k in q for k in ("plan", "servicio", "tarifa", "ajuste")):
+                return "No cambié de plan ni sumé nada"
+            if any(k in q for k in ("dni", "socio")):
+                return f"DNI {persona.dni}"
+            if any(k in q for k in ("diferencia", "sigue", "derivo")):
+                return "Sí, la diferencia sigue; derivame con facturación"
+            return "No reconozco ese cobro"
 
     if persona.id == "P08" and turno >= 1:
         return "Sigue igual, no tengo internet"
@@ -459,11 +637,22 @@ def responder_como_cliente(
         return "En todos los equipos"
 
     if any(k in q for k in ("agente", "deriv", "ticket", "visita", "técnico", "tecnico")):
-        if persona.n2_esperado in ("optica", "post_n1_radio") and turno >= 3:
+        if persona.n2_esperado in (
+            "optica",
+            "post_n1_radio",
+            "legitimo_factura",
+            "legitimo_sensa",
+        ) and turno >= 3:
             return "Sí, derivame por favor"
         return "Prefiero seguir intentando acá"
 
-    if any(k in q for k in ("internet", "móvil", "movil", "factura", "en qué te", "en que te", "pagar")):
+    if any(k in q for k in ("internet", "móvil", "movil", "factura", "en qué te", "en que te", "pagar", "sensa")):
+        if h.tema_sensa:
+            return "Por la TV Sensa"
+        if h.tema_factura == "pagar":
+            return "Por la factura, quiero pagar"
+        if h.tema_factura:
+            return "Es un tema de facturación"
         if h.deuda_manana and any(k in q for k in ("pagar", "deuda", "saldo")):
             return "Lo pago mañana, sigamos con internet"
         if h.quiere_clave:
@@ -471,6 +660,16 @@ def responder_como_cliente(
         return "Por internet de casa"
 
     # Fallback: no repetir “sigue igual” (eso dispara N2 por frustración).
+    if h.tema_sensa:
+        return "Sigue el problema con Sensa"
+    if h.tema_factura == "pagar":
+        return "Quiero pagar con el QR de la factura"
+    if h.tema_factura == "informar":
+        return "Ya pagué, solo avisaba"
+    if h.tema_factura == "reactivar":
+        return f"Pagué hace {h.pago_hace or 'poco'} y sigue cortado"
+    if h.tema_factura == "reclamo":
+        return "No reconozco el monto de la factura"
     if h.quiere_clave:
         return "Quiero cambiar la clave del WiFi"
     if h.sintoma_whatsapp:
@@ -632,6 +831,24 @@ def evaluar_resultado(
         elif ticket:
             n2_legitimo = True
         # no ticket al final no es falla dura: el bot puede seguir preguntando
+    elif persona.n2_esperado == "legitimo_factura":
+        if ticket:
+            n2_legitimo = True
+            if turno_ticket is not None and turno_ticket == 0:
+                n2_evitable = True
+                n2_legitimo = False
+                fallas.append("N2 prematuro en reclamo de factura")
+        elif len(turnos) >= persona.max_turnos:
+            fallas.append("Reclamo de monto: no ofreció handoff facturación")
+    elif persona.n2_esperado == "legitimo_sensa":
+        if ticket:
+            n2_legitimo = True
+            if turno_ticket is not None and turno_ticket == 0:
+                n2_evitable = True
+                n2_legitimo = False
+                fallas.append("N2 prematuro en Sensa")
+        elif len(turnos) >= persona.max_turnos:
+            fallas.append("Sensa: no ofreció handoff tras agotar N1")
 
     if persona.id == "P07" and ticket and (turno_ticket or 0) == 0:
         n2_evitable = True
@@ -645,6 +862,12 @@ def evaluar_resultado(
     if persona.n2_esperado == "optica" and ticket and not n2_evitable:
         ok = True
         fallas = [f for f in fallas if "no ofreció visita" not in f]
+    if persona.n2_esperado == "legitimo_factura" and ticket and not n2_evitable:
+        ok = True
+        fallas = [f for f in fallas if "no ofreció handoff" not in f]
+    if persona.n2_esperado == "legitimo_sensa" and ticket and not n2_evitable:
+        ok = True
+        fallas = [f for f in fallas if "no ofreció handoff" not in f]
 
     transcript = []
     for t in turnos:

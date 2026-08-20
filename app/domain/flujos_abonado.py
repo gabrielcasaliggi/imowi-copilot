@@ -2069,6 +2069,16 @@ def detecta_frustracion(texto: str, ctx: dict) -> bool:
         "internet_adsl",
         "cambio_clave_wifi",
         "ecolan_b2b",
+        "facturacion",
+        "facturacion_pago",
+        "facturacion_descarga",
+        "facturacion_informar_pago",
+        "facturacion_factura",
+        "facturacion_estado_cuenta",
+        "facturacion_reclamo",
+        "reactivacion_pago",
+        "corte_deuda",
+        "tv_sensa",
     ):
         return False
     if not misma_queja(texto, ctx):

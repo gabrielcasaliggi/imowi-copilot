@@ -1,336 +1,181 @@
 {
-  "personas": 4,
-  "ok": 4,
+  "personas": 6,
+  "ok": 6,
   "n2_evitables": 0,
-  "n2_legitimos": 0,
+  "n2_legitimos": 2,
   "tasa_ok": 1.0,
   "detalle": [
     {
-      "persona_id": "P09",
-      "nombre": "Intermitencia estabiliza",
-      "n2_esperado": "nunca",
-      "ticket_creado": false,
-      "ticket_id": "",
-      "estado_final": "bot",
-      "intencion_final": "wifi",
-      "turnos": 10,
-      "n2_evitable": false,
-      "n2_legitimo": false,
-      "ok": true,
-      "fallas": [],
-      "transcript": [
-        {
-          "rol": "usuario",
-          "texto": "Se me corta el internet a cada rato y después vuelve"
-        },
-        {
-          "rol": "bot",
-          "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
-          "estado": "bot"
-        }
-      ]
-    },
-    {
-      "persona_id": "P10",
-      "nombre": "ADSL sync vuelve",
-      "n2_esperado": "nunca",
-      "ticket_creado": false,
-      "ticket_id": "",
-      "estado_final": "bot",
-      "intencion_final": "internet_adsl",
-      "turnos": 10,
-      "n2_evitable": false,
-      "n2_legitimo": false,
-      "ok": true,
-      "fallas": [],
-      "transcript": [
-        {
-          "rol": "usuario",
-          "texto": "Se me cayó el internet, tengo ADSL por la línea del teléfono"
-        },
-        {
-          "rol": "bot",
-          "texto": "Vamos con ADSL. ¿El teléfono fijo tiene tono?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Sí, el fijo tiene tono"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿El microfiltro/splitter está bien colocado?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Sí, el filtro está puesto"
-        },
-        {
-          "rol": "bot",
-          "texto": "Apagá el módem 30 segundos, prendelo y esperá un rato. ¿Volvió?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Listo, reinicié el módem. La luz DSL quedó fija y ya navego"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿La luz DSL/Sync quedó fija o sigue parpadeando?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Quedó fija la lucecita DSL y ya navego"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿Probaste el módem en la toma principal de la calle?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Sí, lo probé en la toma de la calle"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿La luz DSL quedó fija y ya podés navegar?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Quedó fija la lucecita DSL y ya navego"
-        },
-        {
-          "rol": "bot",
-          "texto": "Si no vuelve, ¿querés que te derive con un técnico?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Prefiero seguir intentando acá"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir ayudándote necesito un poco más de detalle. Si no vuelve, ¿querés que te derive con un técnico?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Prefiero seguir intentando acá"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir ayudándote necesito un poco más de detalle. Si no vuelve, ¿querés que te derive con un técnico?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Prefiero seguir intentando acá"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir ayudándote necesito un poco más de detalle. Si no vuelve, ¿querés que te derive con un técnico?",
-          "estado": "bot"
-        }
-      ]
-    },
-    {
-      "persona_id": "P11",
-      "nombre": "Cambio clave WiFi",
-      "n2_esperado": "nunca",
-      "ticket_creado": false,
-      "ticket_id": "",
-      "estado_final": "bot",
-      "intencion_final": "cambio_clave_wifi",
-      "turnos": 10,
-      "n2_evitable": false,
-      "n2_legitimo": false,
-      "ok": true,
-      "fallas": [],
-      "transcript": [
-        {
-          "rol": "usuario",
-          "texto": "Quiero cambiar la clave del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿Querés cambiar la contraseña, el nombre de la red, o las dos cosas?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "La contraseña del WiFi"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
-          "estado": "bot"
-        }
-      ]
-    },
-    {
-      "persona_id": "P12",
-      "nombre": "Adulto mayor WhatsApp",
+      "persona_id": "P13",
+      "nombre": "Quiere pagar factura",
       "n2_esperado": "nunca",
       "ticket_creado": false,
       "ticket_id": "",
       "estado_final": "cerrado",
-      "intencion_final": "wifi",
+      "intencion_final": "facturacion",
+      "turnos": 2,
+      "n2_evitable": false,
+      "n2_legitimo": false,
+      "ok": true,
+      "fallas": [],
+      "transcript": [
+        {
+          "rol": "usuario",
+          "texto": "Hola, quiero pagar la factura"
+        },
+        {
+          "rol": "bot",
+          "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "No hace falta, gracias"
+        },
+        {
+          "rol": "bot",
+          "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado"
+        }
+      ]
+    },
+    {
+      "persona_id": "P14",
+      "nombre": "Avisa que pagó",
+      "n2_esperado": "nunca",
+      "ticket_creado": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "corte_deuda",
+      "turnos": 2,
+      "n2_evitable": false,
+      "n2_legitimo": false,
+      "ok": true,
+      "fallas": [],
+      "transcript": [
+        {
+          "rol": "usuario",
+          "texto": "Hola, ya pagué, les aviso el pago"
+        },
+        {
+          "rol": "bot",
+          "texto": "Tu cuenta figura con estado «suspendido» y saldo pendiente 0,00 pesos. Podés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "No hace falta, gracias"
+        },
+        {
+          "rol": "bot",
+          "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado"
+        }
+      ]
+    },
+    {
+      "persona_id": "P15",
+      "nombre": "Reactivación reciente",
+      "n2_esperado": "nunca",
+      "ticket_creado": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "corte_deuda",
+      "turnos": 2,
+      "n2_evitable": false,
+      "n2_legitimo": false,
+      "ok": true,
+      "fallas": [],
+      "transcript": [
+        {
+          "rol": "usuario",
+          "texto": "Pagué hace 20 minutos y sigue cortado el servicio"
+        },
+        {
+          "rol": "bot",
+          "texto": "Tu cuenta figura con estado «suspendido» y saldo pendiente 0,00 pesos. Podés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "No, espero un rato más, gracias"
+        },
+        {
+          "rol": "bot",
+          "texto": "De nada Jorge. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado"
+        }
+      ]
+    },
+    {
+      "persona_id": "P16",
+      "nombre": "Reclamo de monto",
+      "n2_esperado": "legitimo_factura",
+      "ticket_creado": true,
+      "ticket_id": "IBOT-1106",
+      "estado_final": "espera_agente",
+      "intencion_final": "facturacion",
+      "turnos": 5,
+      "n2_evitable": false,
+      "n2_legitimo": true,
+      "ok": true,
+      "fallas": [],
+      "transcript": [
+        {
+          "rol": "usuario",
+          "texto": "Me cobraron de más este mes, no reconozco el monto"
+        },
+        {
+          "rol": "bot",
+          "texto": "Tu cuenta figura con estado «suspendido» y saldo pendiente 0,00 pesos. Podés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Prefiero seguir acá"
+        },
+        {
+          "rol": "bot",
+          "texto": "¿Me pasás el DNI o N.º de socio para ubicar el saldo y el QR?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "DNI 32123456"
+        },
+        {
+          "rol": "bot",
+          "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nComo el servicio figura cortado por deuda, con el aviso se habilita solo. Entrá acá:\nhttps://ov.batan.coop/#/aviso-de-pago\nCompletá DNI, monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Es de marzo, veo 8500, antes pagaba 4500"
+        },
+        {
+          "rol": "bot",
+          "texto": "Con lo que contás hace falta revisar la cuenta adentro. ¿Te derivo con facturación?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Sí, derivame con facturación por favor"
+        },
+        {
+          "rol": "bot",
+          "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1106. Te van a responder por este mismo chat.",
+          "estado": "espera_agente"
+        }
+      ]
+    },
+    {
+      "persona_id": "P17",
+      "nombre": "Sensa app se arregla",
+      "n2_esperado": "nunca",
+      "ticket_creado": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "tv_sensa",
       "turnos": 8,
       "n2_evitable": false,
       "n2_legitimo": false,
@@ -339,75 +184,172 @@
       "transcript": [
         {
           "rol": "usuario",
-          "texto": "Hola, no me anda internet, soy mayor y no entiendo mucho"
+          "texto": "No me anda la app Sensa en la TV"
         },
         {
           "rol": "bot",
-          "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "texto": "Dale, vamos con TV. ¿Es la app/web Sensa o la TV con decodificador / Android TV Box de la cooperativa?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
+          "texto": "Es la app Sensa en la Smart TV"
         },
         {
           "rol": "bot",
-          "texto": "¿El WiFi falla en toda la casa o solo lejos del router?",
+          "texto": "En el equipo donde querés verla, ¿tenés internet funcionando?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Cuando lo llamo a veces no funciona el WhatsApp"
+          "texto": "Sí, internet anda bien en la casa"
         },
         {
           "rol": "bot",
-          "texto": "¿Por cable al router hay internet, o tampoco navega?",
+          "texto": "¿Desde qué equipo: Smart TV, celular/tablet, PC o TV Box?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Por los dos a veces, pero más por WiFi"
+          "texto": "Desde Smart TV"
         },
         {
           "rol": "bot",
-          "texto": "¿Les pasa a todos los equipos o solo a uno?",
+          "texto": "En ese mismo equipo, ¿abrís alguna página de internet sin problema?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Tiene luces, no sé cuáles"
+          "texto": "Sí, navego bien en esa TV"
         },
         {
           "rol": "bot",
-          "texto": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "texto": "¿La app o la web de Sensa abre bien, o ni llega a entrar?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Sigue cortándose"
+          "texto": "Ni llega a entrar bien a la app"
         },
         {
           "rol": "bot",
-          "texto": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+          "texto": "Cuando querés ver algo: ¿no reproduce, se queda cargando, error de cuenta o calidad baja?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Es solo el WiFi, por cable va"
+          "texto": "se queda cargando"
         },
         {
           "rol": "bot",
-          "texto": "Si tenés 2.4 y 5 GHz, ¿probaste la otra red?",
+          "texto": "Probá reiniciar ese equipo y el router, cerrar otras apps que usen mucha red y actualizar Sensa. ¿Mejoró?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "Sí me contestó, ya anda"
+          "texto": "Sí, mejoró: ya reproduce bien, gracias"
         },
         {
           "rol": "bot",
           "texto": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
           "estado": "cerrado"
+        }
+      ]
+    },
+    {
+      "persona_id": "P18",
+      "nombre": "Sensa error de cuenta",
+      "n2_esperado": "legitimo_sensa",
+      "ticket_creado": true,
+      "ticket_id": "IBOT-1107",
+      "estado_final": "espera_agente",
+      "intencion_final": "tv_sensa",
+      "turnos": 9,
+      "n2_evitable": false,
+      "n2_legitimo": true,
+      "ok": true,
+      "fallas": [],
+      "transcript": [
+        {
+          "rol": "usuario",
+          "texto": "Sensa me da error de cuenta y no reproduce nada"
+        },
+        {
+          "rol": "bot",
+          "texto": "Dale, vamos con TV. ¿Es la app/web Sensa o la TV con decodificador / Android TV Box de la cooperativa?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Es la app Sensa en la Smart TV"
+        },
+        {
+          "rol": "bot",
+          "texto": "En el equipo donde querés verla, ¿tenés internet funcionando?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Sí, internet anda bien en la casa"
+        },
+        {
+          "rol": "bot",
+          "texto": "¿Desde qué equipo: Smart TV, celular/tablet, PC o TV Box?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Desde Smart TV"
+        },
+        {
+          "rol": "bot",
+          "texto": "En ese mismo equipo, ¿abrís alguna página de internet sin problema?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Sí, navego bien en esa TV"
+        },
+        {
+          "rol": "bot",
+          "texto": "¿La app o la web de Sensa abre bien, o ni llega a entrar?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Abre pero falla al ver"
+        },
+        {
+          "rol": "bot",
+          "texto": "Cuando querés ver algo: ¿no reproduce, se queda cargando, error de cuenta o calidad baja?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "error de cuenta"
+        },
+        {
+          "rol": "bot",
+          "texto": "Probá reiniciar ese equipo y el router, cerrar otras apps que usen mucha red y actualizar Sensa. ¿Mejoró?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Hice todo eso y sigue igual, error de cuenta"
+        },
+        {
+          "rol": "bot",
+          "texto": "Si sigue igual te derivo con dispositivo, síntoma y lo que ya probamos. Packs premium o habilitación de cuenta los ve comercial. ¿Abrimos el ticket?",
+          "estado": "bot"
+        },
+        {
+          "rol": "usuario",
+          "texto": "Sí, abrí el ticket por favor"
+        },
+        {
+          "rol": "bot",
+          "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1107. Te van a responder por este mismo chat.",
+          "estado": "espera_agente"
         }
       ]
     }

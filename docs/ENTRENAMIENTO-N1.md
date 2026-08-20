@@ -11,8 +11,8 @@ Proceso para bajar **tickets N2 evitables** sin tapar visitas ópticas ni handof
 5. Métrica de corte: **0 N2 evitables**. N2 ópticos / radio agotado / B2B productivo = OK.
 
 ```bash
-.venv/bin/python -m qa_bot.cliente_hogareno              # P01–P12
-.venv/bin/python -m qa_bot.cliente_hogareno --personas P09,P12
+.venv/bin/python -m qa_bot.cliente_hogareno              # P01–P18
+.venv/bin/python -m qa_bot.cliente_hogareno --personas P13,P16,P17,P18
 .venv/bin/python -m qa_bot.cliente_corporativo           # C01–C04
 ```
 
@@ -20,7 +20,8 @@ Reglas:
 
 - No mezclar harness hogareño y B2B (tono y umbral de escalado distintos).
 - En tests, forzar playbooks de código (override admin puede pisar el catálogo).
-- El canal N1 usa KB **tenant** (`incluir_rag_global=False`); no indexar dumps de tickets.
+- El canal N1 usa KB **tenant** (`incluir_rag_global=False`); no indexar dumps de tickets ni embeddings Botmaker crudos.
+- Fuente Botmaker (`docs/rag-botmaker-2026-08-14/`): solo **procedimientos curados** → seed/playbook/persona. Todo `rag_ready=false` hasta aprobación.
 
 ## Matriz hogareña
 
@@ -38,6 +39,12 @@ Reglas:
 | ADSL sin sync | `internet_adsl` | Internet ADSL — sin servicio | P10 | nunca si sync vuelve; else legítimo |
 | Cambio clave WiFi | `cambio_clave_wifi` | WiFi — cambiar clave o nombre | P11 | nunca |
 | Adulto mayor / WhatsApp | `wifi` / internet | N1 hogareño — adulto mayor y WhatsApp | P12 | nunca |
+| Pagar factura | `facturacion_pago` | Facturación — medios de pago; N1 cuándo cerrar/derivar | P13 | nunca |
+| Avisar pago | `facturacion_informar_pago` | Facturación — informar un pago | P14 | nunca |
+| Reactivación reciente | `reactivacion_pago` | Corte por deuda — rehabilitación automática | P15 | nunca (espera plazo) |
+| Reclamo de monto | `facturacion_reclamo` | Facturación — reclamo de monto | P16 | legítimo facturación |
+| Sensa app (N1 alcanza) | `tv_sensa` | TV OTT Sensa; Sensa N1 cuándo cerrar/derivar | P17 | nunca |
+| Sensa error de cuenta | `tv_sensa` | TV OTT Sensa — requisitos y escalamiento | P18 | legítimo |
 
 ## Matriz corporativa (Ecolan B2B)
 
@@ -48,13 +55,13 @@ Reglas:
 | Enlace dedicado sede caída | `ecolan_b2b` | B2B — enlace dedicado / IP fija | C03 | legítimo Ecolan |
 | VM/DC impacto productivo | `ecolan_b2b` | B2B — VM/DC caída con impacto | C04 | legítimo |
 
-## Cómo curar desde un chat bueno
+## Cómo curar desde un chat bueno o blueprint Botmaker
 
 1. Extraer el **procedimiento** (pasos + cuándo no escalar).
-2. Quitar PII (DNI, nombre, IP, montos).
+2. Quitar PII (DNI, nombre, IP, montos reales de clientes).
 3. Seed en [`app/estate/seed.py`](../app/estate/seed.py) o propuesta KB al cerrar ticket.
-4. Opcional: persona QA que valide el artículo.
+4. Persona QA que valide el artículo / playbook.
 
-## Fuera de alcance (Fase 2)
+## Fuera de alcance (siguiente)
 
-TV Sensa, factura fina, consola operador IMOWI, embeddings Botmaker.
+Telefonía fija/móvil fina, embeddings Botmaker en prod, consola operador IMOWI.

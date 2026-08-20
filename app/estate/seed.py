@@ -915,6 +915,24 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "Playbook: facturacion_estado_cuenta."
             ),
         ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Facturación N1 — cuándo cerrar y cuándo derivar",
+            categoria="Facturación",
+            contenido=(
+                "Curado desde blueprints Botmaker (pago / aviso / reactivación / reclamo).\n"
+                "1) Pagar: entregar solo medios oficiales (QR Fiserv, Rapipago/Pago Fácil, "
+                "ov.batan.coop). Confirmar acceso al medio; NO afirmar que el pago ya se acreditó.\n"
+                "2) Avisar pago: NO hace falta; imputación y rehabilitación son automáticas. "
+                "Cerrar N1 si el abonado entiende el plazo.\n"
+                "3) Reactivación: si pagó hace minutos/poco rato → explicar plazo del medio y "
+                "esperar. Derivar N2 solo si pasaron varias horas y sigue cortado, o el pago "
+                "no figura.\n"
+                "4) Reclamo de monto: pedir mes/importe y si hubo cambio de plan; si la "
+                "diferencia sigue → N2 facturación con esos datos; no prometer ajuste.\n"
+                "Nunca inventar CBU, montos ni fechas de acreditación."
+            ),
+        ),
 
         # ==================== TV OTT SENSA ====================
         KnowledgeArticle(
@@ -952,6 +970,21 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "- Alta/baja de Sensa, packs premium (HBO, Universal, etc.) o autorización "
                 "  de dispositivos → derivar a comercial/CRM (no resolver solo con el bot).\n"
                 "Grilla y packs: consultar batan.coop (sección Televisión)."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="TV Sensa N1 — cuándo cerrar y cuándo derivar",
+            categoria="TV",
+            contenido=(
+                "Curado desde blueprint Botmaker tv_sensa.\n"
+                "1) Triaje: app/web vs box/decodificador; confirmar internet en el mismo equipo.\n"
+                "2) Acciones N1: reiniciar equipo+router, cerrar apps pesadas, actualizar Sensa.\n"
+                "3) Cerrar N1 solo si confirma acceso y reproducción.\n"
+                "4) Derivar N2 técnico si persiste con internet OK (dispositivo, síntoma, "
+                "acciones hechas). Error de cuenta / packs premium → comercial/CRM, "
+                "no inventar estado de suscripción.\n"
+                "Nunca diagnosticar fibra/ONT si el abonado solo reporta Sensa y navega bien."
             ),
         ),
 
