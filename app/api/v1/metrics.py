@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.auth import UsuarioSesion, obtener_usuario_requerido, requiere_admin
+from app.auth import UsuarioSesion, requiere_admin
 from app.llm_metrics import history_llm_metrics, snapshot_llm_metrics
 
 router = APIRouter(tags=["Metrics"])
