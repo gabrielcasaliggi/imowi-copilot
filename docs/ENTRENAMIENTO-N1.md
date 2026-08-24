@@ -45,6 +45,7 @@ Reglas:
 | Reclamo de monto | `facturacion_reclamo` | Facturación — reclamo de monto | P16 | legítimo facturación |
 | Sensa app (N1 alcanza) | `tv_sensa` | TV OTT Sensa; Sensa N1 cuándo cerrar/derivar | P17 | nunca |
 | Sensa error de cuenta | `tv_sensa` | TV OTT Sensa — requisitos y escalamiento | P18 | legítimo |
+| Móvil sin datos, APN Android OK, pack acreditado | `movil_datos` | IMOWI — sin datos móviles | caso Patricia | N2 provisión (no 3G/iPhone) |
 
 ## Matriz corporativa (Ecolan B2B)
 

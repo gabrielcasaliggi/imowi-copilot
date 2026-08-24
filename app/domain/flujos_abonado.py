@@ -433,9 +433,12 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("datos_activados", "¿Datos móviles prendidos y sin modo avión?"),
         PasoPlaybook(
             "consumo_paquete",
-            "¿Te quedan datos del abono? Si se acabaron, WhatsApp mensajería suele seguir; "
-            "para navegar el resto comprá un bono en Autogestión Batán (ov.batan.coop) "
-            "u oficina — no uses la autogestión de imowi.com.ar.",
+            "¿Te quedan datos del abono o cargaste un pack/bono? "
+            "Si se acabaron: WhatsApp mensajería suele seguir; para navegar el resto "
+            "comprá un bono en Autogestión Batán (ov.batan.coop) u oficina — "
+            "no uses la autogestión de imowi.com.ar. "
+            "Si el pack/bono figura OK en el sistema pero NO navegás, no sigas tocando "
+            "el celular (ni 3G ni iPhone): es para derivar a un agente con la línea.",
         ),
         PasoPlaybook(
             "so_dispositivo",

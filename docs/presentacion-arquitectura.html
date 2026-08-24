@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arquitectura de conexiones — Operations Hub</title>
+  <style>
+    :root {
+      --bg: #0d1b2a;
+      --panel: #132536;
+      --panel-2: #173042;
+      --core: #15444c;
+      --stroke: rgba(34, 152, 166, 0.45);
+      --stroke-strong: #2298a6;
+      --gold: #d4a017;
+      --gold-stroke: rgba(212, 160, 23, 0.7);
+      --text: #e8eef2;
+      --muted: #8aa0ad;
+      --dim: #5e7380;
+      --white: #f4f7f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #070e16;
+      color: var(--text);
+      font-family: "Segoe UI", Inter, system-ui, sans-serif;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      width: 1920px;
+      height: 1080px;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    @media (max-width: 1920px), (max-height: 1080px) {
+      .slide {
+        transform-origin: center center;
+        transform: scale(min(100vw / 1920, 100vh / 1080));
+      }
+    }
+    .accent-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 6px;
+      background: var(--stroke-strong);
+    }
+    header {
+      position: absolute;
+      top: 36px;
+      left: 56px;
+      right: 56px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 42px;
+      font-weight: 650;
+      letter-spacing: -0.4px;
+      color: var(--white);
+      line-height: 1.1;
+    }
+    header p {
+      margin-top: 8px;
+      font-size: 18px;
+      color: var(--muted);
+    }
+    header .badge {
+      font-size: 13px;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--stroke-strong);
+      border: 1px solid var(--stroke);
+      padding: 8px 14px;
+      border-radius: 4px;
+    }
+    .cols {
+      position: absolute;
+      top: 148px;
+      left: 56px;
+      right: 56px;
+      bottom: 92px;
+      display: grid;
+      grid-template-columns: 400px 44px 1fr 44px 440px;
+      gap: 0;
+      overflow: visible;
+    }
+    .col-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2.4px;
+      text-transform: uppercase;
+      color: var(--stroke-strong);
+      margin-bottom: 16px;
+    }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .stack.systems { gap: 8px; height: calc(100% - 32px); }
+    .stack.systems .card { flex: 1; padding: 10px 14px; min-height: 0; }
+    .stack.systems .card h3 { font-size: 16px; }
+    .stack.systems .card .meta { font-size: 12px; }
+    .card {
+      position: relative;
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      padding: 12px 16px;
+      min-height: 70px;
+    }
+    .card.gold {
+      border-color: var(--gold-stroke);
+      background: #1a2618;
+    }
+    .card.ops { background: var(--panel-2); }
+    .card[data-from]::after,
+    .card[data-to]::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 36px;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+    .card[data-from]::before,
+    .card[data-to]::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+    }
+    .card[data-from]::after {
+      left: 100%;
+      background: var(--stroke-strong);
+    }
+    .card[data-from]::before {
+      left: calc(100% + 32px);
+      border-left: 7px solid var(--stroke-strong);
+    }
+    .card[data-to]::after {
+      right: 100%;
+      background: #8aa0ad;
+    }
+    .card[data-to]::before {
+      right: calc(100% + 32px);
+      border-right: 7px solid #8aa0ad;
+    }
+    .card[data-to].gold::after { background: var(--gold); }
+    .card[data-to].gold::before { border-right-color: var(--gold); }
+    .card.knowledge {
+      border-color: rgba(126, 207, 216, 0.45);
+      background: #14343c;
+    }
+    .card[data-to].knowledge::after { background: #7ecfd8; }
+    .card[data-to].knowledge::before { border-right-color: #7ecfd8; }
+    .tag.knowledge { color: #7ecfd8; }
+    .card h3 {
+      font-size: 18px;
+      font-weight: 650;
+      color: var(--white);
+    }
+    .card .meta {
+      margin-top: 4px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--stroke-strong);
+      margin-bottom: 4px;
+    }
+    .tag.gold { color: var(--gold); }
+    .tag.dim { color: var(--dim); }
+    .group-label {
+      font-size: 12px;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 6px 0 2px 2px;
+    }
+    .core {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .nginx {
+      background: var(--panel-2);
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nginx h3 { font-size: 20px; font-weight: 650; color: var(--white); }
+    .nginx span { font-size: 14px; color: var(--muted); }
+    .fastapi {
+      flex: 1;
+      background: var(--core);
+      border: 1.5px solid var(--stroke-strong);
+      border-radius: 14px;
+      padding: 22px 22px 18px;
+      display: flex;
+      flex-direction: column;
+    }
+    .fastapi .kicker {
+      font-size: 12px;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: #7ecfd8;
+      margin-bottom: 6px;
+    }
+    .fastapi h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--white);
+    }
+    .fastapi .sub {
+      font-size: 15px;
+      color: #b7d8dd;
+      margin: 4px 0 18px;
+    }
+    .inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      flex: 1;
+    }
+    .inner div {
+      background: rgba(13, 27, 42, 0.45);
+      border: 1px solid rgba(34, 152, 166, 0.28);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .inner strong {
+      display: block;
+      font-size: 16px;
+      color: var(--white);
+      font-weight: 650;
+      margin-bottom: 4px;
+    }
+    .inner span {
+      font-size: 13px;
+      color: #9fc4ca;
+      line-height: 1.35;
+    }
+    footer {
+      position: absolute;
+      left: 56px;
+      right: 56px;
+      bottom: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(34, 152, 166, 0.22);
+      padding-top: 16px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .legend { display: flex; gap: 28px; }
+    .legend i {
+      display: inline-block;
+      width: 22px;
+      height: 2px;
+      vertical-align: middle;
+      margin-right: 8px;
+      margin-bottom: 3px;
+    }
+    .legend .bi { background: var(--stroke-strong); }
+    .legend .ro { background: var(--gold); }
+    .legend .kn { background: #7ecfd8; }
+    .legend .out { background: #8aa0ad; }
+    .flow-note { color: var(--dim); }
+  </style>
+</head>
+<body>
+  <article class="slide" aria-label="Diagrama de arquitectura">
+    <div class="accent-bar"></div>
+    <header>
+      <div>
+        <h1>Arquitectura de conexiones</h1>
+        <p>Operations Hub · con quién habla el desarrollo</p>
+      </div>
+      <div class="badge">Esquema operativo</div>
+    </header>
+
+    <div class="cols">
+      <section>
+        <div class="col-title">Canales</div>
+        <p class="group-label">Abonado</p>
+        <div class="stack">
+          <div class="card" data-from="core">
+            <div class="tag">Webhook ↔ Graph API</div>
+            <h3>WhatsApp</h3>
+            <p class="meta">Meta Cloud API · mensaje, audio, encuesta CSAT</p>
+          </div>
+          <div class="card" data-from="core">
+            <div class="tag">Webhook ↔ Bot API</div>
+            <h3>Telegram</h3>
+            <p class="meta">Mismo motor Eko · texto y botones inline</p>
+          </div>
+          <div class="card" data-from="core">
+            <div class="tag">HTTPS</div>
+            <h3>Portal web</h3>
+            <p class="meta">Next.js /portal · chat N1 del abonado</p>
+          </div>
+          <div class="card" data-from="core">
+            <div class="tag">HTTPS · canal = app</div>
+            <h3>App nativa</h3>
+            <p class="meta">Expo · mismo Eko, voz y dispositivo</p>
+          </div>
+        </div>
+        <p class="group-label">Operación</p>
+        <div class="stack">
+          <div class="card ops" data-from="core">
+            <div class="tag dim">Consola</div>
+            <h3>Agentes y admin</h3>
+            <p class="meta">Bandeja, tickets N2, settings, incidentes</p>
+          </div>
+          <div class="card ops" data-from="core">
+            <div class="tag dim">Salida</div>
+            <h3>Email SMTP</h3>
+            <p class="meta">OTP del portal e invitaciones a consola</p>
+          </div>
+        </div>
+      </section>
+
+      <div></div>
+
+      <section class="core">
+        <div class="col-title">Núcleo del desarrollo</div>
+        <div class="nginx">
+          <h3>Nginx · HTTPS</h3>
+          <span>Frontend y API</span>
+        </div>
+        <div class="fastapi" id="core">
+          <div class="kicker">Centro de orquestación</div>
+          <h2>FastAPI · Eko N1</h2>
+          <p class="sub">Un solo motor para todos los canales. Consulta sistemas, responde o escala a un agente.</p>
+          <div class="inner">
+            <div>
+              <strong>Motor conversacional</strong>
+              <span>Intención, diagnóstico de línea, decisión N1/N2</span>
+            </div>
+            <div>
+              <strong>Consulta de fuentes</strong>
+              <span>Lee padrón, red, KB y playbooks · no inventa datos</span>
+            </div>
+            <div>
+              <strong>Bandeja y tickets</strong>
+              <span>Handoff N2, CSAT, Data Estate propio</span>
+            </div>
+            <div>
+              <strong>Voz</strong>
+              <span>Whisper STT · TTS Edge es-AR (Elena)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div></div>
+
+      <section>
+        <div class="col-title">Sistemas y fuentes</div>
+        <div class="stack systems">
+          <div class="card gold" data-to="gold">
+            <div class="tag gold">PostgreSQL · solo lectura</div>
+            <h3>BillTrack</h3>
+            <p class="meta">Padrón de clientes y servicios. Identifica al abonado; no escribe en esta base.</p>
+          </div>
+          <div class="card gold" data-to="gold">
+            <div class="tag gold">HTTP API</div>
+            <h3>Radius</h3>
+            <p class="meta">Sesión PPPoE y NAS. ¿La línea está online? IP, uptime, nodo.</p>
+          </div>
+          <div class="card knowledge" data-to="knowledge">
+            <div class="tag knowledge">Artículos del tenant</div>
+            <h3>Base de conocimiento</h3>
+            <p class="meta">FAQ y documentación operativa. El bot recupera fragmentos; no inventa montos ni estados.</p>
+          </div>
+          <div class="card knowledge" data-to="knowledge">
+            <div class="tag knowledge">Manual de procedimiento</div>
+            <h3>Playbooks N1</h3>
+            <p class="meta">Pasos de diagnóstico, resolución y criterio de escalamiento a N2.</p>
+          </div>
+          <div class="card" data-to="mute">
+            <div class="tag">PostgreSQL propio</div>
+            <h3>Data Estate</h3>
+            <p class="meta">Tickets, usuarios e hilos de canal. Independiente de BillTrack.</p>
+          </div>
+          <div class="card" data-to="mute">
+            <div class="tag">API OpenAI-compatible</div>
+            <h3>LLM</h3>
+            <p class="meta">Redacción y comprensión. Las reglas y las fuentes mandan antes que la IA.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <div class="legend">
+        <span><i class="bi"></i>Canales bidireccionales</span>
+        <span><i class="ro"></i>Sistemas externos (solo lectura)</span>
+        <span><i class="kn"></i>KB y playbooks</span>
+        <span><i class="out"></i>Persistencia y LLM</span>
+      </div>
+      <div class="flow-note">Abonado → Eko consulta padrón, red, KB y playbooks → responde o escala a N2</div>
+    </footer>
+  </article>
+</body>
+</html>

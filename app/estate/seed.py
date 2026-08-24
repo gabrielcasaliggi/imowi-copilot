@@ -700,7 +700,11 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "4) Bonos: Autogestión Batán https://ov.batan.coop u oficina Cooperativa Batán. "
                 "   NO orientar a la autogestión de imowi.com.ar (es de otra cooperativa).\n"
                 "5) Apagar WiFi del celular y probar solo datos.\n"
-                "6) Si persiste → escalar N2 con MSISDN y si la señal está OK."
+                "6) Pack/bono acreditado (sistema OK) pero sin datos en el celular: "
+                "   NO pedir 3G, NO repetir APN de iPhone si ya dijo Android/Moto, "
+                "   NO reiniciar el cuestionario. Escalar N2 con MSISDN: es provisión, "
+                "   no configuración del equipo.\n"
+                "7) Si persiste sin pack reciente → escalar N2 con MSISDN y si la señal está OK."
             ),
         ),
         KnowledgeArticle(

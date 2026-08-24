@@ -48,7 +48,7 @@ from app.estate import canal_repo as crepo
 from app.estate.models import Abonado, ConversacionCanal
 from app.services import ticket_bridge
 from app.services.diagnostico_n1 import diagnosticar_turno, es_intencion_diagnostico
-from app.services.eco_voice import mensaje_saldo_padron
+from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
 from app.services.encuesta_satisfaccion import (
     ORIGEN_BOT,
     enviar_encuesta_cierre,
@@ -1558,6 +1558,43 @@ def _mensaje_operativo_sin_tts(texto: str) -> bool:
     return False
 
 
+def _es_consulta_medios_pago_publico(texto: str) -> bool:
+    """Cómo pagar / corte por deuda: FAQ pública, no hace falta ver el padrón."""
+    t = (texto or "").lower()
+    if not t.strip():
+        return False
+    intent = clasificar_intencion(texto)
+    if intent in ("corte_deuda", "facturacion_pago"):
+        return True
+    return any(
+        k in t
+        for k in (
+            "como pago",
+            "cómo pago",
+            "quiero pagar",
+            "necesito pagar",
+            "medios de pago",
+            "falta de pago",
+            "pagar la factura",
+            "pagar factura",
+            "pagar con qr",
+        )
+    )
+
+
+def _mensaje_pago_publico_sin_cuenta(*, en_cola: bool = False) -> str:
+    extra = (
+        "Mientras te responde el agente, podés pagar así:\n"
+        if en_cola
+        else ""
+    )
+    return (
+        f"{extra}{PLANTILLA_PAGO_QR}\n"
+        "Si sos abonado, pasame el DNI del titular y te ubico la cuenta. "
+        "No invento montos ni CBU."
+    )
+
+
 def _responder_espera_agente(
     db: Session,
     org_id: str,
@@ -1584,6 +1621,31 @@ def _responder_espera_agente(
     # Nunca TTS en cola humana: el flag de audio entrante + reintentos Meta
     # generaba un loop de la misma nota de voz (~9s).
     ctx.pop("responder_en_audio", None)
+
+    # FAQ pública (cómo pagar / corte por deuda): no esperar al agente ni inventar saldo.
+    if _es_consulta_medios_pago_publico(texto) and not ctx.get("faq_pago_enviado"):
+        resp = _mensaje_pago_publico_sin_cuenta(en_cola=True)
+        ctx["faq_pago_enviado"] = True
+        ctx["intencion"] = clasificar_intencion(texto) or "corte_deuda"
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        if tid:
+            _append_evidencia_ticket(
+                db,
+                org_id,
+                tid,
+                f"[N1] Medios de pago oficiales enviados en cola: {(texto or '').strip()[:200]}",
+            )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": tid,
+            "faq_pago": True,
+        }
 
     tema = _tema_desde_mensaje(texto)
     pendientes = [str(x) for x in (ctx.get("temas_pendientes") or []) if str(x).strip()]
@@ -2727,12 +2789,22 @@ def procesar_mensaje_entrante(
                 ctx["pidio_dni"] = True
                 crepo.set_contexto(conv, ctx)
                 db.commit()
-                resp = (
-                    "Hola, soy la asistente de la Cooperativa Batán. "
-                    "Para ayudarte, enviame tu DNI o número de socio. "
-                    "Si preferís, escribí *agente*."
-                )
-                if usar_llama:
+                if _es_consulta_medios_pago_publico(texto):
+                    resp = (
+                        f"{_mensaje_pago_publico_sin_cuenta()}\n"
+                        "Si preferís un agente, escribí *agente*."
+                    )
+                    ctx["faq_pago_enviado"] = True
+                    ctx["intencion"] = clasificar_intencion(texto) or "corte_deuda"
+                    crepo.set_contexto(conv, ctx)
+                    db.commit()
+                else:
+                    resp = (
+                        "Hola, soy la asistente de la Cooperativa Batán. "
+                        "Para ayudarte, enviame tu DNI o número de socio. "
+                        "Si preferís, escribí *agente*."
+                    )
+                if usar_llama and not ctx.get("faq_pago_enviado"):
                     resp = _redactar_con_llama(
                         resp,
                         f"tel={conv.telefono}",
@@ -3671,6 +3743,20 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
+        if intencion in ("movil", "movil_datos", "movil_llamadas"):
+            from app.services.diagnostico_n1 import aplicar_guardrails_movil
+
+            hist = crepo.list_mensajes(db, conv.id)
+            g = aplicar_guardrails_movil(
+                mensaje=pregunta,
+                mensaje_cliente=texto,
+                historial_mensajes=hist,
+                pasos_cubiertos=list(ctx.get("pasos_cubiertos") or []),
+                accion="ask",
+            )
+            pregunta = g["mensaje"] or pregunta
+            if g.get("accion") == "escalate":
+                return _escalar(g.get("motivo") or "pack_acreditado_sin_datos")
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,

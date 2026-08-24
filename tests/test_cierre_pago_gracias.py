@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from app.services.canal_abonado import (
     _cerrar_consulta_resuelta,
     _cliente_desiste_o_resuelto,
+    _es_consulta_medios_pago_publico,
     _responder_espera_agente,
 )
 from app.services.diagnostico_n1 import _cierra_consulta_facturacion
@@ -143,3 +144,53 @@ def test_cerrar_consulta_resuelta_helper(monkeypatch):
     assert out["modo"] == "cerrado"
     assert conv.estado == "cerrado"
     assert "De nada" in sent[0]
+
+
+def test_consulta_medios_pago_publico():
+    assert _es_consulta_medios_pago_publico(
+        "Me cortaron el servicio por falta de pago, como pago?"
+    )
+    assert _es_consulta_medios_pago_publico("quiero pagar la factura")
+    assert not _es_consulta_medios_pago_publico("no me anda el wifi")
+
+
+def test_espera_agente_responde_como_pago(monkeypatch):
+    conv = SimpleNamespace(
+        id="c-pago",
+        ticket_id="",
+        estado="espera_agente",
+        canal="web",
+        telefono="guest1",
+        wa_id="guest1",
+    )
+    sent: list[str] = []
+    ctx: dict = {"visitante": True, "invitado": True}
+
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda db, org_id, conv, resp, **_k: sent.append(resp),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.get_contexto",
+        lambda _c: ctx,
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.set_contexto",
+        lambda _c, new_ctx: ctx.update(new_ctx),
+    )
+
+    out = _responder_espera_agente(
+        MagicMock(),
+        "org",
+        conv,
+        "Me cortaron el servicio por falta de pago, como pago?",
+        canal="web",
+    )
+    assert out["modo"] == "espera_agente"
+    assert out.get("faq_pago") is True
+    assert sent
+    low = sent[0].lower()
+    assert "ov.batan.coop" in low
+    assert "fiserv" in low or "qr" in low
+    assert "ya está derivado" not in low
+    assert ctx.get("faq_pago_enviado") is True

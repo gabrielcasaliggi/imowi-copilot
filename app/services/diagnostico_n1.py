@@ -156,7 +156,11 @@ def _mensaje_apn_para_otro_so(mensaje: str, so: str) -> bool:
                 "punto de acceso",
                 "red de datos celulares",
                 "si es un iphone",
+                "es un iphone",
                 "modelo 11",
+                "iphone anteriores",
+                "iphone 11",
+                "esim",
             )
         )
     if so == "ios":
@@ -179,6 +183,223 @@ def _corregir_apn_segun_so(mensaje: str, so: str | None) -> tuple[str, str | Non
     if so == "android":
         return _MSG_APN_ANDROID, "bloqueado_apn_so_android"
     return _MSG_APN_IOS, "bloqueado_apn_so_ios"
+
+
+_MSG_PACK_ACREDITADO = (
+    "Si el APN de Android ya está bien y cargaste un pack (el sistema te dio el OK) "
+    "pero igual no navega, no se arregla tocando más el celular. "
+    "Te derivo con un agente para que revisen la línea en el sistema. "
+    "Quedate en este chat."
+)
+
+_MSG_PACK_CHEQUEO = (
+    "El APN de Android ya quedó. ¿Cargaste un pack o bono de datos, el sistema te dio el OK "
+    "y igual no los tenés disponibles para navegar?"
+)
+
+
+def _blob_cliente_movil(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None = None,
+) -> str:
+    partes = [str(mensaje_cliente or "")]
+    for m in historial_mensajes or []:
+        autor, texto = _autor_texto(m)
+        a = (autor or "").lower()
+        if a in ("cliente", "abonado", "user", "usuario") or a.startswith("abon"):
+            partes.append(texto)
+        dire = getattr(m, "direccion", None) or (
+            m.get("direccion") if isinstance(m, dict) else ""
+        )
+        if str(dire or "").lower() in ("in", "inbound", "entrada"):
+            partes.append(texto)
+    return " ".join(partes).lower()
+
+
+def pack_acreditado_sin_datos(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None = None,
+) -> bool:
+    """Pack/bono cargado (sistema OK) pero los datos no aparecen: N2, no más taps al celular."""
+    blob = _blob_cliente_movil(mensaje_cliente, historial_mensajes)
+    cargo = any(
+        k in blob
+        for k in (
+            "cargue un pack",
+            "cargué un pack",
+            "cargue pack",
+            "cargué pack",
+            "compre un pack",
+            "compré un pack",
+            "recargue",
+            "recargué",
+            "me cargo el pack",
+            "me cargó el pack",
+            "pack de datos",
+            "cargue un bono",
+            "cargué un bono",
+            "bono cargado",
+        )
+    )
+    ok_sistema = any(
+        k in blob
+        for k in (
+            "dio el ok",
+            "dio ok",
+            "me dio el ok",
+            "el sistema me dio",
+            "acredito",
+            "acreditó",
+            "quedo cargado",
+            "quedó cargado",
+        )
+    )
+    no_anda = any(
+        k in blob
+        for k in (
+            "no los tengo",
+            "no los tengo disponibles",
+            "no tengo datos",
+            "no me figuran",
+            "no disponible",
+            "no me aparecen",
+            "sigue sin",
+            "no navega",
+            "sin internet",
+            "no me funciona",
+        )
+    )
+    return cargo and (ok_sistema or no_anda)
+
+
+def _pregunta_tipo_red_inventada(mensaje: str) -> bool:
+    m = (mensaje or "").lower()
+    return any(
+        k in m
+        for k in (
+            "pasar a 3g",
+            "cambiar a 3g",
+            "probar en 3g",
+            "tipo de red preferida",
+            "red preferida",
+            "preferida a 3g",
+            "forzá 3g",
+            "forza 3g",
+            "3g por un momento",
+            "cambiar a 2g",
+        )
+    )
+
+
+def _pregunta_so_otra_vez(mensaje: str, so: str | None) -> bool:
+    if not so:
+        return False
+    m = (mensaje or "").lower()
+    return any(
+        k in m
+        for k in (
+            "android o iphone",
+            "android o un iphone",
+            "es android o",
+            "es un iphone",
+            "¿es iphone",
+            "modelo 11 en adelante",
+            "usás esim",
+            "usas esim",
+        )
+    )
+
+
+def _enriquecer_pasos_movil(
+    pasos_cubiertos: list[str],
+    so: str | None,
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None = None,
+) -> list[str]:
+    out = [str(x) for x in (pasos_cubiertos or []) if str(x).strip()]
+    if so and "so_dispositivo" not in out:
+        out.append("so_dispositivo")
+    blob = _blob_cliente_movil(mensaje_cliente, historial_mensajes)
+    if so == "android" and any(
+        k in blob
+        for k in (
+            "ya esta asi",
+            "ya está así",
+            "esta asi",
+            "está así",
+            "si, esta",
+            "sí, está",
+            "apn ya",
+            "ya lo tengo",
+            "ya esta puesto",
+            "ya está puesto",
+        )
+    ):
+        if "apn_datos" not in out:
+            out.append("apn_datos")
+    return out
+
+
+def aplicar_guardrails_movil(
+    *,
+    mensaje: str,
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None = None,
+    pasos_cubiertos: list[str] | None = None,
+    accion: str = "ask",
+    so: str | None = None,
+) -> dict[str, str]:
+    """Corta desvíos típicos: iPhone a un Android, 3G inventado, pack acreditado."""
+    so = so or detectar_so_movil(mensaje_cliente, historial_mensajes)
+    cubiertos = _enriquecer_pasos_movil(
+        list(pasos_cubiertos or []), so, mensaje_cliente, historial_mensajes
+    )
+    motivo = ""
+    paso = ""
+    acc = accion or "ask"
+    msg = mensaje or ""
+
+    if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
+        return {
+            "accion": "escalate",
+            "mensaje": _MSG_PACK_ACREDITADO,
+            "paso_cubierto": "derivar_datos",
+            "motivo": "pack_acreditado_sin_datos",
+        }
+
+    if acc == "ask" and so:
+        msg, motivo_so = _corregir_apn_segun_so(msg, so)
+        if motivo_so:
+            motivo = motivo_so
+            paso = "apn_datos"
+        if _pregunta_so_otra_vez(mensaje, so):
+            if "apn_datos" in cubiertos:
+                msg = _MSG_PACK_CHEQUEO
+                motivo = "bloqueado_repregunta_so"
+                paso = "consumo_paquete"
+            else:
+                msg = _MSG_APN_ANDROID if so == "android" else _MSG_APN_IOS
+                motivo = "bloqueado_repregunta_so"
+                paso = "apn_datos"
+
+    if acc == "ask" and _pregunta_tipo_red_inventada(msg):
+        if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
+            return {
+                "accion": "escalate",
+                "mensaje": _MSG_PACK_ACREDITADO,
+                "paso_cubierto": "derivar_datos",
+                "motivo": "pack_acreditado_sin_datos",
+            }
+        msg = _MSG_PACK_CHEQUEO
+        motivo = "bloqueado_tipo_red_inventada"
+        paso = "consumo_paquete"
+
+    return {
+        "accion": acc,
+        "mensaje": msg,
+        "paso_cubierto": paso,
+        "motivo": motivo,
+    }
 
 MIN_TURNOS_ANTES_ESCALAR = 4
 
@@ -578,6 +799,8 @@ def _fallback_ask(
         else:
             continue
         if pid in done or not preg:
+            continue
+        if pid == "so_dispositivo" and detectar_so_movil(mensaje_cliente):
             continue
         if saltar_wifi and (
             "wifi" in pid.lower()
@@ -1218,6 +1441,17 @@ def diagnosticar_turno(
     es_movil = (intencion or "").strip() in ("movil", "movil_datos", "movil_llamadas")
     aplica_optica = aplica_optica_turno
     so_movil = detectar_so_movil(mensaje_cliente, historial_mensajes) if es_movil else None
+    if es_movil:
+        pasos_cubiertos = _enriquecer_pasos_movil(
+            pasos_cubiertos, so_movil, mensaje_cliente, historial_mensajes
+        )
+        if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
+            return {
+                "accion": "escalate",
+                "mensaje": _MSG_PACK_ACREDITADO,
+                "paso_cubierto": "derivar_datos",
+                "motivo": "pack_acreditado_sin_datos",
+            }
 
     if es_facturacion:
         det = _facturacion_deterministica(
@@ -1282,6 +1516,12 @@ def diagnosticar_turno(
             "después no vuelvas a preguntar.\n"
             "- Si el abonado corrige («no es iPhone, es Android»), pedí perdón en una frase "
             "y continuá SOLO con el SO correcto.\n"
+            "- NUNCA pidas cambiar el tipo de red a 3G/2G. No inventes pasos de iPhone.\n"
+            "- Si el APN del SO correcto ya está OK y sigue sin datos: preguntá si cargó "
+            "un pack/bono (sistema OK) y no le aparecen. Eso es escalate (sistema/línea), "
+            "no más toqueteo del celular.\n"
+            "- Si reitera «siguen sin andar los datos», NO reinicies el cuestionario "
+            "(avión/señal/modelo). Seguí desde el último paso cubierto o derivá.\n"
             "- No inventes cobertura de zona ni estado de la línea en el core.\n"
         )
 
@@ -1377,6 +1617,7 @@ def diagnosticar_turno(
                 "los_y_fibra_danada",
                 "los_confirmada",
                 "bloqueado_wifi_post_los",
+                "pack_acreditado_sin_datos",
             )
         ):
             accion = "ask"
@@ -1397,6 +1638,7 @@ def diagnosticar_turno(
                 "los_y_fibra_danada",
                 "los_confirmada",
                 "bloqueado_wifi_post_los",
+                "pack_acreditado_sin_datos",
             )
         ):
             ids = []
@@ -1642,12 +1884,21 @@ def diagnosticar_turno(
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]
 
-        # SO ya declarado → no dar APN del sistema contrario
-        if es_movil and accion == "ask":
-            mensaje, motivo_so = _corregir_apn_segun_so(mensaje, so_movil)
-            if motivo_so:
-                motivo = motivo_so
-                paso = paso or "apn_datos"
+        if es_movil:
+            g = aplicar_guardrails_movil(
+                mensaje=mensaje,
+                mensaje_cliente=mensaje_cliente,
+                historial_mensajes=historial_mensajes,
+                pasos_cubiertos=pasos_cubiertos,
+                accion=accion,
+                so=so_movil,
+            )
+            accion = g["accion"] or accion
+            mensaje = g["mensaje"] or mensaje
+            if g.get("motivo"):
+                motivo = g["motivo"]
+            if g.get("paso_cubierto"):
+                paso = g["paso_cubierto"]
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"

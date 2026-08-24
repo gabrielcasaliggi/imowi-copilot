@@ -240,6 +240,112 @@ def test_detectar_so_movil_y_bloquea_apn_iphone():
     assert out["mensaje"] == _MSG_APN_ANDROID
 
 
+def test_patricia_moto_g72_no_pasos_iphone_ni_3g():
+    """Caso real: Android ya dicho → no iPhone; APN OK → no 3G; pack OK sin datos → N2."""
+    import json
+    from unittest.mock import patch
+
+    from app.services.diagnostico_n1 import (
+        _MSG_APN_ANDROID,
+        _MSG_PACK_ACREDITADO,
+        _MSG_PACK_CHEQUEO,
+        diagnosticar_turno,
+        pack_acreditado_sin_datos,
+    )
+
+    hist = [
+        {"autor": "cliente", "texto": "No Tengo datos en Mar del Plata"},
+        {"autor": "bot", "texto": "¿Qué modelo de celular tenés?"},
+        {"autor": "cliente", "texto": "Moto g72"},
+    ]
+    checklist = [
+        {"id": "datos_activados", "pregunta": "¿Datos prendidos?"},
+        {"id": "consumo_paquete", "pregunta": "¿Te quedan datos del abono?"},
+        {"id": "so_dispositivo", "pregunta": "¿Android o iPhone?"},
+        {"id": "apn_datos", "pregunta": "Revisá el APN Android…"},
+        {"id": "derivar_datos", "pregunta": "¿Te derivo?"},
+    ]
+
+    def _fake_iphone(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Si es un iPhone, ¿es modelo 11 en adelante o usás eSIM? "
+                    "Para iPhone anteriores: Configuración > Datos celulares."
+                ),
+                "paso_cubierto": "so_dispositivo",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch("app.llm.chat_completion", side_effect=_fake_iphone):
+        out = diagnosticar_turno(
+            intencion="movil_datos",
+            checklist=checklist,
+            historial_mensajes=hist,
+            mensaje_cliente="Es android, ya te dije que es un Moto g72",
+            turnos_diagnostico=6,
+            pasos_cubiertos=["datos_activados", "apn_datos"],
+        )
+    assert "iphone" not in (out.get("mensaje") or "").lower()
+    assert "3g" not in (out.get("mensaje") or "").lower()
+    assert out["motivo"] in (
+        "bloqueado_apn_so_android",
+        "bloqueado_repregunta_so",
+    )
+    assert _MSG_APN_ANDROID in (out.get("mensaje") or "") or _MSG_PACK_CHEQUEO in (
+        out.get("mensaje") or ""
+    )
+
+    def _fake_3g(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "¿Podrías cambiar el tipo de red preferida a 3G un momento "
+                    "para probar si así navega?"
+                ),
+                "paso_cubierto": "apn_datos",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch("app.llm.chat_completion", side_effect=_fake_3g):
+        out3 = diagnosticar_turno(
+            intencion="movil_datos",
+            checklist=checklist,
+            historial_mensajes=hist,
+            mensaje_cliente="Sigue igual, no navega",
+            turnos_diagnostico=8,
+            pasos_cubiertos=["datos_activados", "so_dispositivo", "apn_datos"],
+        )
+    assert "3g" not in (out3.get("mensaje") or "").lower()
+    assert out3["motivo"] == "bloqueado_tipo_red_inventada"
+    assert "pack" in (out3.get("mensaje") or "").lower()
+
+    pack_txt = (
+        "El inconveniente es que cargue un pack de datos, me dio el ok el sistema "
+        "pero no los tengo disponibles"
+    )
+    assert pack_acreditado_sin_datos(pack_txt, hist) is True
+    outp = diagnosticar_turno(
+        intencion="movil_datos",
+        checklist=checklist,
+        historial_mensajes=hist,
+        mensaje_cliente=pack_txt,
+        turnos_diagnostico=2,
+        pasos_cubiertos=["datos_activados", "apn_datos"],
+    )
+    assert outp["accion"] == "escalate"
+    assert outp["motivo"] == "pack_acreditado_sin_datos"
+    assert outp["mensaje"] == _MSG_PACK_ACREDITADO
+    assert "iphone" not in outp["mensaje"].lower()
+    assert "3g" not in outp["mensaje"].lower()
+
+
 def test_typo_internet_clasifica():
     assert clasificar_intencion("ola no anda el interntt, no me carga nadaa") == "internet"
     assert clasificar_intencion("Me cortaron por falta de pago, como pago") == "corte_deuda"
@@ -309,6 +415,8 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert "usuario = imowi" in datos or "Nombre de usuario = imowi" in datos
     assert "ov.batan.coop" in datos
     assert "NO orientar" in datos or "NO" in datos
+    assert "pack" in datos.lower() or "bono acreditado" in datos.lower()
+    assert "3G" in datos or "3g" in datos.lower()
     assert "*333" in by_title["IMOWI — llamadas y SMS"]
     assert "*#06#" in by_title["IMOWI — activar SIM / eSIM"]
     assert "10 días" in by_title["IMOWI — baja o arrepentimiento"]
@@ -358,6 +466,7 @@ def test_playbooks_imowi_apn_y_autogestion_batan():
     assert "NO mezcles" in apn_datos or "no mezcles" in apn_datos.lower()
     so = next(p for p in PLAYBOOKS["movil_datos"] if p.id == "so_dispositivo")
     assert "android" in so.pregunta.lower() and "iphone" in so.pregunta.lower()
+    assert "pack" in datos.lower() and "derivar" in datos.lower()
     robo = next(p.pregunta for p in PLAYBOOKS["movil"] if p.id == "robo_perdida_hint")
     assert "*910" in robo and "*303" in robo
     assert clasificar_intencion("quiero escuchar el correo de voz *333") == "movil_llamadas"
@@ -568,7 +677,7 @@ def test_padron_solo_movil_no_diagnostica_internet():
 
 
 def test_visitante_portal_deriva_sin_ticket_n2():
-    """Guest: cola de agente con prioridad baja; sin ticket N2 ni N1."""
+    """Guest: cola baja sin ticket N2; si pregunta cómo pagar, FAQ pública (QR/OV)."""
     r = client.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})
     assert r.status_code == 200
     sess = r.json()
@@ -581,7 +690,9 @@ def test_visitante_portal_deriva_sin_ticket_n2():
     assert data.get("estado") == "espera_agente"
     assert not data.get("ticket_id")
     resp = (data.get("respuesta") or "").lower()
-    assert "fiserv" not in resp
+    assert "ov.batan.coop" in resp
+    assert "fiserv" in resp or "qr" in resp
+    assert "ya está derivado" not in resp and "ya esta derivado" not in resp
 
 
 def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
