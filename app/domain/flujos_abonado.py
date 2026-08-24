@@ -664,6 +664,27 @@ def parse_menu_servicio(texto: str) -> str | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    # Typos frecuentes: «,ovil», «ovil», «mvil» (móvil)
+    compacto = (
+        t.replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+    )
+    compacto = re.sub(r"[^a-z0-9]+", "", compacto)
+    if compacto in {
+        "ovil",
+        "mvil",
+        "movl",
+        "movi",
+        "movl",
+        "movil",
+        "celular",
+        "imowi",
+        "imovi",
+    }:
+        return "movil"
     # "no tengo internet" no es elegir diagnóstico de fibra
     if niega_producto_internet(texto):
         return None

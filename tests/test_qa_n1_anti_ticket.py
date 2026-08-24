@@ -10,6 +10,7 @@ from app.domain.flujos_abonado import (
     detecta_frustracion,
     es_escape_agente,
     indica_resuelto,
+    parse_menu_servicio,
     pide_humano,
 )
 from main import app
@@ -158,6 +159,9 @@ def test_escape_agente_y_sintoma():
     assert pide_humano("tienen que mandar una visita técnica") is True
     # Opción del menú móvil ≠ pedido de agente
     assert pide_humano("Tecnico") is False
+    assert parse_menu_servicio(",ovil") == "movil"
+    assert parse_menu_servicio("ovil") == "movil"
+    assert parse_menu_servicio("movil") == "movil"
     assert pide_humano("técnico") is False
     assert pide_humano("tema tecnico") is False
     assert pide_humano("mandame un tecnico") is True
@@ -585,6 +589,17 @@ def test_segunda_insistencia_humano_crea_ticket():
     r2 = _portal_msg(token, "Pasame con un operador ya")
     assert r2.get("ticket_id")
     assert r2.get("estado") == "espera_agente"
+
+
+def test_segunda_insistencia_misma_frase_crea_ticket():
+    """Repetir «quiero hablar con un agente» no es reiteración de síntoma: deriva."""
+    token = _identified_portal()
+    r1 = _portal_msg(token, "quiero hablar con un agente")
+    assert not r1.get("ticket_id")
+    r2 = _portal_msg(token, "quiero hablar con un agente")
+    assert r2.get("ticket_id"), r2.get("respuesta")
+    assert r2.get("estado") == "espera_agente"
+    assert "escribí *agente*" not in (r1.get("respuesta") or "").lower()
 
 
 def test_humano_con_sintoma_entra_n1():

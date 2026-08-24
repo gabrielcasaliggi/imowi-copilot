@@ -2651,8 +2651,13 @@ def procesar_mensaje_entrante(
             "ticket_id": tid,
         }
 
-    # Reiteración temprana (mismo síntoma sin progreso): reformular, no ticket
-    reiteracion_temprana = misma_queja(texto, ctx) and int(ctx.get("paso_idx") or 0) < 2
+    # Reiteración temprana (mismo síntoma sin progreso): reformular, no ticket.
+    # No aplicar si está pidiendo persona: eso es 2ª insistencia, no síntoma repetido.
+    reiteracion_temprana = (
+        misma_queja(texto, ctx)
+        and int(ctx.get("paso_idx") or 0) < 2
+        and not pide_humano(texto)
+    )
     ctx = registrar_queja(ctx, texto)
     crepo.set_contexto(conv, ctx)
     db.commit()
@@ -2730,17 +2735,9 @@ def procesar_mensaje_entrante(
         crepo.set_contexto(conv, ctx)
         db.commit()
         resp = (
-            "Puedo ayudarte yo primero (internet, móvil IMOWI o factura/pago). "
-            "Contame qué te pasa. Si preferís una persona, escribí *agente*."
+            "Puedo intentar ayudarte yo (internet, móvil IMOWI o factura/pago). "
+            "Contame qué te pasa. Si insistís en hablar con una persona, te derivo."
         )
-        if usar_llama:
-            resp = _redactar_con_llama(
-                resp,
-                "pedido_humano_sin_sintoma",
-                db=db,
-                org_id=org_id,
-                consulta=texto,
-            )
         _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
