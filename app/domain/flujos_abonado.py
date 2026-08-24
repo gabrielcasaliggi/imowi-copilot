@@ -678,7 +678,6 @@ def parse_menu_servicio(texto: str) -> str | None:
         "mvil",
         "movl",
         "movi",
-        "movl",
         "movil",
         "celular",
         "imowi",
