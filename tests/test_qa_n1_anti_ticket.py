@@ -843,6 +843,37 @@ def test_si_tengo_tras_reinicio_no_abre_n2_movil():
     assert "espera_agente" not in (r.get("estado") or "")
 
 
+def test_si_gracias_tras_bono_cierra_sin_repetir():
+    from app.services.canal_abonado import _cliente_desiste_o_resuelto
+    from app.services.diagnostico_n1 import aplicar_guardrails_movil, diagnosticar_turno
+
+    assert _cliente_desiste_o_resuelto("si gracias") is True
+    hist = [{"autor": "cliente", "texto": "Se me acabaron los datos del abono"}]
+    g = aplicar_guardrails_movil(
+        mensaje="x",
+        mensaje_cliente="si gracias",
+        historial_mensajes=hist,
+        pasos_cubiertos=["consumo_paquete"],
+        accion="ask",
+    )
+    assert g["accion"] == "resolved"
+    assert "ov.batan" not in (g["mensaje"] or "").lower() or "quedamos" in (
+        g["mensaje"] or ""
+    ).lower()
+
+    out = diagnosticar_turno(
+        intencion="movil_datos",
+        checklist=[{"id": "consumo_paquete", "pregunta": "pack?"}],
+        historial_mensajes=hist,
+        mensaje_cliente="si gracias",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["consumo_paquete"],
+        forzar_agente=False,
+    )
+    assert out["accion"] == "resolved"
+    assert "comprá un bono" not in (out.get("mensaje") or "").lower()
+
+
 def test_elige_pago_entiende_sigamos():
     from app.services.canal_abonado import _elige_pago_o_tecnico
 

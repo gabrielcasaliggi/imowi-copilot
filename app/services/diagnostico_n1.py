@@ -444,8 +444,21 @@ def aplicar_guardrails_movil(
         }
 
     # Se acabaron los datos del abono → bono OV (no N2). Modelo solo tampoco escala.
+    # «sí gracias» / listo: no repetir el mismo texto de bono.
     if datos_agotados_abono(mensaje_cliente, historial_mensajes):
-        if "consumo_paquete" not in cubiertos or es_solo_modelo_celular(mensaje_cliente):
+        if _cierra_consulta_facturacion(mensaje_cliente):
+            return {
+                "accion": "resolved",
+                "mensaje": (
+                    "Dale, quedamos así. Si al cargar el bono no navega, "
+                    "escribime de nuevo. ¡Que ande bien!"
+                ),
+                "paso_cubierto": "consumo_paquete",
+                "motivo": "cierre_tras_bono",
+            }
+        if "consumo_paquete" not in cubiertos or es_solo_modelo_celular(
+            mensaje_cliente
+        ):
             return {
                 "accion": "ask",
                 "mensaje": sanitizar_apn_en_texto(_MSG_BONO_OV),
@@ -1551,13 +1564,24 @@ def diagnosticar_turno(
                 "paso_cubierto": fb.get("paso_cubierto") or "consumo_paquete",
                 "motivo": "bloqueado_afirmacion_estado_movil",
             }
-        if datos_agotados_abono(mensaje_cliente, historial_mensajes):
+        if _cierra_consulta_facturacion(mensaje_cliente):
             return {
-                "accion": "ask",
-                "mensaje": sanitizar_apn_en_texto(_MSG_BONO_OV),
+                "accion": "resolved",
+                "mensaje": (
+                    "Dale, quedamos así. Si al cargar el bono no navega, "
+                    "escribime de nuevo. ¡Que ande bien!"
+                ),
                 "paso_cubierto": "consumo_paquete",
-                "motivo": "datos_agotados_bono",
+                "motivo": "cierre_tras_bono",
             }
+        if datos_agotados_abono(mensaje_cliente, historial_mensajes):
+            if "consumo_paquete" not in (pasos_cubiertos or []):
+                return {
+                    "accion": "ask",
+                    "mensaje": sanitizar_apn_en_texto(_MSG_BONO_OV),
+                    "paso_cubierto": "consumo_paquete",
+                    "motivo": "datos_agotados_bono",
+                }
         if es_solo_modelo_celular(mensaje_cliente):
             so_m = so_movil or detectar_so_movil(mensaje_cliente, historial_mensajes)
             msg_apn = _MSG_APN_ANDROID if so_m != "ios" else _MSG_APN_IOS

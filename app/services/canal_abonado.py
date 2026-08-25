@@ -1185,6 +1185,11 @@ def _cliente_desiste_o_resuelto(texto: str) -> bool:
     """True si el abonado dice que ya está / no necesita seguir (ni agente)."""
     if indica_resuelto(texto):
         return True
+    from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+    # «sí gracias» / «listo» tras bono OV o FAQ: cerrar (misma lógica que factura)
+    if _cierra_consulta_facturacion(texto):
+        return True
     t = (texto or "").lower().strip()
     if not t:
         return False
