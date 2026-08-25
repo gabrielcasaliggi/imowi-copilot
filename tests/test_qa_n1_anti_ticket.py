@@ -1231,3 +1231,144 @@ def test_menu_movil_tecnico_no_ticket_inmediato():
     assert "ticket" not in resp3
     assert "generé" not in resp3 and "genere" not in resp3
     assert any(k in resp3 for k in ("datos", "avión", "avion", "apn", "abon"))
+
+
+def test_guardrail_cambio_clave_wifi_no_pide_password_en_chat():
+    from app.services.diagnostico_n1 import (
+        aplicar_guardrails_cambio_clave_wifi,
+        mensaje_guia_cambio_clave_wifi,
+        pide_nueva_clave_wifi_en_chat,
+    )
+
+    assert pide_nueva_clave_wifi_en_chat(
+        "Pasame la nueva clave que querés poner en el WiFi"
+    )
+    assert pide_nueva_clave_wifi_en_chat("¿Cuál es la clave nueva que querés usar?")
+    assert not pide_nueva_clave_wifi_en_chat(
+        "En la etiqueta del módem/router están el nombre y la clave de fábrica. "
+        "¿Tenés acceso al equipo para cambiarla?"
+    )
+
+    g = aplicar_guardrails_cambio_clave_wifi(
+        mensaje="Dale, mandame la nueva contraseña y la cambio",
+        mensaje_cliente="la clave",
+        intencion="cambio_clave_wifi",
+    )
+    assert g["motivo"] == "bloqueado_pedido_clave_wifi"
+    assert "etiqueta" in g["mensaje"].lower() or "módem" in g["mensaje"].lower()
+    assert "pasame" not in g["mensaje"].lower()
+
+    g2 = aplicar_guardrails_cambio_clave_wifi(
+        mensaje="¿Tenés acceso al equipo?",
+        mensaje_cliente="4645555",
+        intencion="cambio_clave_wifi",
+    )
+    assert g2["motivo"] == "bloqueado_clave_wifi_en_chat"
+    assert "otro dni" not in g2["mensaje"].lower()
+    assert mensaje_guia_cambio_clave_wifi() in g2["mensaje"] or "reconect" in g2[
+        "mensaje"
+    ].lower()
+
+
+def test_cambio_clave_wifi_numero_no_es_otro_dni():
+    """Regresión: tras cambio_clave_wifi, un número tipo clave no dispara «otro DNI»."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235599917"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "30111222"))
+        assert abo is not None
+        abo.servicio = "internet,movil"
+        abo.deuda_monto = "0"
+        abo.estado = "activo"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(
+            conv,
+            {
+                "saludo": True,
+                "identificado": True,
+                "intencion": "cambio_clave_wifi",
+                "paso_idx": 0,
+                "diag_turnos": 1,
+                "pasos_cubiertos": ["cambio_clave_wifi_detalle"],
+            },
+        )
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r0 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="quiero cambiar la clave del wifi",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r0.get("estado") == "bot"
+    assert r0.get("intencion") == "cambio_clave_wifi"
+    resp0 = (r0.get("respuesta") or "").lower()
+    assert "otro dni" not in resp0
+    assert "otra titularidad" not in resp0
+    # No pedir que envíen la clave por chat
+    assert "pasame la" not in resp0
+    assert "nueva clave" not in resp0 or "etiqueta" in resp0 or "módem" in resp0 or "modem" in resp0
+
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="la clave",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r1.get("estado") == "bot"
+    assert "otro dni" not in (r1.get("respuesta") or "").lower()
+    assert "otra titularidad" not in (r1.get("respuesta") or "").lower()
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="4645555",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r2.get("estado") == "bot"
+    assert r2.get("intencion") == "cambio_clave_wifi"
+    assert not r2.get("ticket_id")
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "otro dni" not in resp2
+    assert "otra titularidad" not in resp2
+    assert "padrón" not in resp2 and "padron" not in resp2
+    # Guía auto-servicio en el equipo + reconexión
+    assert any(
+        k in resp2
+        for k in ("etiqueta", "módem", "modem", "router", "equipo", "reconect")
+    )
+    assert "pasame la nueva" not in resp2
+    assert "mandame la" not in resp2

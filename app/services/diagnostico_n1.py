@@ -562,6 +562,165 @@ def es_intencion_diagnostico(intencion: str) -> bool:
     return (intencion or "").strip() in INTENCIONES_DIAGNOSTICO
 
 
+def es_diagnostico_tecnico_sin_facturacion(intencion: str) -> bool:
+    """Diagnóstico técnico (WiFi, internet, móvil…); no factura/corte/pago."""
+    intent = (intencion or "").strip()
+    return es_intencion_diagnostico(intent) and not intencion_es_facturacion(intent)
+
+
+# Guía fija: N1 no recoge ni cambia la clave Wi‑Fi por chat (no hay API remota).
+_MSG_CLAVE_WIFI_EQUIPO = (
+    "La clave Wi‑Fi la cambiás vos en el módem/router: usá la etiqueta del equipo "
+    "o el panel de administración. Desde acá no la pedimos ni la cambiamos por chat. "
+    "Después todos los dispositivos tienen que reconectarse con la clave nueva. "
+    "¿Tenés acceso al equipo para cambiarla?"
+)
+
+
+def mensaje_guia_cambio_clave_wifi() -> str:
+    return _MSG_CLAVE_WIFI_EQUIPO
+
+
+def pide_nueva_clave_wifi_en_chat(mensaje: str) -> bool:
+    """True si el bot pide que el abonado envíe la clave/contraseña nueva por chat."""
+    t = (mensaje or "").lower()
+    if not t:
+        return False
+    # Pedidos explícitos de contraseña nueva / a configurar
+    markers = (
+        "nueva clave",
+        "nueva contraseña",
+        "nueva password",
+        "clave que querés poner",
+        "clave que queres poner",
+        "contraseña que querés poner",
+        "contraseña que queres poner",
+        "clave que querés usar",
+        "clave que queres usar",
+        "qué clave querés",
+        "que clave queres",
+        "qué contraseña querés",
+        "que contraseña queres",
+        "pasame la clave",
+        "pasame la contraseña",
+        "pasame la password",
+        "mandame la clave",
+        "mandame la contraseña",
+        "escribí la clave",
+        "escribi la clave",
+        "escribí la contraseña",
+        "escribi la contraseña",
+        "decime la clave nueva",
+        "decime la nueva clave",
+        "decime la contraseña nueva",
+        "enviame la clave",
+        "enviame la contraseña",
+        "cuál va a ser la clave",
+        "cual va a ser la clave",
+        "cuál es la clave nueva",
+        "cual es la clave nueva",
+        "qué clave querés poner",
+        "que clave queres poner",
+    )
+    if any(k in t for k in markers):
+        return True
+    # «escribí / mandame … contraseña» genérico en contexto WiFi
+    if any(k in t for k in ("wifi", "wi-fi", "wi fi", "router", "módem", "modem")):
+        if any(
+            k in t
+            for k in (
+                "pasame la",
+                "mandame la",
+                "escribí la",
+                "escribi la",
+                "decime la",
+                "enviame la",
+            )
+        ) and any(k in t for k in ("clave", "contraseña", "password")):
+            return True
+    return False
+
+
+def _parece_clave_wifi_enviada(texto: str) -> bool:
+    """True si el mensaje parece una contraseña (p. ej. solo dígitos), no un sí/no del playbook."""
+    tl = (texto or "").strip()
+    if not tl:
+        return False
+    low = tl.lower()
+    if any(
+        k in low
+        for k in ("dni", "documento", "número de socio", "numero de socio", "nro de socio")
+    ):
+        return False
+    if low in (
+        "si",
+        "sí",
+        "no",
+        "ok",
+        "dale",
+        "listo",
+        "ambas",
+        "los dos",
+        "la clave",
+        "la contraseña",
+        "el nombre",
+        "ssid",
+        "clave",
+        "contraseña",
+    ):
+        return False
+    # Solo dígitos (con espacios/puntos opcionales): típico de clave numérica mal pedida
+    digitos = re.sub(r"\D", "", tl)
+    if digitos and re.fullmatch(r"[\d\s.\-]{4,16}", tl) and 4 <= len(digitos) <= 12:
+        return True
+    # Alfanumérica corta sin espacios (Casa2024) — no frases
+    if (
+        re.fullmatch(r"[A-Za-z0-9@#_.\-]{6,32}", tl)
+        and any(c.isdigit() for c in tl)
+        and not any(c.isspace() for c in tl)
+    ):
+        return True
+    return False
+
+
+def aplicar_guardrails_cambio_clave_wifi(
+    *,
+    mensaje: str,
+    mensaje_cliente: str = "",
+    intencion: str = "",
+    accion: str = "ask",
+) -> dict[str, str]:
+    """Evita pedir/aceptar la clave Wi‑Fi por chat; redirige a cambio en el equipo."""
+    intent = (intencion or "").strip()
+    en_flujo = intent == "cambio_clave_wifi"
+    msg = mensaje or ""
+    acc = accion or "ask"
+
+    if en_flujo and _parece_clave_wifi_enviada(mensaje_cliente):
+        return {
+            "accion": "ask",
+            "mensaje": _MSG_CLAVE_WIFI_EQUIPO,
+            "paso_cubierto": "clave_wifi_etiqueta",
+            "motivo": "bloqueado_clave_wifi_en_chat",
+        }
+
+    # Pedir la clave en chat está mal siempre (playbook = cambio en el equipo).
+    if pide_nueva_clave_wifi_en_chat(msg):
+        return {
+            "accion": "ask",
+            "mensaje": _MSG_CLAVE_WIFI_EQUIPO,
+            "paso_cubierto": "clave_wifi_etiqueta",
+            "motivo": "bloqueado_pedido_clave_wifi",
+        }
+
+    return {
+        "accion": acc,
+        "mensaje": msg,
+        "paso_cubierto": "",
+        "motivo": "",
+    }
+
+
 def es_intencion_optica(intencion: str) -> bool:
     """True si aplica detección/escalado de fibra (PON/LOS), no TV/móvil/etc."""
     return (intencion or "").strip() in INTENCIONES_OPTICAS
@@ -1548,8 +1707,18 @@ def diagnosticar_turno(
     es_facturacion = intencion_es_facturacion(intencion)
     es_tv_sensa = (intencion or "").strip() == "tv_sensa"
     es_movil = (intencion or "").strip() in ("movil", "movil_datos", "movil_llamadas")
+    es_cambio_clave = (intencion or "").strip() == "cambio_clave_wifi"
     aplica_optica = aplica_optica_turno
     so_movil = detectar_so_movil(mensaje_cliente, historial_mensajes) if es_movil else None
+
+    if es_cambio_clave and _parece_clave_wifi_enviada(mensaje_cliente):
+        return {
+            "accion": "ask",
+            "mensaje": _MSG_CLAVE_WIFI_EQUIPO,
+            "paso_cubierto": "clave_wifi_etiqueta",
+            "motivo": "bloqueado_clave_wifi_en_chat",
+        }
+
     if es_movil:
         pasos_cubiertos = _enriquecer_pasos_movil(
             pasos_cubiertos, so_movil, mensaje_cliente, historial_mensajes
@@ -1648,6 +1817,18 @@ def diagnosticar_turno(
             "- Buffering/calidad: WiFi/velocidad en ese equipo; no inventes potencias ONT.\n"
         )
 
+    reglas_clave_wifi = ""
+    if es_cambio_clave:
+        reglas_clave_wifi = (
+            "\nReglas EXTRA — cambio clave/nombre Wi‑Fi (prioridad alta):\n"
+            "- NUNCA pidas la clave, contraseña o password nueva por chat.\n"
+            "- NUNCA digas que vas a cambiarla vos de forma remota.\n"
+            "- Guiá a cambiarla en el módem/router (etiqueta o panel) y avisá "
+            "que los dispositivos deben reconectarse.\n"
+            "- Si el abonado manda un número o texto que parece clave: NO lo "
+            "confirmes como cambio hecho; reiterá la guía del equipo.\n"
+        )
+
     reglas_movil = ""
     if es_movil:
         so_txt = so_movil or "desconocido"
@@ -1676,7 +1857,7 @@ def diagnosticar_turno(
             intencion=intencion,
             turnos=turnos,
             min_turnos_antes_escalar=MIN_TURNOS_ANTES_ESCALAR,
-            reglas_extra=reglas_facturacion + reglas_tv + reglas_movil,
+            reglas_extra=reglas_facturacion + reglas_tv + reglas_clave_wifi + reglas_movil,
             contexto_abonado=contexto_abonado,
         )
     )
@@ -2068,6 +2249,19 @@ def diagnosticar_turno(
                 motivo = g["motivo"]
             if g.get("paso_cubierto"):
                 paso = g["paso_cubierto"]
+
+        g_wifi = aplicar_guardrails_cambio_clave_wifi(
+            mensaje=mensaje,
+            mensaje_cliente=mensaje_cliente,
+            intencion=intencion,
+            accion=accion,
+        )
+        if g_wifi.get("motivo"):
+            accion = g_wifi["accion"] or accion
+            mensaje = g_wifi["mensaje"] or mensaje
+            motivo = g_wifi["motivo"]
+            if g_wifi.get("paso_cubierto"):
+                paso = g_wifi["paso_cubierto"]
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"

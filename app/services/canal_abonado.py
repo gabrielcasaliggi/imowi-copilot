@@ -1094,7 +1094,17 @@ def _redactar_con_llama(
         texto = (out or "").strip() or borrador
         # Si el modelo se va de mambo, volver al playbook corto
         if len(texto) > 320 or texto.count("?") > 1:
-            return borrador.strip()
+            texto = borrador.strip()
+        from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
+
+        g = aplicar_guardrails_cambio_clave_wifi(
+            mensaje=texto,
+            mensaje_cliente=consulta or "",
+            intencion="",
+            accion="ask",
+        )
+        if g.get("motivo"):
+            return g["mensaje"] or texto
         return texto
     except Exception:
         return borrador
@@ -2476,6 +2486,23 @@ def _aplicar_diagnostico_ia(
         from app.services.diagnostico_n1 import sanitizar_apn_en_texto
 
         mensaje = sanitizar_apn_en_texto(mensaje)
+    from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
+
+    g_wifi = aplicar_guardrails_cambio_clave_wifi(
+        mensaje=mensaje,
+        mensaje_cliente=texto,
+        intencion=intencion,
+        accion=accion,
+    )
+    if g_wifi.get("motivo"):
+        mensaje = g_wifi["mensaje"] or mensaje
+        if g_wifi.get("paso_cubierto"):
+            cubiertos = list(ctx.get("pasos_cubiertos") or [])
+            if g_wifi["paso_cubierto"] not in cubiertos:
+                cubiertos.append(g_wifi["paso_cubierto"])
+                ctx["pasos_cubiertos"] = cubiertos
+                crepo.set_contexto(conv, ctx)
+                db.commit()
     _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
@@ -2674,8 +2701,18 @@ def procesar_mensaje_entrante(
                 "abonado": crepo.abonado_to_dict(abonado),
             }
 
-    # Ya identificado y manda solo DNI (p. ej. tras un ask erróneo): no re-pedir identificación
-    if abonado and _es_solo_dni(texto):
+    # Ya identificado y manda solo DNI (p. ej. tras un ask erróneo): no re-pedir identificación.
+    # Excepción: en diagnóstico técnico (clave WiFi, etc.) un número suele ser dato técnico,
+    # no un DNI distinto — no pisar el flujo con «otra titularidad».
+    from app.services.diagnostico_n1 import es_diagnostico_tecnico_sin_facturacion
+
+    _intent_ahora = str(ctx.get("intencion") or "").strip()
+    _dni_explicito = any(
+        k in (texto or "").lower()
+        for k in ("dni", "documento", "número de socio", "numero de socio", "nro de socio")
+    )
+    _no_reinterpretar_dni = es_diagnostico_tecnico_sin_facturacion(_intent_ahora)
+    if abonado and _es_solo_dni(texto) and not (_no_reinterpretar_dni and not _dni_explicito):
         from app.services.eco_voice import texto_monto_ars, texto_ov_aviso_pago
 
         deuda = str(abonado.deuda_monto or "0").strip() or "0"
@@ -2710,6 +2747,34 @@ def procesar_mensaje_entrante(
             "estado": conv.estado,
             "abonado": crepo.abonado_to_dict(abonado),
             "intencion": "facturacion",
+        }
+
+    # Cambio clave Wi‑Fi: número/clave en chat → guía auto-servicio (no DNI, no cambio remoto).
+    if (
+        abonado
+        and _intent_ahora == "cambio_clave_wifi"
+        and not _dni_explicito
+        and _es_solo_dni(texto)
+    ):
+        from app.services.diagnostico_n1 import mensaje_guia_cambio_clave_wifi
+
+        resp = mensaje_guia_cambio_clave_wifi()
+        cub = list(ctx.get("pasos_cubiertos") or [])
+        if "clave_wifi_etiqueta" not in cub:
+            cub.append("clave_wifi_etiqueta")
+        ctx["pasos_cubiertos"] = cub
+        ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "abonado": crepo.abonado_to_dict(abonado),
+            "intencion": "cambio_clave_wifi",
         }
 
     # Incidente masivo por NAS (antes de frustración/ticket/LLM)
@@ -3981,6 +4046,21 @@ def procesar_mensaje_entrante(
             from app.services.diagnostico_n1 import sanitizar_apn_en_texto
 
             pregunta = sanitizar_apn_en_texto(pregunta)
+        from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
+
+        g_wifi = aplicar_guardrails_cambio_clave_wifi(
+            mensaje=pregunta,
+            mensaje_cliente=texto,
+            intencion=intencion,
+            accion="ask",
+        )
+        if g_wifi.get("motivo"):
+            pregunta = g_wifi["mensaje"] or pregunta
+            if g_wifi.get("paso_cubierto"):
+                cub = list(ctx.get("pasos_cubiertos") or [])
+                if g_wifi["paso_cubierto"] not in cub:
+                    cub.append(g_wifi["paso_cubierto"])
+                    ctx["pasos_cubiertos"] = cub
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
