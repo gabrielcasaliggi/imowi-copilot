@@ -143,6 +143,25 @@ def test_es_cambio_tema_claro_entre_dominios():
     assert es_cambio_tema_claro("no me andan los datos", "movil_llamadas") is None
     assert es_cambio_tema_claro("smart tv", "tv_sensa") is None
     assert es_cambio_tema_claro("si", "tv_sensa") is None
+    # Mid-playbook: mención incidental de internet/WiFi no es cambio de dominio (P18/P19)
+    assert (
+        es_cambio_tema_claro("Sí, internet anda bien en la casa", "tv_sensa") is None
+    )
+    assert (
+        es_cambio_tema_claro(
+            "Apagué el WiFi y sigo sin datos móviles", "movil_datos"
+        )
+        is None
+    )
+
+
+def test_cliente_pide_pagar_no_confunde_modo_avion():
+    from app.services.diagnostico_n1 import _cliente_pide_pagar
+
+    assert _cliente_pide_pagar("Sí, datos prendidos y sin modo avión") is False
+    assert _cliente_pide_pagar("modo avion apagado") is False
+    assert _cliente_pide_pagar("quiero pagar con modo") is True
+    assert _cliente_pide_pagar("mercado pago") is True
 
 
 def test_indica_resuelto_cierre_wifi_gracias_ticket():

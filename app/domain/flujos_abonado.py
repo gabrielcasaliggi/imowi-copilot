@@ -1628,6 +1628,110 @@ def dominio_intencion(intencion: str) -> str:
     return intent
 
 
+def _senal_fuerte_dominio(texto: str, dominio: str) -> bool:
+    """Keywords claras de apertura del dominio destino (no mención incidental).
+
+    Evita que respuestas mid-playbook («sí, internet anda», «apagué el WiFi…»)
+    disparen cambio de tema por reclasificación genérica.
+    """
+    t = (texto or "").lower()
+    if dominio == "movil":
+        return any(
+            k in t
+            for k in (
+                "se me acabaron los datos",
+                "acabaron los datos",
+                "sin datos",
+                "no tengo datos",
+                "no me andan los datos",
+                "no anda el dato",
+                "no andan los datos",
+                "datos del abono",
+                "datos del celu",
+                "datos del celular",
+                "datos móvil",
+                "datos movil",
+                "datos móviles",
+                "datos moviles",
+                "internet del celular",
+                "imowi",
+                "bono de datos",
+                "pack de datos",
+                "sin señal",
+                "sin senal",
+                "no me llega el sms",
+                "sms del banco",
+                "no puedo llamar",
+                "no me andan las llamadas",
+            )
+        )
+    if dominio == "tv_sensa":
+        return "sensa" in t
+    if dominio == "internet":
+        return any(
+            k in t
+            for k in (
+                "sin internet",
+                "no tengo internet",
+                "no anda internet",
+                "no funciona internet",
+                "internet cortado",
+                "me quedé sin internet",
+                "me quede sin internet",
+                "internet lento",
+                "anda lento",
+                "fibra",
+                "router",
+                "onu",
+                "antena",
+                "adsl",
+                "wifi no",
+                "no llega wifi",
+                "no anda el wifi",
+                "no funciona el wifi",
+                "no anda wifi",
+                "cambiar clave wifi",
+                "cambiar la clave del wifi",
+                "se corta el internet",
+                "se me cae el internet",
+                "se cae el internet",
+            )
+        )
+    if dominio == "facturacion":
+        return any(
+            k in t
+            for k in (
+                "factura",
+                "boleta",
+                "deuda",
+                "saldo",
+                "pagar",
+                "pagué",
+                "pague",
+                "cobro",
+                "aumento",
+            )
+        )
+    if dominio == "telefono_fija":
+        return any(
+            k in t
+            for k in (
+                "fijo",
+                "sin tono",
+                "línea fija",
+                "linea fija",
+                "teléfono fijo",
+                "telefono fijo",
+            )
+        )
+    if dominio == "ecolan_b2b":
+        return any(
+            k in t
+            for k in ("ecolan", "data center", "datacenter", "enlace dedicado")
+        )
+    return False
+
+
 def es_cambio_tema_claro(
     texto: str,
     intencion_actual: str,
@@ -1637,6 +1741,7 @@ def es_cambio_tema_claro(
 
     Usa clasificación sin padrón/servicio para no inventar tema por default del abonado.
     No dispara con respuestas cortas de diagnóstico (sí/no, smart tv, modelo, etc.).
+    Requiere señal fuerte del dominio nuevo (no basta reclasificar por keywords débiles).
     """
     _ = servicio_abonado
     actual = (intencion_actual or "").strip()
@@ -1653,7 +1758,10 @@ def es_cambio_tema_claro(
     nueva = clasificar_intencion(texto, "")
     if not nueva or nueva == "general":
         return None
-    if dominio_intencion(nueva) == dominio_intencion(actual):
+    dom_nueva = dominio_intencion(nueva)
+    if dom_nueva == dominio_intencion(actual):
+        return None
+    if not _senal_fuerte_dominio(texto, dom_nueva):
         return None
     return nueva
 

@@ -1100,6 +1100,8 @@ def _fallback_ask(
 
 def _cliente_pide_pagar(texto: str) -> bool:
     t = (texto or "").lower()
+    # «modo» = app MODO; no confundir con «modo avión» del playbook móvil (P19).
+    t = re.sub(r"modo\s+avi[oó]n", " ", t)
     return any(
         k in t
         for k in (
