@@ -1604,6 +1604,60 @@ def parece_consulta_nueva(texto: str) -> bool:
     return any(k in t for k in aperturas)
 
 
+def dominio_intencion(intencion: str) -> str:
+    """Agrupa intenciones del mismo servicio/tema (para detectar cambio de dominio)."""
+    intent = (intencion or "").strip()
+    if not intent or intent in ("general", "multi_tema"):
+        return "general"
+    if intent.startswith("movil"):
+        return "movil"
+    if intencion_es_facturacion(intent) or intent in (
+        "corte_deuda",
+        "reactivacion_pago",
+        "aviso_deuda",
+    ):
+        return "facturacion"
+    if intent.startswith("internet") or intent in ("wifi", "cambio_clave_wifi"):
+        return "internet"
+    if intent == "tv_sensa":
+        return "tv_sensa"
+    if intent == "telefono_fija":
+        return "telefono_fija"
+    if intent == "ecolan_b2b":
+        return "ecolan_b2b"
+    return intent
+
+
+def es_cambio_tema_claro(
+    texto: str,
+    intencion_actual: str,
+    servicio_abonado: str = "",
+) -> str | None:
+    """Si el mensaje abre otro dominio de servicio, retorna la nueva intención.
+
+    Usa clasificación sin padrón/servicio para no inventar tema por default del abonado.
+    No dispara con respuestas cortas de diagnóstico (sí/no, smart tv, modelo, etc.).
+    """
+    _ = servicio_abonado
+    actual = (intencion_actual or "").strip()
+    if not actual or actual in ("general", "multi_tema", "aviso_deuda"):
+        return None
+    t = (texto or "").strip()
+    if len(t) < 12:
+        return None
+    # Sí/no cortos o frases de 1–4 tokens típicas de playbook
+    palabras = t.split()
+    if len(palabras) <= 4 and respuesta_paso_ok(texto) is not None:
+        return None
+    # Sin fallback de servicio: solo keywords del mensaje
+    nueva = clasificar_intencion(texto, "")
+    if not nueva or nueva == "general":
+        return None
+    if dominio_intencion(nueva) == dominio_intencion(actual):
+        return None
+    return nueva
+
+
 def confirma_contacto_sin_servicio(texto: str) -> bool:
     """True si solo dice que le contestaron/llamaron, sin confirmar que el servicio anda.
 

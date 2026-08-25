@@ -30,6 +30,7 @@ from app.domain.flujos_abonado import (
     intencion_es_internet,
     misma_queja,
     niega_producto_internet,
+    es_cambio_tema_claro,
     parece_consulta_nueva,
     pide_humano,
     pide_humano_en_flujo_activo,
@@ -3884,51 +3885,119 @@ def procesar_mensaje_entrante(
             "intencion": intencion,
         }
 
-    # Consulta nueva a mitad de flujo: solo saltar a OTRO dominio específico.
+    # Consulta nueva / cambio de dominio a mitad de flujo.
+    # No seguir diagnostico Sensa/factura/etc. si el abonado abrió otro servicio.
     # Nunca degradar a "general" (eso reinicia con el saludo del menú).
-    if parece_consulta_nueva(texto) and intencion and intencion != "general":
-        nueva = clasificar_intencion(texto, servicio_abo)
-        if nueva and nueva != intencion and nueva != "general":
-            intencion = nueva
-            ctx["intencion"] = intencion
-            ctx["paso_idx"] = 0
-            ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            pb = _playbooks(db)
-            pasos = pb.get(intencion) or pb["general"]
-            diag = _aplicar_diagnostico_ia(
-                db,
-                org_id,
-                conv,
-                abonado,
-                texto,
-                canal=canal,
-                ctx=ctx,
-                intencion=intencion,
-                usar_llama=usar_llama,
-            )
-            if diag is not None:
-                return diag
-            pregunta = pasos[0].pregunta
-            if usar_llama:
-                pregunta = _redactar_con_llama(
-                    pregunta,
-                    f"intencion={intencion} reclasificado=1",
-                    db=db,
-                    org_id=org_id,
-                    consulta=texto,
+    if intencion and intencion != "general":
+        nueva = None
+        if parece_consulta_nueva(texto):
+            candidata = clasificar_intencion(texto, servicio_abo)
+            if candidata and candidata != intencion and candidata != "general":
+                nueva = candidata
+        if not nueva:
+            nueva = es_cambio_tema_claro(texto, intencion, servicio_abo)
+        if nueva:
+            intencion = _intencion_compatible_padron(nueva, abonado, texto)
+            if intencion and intencion != "general":
+                ctx["intencion"] = intencion
+                ctx["paso_idx"] = 0
+                ctx["diag_turnos"] = 0
+                ctx["pasos_cubiertos"] = []
+                ctx.pop("ultima_diag_motivo", None)
+                ctx.pop("ultima_queja", None)
+                ctx["reiteracion_queja"] = 0
+                conv.servicio_detectado = intencion
+                if (
+                    abonado
+                    and _deuda_positiva(abonado)
+                    and _intencion_es_tecnica(intencion)
+                    and not ctx.get("aviso_deuda_ofrecido")
+                    and intencion != "corte_deuda"
+                ):
+                    ctx["intencion"] = "aviso_deuda"
+                    ctx["intencion_tecnica_pendiente"] = intencion
+                    ctx["aviso_deuda_ofrecido"] = True
+                    crepo.set_contexto(conv, ctx)
+                    db.commit()
+                    resp = _texto_aviso_deuda_tecnico(abonado, intencion)
+                    _enviar_respuesta(
+                        db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+                    )
+                    return {
+                        "ok": True,
+                        "modo": "bot",
+                        "conversacion_id": conv.id,
+                        "respuesta": resp,
+                        "estado": conv.estado,
+                        "intencion": "aviso_deuda",
+                    }
+                from app.services.diagnostico_n1 import (
+                    _MSG_BONO_OV,
+                    datos_agotados_abono,
+                    sanitizar_apn_en_texto,
                 )
-            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": pregunta,
-                "estado": conv.estado,
-                "intencion": intencion,
-            }
+
+                hist_cambio = crepo.list_mensajes(db, conv.id)
+                if intencion in ("movil", "movil_datos") and datos_agotados_abono(
+                    texto, hist_cambio
+                ):
+                    ctx["intencion"] = "movil_datos"
+                    intencion = "movil_datos"
+                    ctx["pasos_cubiertos"] = ["datos_activados", "consumo_paquete"]
+                    ctx["paso_idx"] = 2
+                    crepo.set_contexto(conv, ctx)
+                    db.commit()
+                    pregunta = sanitizar_apn_en_texto(_MSG_BONO_OV)
+                    _enviar_respuesta(
+                        db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal)
+                    )
+                    return {
+                        "ok": True,
+                        "modo": "bot",
+                        "conversacion_id": conv.id,
+                        "respuesta": pregunta,
+                        "estado": conv.estado,
+                        "intencion": "movil_datos",
+                    }
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                pb = _playbooks(db)
+                pasos = pb.get(intencion) or pb["general"]
+                diag = _aplicar_diagnostico_ia(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    texto,
+                    canal=canal,
+                    ctx=ctx,
+                    intencion=intencion,
+                    usar_llama=usar_llama,
+                )
+                if diag is not None:
+                    return diag
+                pregunta = pasos[0].pregunta if pasos else (
+                    "Contame qué te pasa con el servicio."
+                )
+                if usar_llama:
+                    pregunta = _redactar_con_llama(
+                        pregunta,
+                        f"intencion={intencion} reclasificado=1",
+                        db=db,
+                        org_id=org_id,
+                        consulta=texto,
+                    )
+                _enviar_respuesta(
+                    db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal)
+                )
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": pregunta,
+                    "estado": conv.estado,
+                    "intencion": intencion,
+                }
 
     if intencion in ("internet", "internet_ftth"):
         from app.services.diagnostico_n1 import detectar_falla_optica_escalar

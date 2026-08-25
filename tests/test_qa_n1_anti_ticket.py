@@ -121,6 +121,30 @@ def test_si_me_contesto_no_cierra_como_resuelto():
     assert indica_resuelto("me contestó y ya anda todo") is True
 
 
+def test_es_cambio_tema_claro_entre_dominios():
+    from app.domain.flujos_abonado import es_cambio_tema_claro, parece_consulta_nueva
+
+    assert parece_consulta_nueva("Se me acabaron los datos del abono") is False
+    assert (
+        es_cambio_tema_claro("Se me acabaron los datos del abono", "tv_sensa")
+        == "movil_datos"
+    )
+    assert (
+        es_cambio_tema_claro(
+            "Se me acabaron los datos del abono", "facturacion_factura"
+        )
+        == "movil_datos"
+    )
+    assert (
+        es_cambio_tema_claro("No anda Sensa en la smart tv", "facturacion_factura")
+        == "tv_sensa"
+    )
+    # Misma familia móvil o respuesta corta de playbook: no resetear
+    assert es_cambio_tema_claro("no me andan los datos", "movil_llamadas") is None
+    assert es_cambio_tema_claro("smart tv", "tv_sensa") is None
+    assert es_cambio_tema_claro("si", "tv_sensa") is None
+
+
 def test_indica_resuelto_cierre_wifi_gracias_ticket():
     msg = (
         "impecable, si ahí moví un poco más cerca del baño en el rutor wifi "
@@ -1372,3 +1396,99 @@ def test_cambio_clave_wifi_numero_no_es_otro_dni():
     )
     assert "pasame la nueva" not in resp2
     assert "mandame la" not in resp2
+
+
+def test_cambio_tema_factura_sensa_datos_sin_ticket():
+    """Regresión prod: factura → Sensa → datos abono no debe abrir N2 por «confusión»."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235581043"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "30111222"))
+        assert abo is not None
+        abo.servicio = "internet,movil,tv"
+        abo.deuda_monto = "0"
+        abo.estado = "activo"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(
+            conv,
+            {
+                "identificado": True,
+                "saludo": True,
+                "intencion": "",
+                "paso_idx": 0,
+                "diag_turnos": 0,
+                "pasos_cubiertos": [],
+            },
+        )
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Necesito la factura del mes pasado",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r1.get("ticket_id")
+    assert "generé el ticket" not in (r1.get("respuesta") or "").lower()
+    assert str(r1.get("intencion") or "").startswith("facturacion") or "factura" in (
+        r1.get("respuesta") or ""
+    ).lower() or "ov.batan" in (r1.get("respuesta") or "").lower()
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="No anda Sensa en la smart tv",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r2.get("ticket_id")
+    assert "generé el ticket" not in (r2.get("respuesta") or "").lower()
+    assert r2.get("intencion") == "tv_sensa"
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "smart" in resp2 or "decodificador" in resp2 or "sensa" in resp2 or "tv" in resp2
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Se me acabaron los datos del abono",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r3.get("ticket_id"), r3.get("respuesta")
+    resp3 = (r3.get("respuesta") or "").lower()
+    assert "generé el ticket" not in resp3
+    assert "hace falta un agente" not in resp3
+    assert r3.get("intencion") == "movil_datos"
+    assert "ov.batan" in resp3
+    assert any(k in resp3 for k in ("bono", "datos del abono", "abono"))
