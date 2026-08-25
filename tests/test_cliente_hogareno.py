@@ -154,6 +154,46 @@ def test_loop_sensa_error_cuenta_legitimo():
     assert r.n2_legitimo or r.ok
 
 
+def test_loop_p19_provision_movil_legitimo():
+    p19 = next(p for p in PERSONAS if p.id == "P19")
+    r = run_persona(client, p19)
+    assert not r.n2_evitable, r.fallas
+    assert r.ticket_creado, r.transcript
+    blob = " ".join(
+        t["texto"] for t in r.transcript if t.get("rol") == "bot"
+    ).lower()
+    assert "iphone" not in blob
+    assert "3g" not in blob
+
+
+def test_loop_p20_segunda_insistencia_agente():
+    p20 = next(p for p in PERSONAS if p.id == "P20")
+    r = run_persona(client, p20)
+    assert not r.n2_evitable, r.fallas
+    assert r.ticket_creado, r.transcript
+    assert r.n2_legitimo or r.ok
+    assert r.turnos >= 2
+
+
+def test_loop_lote_guion_extra_sin_n2_evitable():
+    """Subset del guion P21–P28 (+ bordes) sin N2 evitables."""
+    ids = ["P21", "P22", "P23", "P24", "P26", "P27", "P28"]
+    results = run_loop(ids=ids, client=client)
+    by_id = {r.persona_id: r for r in results}
+    for pid in ids:
+        r = by_id[pid]
+        assert r.ok, f"{pid} fallas={r.fallas} ticket={r.ticket_id} transcript={r.transcript}"
+        assert not r.n2_evitable, pid
+
+
+def test_lotes_exhaustivo_cubre_p19_p28():
+    from qa_bot.lotes import LOTES
+
+    assert "P19" in LOTES["exhaustivo"]
+    assert "P28" in LOTES["exhaustivo"]
+    assert set(LOTES["movil"]) == {"P19", "P23", "P24", "P26"}
+
+
 def test_kb_sensa_n1_seed():
     from app.estate.seed import _articulos_kb_batan
 

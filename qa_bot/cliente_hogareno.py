@@ -8,6 +8,8 @@ Uso (in-process, API local TestClient — no pega a producción):
 
     .venv/bin/python -m qa_bot.cliente_hogareno
     .venv/bin/python -m qa_bot.cliente_hogareno --personas P01,P07
+    .venv/bin/python -m qa_bot.cliente_hogareno --lote exhaustivo
+    .venv/bin/python -m qa_bot.entrenamiento_exhaustivo
 """
 
 from __future__ import annotations
@@ -74,6 +76,16 @@ class Hechos:
     sensa_app_abre: bool = False
     sensa_sintoma: str = ""
     sensa_acciones_resuelven: bool = False
+    # Móvil IMOWI / agente / comercial (guion entrenamiento)
+    tema_movil: str = ""  # datos | bono | a2p | menu_typo
+    movil_modelo: str = ""
+    movil_so: str = ""  # android | ios
+    movil_apn_ok: bool = False
+    movil_pack_acreditado: bool = False
+    pide_agente_insistente: bool = False
+    reply_menu_typo: str = ""
+    tema_fijo: bool = False
+    tema_comercial: str = ""  # alta | baja | plan
 
 
 @dataclass
@@ -82,7 +94,7 @@ class Persona:
     nombre: str
     descripcion: str
     hechos: Hechos
-    n2_esperado: str  # nunca | optica | post_n1_radio | legitimo_factura | legitimo_sensa
+    n2_esperado: str  # nunca | optica | post_n1_radio | legitimo_* | segunda_insistencia
     max_turnos: int = 10
     dni: str = "30111222"
 
@@ -376,6 +388,127 @@ PERSONAS: list[Persona] = [
             apertura="Sensa me da error de cuenta y no reproduce nada",
         ),
     ),
+    # —— Guion extra (móvil / agente / comercial) ——
+    Persona(
+        id="P19",
+        nombre="Móvil pack acreditado sin datos",
+        descripcion="Patricia: Moto/APN OK; pack OK sin datos → N2 provisión (no iPhone/3G).",
+        n2_esperado="legitimo_provision_movil",
+        max_turnos=12,
+        dni="32123456",
+        hechos=Hechos(
+            tema_movil="datos",
+            movil_modelo="Moto g72",
+            movil_so="android",
+            movil_apn_ok=True,
+            movil_pack_acreditado=True,
+            apertura="No Tengo datos en Mar del Plata",
+        ),
+    ),
+    Persona(
+        id="P20",
+        nombre="2ª insistencia mismo pedido de agente",
+        descripcion="Repite «quiero hablar con un agente»; 1ª no ticket, 2ª sí.",
+        n2_esperado="segunda_insistencia",
+        max_turnos=4,
+        hechos=Hechos(
+            pide_agente_insistente=True,
+            apertura="quiero hablar con un agente",
+        ),
+    ),
+    Persona(
+        id="P21",
+        nombre="Saldo / cuánto debo",
+        descripcion="Consulta saldo; N1 informa sin ticket.",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_factura="saldo",
+            apertura="Cuánto debo, quiero ver el saldo",
+        ),
+    ),
+    Persona(
+        id="P22",
+        nombre="Factura más cara / aumento",
+        descripcion="Pregunta por aumento; indaga, no solo medios de pago. N2 no al inicio.",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_factura="aumento",
+            reclamo_mes="este mes",
+            reclamo_monto="vino más cara que el anterior",
+            apertura="Me vino más cara la factura, por qué subió?",
+        ),
+    ),
+    Persona(
+        id="P23",
+        nombre="Se acabaron los datos del abono",
+        descripcion="Bono vía ov.batan.coop; no ticket.",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_movil="bono",
+            apertura="Se me acabaron los datos del abono",
+        ),
+    ),
+    Persona(
+        id="P24",
+        nombre="SMS banco no llega (A2P)",
+        descripcion="Sugiere otro medio; no promete habilitación; N2 no prematuro.",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_movil="a2p",
+            apertura="No me llega el SMS de verificación del banco",
+        ),
+    ),
+    Persona(
+        id="P25",
+        nombre="Fijo sin tono",
+        descripcion="Playbook telefonía fija agotado → N2 legítimo (no prematuro).",
+        n2_esperado="post_n1_fija",
+        max_turnos=12,
+        hechos=Hechos(
+            tema_fijo=True,
+            tono_fijo=False,
+            apertura="No anda el fijo, sin tono",
+        ),
+    ),
+    Persona(
+        id="P26",
+        nombre="Typo menú móvil ,ovil",
+        descripcion="Tras menú, escribe ,ovil; debe tomar móvil sin ticket vacío.",
+        n2_esperado="nunca",
+        dni="32123456",
+        hechos=Hechos(
+            tema_movil="menu_typo",
+            movil_modelo="Samsung A14",
+            movil_so="android",
+            apertura="Hola",
+            reply_menu_typo=",ovil",
+        ),
+    ),
+    Persona(
+        id="P27",
+        nombre="Corte por falta de pago cómo pago",
+        descripcion="Medios OV/QR; sin CBU inventado; N2 no.",
+        n2_esperado="nunca",
+        dni="27333444",
+        hechos=Hechos(
+            tema_factura="pagar",
+            apertura="Me cortaron el servicio por falta de pago, como pago?",
+        ),
+    ),
+    Persona(
+        id="P28",
+        nombre="Quiere contratar fibra",
+        descripcion="Alta comercial; no ticket técnico N2.",
+        n2_esperado="nunca",
+        hechos=Hechos(
+            tema_comercial="alta",
+            apertura="Quiero contratar internet fibra en Batán",
+        ),
+    ),
 ]
 
 
@@ -395,6 +528,107 @@ def responder_como_cliente(
 
     h = persona.hechos
     q = (pregunta_bot or "").lower()
+
+    # —— 2ª insistencia mismo pedido de agente (P20) ——
+    if h.pide_agente_insistente:
+        return "quiero hablar con un agente"
+
+    # —— Alta / comercial (P28) ——
+    if h.tema_comercial:
+        if any(k in q for k in ("agente", "deriv", "ticket", "comercial")):
+            if turno >= 2:
+                return "Sí, pasame con comercial por favor"
+            return "Prefiero info acá primero"
+        if any(k in q for k in ("alta", "plan", "barrio", "localidad", "internet", "móvil", "movil")):
+            if h.tema_comercial == "alta":
+                return "Alta nueva de internet fibra en Batán"
+            return "Consulta de plan"
+        return "Quiero contratar fibra"
+
+    # —— Móvil IMOWI (P19, P23, P24, P26) ——
+    if h.tema_movil:
+        if h.reply_menu_typo and any(
+            k in q
+            for k in (
+                "en qué te",
+                "en que te",
+                "internet",
+                "telefonía",
+                "telefonia",
+                "factura",
+                "móvil",
+                "movil",
+            )
+        ):
+            return h.reply_menu_typo
+
+        if any(k in q for k in ("agente", "deriv", "ticket", "abrimos")):
+            if persona.n2_esperado == "legitimo_provision_movil" and turno >= 3:
+                return "Sí, derivame con la línea por favor"
+            if h.tema_movil in ("bono", "a2p", "menu_typo"):
+                return "No hace falta, gracias"
+            return "Prefiero seguir acá"
+
+        if h.tema_movil == "bono":
+            if any(k in q for k in ("ov.batan", "bono", "autogestión", "autogestion", "imowi.com")):
+                return "Ah perfecto, compro el bono en ov.batan.coop, gracias"
+            if any(k in q for k in ("internet", "móvil", "movil", "en qué te", "en que te")):
+                return "Se me acabaron los datos del abono móvil"
+            return "Necesito cargar datos del abono"
+
+        if h.tema_movil == "a2p":
+            if any(k in q for k in ("otro medio", "whatsapp", "mail", "llamad", "banco")):
+                return "Probaré por otro medio, gracias"
+            if any(k in q for k in ("internet", "móvil", "movil", "en qué te", "en que te")):
+                return "No me llega el SMS del banco"
+            return "Es el SMS de verificación del banco"
+
+        if any(k in q for k in ("android", "iphone", "modelo", "qué celular", "que celular", "equipo")):
+            so = "Android" if h.movil_so == "android" else "iPhone"
+            return f"Es un {h.movil_modelo or 'celular'} {so}"
+
+        if any(k in q for k in ("datos móviles", "datos moviles", "modo avión", "modo avion", "prendidos")):
+            return "Sí, datos prendidos y sin modo avión"
+
+        if any(k in q for k in ("pack", "bono", "abono", "quedan datos", "consumo")):
+            if h.movil_pack_acreditado:
+                return "El pack figura acreditado y me quedan datos, pero no navega nada"
+            return "Se me acabaron los datos"
+
+        if any(k in q for k in ("apn", "punto de acceso", "catel", "imowi")):
+            if h.movil_apn_ok:
+                return "Sí, el APN imowi quedó bien configurado y sigue sin datos"
+            return "No sé configurar el APN"
+
+        if any(k in q for k in ("wifi", "navega", "probá", "proba", "zona", "viaje")):
+            return "Apagué el WiFi y sigo sin datos móviles"
+
+        if any(k in q for k in ("internet", "móvil", "movil", "en qué te", "en que te", "pagar", "sensa")):
+            return "Por el móvil, no tengo datos"
+
+        return "Sigue sin datos en el celular"
+
+    # —— Teléfono fijo (P25) ——
+    if h.tema_fijo:
+        if any(k in q for k in ("agente", "deriv", "ticket", "abrimos")):
+            if persona.n2_esperado == "post_n1_fija" and turno >= 5:
+                return "Sí, abrí el ticket por favor"
+            return "Prefiero seguir acá un poco más"
+        if "tono" in q:
+            return "No, al descolgar no hay tono" if h.tono_fijo is False else "Sí, hay tono"
+        if any(k in q for k in ("todos los teléfonos", "todos los telefonos", "solo en uno")):
+            return "En todos los fijos de la casa"
+        if any(k in q for k in ("cable", "enchuf", "toma de la pared")):
+            return "Sí, el cable está bien enchufado"
+        if any(k in q for k in ("otro", "aparato", "misma toma")):
+            return "Probé otro teléfono en la misma toma y tampoco"
+        if any(k in q for k in ("ruido", "estática", "estatica")):
+            return "No, no hay ruido ni estática"
+        if any(k in q for k in ("adsl", "splitter", "filtro")):
+            return "No, en esa línea no tengo ADSL"
+        if any(k in q for k in ("internet", "móvil", "movil", "en qué te", "en que te")):
+            return "Es el teléfono fijo de casa"
+        return "El fijo sigue sin tono"
 
     # —— TV Sensa (P17–P18) ——
     if h.tema_sensa:
@@ -437,13 +671,13 @@ def responder_como_cliente(
                 return "Sí, derivame con facturación por favor"
             if h.tema_factura == "reactivar":
                 return "No, espero un rato más, gracias"
-            if h.tema_factura in ("pagar", "informar"):
+            if h.tema_factura in ("pagar", "informar", "saldo", "aumento"):
                 return "No hace falta, gracias"
             return "Prefiero seguir acá"
 
         if h.tema_factura == "pagar":
-            if any(k in q for k in ("entrar", "medio de pago", "pudiste", "qr", "pagar")):
-                return "Sí, ya entré al QR de Mercado Pago, gracias"
+            if any(k in q for k in ("entrar", "medio de pago", "pudiste", "qr", "pagar", "ov.batan")):
+                return "Sí, ya entré al QR / ov.batan, gracias"
             if any(k in q for k in ("qué necesitás", "que necesitas", "pagar, descargar", "reclamar")):
                 return "Quiero pagar la factura"
             return "Solo necesito pagar con el QR"
@@ -476,6 +710,20 @@ def responder_como_cliente(
             if any(k in q for k in ("diferencia", "sigue", "derivo")):
                 return "Sí, la diferencia sigue; derivame con facturación"
             return "No reconozco ese cobro"
+
+        if h.tema_factura == "saldo":
+            if any(k in q for k in ("saldo", "deuda", "debe", "pendiente", "monto")):
+                return "Dale, con eso me alcanza, gracias"
+            if any(k in q for k in ("dni", "socio")):
+                return f"Mi DNI es {persona.dni}"
+            return "Solo quiero saber cuánto debo"
+
+        if h.tema_factura == "aumento":
+            if any(k in q for k in ("aumento", "subió", "subio", "ajuste", "plan", "por qué", "por que")):
+                return "Quiero entender por qué subió respecto al mes pasado"
+            if any(k in q for k in ("dni", "socio")):
+                return f"DNI {persona.dni}"
+            return "Me vino más cara la factura"
 
     if persona.id == "P08" and turno >= 1:
         return "Sigue igual, no tengo internet"
@@ -640,8 +888,10 @@ def responder_como_cliente(
         if persona.n2_esperado in (
             "optica",
             "post_n1_radio",
+            "post_n1_fija",
             "legitimo_factura",
             "legitimo_sensa",
+            "legitimo_provision_movil",
         ) and turno >= 3:
             return "Sí, derivame por favor"
         return "Prefiero seguir intentando acá"
@@ -649,8 +899,18 @@ def responder_como_cliente(
     if any(k in q for k in ("internet", "móvil", "movil", "factura", "en qué te", "en que te", "pagar", "sensa")):
         if h.tema_sensa:
             return "Por la TV Sensa"
+        if h.tema_movil:
+            return "Por el móvil"
+        if h.tema_fijo:
+            return "Por el teléfono fijo"
+        if h.tema_comercial:
+            return "Quiero contratar un plan"
         if h.tema_factura == "pagar":
             return "Por la factura, quiero pagar"
+        if h.tema_factura == "saldo":
+            return "Quiero consultar el saldo"
+        if h.tema_factura == "aumento":
+            return "Por el aumento de la factura"
         if h.tema_factura:
             return "Es un tema de facturación"
         if h.deuda_manana and any(k in q for k in ("pagar", "deuda", "saldo")):
@@ -662,6 +922,12 @@ def responder_como_cliente(
     # Fallback: no repetir “sigue igual” (eso dispara N2 por frustración).
     if h.tema_sensa:
         return "Sigue el problema con Sensa"
+    if h.tema_movil:
+        return "Sigue sin datos en el celular"
+    if h.tema_fijo:
+        return "El fijo sigue sin tono"
+    if h.tema_comercial:
+        return "Quiero contratar fibra"
     if h.tema_factura == "pagar":
         return "Quiero pagar con el QR de la factura"
     if h.tema_factura == "informar":
@@ -670,6 +936,10 @@ def responder_como_cliente(
         return f"Pagué hace {h.pago_hace or 'poco'} y sigue cortado"
     if h.tema_factura == "reclamo":
         return "No reconozco el monto de la factura"
+    if h.tema_factura == "saldo":
+        return "Quiero saber el saldo"
+    if h.tema_factura == "aumento":
+        return "Me vino más cara la factura"
     if h.quiere_clave:
         return "Quiero cambiar la clave del WiFi"
     if h.sintoma_whatsapp:
@@ -831,6 +1101,14 @@ def evaluar_resultado(
         elif ticket:
             n2_legitimo = True
         # no ticket al final no es falla dura: el bot puede seguir preguntando
+    elif persona.n2_esperado == "post_n1_fija":
+        if ticket and turno_ticket is not None and turno_ticket < 3:
+            n2_evitable = True
+            fallas.append("P25: N2 antes de agotar N1 telefonía fija")
+        elif ticket:
+            n2_legitimo = True
+        elif len(turnos) >= persona.max_turnos:
+            fallas.append("P25: no ofreció handoff tras agotar N1 fijo")
     elif persona.n2_esperado == "legitimo_factura":
         if ticket:
             n2_legitimo = True
@@ -849,6 +1127,29 @@ def evaluar_resultado(
                 fallas.append("N2 prematuro en Sensa")
         elif len(turnos) >= persona.max_turnos:
             fallas.append("Sensa: no ofreció handoff tras agotar N1")
+    elif persona.n2_esperado == "legitimo_provision_movil":
+        if ticket:
+            n2_legitimo = True
+            if turno_ticket is not None and turno_ticket == 0:
+                n2_evitable = True
+                n2_legitimo = False
+                fallas.append("N2 prematuro en móvil/provisión")
+        elif len(turnos) >= persona.max_turnos:
+            fallas.append("Móvil pack OK sin datos: no ofreció handoff provisión")
+        # Guardrails: no inventar iPhone/3G en Android con pack acreditado
+        if any(k in bot_blob for k in ("iphone", "3g", "modo 3g")):
+            fallas.append("P19: inventó iPhone/3G (guardrail móvil)")
+            if ticket:
+                n2_evitable = True
+                n2_legitimo = False
+    elif persona.n2_esperado == "segunda_insistencia":
+        if ticket and turno_ticket is not None and turno_ticket == 0:
+            n2_evitable = True
+            fallas.append("P20: ticket en la 1ª petición de agente (debe ser 2ª)")
+        elif ticket and turno_ticket is not None and turno_ticket >= 1:
+            n2_legitimo = True
+        elif not ticket and len(turnos) >= 2:
+            fallas.append("P20: 2ª insistencia de agente no creó ticket")
 
     if persona.id == "P07" and ticket and (turno_ticket or 0) == 0:
         n2_evitable = True
@@ -868,6 +1169,15 @@ def evaluar_resultado(
     if persona.n2_esperado == "legitimo_sensa" and ticket and not n2_evitable:
         ok = True
         fallas = [f for f in fallas if "no ofreció handoff" not in f]
+    if persona.n2_esperado == "legitimo_provision_movil" and ticket and not n2_evitable:
+        ok = True
+        fallas = [f for f in fallas if "no ofreció handoff" not in f]
+    if persona.n2_esperado == "post_n1_fija" and ticket and not n2_evitable:
+        ok = True
+        fallas = [f for f in fallas if "no ofreció handoff" not in f]
+    if persona.n2_esperado == "segunda_insistencia" and ticket and not n2_evitable:
+        ok = True
+        fallas = [f for f in fallas if "no creó ticket" not in f]
 
     transcript = []
     for t in turnos:
@@ -939,6 +1249,9 @@ def run_loop(
     ids: list[str] | None = None,
     client: Any | None = None,
 ) -> list[ResultadoPersona]:
+    # Igual que tests/conftest: sin BillTrack externo (evita ruido y desvíos a facturación).
+    os.environ.pop("BILLTRACK_DATABASE_URL", None)
+
     selected = PERSONAS
     if ids:
         wanted = set(ids)
@@ -987,10 +1300,21 @@ def resumen(results: list[ResultadoPersona]) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from qa_bot.lotes import LOTES
+
     parser = argparse.ArgumentParser(description="Loop QA cliente hogareño (API local)")
     parser.add_argument("--personas", default="", help="IDs P01,P02,… (vacío = todas)")
+    parser.add_argument(
+        "--lote",
+        default="",
+        help="Lote nombrado: base|guion|exhaustivo|internet|factura|movil|agente|sensa",
+    )
     args = parser.parse_args(argv)
     ids = [s.strip() for s in args.personas.split(",") if s.strip()] or None
+    if args.lote:
+        if args.lote not in LOTES:
+            parser.error(f"lote desconocido: {args.lote}. Opciones: {', '.join(sorted(LOTES))}")
+        ids = LOTES[args.lote]
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     results = run_loop(ids=ids)
     payload = resumen(results)

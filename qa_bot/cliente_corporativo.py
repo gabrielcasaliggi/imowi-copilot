@@ -368,6 +368,8 @@ def run_loop(
     ids: list[str] | None = None,
     client: Any | None = None,
 ) -> list[ResultadoPersona]:
+    os.environ.pop("BILLTRACK_DATABASE_URL", None)
+
     selected = PERSONAS
     if ids:
         wanted = set(ids)

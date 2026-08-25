@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Informe — entrenamiento exhaustivo N1</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color: #1a1a1a;
+    font-size: 11pt;
+    line-height: 1.45;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20pt; margin: 0 0 4px; }
+  h2 { font-size: 13pt; margin: 22px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  .meta { color: #555; font-size: 10pt; margin-bottom: 16px; }
+  .badge {
+    display: inline-block;
+    background: #1b7f4e;
+    color: #fff;
+    font-size: 9pt;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 8px;
+  }
+  .callout {
+    background: #eef7f1;
+    border-left: 4px solid #1b7f4e;
+    padding: 10px 12px;
+    margin: 12px 0;
+  }
+  .callout.info {
+    background: #eef3f8;
+    border-left-color: #2a6fad;
+  }
+  .callout.warn {
+    background: #faf3e6;
+    border-left-color: #b77a1a;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .stat {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+  }
+  .stat strong { display: block; font-size: 16pt; }
+  .stat span { font-size: 9pt; color: #555; }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .card {
+    border: 1px solid #ddd;
+    padding: 10px 12px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 11pt; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin-top: 8px;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 4px 6px;
+    text-align: left;
+  }
+  th { background: #f3f3f3; }
+  tr.n2 td:nth-child(3) { font-weight: 600; }
+  ul { margin: 6px 0; padding-left: 18px; }
+  .footer { margin-top: 24px; font-size: 9pt; color: #666; }
+</style>
+</head>
+<body>
+  <h1>Informe — entrenamiento exhaustivo N1 <span class="badge">PASS</span></h1>
+  <p class="meta">
+    Lote exhaustivo · P01–P28 + C01–C04 · 25 ago 2026<br />
+    Artefacto: <code>qa_bot/artifacts/entrenamiento_exhaustivo.json</code>
+  </p>
+
+  <div class="callout">
+    <strong>0 N2 evitables en 32 personas.</strong>
+    El barrido automatizado reemplaza el entrenamiento manual de ~2 semanas
+    sobre el catálogo curado. Corte cumplido: tasa OK 100%, 23 cierres en N1,
+    9 handoffs legítimos. La prueba final sigue siendo el cliente real
+    (escribe mal, mezcla temas, no sabe qué le pasa).
+  </div>
+
+  <div class="stats">
+    <div class="stat"><strong>32/32</strong><span>Personas OK</span></div>
+    <div class="stat"><strong>0</strong><span>N2 evitables</span></div>
+    <div class="stat"><strong>9</strong><span>N2 legítimos</span></div>
+    <div class="stat"><strong>23</strong><span>Sin ticket</span></div>
+  </div>
+
+  <h2>Sobre el error del log (BillTrack / ImportError)</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>BillTrack (billtrack_reader)</h3>
+      <p>No tumba el entrenamiento: el lookup falla, se loguea y el bot sigue con padrón local. No hace falta reintentar solo por ese ERROR.</p>
+      <p>El harness ahora hace <code>pop</code> de <code>BILLTRACK_DATABASE_URL</code> (como los tests) para no desviar móvil/factura.</p>
+    </div>
+    <div class="card">
+      <h3>ImportError circular</h3>
+      <p>Sí había que rehacer: <code>personas_extra</code> ↔ <code>cliente_hogareno</code>. El PASS anterior era solo lote móvil (8 personas), no el exhaustivo.</p>
+      <p>Corregido: P19–P28 viven en <code>cliente_hogareno</code>. Re-corrida exhaustiva → PASS 32/32.</p>
+    </div>
+  </div>
+
+  <h2>Qué se mejoró / quedó validado</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Casos reales (Patricia / Jorge)</h3>
+      <ul>
+        <li><strong>P19</strong> — pack acreditado sin datos → N2 provisión; sin iPhone/3G inventados.</li>
+        <li><strong>P20</strong> — 2ª «quiero hablar con un agente» crea ticket; la 1ª no.</li>
+        <li><strong>P26</strong> — typo de menú <code>,ovil</code> entra a móvil sin ticket vacío.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Catálogo (antes manual ~2 semanas)</h3>
+      <ul>
+        <li>Internet FTTH/radio/ADSL/WiFi + intermitencia y clave.</li>
+        <li>Factura: pagar, avisar, reactivar, reclamo, saldo, aumento.</li>
+        <li>Sensa, móvil (datos/bono/A2P), fijo, alta comercial, B2B.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Handoffs que deben existir</h3>
+      <p>P02 óptica · P05 radio · P16 factura · P18 Sensa · P19 provisión · P20 2ª agente · P25 fijo post-playbook · C03/C04 B2B</p>
+    </div>
+    <div class="card">
+      <h3>Proceso operativo</h3>
+      <p>Comando: <code>python -m qa_bot.entrenamiento_exhaustivo</code></p>
+      <p>Ritual: automatizado → 3–5 N2 reales de bandeja → KB/playbook → nueva persona → re-lote.</p>
+    </div>
+  </div>
+
+  <h2>Detalle por persona</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Tema</th><th>N2</th><th>Tipo</th><th>Resultado</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>P01</td><td>Fibra sin servicio</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr class="n2"><td>P02</td><td>LOS roja</td><td>sí</td><td>óptico legítimo</td><td>OK</td></tr>
+      <tr><td>P03</td><td>Solo WiFi</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P04</td><td>Lento en pico</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr class="n2"><td>P05</td><td>Radio techo</td><td>sí</td><td>post N1 radio</td><td>OK</td></tr>
+      <tr><td>P06</td><td>Typo coloquial</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P07</td><td>Pide humano de entrada</td><td>no</td><td>sigue N1</td><td>OK</td></tr>
+      <tr><td>P08</td><td>Reiteración temprana</td><td>no</td><td>sin ticket vacío</td><td>OK</td></tr>
+      <tr><td>P09</td><td>Intermitencia</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P10</td><td>ADSL sync</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P11</td><td>Cambio clave WiFi</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P12</td><td>Adulto mayor / WhatsApp</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P13</td><td>Pagar factura</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P14</td><td>Avisar pago</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P15</td><td>Reactivación reciente</td><td>no</td><td>espera plazo</td><td>OK</td></tr>
+      <tr class="n2"><td>P16</td><td>Reclamo de monto</td><td>sí</td><td>facturación legítima</td><td>OK</td></tr>
+      <tr><td>P17</td><td>Sensa app</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr class="n2"><td>P18</td><td>Sensa error cuenta</td><td>sí</td><td>Sensa legítimo</td><td>OK</td></tr>
+      <tr class="n2"><td>P19</td><td>Móvil pack OK sin datos</td><td>sí</td><td>provisión (Patricia)</td><td>OK</td></tr>
+      <tr class="n2"><td>P20</td><td>2ª insistencia agente</td><td>sí</td><td>handoff 2ª vez</td><td>OK</td></tr>
+      <tr><td>P21</td><td>Consulta saldo</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P22</td><td>Aumento factura</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P23</td><td>Bono datos</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr><td>P24</td><td>SMS banco A2P</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr class="n2"><td>P25</td><td>Fijo sin tono</td><td>sí</td><td>post N1 fija</td><td>OK</td></tr>
+      <tr><td>P26</td><td>Typo menú ,ovil</td><td>no</td><td>menú tolerante</td><td>OK</td></tr>
+      <tr><td>P27</td><td>Corte / cómo pago</td><td>no</td><td>medios OV/QR</td><td>OK</td></tr>
+      <tr><td>P28</td><td>Contratar fibra</td><td>no</td><td>comercial</td><td>OK</td></tr>
+      <tr><td>C01</td><td>Cotización B2B</td><td>no</td><td>sin ticket técnico</td><td>OK</td></tr>
+      <tr><td>C02</td><td>VPN un usuario</td><td>no</td><td>resuelto N1</td><td>OK</td></tr>
+      <tr class="n2"><td>C03</td><td>Enlace sede caída</td><td>sí</td><td>B2B legítimo</td><td>OK</td></tr>
+      <tr class="n2"><td>C04</td><td>VM/DC impacto</td><td>sí</td><td>B2B legítimo</td><td>OK</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <strong>Límite consciente.</strong>
+    Este harness no simula al abonado que escribe mal dos temas a la vez o no sabe
+    si es fibra o radio. Eso se captura en bandeja real y se baja a una persona nueva.
+    El automatizado evita regresiones; la calle enseña los casos nuevos.
+  </div>
+
+  <p class="footer">
+    Operations Hub / Soporte Batán · Entrenamiento N1 · Generado desde el canvas
+    informe-entrenamiento-exhaustivo · Comando:
+    <code>.venv/bin/python -m qa_bot.entrenamiento_exhaustivo</code>
+  </p>
+</body>
+</html>

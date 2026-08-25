@@ -4,17 +4,26 @@ Proceso para bajar **tickets N2 evitables** sin tapar visitas ópticas ni handof
 
 ## Ciclo semanal
 
-1. Revisar 3–5 tickets N2 de bandeja (`canal_abonado_n2`).
-2. Si N1 podía resolver → artículo KB corto **o** paso de playbook (nunca el transcript crudo).
-3. Agregar o ajustar una **persona** QA con hechos ocultos.
-4. Correr el harness del lote afectado.
-5. Métrica de corte: **0 N2 evitables**. N2 ópticos / radio agotado / B2B productivo = OK.
+1. Correr el entrenamiento automatizado (`python -m qa_bot.entrenamiento_exhaustivo`).
+2. Revisar 3–5 tickets N2 reales de bandeja (`canal_abonado_n2`) — ahí aparece el ruido del cliente.
+3. Si N1 podía resolver → artículo KB corto **o** paso de playbook (nunca el transcript crudo).
+4. Agregar o ajustar una **persona** QA con hechos ocultos y sumarla al lote.
+5. Re-correr el harness del lote afectado.
+6. Métrica de corte: **0 N2 evitables**. N2 ópticos / radio agotado / provisión móvil / B2B productivo = OK.
 
 ```bash
-.venv/bin/python -m qa_bot.cliente_hogareno              # P01–P18
+.venv/bin/python -m qa_bot.entrenamiento_exhaustivo          # P01–P28 + C01–C04
+.venv/bin/python -m qa_bot.entrenamiento_exhaustivo --lote movil
+.venv/bin/python -m qa_bot.cliente_hogareno --lote exhaustivo
 .venv/bin/python -m qa_bot.cliente_hogareno --personas P13,P16,P17,P18
-.venv/bin/python -m qa_bot.cliente_corporativo           # C01–C04
+.venv/bin/python -m qa_bot.cliente_corporativo               # C01–C04
 ```
+
+Lotes hogareños (`--lote`): `base` (P01–P18), `guion`/`exhaustivo` (P01–P28), `internet`, `factura`, `movil`, `agente`, `sensa`.
+
+Métrica de corte del automatizado: **0 N2 evitables**. Artefacto: `qa_bot/artifacts/entrenamiento_exhaustivo.json`.
+
+Esto reemplaza el barrido manual de ~2 semanas sobre el catálogo curado. **No** reemplaza la prueba con cliente real (escribe mal, no sabe qué le pasa, mezcla temas).
 
 Reglas:
 
@@ -45,7 +54,16 @@ Reglas:
 | Reclamo de monto | `facturacion_reclamo` | Facturación — reclamo de monto | P16 | legítimo facturación |
 | Sensa app (N1 alcanza) | `tv_sensa` | TV OTT Sensa; Sensa N1 cuándo cerrar/derivar | P17 | nunca |
 | Sensa error de cuenta | `tv_sensa` | TV OTT Sensa — requisitos y escalamiento | P18 | legítimo |
-| Móvil sin datos, APN Android OK, pack acreditado | `movil_datos` | IMOWI — sin datos móviles | caso Patricia | N2 provisión (no 3G/iPhone) |
+| Móvil sin datos, APN Android OK, pack acreditado | `movil_datos` | IMOWI — sin datos móviles | P19 | N2 provisión (no 3G/iPhone) |
+| 2ª insistencia mismo «quiero agente» | menú / handoff | — | P20 | 2ª = ticket; 1ª no |
+| Saldo / cuánto debo | facturación | — | P21 | nunca |
+| Factura más cara / aumento | facturación | — | P22 | nunca (indaga, no QR solo) |
+| Se acabaron datos del abono | `movil_datos` | bono ov.batan | P23 | nunca |
+| SMS banco no llega (A2P) | `movil_llamadas` / FAQ | — | P24 | nunca (otro medio) |
+| Fijo sin tono | `telefono_fija` | — | P25 | post_n1_fija (legítimo tras playbook) |
+| Typo menú `,ovil` | menú servicio | — | P26 | nunca |
+| Corte por falta de pago / cómo pago | `facturacion_pago` | medios OV/QR | P27 | nunca |
+| Quiere contratar fibra | `alta_plan` | — | P28 | nunca (comercial, no N2 técnico) |
 
 ## Matriz corporativa (Ecolan B2B)
 
