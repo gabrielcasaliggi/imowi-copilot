@@ -1,11 +1,9 @@
 """Personas extra P19–P28 viven en cliente_hogareno.PERSONAS.
 
-Este módulo solo reexporta lotes y un filtro conveniente (sin import circular).
+Filtro conveniente sin import circular. Lotes: importar desde qa_bot.lotes.
 """
 
 from __future__ import annotations
-
-from qa_bot.lotes import LOTE_BASE, LOTE_EXHAUSTIVO, LOTE_GUION, LOTES
 
 
 def personas_extra():

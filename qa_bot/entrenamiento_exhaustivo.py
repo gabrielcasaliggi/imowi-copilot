@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,10 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     # Antes de importar app: sin BillTrack (credenciales locales suelen fallar y desvían N1).
     os.environ.pop("BILLTRACK_DATABASE_URL", None)
 
-    from qa_bot.cliente_corporativo import run_loop as run_corp
     from qa_bot.cliente_corporativo import resumen as resumen_corp
-    from qa_bot.cliente_hogareno import run_loop as run_hogar
+    from qa_bot.cliente_corporativo import run_loop as run_corp
     from qa_bot.cliente_hogareno import resumen as resumen_hogar
+    from qa_bot.cliente_hogareno import run_loop as run_hogar
     from qa_bot.lotes import LOTES
 
     parser = argparse.ArgumentParser(
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    started = datetime.now(timezone.utc).isoformat()
+    started = datetime.now(UTC).isoformat()
 
     hogar_payload: dict[str, Any] = {}
     corp_payload: dict[str, Any] = {}
@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = {
         "started_at": started,
-        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "finished_at": datetime.now(UTC).isoformat(),
         "lote_hogar": args.lote if args.solo in ("ambos", "hogar") else None,
         "metricas": {
             "personas": total,
