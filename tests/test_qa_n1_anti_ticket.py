@@ -843,6 +843,115 @@ def test_si_tengo_tras_reinicio_no_abre_n2_movil():
     assert "espera_agente" not in (r.get("estado") or "")
 
 
+def test_elige_pago_entiende_sigamos():
+    from app.services.canal_abonado import _elige_pago_o_tecnico
+
+    assert _elige_pago_o_tecnico("sigamos") == "tecnico"
+    assert _elige_pago_o_tecnico("sigamos con el diagnostico") == "tecnico"
+    assert _elige_pago_o_tecnico("seguimos") == "tecnico"
+
+
+def test_datos_agotados_bono_no_ticket_por_modelo():
+    from app.services.diagnostico_n1 import (
+        aplicar_guardrails_movil,
+        datos_agotados_abono,
+        es_solo_modelo_celular,
+        sanitizar_apn_en_texto,
+    )
+
+    hist = [{"autor": "cliente", "texto": "Se me acabaron los datos del abono"}]
+    assert datos_agotados_abono("moto g72", hist) is True
+    assert es_solo_modelo_celular("moto g72") is True
+    g = aplicar_guardrails_movil(
+        mensaje="¿Querés que te derive?",
+        mensaje_cliente="moto g72",
+        historial_mensajes=hist,
+        pasos_cubiertos=[],
+        accion="escalate",
+    )
+    assert g["accion"] == "ask"
+    assert "ov.batan" in (g["mensaje"] or "").lower()
+    assert "ticket" not in (g["mensaje"] or "").lower()
+    assert "apn1.catel.org.ar" in sanitizar_apn_en_texto(
+        "APN internet.coopbatan.ar"
+    )
+
+
+def test_flujo_acabaron_datos_sigamos_sin_n2():
+    """Jorge: se acabaron datos → deuda → sigamos → bono OV; moto no abre ticket."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235587771"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "32123456"))
+        assert abo is not None
+        abo.servicio = "movil"
+        abo.deuda_monto = "55779.99"
+        abo.estado = "activo"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.contexto_json = "{}"
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r0 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto="hola", canal="whatsapp", usar_llama=False
+        )
+    assert not r0.get("ticket_id")
+
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Se me acabaron los datos del abono",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r1.get("intencion") == "aviso_deuda"
+    assert not r1.get("ticket_id")
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto="sigamos", canal="whatsapp", usar_llama=False
+        )
+    assert r2.get("intencion") != "aviso_deuda" or "ov.batan" in (
+        r2.get("respuesta") or ""
+    ).lower()
+    assert "no te entendí" not in (r2.get("respuesta") or "").lower()
+    assert "decime cuál preferís" not in (r2.get("respuesta") or "").lower()
+    assert not r2.get("ticket_id")
+    assert "ov.batan" in (r2.get("respuesta") or "").lower()
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto="moto g72", canal="whatsapp", usar_llama=False
+        )
+    assert not r3.get("ticket_id"), r3.get("respuesta")
+    assert "generé el ticket" not in (r3.get("respuesta") or "").lower()
+    assert "internet.coopbatan" not in (r3.get("respuesta") or "").lower()
+
+
 def test_visitante_portal_deriva_sin_ticket_n2():
     """Guest: cola baja sin ticket N2; si pregunta cómo pagar, FAQ pública (QR/OV)."""
     r = client.post("/api/v1/portal/session", json={"org_slug": "coop-batan"})

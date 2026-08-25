@@ -197,6 +197,13 @@ _MSG_PACK_CHEQUEO = (
     "y igual no los tenés disponibles para navegar?"
 )
 
+_MSG_BONO_OV = (
+    "Si se te acabaron los datos del abono, WhatsApp mensajería suele seguir; "
+    "para navegar el resto comprá un bono en Autogestión Batán "
+    "(https://ov.batan.coop) u oficina — no uses la autogestión de imowi.com.ar. "
+    "¿Pudiste cargar el bono o necesitás otra ayuda?"
+)
+
 
 def _blob_cliente_movil(
     mensaje_cliente: str,
@@ -272,6 +279,60 @@ def pack_acreditado_sin_datos(
     return cargo and (ok_sistema or no_anda)
 
 
+def datos_agotados_abono(
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None = None,
+) -> bool:
+    """Se acabaron los datos del abono → bono en ov.batan (N1), no ticket."""
+    if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
+        return False
+    blob = _blob_cliente_movil(mensaje_cliente, historial_mensajes)
+    return any(
+        k in blob
+        for k in (
+            "se me acabaron los datos",
+            "se acabaron los datos",
+            "acabaron los datos del abono",
+            "se me acabaron los datos del abono",
+            "sin datos del abono",
+            "me quedé sin datos",
+            "me quede sin datos",
+            "no me quedan datos",
+            "me quedé sin abono",
+            "me quede sin abono",
+            "se me terminaron los datos",
+            "se terminaron los datos",
+        )
+    )
+
+
+def es_solo_modelo_celular(texto: str) -> bool:
+    """Respuesta que solo indica marca/modelo (p. ej. moto g72) — no es motivo de N2."""
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t or len(t) > 48:
+        return False
+    marcas = (
+        r"moto(?:rola)?|samsung|xiaomi|redmi|iphone|huawei|nokia|lg|"
+        r"tcl|alcatel|oppo|vivo|realme|pixel|sony"
+    )
+    if re.fullmatch(rf"(?:es\s+)?(?:un\s+)?(?:{marcas})\s*[\w.\-]{{0,20}}", t):
+        return True
+    if re.fullmatch(r"android|iphone|ios", t):
+        return True
+    return False
+
+
+def sanitizar_apn_en_texto(texto: str) -> str:
+    """APN canónico IMOWI (corrige override admin / KB vieja)."""
+    if not texto:
+        return texto
+    return texto.replace("internet.coopbatan.ar", "apn1.catel.org.ar").replace(
+        "Internet.coopbatan.ar", "apn1.catel.org.ar"
+    )
+
+
 def _pregunta_tipo_red_inventada(mensaje: str) -> bool:
     m = (mensaje or "").lower()
     return any(
@@ -320,6 +381,11 @@ def _enriquecer_pasos_movil(
     if so and "so_dispositivo" not in out:
         out.append("so_dispositivo")
     blob = _blob_cliente_movil(mensaje_cliente, historial_mensajes)
+    if datos_agotados_abono(mensaje_cliente, historial_mensajes):
+        if "consumo_paquete" not in out:
+            out.append("consumo_paquete")
+        if "datos_activados" not in out:
+            out.append("datos_activados")
     if so == "android" and any(
         k in blob
         for k in (
@@ -375,6 +441,26 @@ def aplicar_guardrails_movil(
             "mensaje": _MSG_PACK_ACREDITADO,
             "paso_cubierto": "derivar_datos",
             "motivo": "pack_acreditado_sin_datos",
+        }
+
+    # Se acabaron los datos del abono → bono OV (no N2). Modelo solo tampoco escala.
+    if datos_agotados_abono(mensaje_cliente, historial_mensajes):
+        if "consumo_paquete" not in cubiertos or es_solo_modelo_celular(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": sanitizar_apn_en_texto(_MSG_BONO_OV),
+                "paso_cubierto": "consumo_paquete",
+                "motivo": "datos_agotados_bono",
+            }
+
+    if es_solo_modelo_celular(mensaje_cliente) and acc == "escalate":
+        so = so or detectar_so_movil(mensaje_cliente, historial_mensajes)
+        msg_apn = _MSG_APN_ANDROID if so != "ios" else _MSG_APN_IOS
+        return {
+            "accion": "ask",
+            "mensaje": sanitizar_apn_en_texto(msg_apn),
+            "paso_cubierto": "so_dispositivo",
+            "motivo": "bloqueado_solo_modelo",
         }
 
     if acc == "ask" and so:
@@ -1465,6 +1551,22 @@ def diagnosticar_turno(
                 "paso_cubierto": fb.get("paso_cubierto") or "consumo_paquete",
                 "motivo": "bloqueado_afirmacion_estado_movil",
             }
+        if datos_agotados_abono(mensaje_cliente, historial_mensajes):
+            return {
+                "accion": "ask",
+                "mensaje": sanitizar_apn_en_texto(_MSG_BONO_OV),
+                "paso_cubierto": "consumo_paquete",
+                "motivo": "datos_agotados_bono",
+            }
+        if es_solo_modelo_celular(mensaje_cliente):
+            so_m = so_movil or detectar_so_movil(mensaje_cliente, historial_mensajes)
+            msg_apn = _MSG_APN_ANDROID if so_m != "ios" else _MSG_APN_IOS
+            return {
+                "accion": "ask",
+                "mensaje": sanitizar_apn_en_texto(msg_apn),
+                "paso_cubierto": "so_dispositivo",
+                "motivo": "bloqueado_solo_modelo",
+            }
         if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
             return {
                 "accion": "escalate",
@@ -1643,7 +1745,7 @@ def diagnosticar_turno(
             accion = "ask"
             motivo = "bloqueado_min_turnos"
 
-        # «si tengo» tras reinicio/señal: nunca ticket N2 prematuro en móvil
+        # «si tengo» / modelo solo / datos agotados: nunca ticket N2 prematuro en móvil
         if accion == "escalate" and es_movil:
             from app.domain.flujos_abonado import es_afirmacion_estado_movil
 
@@ -1653,11 +1755,23 @@ def diagnosticar_turno(
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]
                 paso = fb.get("paso_cubierto") or paso or "consumo_paquete"
+            elif datos_agotados_abono(mensaje_cliente, historial_mensajes):
+                accion = "ask"
+                motivo = "datos_agotados_bono"
+                mensaje = _MSG_BONO_OV
+                paso = "consumo_paquete"
+            elif es_solo_modelo_celular(mensaje_cliente):
+                accion = "ask"
+                motivo = "bloqueado_solo_modelo"
+                so_m = so_movil or detectar_so_movil(mensaje_cliente, historial_mensajes)
+                mensaje = _MSG_APN_ANDROID if so_m != "ios" else _MSG_APN_IOS
+                paso = "so_dispositivo"
             if not mensaje or "?" not in mensaje:
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]
                 paso = fb.get("paso_cubierto") or paso
 
+        mensaje = sanitizar_apn_en_texto(mensaje)
         # Escalate por IA solo si el checklist está casi agotado (evita inyección → ticket)
         if (
             accion == "escalate"

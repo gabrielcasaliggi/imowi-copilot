@@ -750,6 +750,11 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "seguí",
             "segui",
             "seguir",
+            "sigamos",
+            "siga",
+            "sigamos con",
+            "continuar",
+            "continuemos",
             "seguimos",
             "diagnóstico",
             "diagnostico",
@@ -2295,6 +2300,33 @@ def _aplicar_diagnostico_ia(
             crepo.set_contexto(conv, ctx)
             db.commit()
 
+    if accion == "escalate" and intencion in ("movil", "movil_datos", "movil_llamadas"):
+        from app.services.diagnostico_n1 import (
+            _MSG_APN_ANDROID,
+            _MSG_APN_IOS,
+            _MSG_BONO_OV,
+            datos_agotados_abono,
+            detectar_so_movil,
+            es_solo_modelo_celular,
+        )
+
+        if es_afirmacion_estado_movil(texto):
+            accion = "ask"
+            mensaje = mensaje or _MSG_BONO_OV
+        elif datos_agotados_abono(texto, historial):
+            accion = "ask"
+            mensaje = _MSG_BONO_OV
+            if "consumo_paquete" not in cubiertos:
+                cubiertos.append("consumo_paquete")
+                ctx["pasos_cubiertos"] = cubiertos
+        elif es_solo_modelo_celular(texto):
+            accion = "ask"
+            so_m = detectar_so_movil(texto, historial)
+            mensaje = _MSG_APN_ANDROID if so_m != "ios" else _MSG_APN_IOS
+            if "so_dispositivo" not in cubiertos:
+                cubiertos.append("so_dispositivo")
+                ctx["pasos_cubiertos"] = cubiertos
+
     if accion == "escalate":
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
@@ -2366,6 +2398,10 @@ def _aplicar_diagnostico_ia(
 
     if not mensaje:
         mensaje = "Contame un poco más del problema para seguir el diagnóstico."
+    if intencion in ("movil", "movil_datos", "movil_llamadas"):
+        from app.services.diagnostico_n1 import sanitizar_apn_en_texto
+
+        mensaje = sanitizar_apn_en_texto(mensaje)
     _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
@@ -3128,6 +3164,33 @@ def procesar_mensaje_entrante(
         ctx["pasos_cubiertos"] = []
         ctx.pop("intencion_tecnica_pendiente", None)
         conv.servicio_detectado = intencion
+        # «Se me acabaron los datos»: ir directo a bono OV (no reinicio/modelo)
+        from app.services.diagnostico_n1 import (
+            _MSG_BONO_OV,
+            datos_agotados_abono,
+            sanitizar_apn_en_texto,
+        )
+
+        hist_bono = crepo.list_mensajes(db, conv.id)
+        if intencion in ("movil", "movil_datos") and datos_agotados_abono(
+            texto, hist_bono
+        ):
+            ctx["pasos_cubiertos"] = ["datos_activados", "consumo_paquete"]
+            ctx["paso_idx"] = 2
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pregunta = sanitizar_apn_en_texto(_MSG_BONO_OV)
+            _enviar_respuesta(
+                db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal)
+            )
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": "movil_datos",
+            }
         crepo.set_contexto(conv, ctx)
         db.commit()
         diag = _aplicar_diagnostico_ia(
@@ -3146,6 +3209,10 @@ def procesar_mensaje_entrante(
         pb = _playbooks(db)
         pasos = pb.get(intencion) or pb["general"]
         pregunta = pasos[0].pregunta if pasos else "Contame qué te pasa con el servicio."
+        if intencion in ("movil", "movil_datos", "movil_llamadas"):
+            from app.services.diagnostico_n1 import sanitizar_apn_en_texto as _san_apn
+
+            pregunta = _san_apn(pregunta)
         if usar_llama:
             pregunta = _redactar_con_llama(
                 pregunta,
@@ -3154,6 +3221,10 @@ def procesar_mensaje_entrante(
                 org_id=org_id,
                 consulta=texto,
             )
+            if intencion in ("movil", "movil_datos", "movil_llamadas"):
+                from app.services.diagnostico_n1 import sanitizar_apn_en_texto as _san_apn2
+
+                pregunta = _san_apn2(pregunta)
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
@@ -3812,15 +3883,30 @@ def procesar_mensaje_entrante(
                 accion="ask",
             )
             pregunta = g["mensaje"] or pregunta
+            if g.get("paso_cubierto"):
+                cub = list(ctx.get("pasos_cubiertos") or [])
+                if g["paso_cubierto"] not in cub:
+                    cub.append(g["paso_cubierto"])
+                    ctx["pasos_cubiertos"] = cub
             if g.get("accion") == "escalate":
-                # «si tengo» / señal tras reinicio: seguir N1, no ticket prematuro
-                if es_afirmacion_estado_movil(texto):
-                    from app.services.diagnostico_n1 import _MSG_PACK_CHEQUEO
+                from app.services.diagnostico_n1 import (
+                    _MSG_BONO_OV,
+                    _MSG_PACK_CHEQUEO,
+                    datos_agotados_abono,
+                    es_solo_modelo_celular,
+                )
 
+                # «si tengo» / bono / modelo: seguir N1, no ticket prematuro
+                if es_afirmacion_estado_movil(texto):
                     if g.get("motivo") == "pack_acreditado_sin_datos":
                         pregunta = _MSG_PACK_CHEQUEO
+                elif datos_agotados_abono(texto, hist) or es_solo_modelo_celular(texto):
+                    pregunta = g.get("mensaje") or _MSG_BONO_OV
                 else:
                     return _escalar(g.get("motivo") or "pack_acreditado_sin_datos")
+            from app.services.diagnostico_n1 import sanitizar_apn_en_texto
+
+            pregunta = sanitizar_apn_en_texto(pregunta)
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
