@@ -856,16 +856,44 @@ def resolver_menu_tipo_consulta(texto: str, servicio_abonado: str = "") -> str |
     return None
 
 
-def texto_sin_internet_contratado(servicio_abonado: str) -> str:
-    """El abonado habla de internet pero el padrón no tiene internet fijo."""
-    if tiene_movil_contratado(servicio_abonado):
+def texto_sin_internet_contratado(servicio_abonado: str, *, insistencia: int = 1) -> str:
+    """El abonado habla de internet pero el padrón no tiene internet fijo.
+
+    ``insistencia``: 1 = primer aviso; 2+ = mensaje distinto (sin loop literal).
+    """
+    movil = tiene_movil_contratado(servicio_abonado)
+    if insistencia <= 1:
+        if movil:
+            return (
+                "En tu cuenta no figura internet fijo contratado. "
+                "¿Te ayudo con el servicio de telefonía móvil o con la factura?"
+            )
         return (
             "En tu cuenta no figura internet fijo contratado. "
-            "¿Te ayudo con el servicio de telefonía móvil o con la factura?"
+            "¿Es por factura/deuda u otra consulta?"
+        )
+    if insistencia == 2:
+        if movil:
+            return (
+                "Te lo aclaro de otra forma: en el padrón no hay internet de casa "
+                "(fibra/radio). Si no te anda «internet» en el celular, es el servicio "
+                "móvil (datos IMOWI): escribí *móvil*. Si es un tema de factura, "
+                "*factura*. Si igual querés una persona, escribí *agente*."
+            )
+        return (
+            "Te lo aclaro de otra forma: en el padrón no figura internet fijo. "
+            "¿Es por factura/deuda u otra consulta? Si preferís una persona, "
+            "escribí *agente*."
+        )
+    # 3+: última oferta antes de derivar si insiste
+    if movil:
+        return (
+            "Sigo sin ver internet fijo en tu cuenta. Puedo ayudarte con *móvil* "
+            "o *factura*, o te derivo con un agente si escribís *agente*."
         )
     return (
-        "En tu cuenta no figura internet fijo contratado. "
-        "¿Es por factura/deuda u otra consulta?"
+        "Sigo sin ver internet fijo en tu cuenta. ¿Factura/deuda u otra consulta? "
+        "Si querés agente, escribí *agente*."
     )
 
 

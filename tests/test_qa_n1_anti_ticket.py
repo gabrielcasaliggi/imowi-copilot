@@ -694,6 +694,34 @@ def test_padron_solo_movil_no_diagnostica_internet():
     assert "cajita" not in resp
     assert "línea ya está ok" not in resp and "linea ya esta ok" not in resp
 
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Pasame con un operador ya, no me anda internet",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert not r2.get("ticket_id"), "1ª insistencia con síntoma no abre N2 fibra"
+    assert "no figura" in resp2 or "operador" in resp2 or "móvil" in resp2 or "movil" in resp2
+    # No repetir literalmente el mismo copy del primer aviso
+    assert resp2 != resp
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Pasame con un operador ya, no me anda internet",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    # 2ª pedido de humano tras el aviso → handoff (no loop)
+    assert r3.get("ticket_id") or "agente" in (r3.get("respuesta") or "").lower()
+    assert (r3.get("respuesta") or "").lower() != resp2
+
 
 def test_menu_sintoma_datos_mdp_entra_movil_sin_no_te_entendi():
     """Jorge: «No tengo datos en Mar del Plata» no debe quedar en «No te entendí»."""

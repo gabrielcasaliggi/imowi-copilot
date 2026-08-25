@@ -943,6 +943,76 @@ def _debe_explicar_sin_internet(abonado: Abonado | None, texto: str, intencion: 
     return intencion_es_internet(intencion)
 
 
+def _responder_sin_internet_fijo(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    servicio_abo: str,
+) -> dict:
+    """Aviso progresivo si piden internet y el padrón es solo móvil (sin N2 de fibra)."""
+    n = int(ctx.get("aviso_sin_internet") or 0) + 1
+    ctx["aviso_sin_internet"] = n
+    if pide_humano(texto) or es_escape_agente(texto):
+        ctx["pidio_humano"] = int(ctx.get("pidio_humano") or 0) + 1
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+
+    # 2ª+ pedido de persona tras el aviso: handoff (no ticket de fibra inventado)
+    if int(ctx.get("pidio_humano") or 0) >= 2 or (n >= 3 and pide_humano(texto)):
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            "Cliente insistió en agente (padrón sin internet fijo)",
+            intencion="general",
+            paso_idx=0,
+            ctx=ctx,
+        )
+        resp = (
+            f"Dale, te derivo con un agente (en el padrón no figura internet fijo; "
+            f"le dejo el contexto). Ticket {tid}. Quedate en este chat."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": tid,
+            "intencion": "general",
+        }
+
+    resp = texto_sin_internet_contratado(servicio_abo, insistencia=n)
+    if n == 2 and pide_humano(texto):
+        resp = (
+            "Entiendo que pedís un operador. En tu cuenta no figura internet fijo, "
+            "así que no abro un caso de fibra. ¿Seguimos con el *móvil* (datos/señal) "
+            "o con la *factura*? Si insistís en una persona, escribí *agente* otra vez "
+            "y te derivo."
+        )
+    ctx["menu_paso"] = "servicio"
+    ctx["intencion"] = "general"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "intencion": "general",
+        "menu_paso": "servicio",
+    }
+
+
 def _kb_fragmento(
     db: Session | None,
     org_id: str,
@@ -1349,17 +1419,16 @@ def _manejar_menu_consulta_n1(
                 )
             )
         ):
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-                "menu_paso": "servicio",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         if not elec:
             resp = f"No te entendí. {texto_menu_consulta(servicio_abo)}"
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
@@ -3049,16 +3118,16 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = "general"
             crepo.set_contexto(conv, ctx)
             db.commit()
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         # "No" / "funciona todo bien" / desiste → cerrar sin loop
         if _cliente_salir_aviso_deuda(texto):
             _reset_ctx_diagnostico(ctx)
@@ -3153,16 +3222,16 @@ def procesar_mensaje_entrante(
             ctx.pop("intencion_tecnica_pendiente", None)
             crepo.set_contexto(conv, ctx)
             db.commit()
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         ctx["intencion"] = intencion
         ctx["paso_idx"] = 0
         ctx["diag_turnos"] = 0
@@ -3344,16 +3413,16 @@ def procesar_mensaje_entrante(
             ctx["pasos_cubiertos"] = []
             crepo.set_contexto(conv, ctx)
             db.commit()
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         if _deberia_priorizar_corte_deuda(abonado, texto, intencion):
             intencion = "corte_deuda"
         paso_inicial = 0
@@ -3473,16 +3542,16 @@ def procesar_mensaje_entrante(
             ctx["pasos_cubiertos"] = []
             crepo.set_contexto(conv, ctx)
             db.commit()
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         if declara_solo_movil_sin_fijo(texto, servicio_abo):
             intencion = clasificar_intencion(texto, "movil")
             if not intencion.startswith("movil"):
@@ -3637,28 +3706,28 @@ def procesar_mensaje_entrante(
     # Si estaba en general y el usuario elige servicio, reclasificar
     if intencion == "general":
         if _debe_explicar_sin_internet(abonado, texto):
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         nueva = clasificar_intencion(texto, servicio_abo)
         if _debe_explicar_sin_internet(abonado, texto, nueva):
-            resp = texto_sin_internet_contratado(servicio_abo)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _responder_sin_internet_fijo(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                servicio_abo=servicio_abo,
+            )
         if nueva != "general":
             intencion = nueva
             ctx["intencion"] = intencion

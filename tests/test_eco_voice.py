@@ -391,6 +391,9 @@ def test_menu_consulta_segun_padron():
     assert "no figura internet" in aviso
     assert "telefonía" in aviso or "telefonia" in aviso.replace("í", "i")
     assert "imowi" not in aviso
+    aviso2 = texto_sin_internet_contratado("movil", insistencia=2).lower()
+    assert aviso2 != aviso
+    assert "móvil" in aviso2 or "movil" in aviso2 or "agente" in aviso2
 
     tipo = texto_menu_tipo_consulta().lower()
     assert "técnico" in tipo or "tecnico" in tipo
