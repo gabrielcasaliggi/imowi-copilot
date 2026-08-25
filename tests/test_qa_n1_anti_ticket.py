@@ -162,6 +162,10 @@ def test_escape_agente_y_sintoma():
     assert parse_menu_servicio(",ovil") == "movil"
     assert parse_menu_servicio("ovil") == "movil"
     assert parse_menu_servicio("movil") == "movil"
+    assert parse_menu_servicio("No tengo datos en Mar del Plata") == "movil"
+    from app.domain.flujos_abonado import resolver_menu_servicio
+
+    assert resolver_menu_servicio("No tengo datos en Mar del Plata", "movil") == "movil"
     assert pide_humano("técnico") is False
     assert pide_humano("tema tecnico") is False
     assert pide_humano("mandame un tecnico") is True
@@ -689,6 +693,154 @@ def test_padron_solo_movil_no_diagnostica_internet():
     assert "wi-fi" not in resp and "wifi" not in resp
     assert "cajita" not in resp
     assert "línea ya está ok" not in resp and "linea ya esta ok" not in resp
+
+
+def test_menu_sintoma_datos_mdp_entra_movil_sin_no_te_entendi():
+    """Jorge: «No tengo datos en Mar del Plata» no debe quedar en «No te entendí»."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235599992"
+    frase = "No tengo datos en Mar del Plata"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "32123456"))
+        assert abo is not None
+        abo.servicio = "movil"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.contexto_json = "{}"
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r0 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto=frase, canal="whatsapp", usar_llama=False
+        )
+    assert r0.get("estado") == "bot"
+    resp0 = (r0.get("respuesta") or "").lower()
+    assert "no te entendí" not in resp0
+    # Salta menú o entra a datos móviles
+    assert r0.get("intencion") in ("movil", "movil_datos", None) or "dato" in resp0 or "apn" in resp0 or "móvil" in resp0 or "movil" in resp0 or "avion" in resp0 or "avión" in resp0
+
+    # Si quedó en menú (caso borde), la reiteración también debe entenderse
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto=frase, canal="whatsapp", usar_llama=False
+        )
+    assert "no te entendí" not in (r1.get("respuesta") or "").lower()
+
+
+def test_si_tengo_tras_reinicio_no_abre_n2_movil():
+    """Jorge: tras reinicio/señal, «si tengo» no abre ticket N2 prematuro."""
+    from sqlalchemy import select
+
+    from app.domain.flujos_abonado import (
+        acepta_derivacion_clara,
+        es_afirmacion_estado_movil,
+    )
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    assert es_afirmacion_estado_movil("si tengo") is True
+    assert acepta_derivacion_clara("si tengo") is False
+    assert acepta_derivacion_clara("sí, derivame") is True
+
+    out = diagnosticar_turno(
+        intencion="movil_datos",
+        checklist=[
+            {"id": "datos_activados", "pregunta": "¿Datos prendidos?"},
+            {"id": "consumo_paquete", "pregunta": "¿Pack?"},
+            {"id": "derivar_datos", "pregunta": "¿Te derivo?"},
+        ],
+        historial_mensajes=[
+            {"autor": "cliente", "texto": "No tengo datos en Mar del Plata"},
+            {"autor": "bot", "texto": "Reiniciá el teléfono. ¿Tenés señal de datos?"},
+        ],
+        mensaje_cliente="si tengo",
+        turnos_diagnostico=3,
+        pasos_cubiertos=["datos_activados"],
+    )
+    assert out["accion"] != "escalate", out
+    assert out.get("motivo") != "pack_acreditado_sin_datos"
+
+    tel = "5492235599993"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "32123456"))
+        assert abo is not None
+        abo.servicio = "movil"
+        abo.deuda_monto = "0"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        crepo.set_contexto(
+            conv,
+            {
+                "saludo": True,
+                "intencion": "movil_datos",
+                "paso_idx": 6,  # derivar_datos
+                "diag_turnos": 3,
+                "pasos_cubiertos": [
+                    "datos_activados",
+                    "consumo_paquete",
+                    "so_dispositivo",
+                    "apn_datos",
+                ],
+            },
+        )
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="si tengo",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r.get("ticket_id"), r.get("respuesta")
+    assert r.get("estado") == "bot"
+    resp = (r.get("respuesta") or "").lower()
+    assert "generé" not in resp and "genere" not in resp
+    assert "ibot-" not in resp
+    assert "espera_agente" not in (r.get("estado") or "")
 
 
 def test_visitante_portal_deriva_sin_ticket_n2():

@@ -360,6 +360,16 @@ def aplicar_guardrails_movil(
     msg = mensaje or ""
 
     if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
+        from app.domain.flujos_abonado import es_afirmacion_estado_movil
+
+        # «si tengo» no es evidencia de pack: seguir preguntando, no ticket
+        if es_afirmacion_estado_movil(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": _MSG_PACK_CHEQUEO,
+                "paso_cubierto": "consumo_paquete",
+                "motivo": "bloqueado_afirmacion_estado_movil",
+            }
         return {
             "accion": "escalate",
             "mensaje": _MSG_PACK_ACREDITADO,
@@ -1445,6 +1455,16 @@ def diagnosticar_turno(
         pasos_cubiertos = _enriquecer_pasos_movil(
             pasos_cubiertos, so_movil, mensaje_cliente, historial_mensajes
         )
+        from app.domain.flujos_abonado import es_afirmacion_estado_movil
+
+        if es_afirmacion_estado_movil(mensaje_cliente):
+            fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+            return {
+                "accion": "ask",
+                "mensaje": fb["mensaje"],
+                "paso_cubierto": fb.get("paso_cubierto") or "consumo_paquete",
+                "motivo": "bloqueado_afirmacion_estado_movil",
+            }
         if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
             return {
                 "accion": "escalate",
@@ -1622,6 +1642,17 @@ def diagnosticar_turno(
         ):
             accion = "ask"
             motivo = "bloqueado_min_turnos"
+
+        # «si tengo» tras reinicio/señal: nunca ticket N2 prematuro en móvil
+        if accion == "escalate" and es_movil:
+            from app.domain.flujos_abonado import es_afirmacion_estado_movil
+
+            if es_afirmacion_estado_movil(mensaje_cliente):
+                accion = "ask"
+                motivo = "bloqueado_afirmacion_estado_movil"
+                fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso or "consumo_paquete"
             if not mensaje or "?" not in mensaje:
                 fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
                 mensaje = fb["mensaje"]

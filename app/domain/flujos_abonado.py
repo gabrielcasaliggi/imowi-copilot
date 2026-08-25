@@ -699,7 +699,7 @@ def parse_menu_servicio(texto: str) -> str | None:
             "cobro",
             "cuenta",
         )
-    ) and not any(k in t for k in ("móvil", "movil", "celular", "telefon")):
+    ) and not any(k in t for k in ("móvil", "movil", "celular", "telefon", "datos")):
         return "facturacion"
     if any(
         k in t
@@ -716,12 +716,60 @@ def parse_menu_servicio(texto: str) -> str | None:
             "celular",
             "imowi",
             "imovi",
+            # Síntoma en vez de elegir el ítem del menú (Patricia / Jorge)
+            "sin datos",
+            "no tengo datos",
+            "no me andan los datos",
+            "no anda el dato",
+            "no andan los datos",
+            "datos del celu",
+            "datos del celular",
+            "datos movil",
+            "datos móvil",
+            "datos moviles",
+            "datos móviles",
+            "internet del celular",
+            "se me acabaron los datos",
+            "bono de datos",
+            "sin señal",
+            "sin senal",
+            "apn",
         )
     ):
         return "movil"
     if any(k in t for k in ("internet", "fibra", "wifi", "wi-fi", "router", "onu")):
         return "internet"
     if any(k in t for k in ("factura", "deuda", "pago", "saldo", "boleta")):
+        return "facturacion"
+    return None
+
+
+def resolver_menu_servicio(texto: str, servicio_abonado: str = "") -> str | None:
+    """Opción de menú o síntoma clasificado (el abonado suele repetir el problema)."""
+    elec = parse_menu_servicio(texto)
+    if elec:
+        return elec
+    intent = clasificar_intencion(texto, servicio_abonado)
+    if intent in ("movil", "movil_datos", "movil_llamadas") or str(intent).startswith(
+        "movil"
+    ):
+        return "movil"
+    if intent in (
+        "internet",
+        "internet_ftth",
+        "internet_radio",
+        "internet_adsl",
+        "internet_lento",
+        "internet_intermitente",
+        "wifi",
+        "cambio_clave_wifi",
+    ) or str(intent).startswith("internet"):
+        return "internet"
+    if intent in (
+        "facturacion",
+        "corte_deuda",
+        "reactivacion_pago",
+    ) or str(intent).startswith("factur"):
         return "facturacion"
     return None
 
@@ -776,9 +824,35 @@ def parse_menu_tipo_consulta(texto: str) -> str | None:
             "sim",
             "llamar",
             "llamada",
+            "sin datos",
+            "no tengo datos",
+            "apn",
+            "4g",
+            "5g",
         )
     ):
         return "tecnico"
+    return None
+
+
+def resolver_menu_tipo_consulta(texto: str, servicio_abonado: str = "") -> str | None:
+    """2.º menú o síntoma técnico/comercial/factura."""
+    tipo = parse_menu_tipo_consulta(texto)
+    if tipo:
+        return tipo
+    intent = clasificar_intencion(texto, servicio_abonado)
+    if intent in ("movil", "movil_datos", "movil_llamadas") or str(intent).startswith(
+        "movil"
+    ):
+        return "tecnico"
+    if intent == "alta_plan":
+        return "comercial"
+    if intent in (
+        "facturacion",
+        "corte_deuda",
+        "reactivacion_pago",
+    ) or str(intent).startswith("factur"):
+        return "facturacion"
     return None
 
 
@@ -1586,6 +1660,75 @@ def respuesta_paso_ok(texto: str) -> bool | None:
     if any(_token_en_texto(t, p) if len(p) <= 4 else p in t for p in palabras_ok):
         return True
     return None
+
+
+def es_afirmacion_estado_movil(texto: str) -> bool:
+    """Confirma señal/datos/reinicio («si tengo»), no acepta ni pide ticket N2."""
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        return False
+    exactos = {
+        "si tengo",
+        "sí tengo",
+        "si, tengo",
+        "sí, tengo",
+        "si la tengo",
+        "sí la tengo",
+        "si lo tengo",
+        "sí lo tengo",
+        "tengo señal",
+        "si tengo señal",
+        "sí tengo señal",
+        "tengo senal",
+        "si tengo senal",
+        "reinicie",
+        "reinicié",
+        "ya reinicie",
+        "ya reinicié",
+        "si reinicie",
+        "sí reinicié",
+        "listo reinicie",
+        "listo reinicié",
+    }
+    if t in exactos:
+        return True
+    if t.startswith(("si tengo ", "sí tengo ", "si, tengo ", "sí, tengo ")):
+        return True
+    return False
+
+
+def acepta_derivacion_clara(texto: str) -> bool:
+    """True solo si el abonado acepta handoff (no «si tengo» / señal)."""
+    if es_afirmacion_estado_movil(texto):
+        return False
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "deriv",
+            "ticket",
+            "agente",
+            "operador",
+            "abrí",
+            "abri",
+            "abrí el",
+            "pasame",
+            "pasame con",
+            "quiero que me deriven",
+        )
+    ):
+        return True
+    # «sí» / «dale» cortos sin «tengo»
+    if "tengo" in t:
+        return False
+    ok = respuesta_paso_ok(texto)
+    if ok is True and len(t.split()) <= 3:
+        return True
+    return False
 
 
 def indica_resuelto(texto: str) -> bool:

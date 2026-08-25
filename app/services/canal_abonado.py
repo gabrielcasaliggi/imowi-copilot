@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import BOT_DISPLAY_NAME_SHORT
 from app.domain.canales import enviar_externo as _enviar_externo
 from app.domain.flujos_abonado import (
+    acepta_derivacion_clara,
     ajustar_intencion_a_padron,
     clasificar_intencion,
     contiene_sintoma_canal,
@@ -18,6 +19,7 @@ from app.domain.flujos_abonado import (
     destino_n2_canal,
     detecta_frustracion,
     detectar_temas_duales,
+    es_afirmacion_estado_movil,
     es_escape_agente,
     es_paso_derivacion,
     es_saludo_corto,
@@ -29,12 +31,12 @@ from app.domain.flujos_abonado import (
     misma_queja,
     niega_producto_internet,
     parece_consulta_nueva,
-    parse_menu_servicio,
-    parse_menu_tipo_consulta,
     pide_humano,
     pide_humano_en_flujo_activo,
     refinar_playbook_internet,
     registrar_queja,
+    resolver_menu_servicio,
+    resolver_menu_tipo_consulta,
     resolver_prioridad_tema,
     respuesta_paso_ok,
     resumen_handoff,
@@ -43,6 +45,7 @@ from app.domain.flujos_abonado import (
     texto_menu_tipo_consulta,
     texto_sin_internet_contratado,
     tiene_internet_fijo,
+    tiene_movil_contratado,
 )
 from app.estate import canal_repo as crepo
 from app.estate.models import Abonado, ConversacionCanal
@@ -1323,7 +1326,7 @@ def _manejar_menu_consulta_n1(
     servicio_abo = abonado.servicio if abonado else ""
 
     if paso == "servicio":
-        elec = parse_menu_servicio(texto)
+        elec = resolver_menu_servicio(texto, servicio_abo)
         # Padrón sin internet fijo + habla de fibra/niega internet → aclarar
         if not tiene_internet_fijo(servicio_abo) and (
             niega_producto_internet(texto)
@@ -1359,6 +1362,23 @@ def _manejar_menu_consulta_n1(
                 "menu_paso": "servicio",
             }
         if elec == "movil":
+            # Síntoma técnico en el mismo mensaje → N1 directo (sin 2.º menú)
+            refinada = clasificar_intencion(texto, servicio_abo)
+            if refinada in ("movil_datos", "movil_llamadas"):
+                ctx.pop("menu_paso", None)
+                ctx.pop("menu_servicio", None)
+                return _arrancar_intencion_menu(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    texto,
+                    canal=canal,
+                    ctx=ctx,
+                    intencion=refinada,
+                    usar_llama=usar_llama,
+                    servicio_abo=servicio_abo,
+                )
             ctx["menu_paso"] = "tipo"
             ctx["menu_servicio"] = "movil"
             crepo.set_contexto(conv, ctx)
@@ -1391,7 +1411,7 @@ def _manejar_menu_consulta_n1(
         )
 
     if paso == "tipo":
-        tipo = parse_menu_tipo_consulta(texto)
+        tipo = resolver_menu_tipo_consulta(texto, servicio_abo)
         if not tipo:
             resp = f"No te entendí. {texto_menu_tipo_consulta()}"
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
@@ -2831,10 +2851,50 @@ def procesar_mensaje_entrante(
         conv.abonado_id = abonado.id
         if not ctx.get("saludo"):
             ctx["saludo"] = True
-            ctx["menu_paso"] = "servicio"
             ctx.pop("invitado", None)
             ctx.pop("visitante", None)
             ctx.pop("cola_prioridad", None)
+            servicio_abo = abonado.servicio or ""
+            # Si el 1.er mensaje ya trae el síntoma, no preguntar el menú
+            elec0 = resolver_menu_servicio(texto, servicio_abo)
+            if elec0 == "movil" and tiene_movil_contratado(servicio_abo):
+                refinada0 = clasificar_intencion(texto, servicio_abo)
+                if refinada0 in ("movil_datos", "movil_llamadas"):
+                    ctx.pop("menu_paso", None)
+                    crepo.set_contexto(conv, ctx)
+                    db.commit()
+                    return _arrancar_intencion_menu(
+                        db,
+                        org_id,
+                        conv,
+                        abonado,
+                        texto,
+                        canal=canal,
+                        ctx=ctx,
+                        intencion=refinada0,
+                        usar_llama=usar_llama,
+                        servicio_abo=servicio_abo,
+                    )
+            if elec0 in ("internet", "facturacion") and (
+                (elec0 == "internet" and tiene_internet_fijo(servicio_abo))
+                or elec0 == "facturacion"
+            ):
+                ctx.pop("menu_paso", None)
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                return _arrancar_intencion_menu(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    texto,
+                    canal=canal,
+                    ctx=ctx,
+                    intencion="internet" if elec0 == "internet" else "facturacion",
+                    usar_llama=usar_llama,
+                    servicio_abo=servicio_abo,
+                )
+            ctx["menu_paso"] = "servicio"
             crepo.set_contexto(conv, ctx)
             db.commit()
             saludo = (
@@ -3753,7 +3813,14 @@ def procesar_mensaje_entrante(
             )
             pregunta = g["mensaje"] or pregunta
             if g.get("accion") == "escalate":
-                return _escalar(g.get("motivo") or "pack_acreditado_sin_datos")
+                # «si tengo» / señal tras reinicio: seguir N1, no ticket prematuro
+                if es_afirmacion_estado_movil(texto):
+                    from app.services.diagnostico_n1 import _MSG_PACK_CHEQUEO
+
+                    if g.get("motivo") == "pack_acreditado_sin_datos":
+                        pregunta = _MSG_PACK_CHEQUEO
+                else:
+                    return _escalar(g.get("motivo") or "pack_acreditado_sin_datos")
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
@@ -3865,7 +3932,34 @@ def procesar_mensaje_entrante(
 
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
     if veredicto is True and es_paso_derivacion(paso_actual):
-        return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
+        if acepta_derivacion_clara(texto):
+            return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
+        # «si tengo» / señal: no es aceptar ticket — seguir N1
+        if es_afirmacion_estado_movil(texto) and intencion in (
+            "movil",
+            "movil_datos",
+            "movil_llamadas",
+        ):
+            # Retroceder un paso útil (APN / pack) en vez de ticket
+            cubiertos = {str(x) for x in (ctx.get("pasos_cubiertos") or [])}
+            idx = max(0, min(paso_idx, len(pasos) - 2)) if len(pasos) > 1 else 0
+            for i, p in enumerate(pasos):
+                pid = p.id or ""
+                if pid in ("consumo_paquete", "apn_datos", "prueba_wifi_off") and pid not in cubiertos:
+                    idx = i
+                    break
+            ctx["paso_idx"] = idx
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return _preguntar(
+                idx,
+                prefijo="Dale, seguimos con el diagnóstico (aún no abro ticket). ",
+            )
+        return _preguntar(
+            paso_idx,
+            prefijo="Si querés que te derive con un agente, decime explícitamente "
+            "«derivame» o «abrí el ticket». Si no, ",
+        )
 
     # En guía de pago/QR, un "sí/perfecto" = pudo pagar → cerrar (no pedir DNI ni derivar)
     if (
