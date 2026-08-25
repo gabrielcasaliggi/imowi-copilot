@@ -348,8 +348,33 @@ def _pregunta_tipo_red_inventada(mensaje: str) -> bool:
             "forza 3g",
             "3g por un momento",
             "cambiar a 2g",
+            "modo 3g",
+            "ni 3g",
+            "forzar 3g",
+            "a 3g",
         )
-    )
+    ) or bool(re.search(r"(?<![0-9a-z])3g(?![0-9a-z])", m))
+
+
+def _scrub_iphone_3g_si_android(mensaje: str, so: str | None) -> tuple[str, str | None]:
+    """Reescribe copy que inventa iPhone/3G cuando el SO es Android o el texto lo arrastra."""
+    msg = mensaje or ""
+    low = msg.lower()
+    if not msg:
+        return msg, None
+    # Frase típica de playbook viejo: nunca al abonado
+    if "ni 3g ni iphone" in low or "ni 3g" in low:
+        return (
+            "Si el pack/bono figura OK pero no navegás, no hace falta seguir tocando "
+            "el celular: hay que revisar la línea. ¿Cargaste un pack y el sistema te dio el OK?",
+            "bloqueado_copy_3g_iphone",
+        )
+    if so == "android" and "iphone" in low:
+        if _mensaje_apn_para_otro_so(msg, "android") or "apn" in low:
+            return _MSG_APN_ANDROID, "bloqueado_apn_so_android"
+        # Pregunta SO / pasos iPhone con Android ya dicho
+        return _MSG_APN_ANDROID, "bloqueado_iphone_con_android"
+    return msg, None
 
 
 def _pregunta_so_otra_vez(mensaje: str, so: str | None) -> bool:
@@ -491,6 +516,13 @@ def aplicar_guardrails_movil(
                 motivo = "bloqueado_repregunta_so"
                 paso = "apn_datos"
 
+    if acc == "ask":
+        msg_scrub, motivo_scrub = _scrub_iphone_3g_si_android(msg, so)
+        if motivo_scrub:
+            msg = msg_scrub
+            motivo = motivo_scrub
+            paso = paso or ("apn_datos" if so == "android" else "consumo_paquete")
+
     if acc == "ask" and _pregunta_tipo_red_inventada(msg):
         if pack_acreditado_sin_datos(mensaje_cliente, historial_mensajes):
             return {
@@ -502,6 +534,17 @@ def aplicar_guardrails_movil(
         msg = _MSG_PACK_CHEQUEO
         motivo = "bloqueado_tipo_red_inventada"
         paso = "consumo_paquete"
+
+    if acc == "escalate":
+        low = (msg or "").lower()
+        if so == "android" and ("iphone" in low or _pregunta_tipo_red_inventada(msg)):
+            msg = _MSG_PACK_ACREDITADO
+            motivo = motivo or "bloqueado_escalate_android"
+            paso = paso or "derivar_datos"
+        elif _pregunta_tipo_red_inventada(msg) or "ni 3g" in low:
+            msg = _MSG_PACK_ACREDITADO
+            motivo = motivo or "bloqueado_escalate_3g"
+            paso = paso or "derivar_datos"
 
     return {
         "accion": acc,

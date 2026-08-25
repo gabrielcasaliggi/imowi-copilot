@@ -514,10 +514,14 @@ def test_playbooks_imowi_apn_y_autogestion_batan():
     assert "no uses" in datos.lower() or "no" in datos.lower()
     apn_datos = next(p.pregunta for p in PLAYBOOKS["movil_datos"] if p.id == "apn_datos")
     assert "apn1.catel.org.ar" in apn_datos
-    assert "NO mezcles" in apn_datos or "no mezcles" in apn_datos.lower()
+    assert "android" in apn_datos.lower()
+    assert "iphone" not in apn_datos.lower()
     so = next(p for p in PLAYBOOKS["movil_datos"] if p.id == "so_dispositivo")
-    assert "android" in so.pregunta.lower() and "iphone" in so.pregunta.lower()
-    assert "pack" in datos.lower() and "derivar" in datos.lower()
+    assert "marca" in so.pregunta.lower() or "modelo" in so.pregunta.lower()
+    assert "iphone" not in so.pregunta.lower()
+    assert "3g" not in datos.lower()
+    assert "pack" in datos.lower()
+    assert "revisar la línea" in datos.lower() or "revisar la linea" in datos.lower()
     robo = next(p.pregunta for p in PLAYBOOKS["movil"] if p.id == "robo_perdida_hint")
     assert "*910" in robo and "*303" in robo
     assert clasificar_intencion("quiero escuchar el correo de voz *333") == "movil_llamadas"

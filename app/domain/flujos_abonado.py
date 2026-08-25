@@ -437,21 +437,20 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "Si se acabaron: WhatsApp mensajería suele seguir; para navegar el resto "
             "comprá un bono en Autogestión Batán (ov.batan.coop) u oficina — "
             "no uses la autogestión de imowi.com.ar. "
-            "Si el pack/bono figura OK en el sistema pero NO navegás, no sigas tocando "
-            "el celular (ni 3G ni iPhone): es para derivar a un agente con la línea.",
+            "Si el pack/bono figura OK en el sistema pero NO navegás, "
+            "no hace falta seguir tocando el celular: hay que revisar la línea.",
         ),
         PasoPlaybook(
             "so_dispositivo",
-            "¿Tu celular es Android o iPhone? (si ya lo dijiste, seguimos con el APN de ese sistema)",
+            "¿Qué marca y modelo de celular tenés? "
+            "(si ya lo dijiste, seguimos con el APN de ese sistema)",
         ),
         PasoPlaybook(
             "apn_datos",
-            "APN según el sistema que ya confirmó el abonado — NO mezcles Android e iPhone. "
+            # Instrucción interna del playbook: NO mezclar Android e iPhone en el mismo mensaje.
             "Android: Ajustes > Redes móviles/Conexiones > Nombres de punto de acceso (APN). "
             "Creá o editá Nombre = imowi, APN = apn1.catel.org.ar (resto en blanco). "
-            "Guardá, seleccioná ese APN y reiniciá los datos. ¿Navega? "
-            "Solo si dijo iPhone: iPhone 11+ o eSIM = automático; si es más viejo → "
-            "Datos celulares > Opciones > Red de datos → APN apn1.catel.org.ar y usuario imowi.",
+            "Guardá, seleccioná ese APN y reiniciá los datos. ¿Navega?",
         ),
         PasoPlaybook("roaming_datos", "¿Estás en tu zona habitual o de viaje?"),
         PasoPlaybook("prueba_wifi_off", "Apagá el WiFi del celular y probá solo datos. ¿Navega?"),
