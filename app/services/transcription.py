@@ -60,6 +60,11 @@ def normalizar_texto_audio_stt(texto: str) -> str:
         )
     ):
         t = re.sub(r"\bnos\s+pague?\b", "no pagué", t, count=1, flags=re.IGNORECASE)
+    # «cuál es mi edad» ≈ «cuál es mi deuda» (Whisper en facturación)
+    if re.search(r"\bedad\b", low) and any(
+        k in low for k in ("cual", "cuál", "cuanto", "cuánto", "decime", "dime", "saber")
+    ):
+        t = re.sub(r"\bedad\b", "deuda", t, flags=re.IGNORECASE)
     return t.strip()
 
 

@@ -59,6 +59,15 @@ def test_normalizar_texto_audio_stt_pago_mal_transcrito():
     assert clasificar_intencion(norm) == "corte_deuda"
 
 
+def test_normalizar_texto_audio_stt_edad_a_deuda():
+    from app.services.diagnostico_n1 import _cliente_consulta_saldo
+    from app.services.transcription import normalizar_texto_audio_stt
+
+    norm = normalizar_texto_audio_stt("cual es mi edad")
+    assert "deuda" in norm.lower()
+    assert _cliente_consulta_saldo(norm)
+
+
 def test_texto_desde_audio_whatsapp_none_si_no_audio():
     from app.services.transcription import texto_desde_audio_whatsapp
 

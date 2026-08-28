@@ -801,6 +801,41 @@ def _mensaje_informar_pago_n1(
     )
 
 
+def _responder_consulta_saldo(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado,
+    ctx: dict,
+    *,
+    canal: str,
+) -> dict:
+    """Saldo/deuda del padrón — sin empujar QR si no hay deuda."""
+    deuda = str(abonado.deuda_monto or "0").strip() or "0"
+    nota_baja = (
+        "La cuenta figura «de baja» en el padrón."
+        if (abonado.estado or "").lower() == "baja"
+        else ""
+    )
+    resp = mensaje_saldo_padron(deuda, nota_extra=nota_baja)
+    ctx["intencion"] = "facturacion"
+    ctx["saludo"] = True
+    ctx.pop("invitado", None)
+    ctx.pop("pppoe_informado", None)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "abonado": crepo.abonado_to_dict(abonado),
+        "intencion": "facturacion",
+    }
+
+
 def _responder_pendiente_pago_o_corte(
     db: Session,
     org_id: str,
@@ -822,16 +857,30 @@ def _responder_pendiente_pago_o_corte(
         else ""
     )
     intro = f"Entiendo{', ' + nombre if nombre else ''}."
-    if estado in ("corte", "cortado", "suspendido", "suspendida"):
-        intro += f" Tu cuenta figura «{abonado.estado}»."
-    elif _deuda_positiva(abonado):
-        intro += f" Tenés saldo pendiente {texto_monto_ars(deuda)}."
-    resp = (
-        f"{intro} Si todavía no pagaste, podés abonar así:\n"
-        f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
-        f"{PLANTILLA_PAGO_QR}"
-    )
-    ctx["intencion"] = "corte_deuda"
+    cortado = estado in ("corte", "cortado", "suspendido", "suspendida")
+    tiene_deuda = _deuda_positiva(abonado)
+
+    if not tiene_deuda and not cortado:
+        resp = (
+            f"{intro} Revisé tu cuenta:\n"
+            f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
+            "No hace falta que abones: no tenés deuda pendiente en este momento. "
+            "Si te preocupa un corte o algo del servicio, contame y lo vemos."
+        )
+        intencion = "facturacion"
+    else:
+        if cortado:
+            intro += f" Tu cuenta figura «{abonado.estado}»."
+        elif tiene_deuda:
+            intro += f" Tenés saldo pendiente {texto_monto_ars(deuda)}."
+        resp = (
+            f"{intro} Si todavía no pagaste, podés abonar así:\n"
+            f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
+            f"{PLANTILLA_PAGO_QR}"
+        )
+        intencion = "corte_deuda"
+
+    ctx["intencion"] = intencion
     ctx["saludo"] = True
     ctx["paso_idx"] = 0
     ctx["diag_turnos"] = 0
@@ -848,7 +897,7 @@ def _responder_pendiente_pago_o_corte(
         "respuesta": resp,
         "estado": conv.estado,
         "abonado": crepo.abonado_to_dict(abonado),
-        "intencion": "corte_deuda",
+        "intencion": intencion,
     }
 
 
@@ -2373,6 +2422,14 @@ def _aplicar_diagnostico_ia(
 
     from app.services.diagnostico_n1 import _cliente_pendiente_pago_o_corte
 
+    if abonado:
+        from app.services.diagnostico_n1 import _cliente_consulta_saldo
+
+        if _cliente_consulta_saldo(texto):
+            return _responder_consulta_saldo(
+                db, org_id, conv, abonado, ctx, canal=canal
+            )
+
     if abonado and _cliente_pendiente_pago_o_corte(texto):
         return _responder_pendiente_pago_o_corte(
             db, org_id, conv, abonado, ctx, canal=canal
@@ -3309,34 +3366,32 @@ def procesar_mensaje_entrante(
             else ""
         )
 
+        if _cliente_consulta_saldo(texto):
+            return _responder_consulta_saldo(
+                db, org_id, conv, abonado, ctx, canal=canal
+            )
+
         if _cliente_pendiente_pago_o_corte(texto):
             return _responder_pendiente_pago_o_corte(
                 db, org_id, conv, abonado, ctx, canal=canal
             )
 
         if _cliente_pide_oficina_virtual(texto) or _cliente_pide_pagar(texto):
-            resp = (
-                f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
-                f"{PLANTILLA_PAGO_QR}"
-            )
-            ctx["intencion"] = "facturacion"
-            ctx["saludo"] = True
-            ctx.pop("invitado", None)
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "abonado": crepo.abonado_to_dict(abonado),
-                "intencion": "facturacion",
-            }
-
-        if _cliente_consulta_saldo(texto):
-            resp = mensaje_saldo_padron(deuda, nota_extra=nota_baja)
+            if _deuda_positiva(abonado) or (abonado.estado or "").lower() in (
+                "corte",
+                "cortado",
+                "suspendido",
+                "suspendida",
+            ):
+                resp = (
+                    f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
+                    f"{PLANTILLA_PAGO_QR}"
+                )
+            else:
+                resp = (
+                    f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
+                    "No hace falta que abones: no tenés deuda pendiente en este momento."
+                )
             ctx["intencion"] = "facturacion"
             ctx["saludo"] = True
             ctx.pop("invitado", None)

@@ -1,6 +1,6 @@
 {
-  "started_at": "2026-08-28T17:38:11.542137+00:00",
-  "finished_at": "2026-08-28T17:38:39.672889+00:00",
+  "started_at": "2026-08-28T17:49:58.394465+00:00",
+  "finished_at": "2026-08-28T17:50:26.655670+00:00",
   "lote_hogar": "exhaustivo",
   "metricas": {
     "personas": 32,
@@ -127,7 +127,7 @@
         "nombre": "LOS roja",
         "n2_esperado": "optica",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1141",
+        "ticket_id": "IBOT-1149",
         "estado_final": "espera_agente",
         "intencion_final": "internet_ftth",
         "turnos": 2,
@@ -151,7 +151,7 @@
           },
           {
             "rol": "bot",
-            "texto": "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. Generé el ticket IBOT-1141 y te derivo con un agente. Te van a responder por este mismo chat.",
+            "texto": "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. Generé el ticket IBOT-1149 y te derivo con un agente. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -373,7 +373,7 @@
         "nombre": "Radio techo",
         "n2_esperado": "post_n1_radio",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1142",
+        "ticket_id": "IBOT-1150",
         "estado_final": "espera_agente",
         "intencion_final": "internet_radio",
         "turnos": 7,
@@ -442,7 +442,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1142. Quedate en este chat.",
+            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1150. Quedate en este chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1071,7 +1071,7 @@
         "ticket_id": "",
         "estado_final": "cerrado",
         "intencion_final": "facturacion",
-        "turnos": 2,
+        "turnos": 4,
         "n2_evitable": false,
         "n2_legitimo": false,
         "ok": true,
@@ -1083,12 +1083,30 @@
           },
           {
             "rol": "bot",
-            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nNo hace falta que abones: no tenés deuda pendiente en este momento.",
             "estado": "bot"
           },
           {
             "rol": "usuario",
-            "texto": "No hace falta, gracias"
+            "texto": "Solo necesito pagar con el QR"
+          },
+          {
+            "rol": "bot",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nNo hace falta que abones: no tenés deuda pendiente en este momento.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Solo necesito pagar con el QR"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿Qué necesitás: pagar, descargar factura/talón, avisar un pago, que te manden la factura, consultar deuda, o reclamar un cobro?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, ya entré al QR / ov.batan, gracias"
           },
           {
             "rol": "bot",
@@ -1126,12 +1144,12 @@
           },
           {
             "rol": "bot",
-            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nNo hace falta que abones: no tenés deuda pendiente en este momento.",
             "estado": "bot"
           },
           {
             "rol": "usuario",
-            "texto": "No hace falta, gracias"
+            "texto": "Entendido, espero la imputación, gracias"
           },
           {
             "rol": "bot",
@@ -1179,7 +1197,7 @@
         "nombre": "Reclamo de monto",
         "n2_esperado": "legitimo_factura",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1143",
+        "ticket_id": "IBOT-1151",
         "estado_final": "espera_agente",
         "intencion_final": "facturacion",
         "turnos": 6,
@@ -1239,7 +1257,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1143. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1151. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1337,7 +1355,7 @@
         "nombre": "Sensa error de cuenta",
         "n2_esperado": "legitimo_sensa",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1144",
+        "ticket_id": "IBOT-1152",
         "estado_final": "espera_agente",
         "intencion_final": "tv_sensa",
         "turnos": 9,
@@ -1424,7 +1442,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1144. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1152. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1434,7 +1452,7 @@
         "nombre": "Móvil pack acreditado sin datos",
         "n2_esperado": "legitimo_provision_movil",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1145",
+        "ticket_id": "IBOT-1153",
         "estado_final": "espera_agente",
         "intencion_final": "movil_datos",
         "turnos": 5,
@@ -1485,7 +1503,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1145. Quedate en este chat.",
+            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1153. Quedate en este chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1495,7 +1513,7 @@
         "nombre": "2ª insistencia mismo pedido de agente",
         "n2_esperado": "segunda_insistencia",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1146",
+        "ticket_id": "IBOT-1154",
         "estado_final": "espera_agente",
         "intencion_final": "",
         "turnos": 2,
@@ -1519,7 +1537,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Dale, te derivo con un agente y le paso lo que charlamos. Ticket IBOT-1146. Quedate en este chat.",
+            "texto": "Dale, te derivo con un agente y le paso lo que charlamos. Ticket IBOT-1154. Quedate en este chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1672,7 +1690,7 @@
         "ticket_id": "",
         "estado_final": "cerrado",
         "intencion_final": "facturacion",
-        "turnos": 4,
+        "turnos": 5,
         "n2_evitable": false,
         "n2_legitimo": false,
         "ok": true,
@@ -1702,7 +1720,16 @@
           },
           {
             "rol": "bot",
-            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nNo hace falta que abones: no tenés deuda pendiente en este momento.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Necesito cargar datos del abono"
+          },
+          {
+            "rol": "bot",
+            "texto": "Con lo que contás hace falta revisar la cuenta adentro. ¿Te derivo con facturación?",
             "estado": "bot"
           },
           {
@@ -2312,7 +2339,7 @@
         "nombre": "Enlace sede caída",
         "n2_esperado": "legitimo",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1147",
+        "ticket_id": "IBOT-1155",
         "estado_final": "espera_agente",
         "intencion_final": "ecolan_b2b",
         "turnos": 6,
@@ -2372,7 +2399,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1147. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1155. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -2382,7 +2409,7 @@
         "nombre": "VM DC impacto",
         "n2_esperado": "legitimo",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1148",
+        "ticket_id": "IBOT-1156",
         "estado_final": "espera_agente",
         "intencion_final": "ecolan_b2b",
         "turnos": 6,
@@ -2442,7 +2469,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1148. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1156. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]

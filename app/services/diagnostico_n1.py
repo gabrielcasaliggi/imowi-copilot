@@ -1290,6 +1290,10 @@ def _cliente_consulta_saldo(texto: str) -> bool:
             "cuánto me cobraron",
             "cuanto es la factura",
             "cuánto es la factura",
+            "cual es mi deuda",
+            "cuál es mi deuda",
+            "que debo",
+            "qué debo",
         )
     )
 

@@ -1205,7 +1205,7 @@ def test_audio_pendiente_pago_no_sigue_diagnostico_tecnico():
         dni="30111222",
         nombre="JORGE TEST",
         estado="activo",
-        deuda_monto="15000",
+        deuda_monto="0",
         servicio="internet",
     )
     conv = SimpleNamespace(id="c1", canal="whatsapp", ticket_id="", estado="bot")
@@ -1245,9 +1245,10 @@ def test_audio_pendiente_pago_no_sigue_diagnostico_tecnico():
         monkeypatch.undo()
 
     assert out is not None
-    assert out.get("intencion") == "corte_deuda"
+    assert out.get("intencion") == "facturacion"
     low = (sent[0] if sent else "").lower()
-    assert "ov.batan.coop" in low or "pagar" in low
+    assert "no hace falta" in low or "no tenés deuda" in low
+    assert "ov.batan.coop/#/pagar" not in low
     assert "fibra óptica" not in low and "cajita blanca" not in low
 
 
