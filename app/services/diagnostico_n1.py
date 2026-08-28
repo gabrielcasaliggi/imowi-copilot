@@ -861,6 +861,28 @@ def _bot_pregunta_fibra(texto: str) -> bool:
     )
 
 
+def _parece_pregunta_tipo_acceso(mensaje: str) -> bool:
+    """Triaje fibra/radio/ADSL — no corresponde mid-diagnóstico WiFi/repetidor."""
+    tl = (mensaje or "").lower()
+    if any(
+        k in tl
+        for k in (
+            "tipo de conexión",
+            "tipo de conexion",
+            "qué tipo de conexión",
+            "que tipo de conexion",
+        )
+    ):
+        return True
+    techs = sum(
+        1 for k in ("fibra", "adsl", "antena", "radio", "teléfono", "telefono") if k in tl
+    )
+    return techs >= 2 and any(
+        k in tl
+        for k in ("cajita", "amarillo", "techo", "línea telefónica", "linea telefonica")
+    )
+
+
 def _tiene_dano_fibra(texto: str) -> bool:
     tl = (texto or "").lower()
     return any(k in tl for k in _DANO_FIBRA)
@@ -1809,6 +1831,26 @@ def diagnosticar_turno(
             "motivo": "bloqueado_clave_wifi_en_chat",
         }
 
+    from app.domain.flujos_abonado import (
+        contexto_diagnostico_wifi,
+        mensaje_confirmacion_mejora_senal_wifi,
+        pregunta_confirmacion_mejora_senal_wifi,
+    )
+
+    if contexto_diagnostico_wifi(
+        historial_mensajes, intencion=intencion
+    ) and pregunta_confirmacion_mejora_senal_wifi(
+        mensaje_cliente, historial_mensajes, intencion=intencion
+    ):
+        return {
+            "accion": "ask",
+            "mensaje": mensaje_confirmacion_mejora_senal_wifi(
+                mensaje_cliente, historial_mensajes
+            ),
+            "paso_cubierto": "confirmacion_mejora_wifi",
+            "motivo": "confirmacion_mejora_senal_wifi",
+        }
+
     if es_movil:
         pasos_cubiertos = _enriquecer_pasos_movil(
             pasos_cubiertos, so_movil, mensaje_cliente, historial_mensajes
@@ -2352,6 +2394,27 @@ def diagnosticar_turno(
             motivo = g_wifi["motivo"]
             if g_wifi.get("paso_cubierto"):
                 paso = g_wifi["paso_cubierto"]
+
+        if (
+            contexto_diagnostico_wifi(historial_mensajes, intencion=intencion)
+            and accion == "ask"
+            and _parece_pregunta_tipo_acceso(mensaje)
+            and (
+                pregunta_confirmacion_mejora_senal_wifi(
+                    mensaje_cliente, historial_mensajes, intencion=intencion
+                )
+                or any(
+                    k in (mensaje_cliente or "").lower()
+                    for k in ("rayita", "potencia", "repetidor", "más señal", "mas señal")
+                )
+            )
+        ):
+            accion = "ask"
+            motivo = "bloqueado_triaje_tipo_acceso_wifi"
+            mensaje = mensaje_confirmacion_mejora_senal_wifi(
+                mensaje_cliente, historial_mensajes
+            )
+            paso = "confirmacion_mejora_wifi"
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"

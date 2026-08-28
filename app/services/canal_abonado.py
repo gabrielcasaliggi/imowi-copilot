@@ -143,6 +143,53 @@ def _cliente_cable_ok(texto: str) -> bool:
     return False
 
 
+def _responder_confirmacion_mejora_wifi(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Confirma mejora de señal WiFi/repetidor; no resetear a triaje fibra/radio/ADSL."""
+    from app.domain.flujos_abonado import (
+        contexto_diagnostico_wifi,
+        mensaje_confirmacion_mejora_senal_wifi,
+        pregunta_confirmacion_mejora_senal_wifi,
+    )
+
+    historial = crepo.list_mensajes(db, conv.id)
+    if not contexto_diagnostico_wifi(historial, intencion=intencion):
+        return None
+    if not pregunta_confirmacion_mejora_senal_wifi(texto, historial, intencion=intencion):
+        return None
+    msg = mensaje_confirmacion_mejora_senal_wifi(texto, historial)
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if "confirmacion_mejora_wifi" not in cub:
+        cub.append("confirmacion_mejora_wifi")
+    ctx["pasos_cubiertos"] = cub
+    ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
+    ctx["ultima_diag_motivo"] = "confirmacion_mejora_senal_wifi"
+    if (intencion or "").strip() == "internet":
+        ctx["intencion"] = "wifi"
+        intencion = "wifi"
+        conv.servicio_detectado = "wifi"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "diagnostico_ia": True,
+    }
+
+
 def _limpiar_ctx_outage(ctx: dict, *, preservar_resuelto_avisado: bool = False) -> None:
     avisado = ctx.get("outage_resuelto_avisado")
     for k in (
@@ -2449,6 +2496,12 @@ def _aplicar_diagnostico_ia(
             ),
         )
 
+    conf_wifi = _responder_confirmacion_mejora_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if conf_wifi is not None:
+        return conf_wifi
+
     # Primer turno de internet: informar estado PPPoE real (no depender del LLM).
     pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion)
     if pppoe_msg:
@@ -3972,6 +4025,12 @@ def procesar_mensaje_entrante(
                 "intencion": intencion,
             }
 
+    conf_wifi = _responder_confirmacion_mejora_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion or ""
+    )
+    if conf_wifi is not None:
+        return conf_wifi
+
     if intencion == "internet":
         refinada = refinar_playbook_internet(texto)
         if refinada:
@@ -4461,6 +4520,11 @@ def procesar_mensaje_entrante(
             )
         # El triaje `internet` no es N1 agotado: refinar o repreguntar, nunca ticket.
         if intencion == "internet":
+            conf_wifi = _responder_confirmacion_mejora_wifi(
+                db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+            )
+            if conf_wifi is not None:
+                return conf_wifi
             refinada = refinar_playbook_internet(texto) or refinar_playbook_internet(
                 str(ctx.get("ultima_respuesta_libre") or "")
             )

@@ -1959,6 +1959,112 @@ def acepta_derivacion_clara(texto: str) -> bool:
     return False
 
 
+def _texto_blob_historial(historial) -> str:
+    parts: list[str] = []
+    for m in historial or []:
+        if isinstance(m, dict):
+            parts.append(str(m.get("texto") or m.get("contenido") or ""))
+        else:
+            parts.append(str(getattr(m, "texto", "") or ""))
+    return " ".join(parts).lower()
+
+
+def contexto_diagnostico_wifi(historial, *, intencion: str = "") -> bool:
+    """True si el hilo es diagnóstico WiFi/cobertura (repetidor, router, etc.)."""
+    intent = (intencion or "").strip()
+    if intent in ("wifi", "cambio_clave_wifi"):
+        return True
+    blob = _texto_blob_historial(historial)
+    if any(k in blob for k in ("repetidor", "rayita", "rayitas")):
+        return True
+    wifi_markers = ("wifi", "wi-fi", "wi fi", "router", "televisor", "smart tv")
+    if any(k in blob for k in wifi_markers) and any(
+        k in blob for k in ("señal", "senal", "potencia", "cobertura", "llega", "rayita")
+    ):
+        return True
+    return False
+
+
+def pregunta_confirmacion_mejora_senal_wifi(
+    texto: str,
+    historial=None,
+    *,
+    intencion: str = "",
+) -> bool:
+    """Abonado pregunta si una mejora de señal (repetidor/rayitas) alcanza para resolver.
+
+    No es cierre/resolución («ya anda»); es confirmación («¿eso me va a solucionar?»).
+    """
+    t = (texto or "").lower().strip()
+    if not t or indica_resuelto(texto):
+        return False
+    if not contexto_diagnostico_wifi(historial, intencion=intencion):
+        return False
+    confirmacion = any(
+        k in t
+        for k in (
+            "me va a solucionar",
+            "va a solucionar",
+            "va a solucionar el problema",
+            "eso me soluciona",
+            "con eso alcanza",
+            "eso alcanza",
+            "con eso me alcanza",
+            "me va a servir",
+            "va a andar bien",
+            "va a funcionar",
+            "me alcanza",
+        )
+    ) or (
+        "?" in t
+        and any(k in t for k in ("alcanza", "soluciona", "sirve", "funciona"))
+    )
+    if not confirmacion:
+        return False
+    mejora = any(
+        k in t
+        for k in (
+            "rayita",
+            "rayitas",
+            "mas potencia",
+            "más potencia",
+            "mejor señal",
+            "mejor senal",
+            "mas señal",
+            "más señal",
+            "veo mas",
+            "veo más",
+            "subio la señal",
+            "subió la señal",
+            "mejora la señal",
+            "mejora la senal",
+            "mejora las señal",
+            "potencia",
+        )
+    )
+    return mejora or "repetidor" in _texto_blob_historial(historial)
+
+
+def mensaje_confirmacion_mejora_senal_wifi(
+    texto: str,
+    historial=None,
+) -> str:
+    blob = _texto_blob_historial(historial) + " " + (texto or "").lower()
+    zona = ""
+    if "cocina" in blob:
+        zona = " en la cocina"
+    elif "televisor" in blob or " smart tv" in blob:
+        zona = " en el televisor"
+    elif "habitacion" in blob or "habitación" in blob:
+        zona = " en esa habitación"
+    elif "baño" in blob or "bano" in blob:
+        zona = " en el baño"
+    return (
+        f"Sí, con más señal en el repetidor debería andar bien{zona}. "
+        "Probá conectarte un rato y avisame si sigue fallando."
+    )
+
+
 def indica_resuelto(texto: str) -> bool:
     """El abonado indica que el servicio ya volvió / funciona.
 

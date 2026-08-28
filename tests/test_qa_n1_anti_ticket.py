@@ -1263,6 +1263,143 @@ def test_wifi_parcial_no_cierra_resuelto():
     assert "genial" not in resp or "lejos" in resp or "wifi" in resp or "router" in resp
 
 
+def test_confirmacion_mejora_repetidor_no_es_cierre_ni_triaje_fibra():
+    """Screenshot: «Eso me va a solucionar el problema» = confirmación, no cierre."""
+    import json
+    from unittest.mock import patch
+
+    from sqlalchemy import select
+
+    from app.domain.flujos_abonado import (
+        indica_resuelto,
+        mensaje_confirmacion_mejora_senal_wifi,
+        pregunta_confirmacion_mejora_senal_wifi,
+    )
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    msg = (
+        "Claro, ahora estoy viendo la señal con un poco más de potencia, "
+        "porque veo más rayitas. Eso me va a solucionar el problema."
+    )
+    hist = [
+        {"autor": "cliente", "texto": "El WiFi no anda en la cocina"},
+        {
+            "autor": "bot",
+            "texto": (
+                "Entiendo, esa rayita indica que la señal que recibe el repetidor "
+                "es muy débil. ¿Podrías mover el repetidor más cerca del router?"
+            ),
+        },
+        {
+            "autor": "cliente",
+            "texto": "Ok, lo moví y ahí mejora la señal del repetidor",
+        },
+        {
+            "autor": "bot",
+            "texto": (
+                "Buenísimo. Avisame cuando lo pruebes, "
+                "¿te anda bien el Wi-Fi ahora en el televisor?"
+            ),
+        },
+    ]
+    assert indica_resuelto(msg) is False
+    assert pregunta_confirmacion_mejora_senal_wifi(msg, hist, intencion="wifi") is True
+    assert "repetidor" in mensaje_confirmacion_mejora_senal_wifi(msg, hist).lower()
+    assert "cocina" in mensaje_confirmacion_mejora_senal_wifi(msg, hist).lower()
+
+    def _fake_triaje_fibra(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Para ayudarte con internet, necesito saber qué tipo de conexión tenés: "
+                    "¿fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo, "
+                    "o ADSL por línea telefónica?"
+                ),
+                "paso_cubierto": "tipo_acceso",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch("app.llm.chat_completion", side_effect=_fake_triaje_fibra):
+        out = diagnosticar_turno(
+            intencion="wifi",
+            checklist=[{"id": "zona_wifi", "pregunta": "¿WiFi en toda la casa?"}],
+            historial_mensajes=hist,
+            mensaje_cliente=msg,
+            turnos_diagnostico=3,
+            pasos_cubiertos=["zona_wifi", "conexion_cableada"],
+        )
+    assert out["motivo"] == "confirmacion_mejora_senal_wifi"
+    assert "fibra" not in (out.get("mensaje") or "").lower()
+    assert "adsl" not in (out.get("mensaje") or "").lower()
+    assert "repetidor" in (out.get("mensaje") or "").lower()
+
+    tel = "5492235599994"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "30111222"))
+        assert abo is not None
+        for c in db.scalars(
+            select(ConversacionCanal).where(
+                ConversacionCanal.telefono.contains(tel[-10:])
+            )
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        for h in hist:
+            direccion = "in" if h["autor"] == "cliente" else "out"
+            crepo.add_mensaje(
+                db,
+                org.id,
+                conv.id,
+                direccion=direccion,
+                autor=h["autor"],
+                texto=h["texto"],
+            )
+        crepo.set_contexto(
+            conv,
+            {
+                "saludo": True,
+                "intencion": "wifi",
+                "paso_idx": 2,
+                "diag_turnos": 3,
+                "pasos_cubiertos": ["zona_wifi", "conexion_cableada"],
+            },
+        )
+        db.commit()
+        r = procesar_mensaje_entrante(
+            db,
+            org.id,
+            telefono=tel,
+            texto=msg,
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    resp = (r.get("respuesta") or "").lower()
+    assert r.get("estado") != "cerrado"
+    assert "fibra" not in resp
+    assert "adsl" not in resp
+    assert "cajita blanca" not in resp
+    assert "antena en el techo" not in resp
+    assert "repetidor" in resp or "probá" in resp or "probá conectarte" in resp
+
+
 def test_inbox_pide_agente_ya_no_ticket_en_primer_turno():
     """Regresión del comportamiento anterior: 1er pedido humano ≠ ticket."""
     from sqlalchemy import select
