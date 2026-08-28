@@ -801,6 +801,20 @@ def _mensaje_informar_pago_n1(
     )
 
 
+def _mensaje_repreguntar_dni(*, entrada_audio: bool = False) -> str:
+    if entrada_audio:
+        return (
+            "No escuché bien el número de documento en el audio. "
+            "¿Me lo pasás escrito, solo con números? "
+            "Podés usar puntos o comas, o mandarlo todo junto."
+        )
+    return (
+        "No pude reconocer un DNI en tu mensaje. "
+        "¿Me pasás el número del titular, solo dígitos? "
+        "Podés usar puntos o comas, o mandarlo todo junto."
+    )
+
+
 def _elige_pago_o_tecnico(texto: str) -> str | None:
     """Tras aviso de deuda: 'pago' | 'tecnico' | None si no se entiende."""
     t = (texto or "").lower().strip()
@@ -3071,6 +3085,35 @@ def procesar_mensaje_entrante(
                     ctx=ctx,
                     motivo="dni_no_encontrado",
                 )
+
+            # Tras pedir DNI: no derivar si el audio/texto no trae un documento legible.
+            if ctx.get("pidio_dni") and not ctx.get("invitado") and not _extraer_dni(texto):
+                intentos = int(ctx.get("dni_reintento") or 0) + 1
+                ctx["dni_reintento"] = intentos
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                if intentos >= 3:
+                    return _derivar_visitante(
+                        db,
+                        org_id,
+                        conv,
+                        canal=canal,
+                        ctx=ctx,
+                        motivo="dni_ilegible",
+                        mensaje=(
+                            "No pude ubicar tu documento con lo que me pasaste. "
+                            "Te derivo con un agente para ayudarte a identificar la cuenta."
+                        ),
+                    )
+                resp = _mensaje_repreguntar_dni(entrada_audio=entrada_audio)
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                }
 
             # WhatsApp: una chance de DNI antes de derivar
             if _enviar_externo(canal) and not ctx.get("pidio_dni") and not ctx.get("invitado"):

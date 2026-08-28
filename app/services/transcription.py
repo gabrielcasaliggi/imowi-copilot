@@ -14,6 +14,13 @@ MSG_AUDIO_FALLBACK = (
     "No pude escuchar bien el audio. ¿Me lo escribís en un mensajito de texto?"
 )
 
+# Sesgo STT cuando el bot acaba de pedir DNI (WhatsApp audio).
+WHISPER_PROMPT_DNI = (
+    "Documento nacional de identidad DNI argentino de siete u ocho dígitos. "
+    "Números: cero, uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve. "
+    "Separador de miles con punto o coma."
+)
+
 
 def whisper_disponible() -> bool:
     return bool(WHISPER_ENABLED and (WHISPER_URL or "").strip())
@@ -24,6 +31,7 @@ def transcribir_audio(
     *,
     filename: str = "audio.ogg",
     mime: str = "audio/ogg",
+    prompt: str = "",
 ) -> str:
     """Envía audio al servicio Whisper. Vacío si está deshabilitado o falla."""
     if not whisper_disponible():
@@ -35,9 +43,14 @@ def transcribir_audio(
     url = WHISPER_URL.rstrip("/") + "/transcribe"
     try:
         with httpx.Client(timeout=WHISPER_TIMEOUT_S) as client:
+            data = {}
+            hint = (prompt or "").strip()
+            if hint:
+                data["prompt"] = hint[:500]
             r = client.post(
                 url,
                 files={"file": (filename, audio_bytes, mime)},
+                data=data,
             )
         if r.status_code >= 400:
             logger.warning("Whisper HTTP %s: %s", r.status_code, r.text[:300])
@@ -50,7 +63,7 @@ def transcribir_audio(
         return ""
 
 
-def texto_desde_audio_whatsapp(msg: dict) -> str | None:
+def texto_desde_audio_whatsapp(msg: dict, *, prompt: str = "") -> str | None:
     """Transcribe audio WA. None = no era audio; '' = falló / vacío."""
     tipo = (msg.get("type") or "").strip().lower()
     if tipo != "audio":
@@ -67,7 +80,7 @@ def texto_desde_audio_whatsapp(msg: dict) -> str | None:
     if not raw:
         return ""
     mime = str(media.get("mime_type") or "audio/ogg").strip() or "audio/ogg"
-    return transcribir_audio(raw, filename="voice.ogg", mime=mime)
+    return transcribir_audio(raw, filename="voice.ogg", mime=mime, prompt=prompt)
 
 
 def texto_desde_audio_telegram(message: dict) -> str | None:

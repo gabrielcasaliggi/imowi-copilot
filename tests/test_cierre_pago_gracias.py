@@ -227,3 +227,57 @@ def test_espera_agente_responde_como_pago(monkeypatch):
     assert "fiserv" in low or "qr" in low
     assert "ya está derivado" not in low
     assert ctx.get("faq_pago_enviado") is True
+
+
+def test_whatsapp_audio_dni_ilegible_repregunta_no_deriva():
+    """Audio mal transcrito tras pedir DNI: repreguntar, no derivar de golpe."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235599001"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = ""
+        conv.contexto_json = "{}"
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r1 = procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto="Hola", canal="whatsapp", usar_llama=False
+        )
+        assert r1.get("modo") == "bot"
+        assert "dni" in (r1.get("respuesta") or "").lower()
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Se me llone, el 28.15.",
+            canal="whatsapp",
+            usar_llama=False,
+            entrada_audio=True,
+        )
+    resp = (r2.get("respuesta") or "").lower()
+    assert r2.get("modo") == "bot"
+    assert r2.get("estado") == "bot"
+    assert "escrito" in resp or "números" in resp or "numeros" in resp
+    assert "no identifiqué" not in resp
+    assert "derivo" not in resp

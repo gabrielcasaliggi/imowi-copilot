@@ -1187,6 +1187,8 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
     # Whisper: "nueve"/"9" → "no"; "6 7" → "67"
     assert _extraer_dni("24, no y 14, 8, 67.") == "24914867"
     assert _es_solo_dni("24, no y 14, 8, 67.") is True
+    assert _extraer_dni("12.345.678") == "12345678"
+    assert _extraer_dni("mi dni es 12.345.678") == "12345678"
     assert _es_solo_dni("corte desde el 10/08/2024 y no anda") is False
 
 

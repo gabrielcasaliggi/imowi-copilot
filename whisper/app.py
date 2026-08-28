@@ -7,7 +7,7 @@ import os
 import tempfile
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("whisper")
@@ -52,7 +52,10 @@ def health():
 
 
 @app.post("/transcribe")
-async def transcribe(file: UploadFile = File(...)):
+async def transcribe(
+    file: UploadFile = File(...),
+    prompt: str = Form(""),
+):
     if _model is None:
         raise HTTPException(503, "Modelo no cargado")
 
@@ -80,12 +83,16 @@ async def transcribe(file: UploadFile = File(...)):
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(data)
             path = tmp.name
-        segments, info = _model.transcribe(
-            path,
-            language=WHISPER_LANGUAGE,
-            vad_filter=True,
-            beam_size=1,
-        )
+        kwargs: dict = {
+            "language": WHISPER_LANGUAGE,
+            "vad_filter": True,
+            "beam_size": 1,
+        }
+        hint = (prompt or "").strip()
+        if hint:
+            kwargs["initial_prompt"] = hint[:500]
+            kwargs["beam_size"] = 3
+        segments, info = _model.transcribe(path, **kwargs)
         text = " ".join((s.text or "").strip() for s in segments).strip()
         logger.info(
             "transcribe ok lang=%s duration=%.1fs chars=%s",

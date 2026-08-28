@@ -143,7 +143,28 @@ def _procesar_payload_whatsapp(payload: dict, org_id: str, org_slug: str) -> Non
                         )
                         continue
 
-                    transcribed = texto_desde_audio_whatsapp(msg)
+                    stt_prompt = ""
+                    if (tipo or "").strip().lower() == "audio":
+                        try:
+                            conv_hint = crepo.get_or_create_conversacion(
+                                db,
+                                org_id,
+                                telefono=from_wa,
+                                canal="whatsapp",
+                                wa_id=from_wa,
+                            )
+                            ctx_hint = crepo.get_contexto(conv_hint)
+                            if ctx_hint.get("pidio_dni"):
+                                from app.services.transcription import WHISPER_PROMPT_DNI
+
+                                stt_prompt = WHISPER_PROMPT_DNI
+                        except Exception:
+                            logger.exception(
+                                "WhatsApp no pudo leer ctx para prompt DNI from=%s",
+                                from_wa,
+                            )
+
+                    transcribed = texto_desde_audio_whatsapp(msg, prompt=stt_prompt)
                     if transcribed is not None:
                         text = (transcribed or "").strip()
                         if not text:
