@@ -599,7 +599,9 @@ def test_playbooks_facturacion_botmaker_desglose():
     assert "ov.batan.coop" in pago
     assert "acredita" in pago.lower() or "acreditación" in pago.lower()
     informar = PLAYBOOKS["facturacion_informar_pago"][0].pregunta.lower()
-    assert "no hace falta" in informar or "reactiva solo" in informar
+    assert "ov.batan" in informar or "oficina virtual" in informar
+    assert "al instante" in informar or "instante" in informar
+    assert "aviso" in informar
     assert PLAYBOOKS["facturacion"][0].id == "triaje_motivo"
     assert tag_para_intencion("facturacion_pago") == "[PAGOS_QR]"
     assert es_intencion_diagnostico("facturacion_pago") is True
@@ -1056,6 +1058,71 @@ def test_flujo_acabaron_datos_sigamos_sin_n2():
     assert not r3.get("ticket_id"), r3.get("respuesta")
     assert "generé el ticket" not in (r3.get("respuesta") or "").lower()
     assert "internet.coopbatan" not in (r3.get("respuesta") or "").lower()
+
+
+def test_aviso_deuda_informar_pago_no_repite_eleccion():
+    """Jorge: aviso deuda → quiere avisar que pagó → N1 informar, no loop pago/técnico."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235587772"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "32123456"))
+        assert abo is not None
+        abo.servicio = "movil"
+        abo.deuda_monto = "55779.99"
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.contexto_json = "{}"
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db, org_id, telefono=tel, texto="hola", canal="whatsapp", usar_llama=False
+        )
+        r1 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Se me acabaron los datos del abono",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+        assert r1.get("intencion") == "aviso_deuda"
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Hola quiero avisar que pague recien",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    resp = (r2.get("respuesta") or "").lower()
+    assert r2.get("intencion") == "facturacion_informar_pago"
+    assert "ov.batan.coop" in resp
+    assert "aviso-de-pago" in resp or "aviso de pago" in resp
+    assert "no hace falta avisar" not in resp
+    assert "decime cuál preferís" not in resp
+    assert not r2.get("ticket_id")
 
 
 def test_visitante_portal_deriva_sin_ticket_n2():

@@ -67,6 +67,120 @@ def texto_ov_aviso_pago(*, cortado: bool = False) -> str:
     return TEXTO_OV_AVISO_PAGO
 
 
+def clasificar_medio_pago_informado(texto: str) -> str:
+    """Clasifica el medio que menciona el abonado: instantaneo | externo | desconocido."""
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "ov.batan",
+            "oficina virtual",
+            "ov batán",
+            "ov batan",
+            "mi cuenta",
+            "pagina de pago",
+            "página de pago",
+            "portal",
+            "por la web",
+            "en la web",
+            "pagué online",
+            "pague online",
+            "qr",
+            "fiserv",
+            "mercado pago",
+            "mercadopago",
+            "modo",
+        )
+    ):
+        return "instantaneo"
+    if any(
+        k in t
+        for k in (
+            "rapipago",
+            "rapi pago",
+            "pago facil",
+            "pago fácil",
+            "pago fac",
+            "red link",
+            "banelco",
+            "transferencia",
+            "deposito",
+            "depósito",
+            "externo",
+            "sucursal",
+            "en el banco",
+            "por el banco",
+        )
+    ):
+        return "externo"
+    return "desconocido"
+
+
+def mensaje_informar_pago_n1(
+    texto: str = "",
+    *,
+    nombre: str = "",
+    cortado: bool = False,
+    conectado_radius: bool | None = None,
+    seguir_tecnico: bool = False,
+) -> str:
+    """Respuesta N1 cuando el abonado avisa que pagó (según medio y, si aplica, Radius)."""
+    nom = f", {nombre}" if nombre else ""
+
+    if conectado_radius is True:
+        resp = (
+            f"Gracias por avisar{nom}. Revisé tu conexión: en este momento la cuenta está activa "
+            "y figurás conectado en la red."
+        )
+        if seguir_tecnico:
+            resp += " ¿Seguimos con el diagnóstico del servicio o con esto alcanza?"
+        else:
+            resp += " ¿Necesitás algo más o damos por cerrada la consulta?"
+        return resp
+
+    medio = clasificar_medio_pago_informado(texto)
+
+    if medio == "instantaneo":
+        intro = f"Perfecto{nom}."
+        cuerpo = (
+            "Si pagaste por la oficina virtual (ov.batan.coop) o con el QR Fiserv de la factura, "
+            "la acreditación y la rehabilitación suelen ser al instante: "
+            "no hace falta cargar un aviso adicional por este chat."
+        )
+    elif medio == "externo":
+        intro = f"Entendido{nom}."
+        cuerpo = (
+            "Si pagaste por un medio externo (Rapipago, Pago Fácil, transferencia, etc.), "
+            "es importante cargar el aviso en la oficina virtual para que, si la cuenta estaba "
+            f"deshabilitada, se pueda reactivar:\n{OV_BATAN_AVISO_PAGO_URL}\n"
+            "Completá DNI, monto abonado y dónde pagaste. "
+            f"{TEXTO_DEMORA_ACREDITACION}"
+        )
+    else:
+        intro = f"Entendido{nom}." if nombre or texto else "Entendido."
+        cuerpo = (
+            "Depende del medio con el que pagaste:\n"
+            f"• *Oficina virtual* ({OV_BATAN_PAGAR_URL}) o *QR Fiserv* de la factura: "
+            "suelen acreditarse y rehabilitar al instante.\n"
+            f"• *Medio externo* (Rapipago, Pago Fácil, transferencia, etc.): cargá el aviso acá "
+            f"para reactivar si la cuenta estaba deshabilitada:\n{OV_BATAN_AVISO_PAGO_URL}\n"
+            f"{TEXTO_DEMORA_ACREDITACION}"
+        )
+
+    if cortado and medio in ("externo", "desconocido"):
+        cuerpo += (
+            "\n\nComo tu cuenta figura con restricción por deuda, el aviso en la oficina virtual "
+            "permite la reactivación mientras se acredita en el padrón."
+        )
+
+    resp = f"{intro} {cuerpo}"
+    if seguir_tecnico:
+        resp += "\n¿Seguimos con el diagnóstico del servicio mientras se acredita?"
+    elif medio != "instantaneo":
+        resp += "\n¿Necesitás algo más?"
+    return resp
+
+
 def servicio_cortado_desde_contexto(contexto_abonado: str | None) -> bool:
     """True si CONTEXTO_ABONADO indica corte/suspensión (no baja)."""
     import re

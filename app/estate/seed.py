@@ -900,10 +900,13 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             categoria="Facturación",
             contenido=(
                 "Si el abonado quiere avisar que pagó:\n"
-                "1) NO es necesario avisar: la imputación y la rehabilitación son automáticas.\n"
-                "2) No afirmar acreditación sin consultar el sistema.\n"
-                "3) Aviso opcional en Mi Cuenta ov.batan.coop.\n"
-                "4) Si pagó hace varias horas y no figura → derivar N2 con medio y fecha.\n"
+                "1) OV (ov.batan.coop) o QR Fiserv: acreditación y rehabilitación al instante.\n"
+                "2) Medio externo (Rapipago, Pago Fácil, transferencia, etc.): aviso en "
+                "https://ov.batan.coop/#/aviso-de-pago si la cuenta estaba deshabilitada.\n"
+                "3) Si avisó en OV y también escribe al asistente: verificar Radius (PPPoE); "
+                "si está conectado → agradecer, confirmar cuenta activa y cerrar si no necesita más.\n"
+                "4) No afirmar acreditación sin consultar el sistema.\n"
+                "5) Si pagó hace varias horas y no figura → derivar N2 con medio y fecha.\n"
                 "Playbook: facturacion_informar_pago."
             ),
         ),

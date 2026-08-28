@@ -707,6 +707,100 @@ def _intencion_es_tecnica(intencion: str) -> bool:
     return es_intencion_diagnostico(intent)
 
 
+def _cliente_informa_pago(texto: str) -> bool:
+    """Quiere avisar que pagó / consultar acreditación (no elegir pagar vs técnico)."""
+    if clasificar_intencion(texto) == "facturacion_informar_pago":
+        return True
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "informar pago",
+            "informar un pago",
+            "avisar el pago",
+            "avisar un pago",
+            "aviso de pago",
+            "avisar que pag",
+            "avisar que abon",
+            "quiero avisar",
+            "queria avisar",
+            "quería avisar",
+            "pague recien",
+            "pagué recién",
+            "pague recién",
+            "pagué recien",
+            "acabo de pagar",
+            "recien pague",
+            "recién pagué",
+        )
+    ):
+        return True
+    return ("avisar" in t or "informar" in t or "aviso" in t) and any(
+        k in t for k in ("pag", "abon", "transfer")
+    )
+
+
+def _abonado_cortado_por_deuda(abonado: Abonado | None) -> bool:
+    if abonado is None:
+        return False
+    estado = (abonado.estado or "").strip().lower()
+    if estado in ("corte", "cortado", "suspendido", "suspendida"):
+        return True
+    from app.services.eco_voice import parse_monto
+
+    m = parse_monto(getattr(abonado, "deuda_monto", None))
+    return bool(m and m > 0)
+
+
+def _abonado_conectado_radius(
+    db: Session,
+    abonado: Abonado | None,
+) -> bool | None:
+    """True si hay sesión PPPoE activa; None si no aplica o no hay dato."""
+    if abonado is None:
+        return None
+    from app.domain.flujos_abonado import tiene_internet_fijo
+
+    if not tiene_internet_fijo(_servicio_abonado(abonado)):
+        return None
+    dni = str(getattr(abonado, "dni", "") or "").strip()
+    if not dni:
+        return None
+    try:
+        from app.services.conexion_pppoe import consultar_conexion_pppoe
+
+        estado = consultar_conexion_pppoe(
+            dni=dni,
+            client_number=str(getattr(abonado, "client_number", "") or ""),
+            db=db,
+        )
+        return estado.online
+    except Exception:
+        logger.exception("Radius informar_pago")
+        return None
+
+
+def _mensaje_informar_pago_n1(
+    texto: str = "",
+    *,
+    abonado: Abonado | None = None,
+    db: Session | None = None,
+    seguir_tecnico: bool = False,
+) -> str:
+    from app.services.eco_voice import mensaje_informar_pago_n1
+
+    nombre = _primer_nombre_cliente(abonado) if abonado else ""
+    cortado = _abonado_cortado_por_deuda(abonado)
+    conectado = _abonado_conectado_radius(db, abonado) if db is not None else None
+    return mensaje_informar_pago_n1(
+        texto,
+        nombre=nombre,
+        cortado=cortado,
+        conectado_radius=conectado,
+        seguir_tecnico=seguir_tecnico,
+    )
+
+
 def _elige_pago_o_tecnico(texto: str) -> str | None:
     """Tras aviso de deuda: 'pago' | 'tecnico' | None si no se entiende."""
     t = (texto or "").lower().strip()
@@ -3172,6 +3266,29 @@ def procesar_mensaje_entrante(
             "abonado": crepo.abonado_to_dict(abonado) if abonado else None,
         }
 
+    # Informar pago (identificado, fuera del menú aviso_deuda)
+    if abonado and _cliente_informa_pago(texto) and intencion != "aviso_deuda":
+        seguir = _intencion_es_tecnica(str(ctx.get("intencion") or ""))
+        resp = _mensaje_informar_pago_n1(
+            texto, abonado=abonado, db=db, seguir_tecnico=seguir
+        )
+        ctx["intencion"] = "facturacion_informar_pago"
+        ctx["paso_idx"] = 0
+        ctx["diag_turnos"] = 0
+        ctx["pasos_cubiertos"] = []
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "abonado": crepo.abonado_to_dict(abonado),
+            "intencion": "facturacion_informar_pago",
+        }
+
     # Aviso de deuda antes de diagnóstico técnico: esperar elección pago vs seguir
     if intencion == "aviso_deuda":
         if _debe_explicar_sin_internet(
@@ -3206,6 +3323,31 @@ def procesar_mensaje_entrante(
                     f"{(texto or '').strip()[:200]}"
                 ),
             )
+        if _cliente_informa_pago(texto):
+            pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
+            seguir = _intencion_es_tecnica(pendiente)
+            resp = _mensaje_informar_pago_n1(
+                texto, abonado=abonado, db=db, seguir_tecnico=seguir
+            )
+            ctx["intencion"] = "facturacion_informar_pago"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            if seguir:
+                ctx["intencion_tecnica_pendiente"] = pendiente
+            else:
+                ctx.pop("intencion_tecnica_pendiente", None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "facturacion_informar_pago",
+            }
         eleccion = _elige_pago_o_tecnico(texto)
         pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
         if eleccion is None:

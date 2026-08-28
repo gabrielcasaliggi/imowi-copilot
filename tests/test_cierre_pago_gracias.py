@@ -154,6 +154,39 @@ def test_consulta_medios_pago_publico():
     assert not _es_consulta_medios_pago_publico("no me anda el wifi")
 
 
+def test_cliente_informa_pago_en_aviso_deuda():
+    from app.services.canal_abonado import _cliente_informa_pago, _mensaje_informar_pago_n1
+
+    assert _cliente_informa_pago("Hola quiero avisar que pague recien")
+    assert _cliente_informa_pago("no por eso queria avisar que pague recien")
+    assert not _cliente_informa_pago("quiero pagar la factura")
+    msg_gen = _mensaje_informar_pago_n1(seguir_tecnico=False).lower()
+    assert "ov.batan.coop" in msg_gen
+    assert "al instante" in msg_gen or "instante" in msg_gen
+    assert "aviso-de-pago" in msg_gen
+    assert "no hace falta avisar" not in msg_gen
+
+    msg_ext = _mensaje_informar_pago_n1(
+        "pague por rapipago", seguir_tecnico=True
+    ).lower()
+    assert "aviso-de-pago" in msg_ext
+    assert "rapipago" in msg_ext or "externo" in msg_ext
+    assert "seguimos" in msg_ext
+
+    msg_ov = _mensaje_informar_pago_n1("pague por la oficina virtual").lower()
+    assert "al instante" in msg_ov or "instante" in msg_ov
+    assert "no hace falta" in msg_ov
+
+    from app.services.eco_voice import mensaje_informar_pago_n1
+
+    msg_rad = mensaje_informar_pago_n1(
+        "", nombre="Jorge", conectado_radius=True
+    ).lower()
+    assert "activa" in msg_rad
+    assert "conectad" in msg_rad
+    assert "cerrad" in msg_rad or "algo más" in msg_rad
+
+
 def test_espera_agente_responde_como_pago(monkeypatch):
     conv = SimpleNamespace(
         id="c-pago",

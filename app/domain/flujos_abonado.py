@@ -146,8 +146,9 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "facturacion_informar_pago": [
         PasoPlaybook(
             "informar_pago_detalle",
-            "Cuando el pago se acredita, el servicio se reactiva solo: no hace falta avisarlo. "
-            "¿Querés consultar por qué todavía no figura, o cargar el aviso en Mi Cuenta?",
+            "OV (ov.batan.coop) o QR Fiserv: acreditación y rehabilitación al instante. "
+            "Medio externo: cargar aviso en ov.batan.coop/#/aviso-de-pago si la cuenta estaba "
+            "deshabilitada. Con internet fijo identificado, verificar Radius si ya avisó.",
         ),
         PasoPlaybook(
             "aviso_pago_ov",
@@ -1145,7 +1146,19 @@ def _clasificar_intencion_facturacion(t: str) -> str | None:
             "informar un pago",
             "avisar el pago",
             "avisar un pago",
+            "avisar que pag",
+            "avisar que abon",
+            "quiero avisar",
+            "queria avisar",
+            "quería avisar",
             "aviso de pago",
+            "pague recien",
+            "pagué recién",
+            "pague recién",
+            "pagué recien",
+            "acabo de pagar",
+            "recien pague",
+            "recién pagué",
             "no figura el pago",
             "no se acredit",
             "no se refleja",
