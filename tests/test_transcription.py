@@ -71,6 +71,32 @@ def test_texto_desde_audio_whatsapp_transcribe(monkeypatch):
     assert out == "se me cortó internet"
 
 
+def test_texto_desde_audio_whatsapp_pasa_prompt(monkeypatch):
+    monkeypatch.setattr("app.services.transcription.WHISPER_ENABLED", True)
+    captured: dict = {}
+
+    def _fake_transcribir(*_a, **kwargs):
+        captured.update(kwargs)
+        return "mi dni es 12345678"
+
+    monkeypatch.setattr(
+        "app.services.transcription.transcribir_audio",
+        _fake_transcribir,
+    )
+    monkeypatch.setattr(
+        "app.services.whatsapp_client.descargar_media",
+        lambda _id: b"fake-ogg",
+    )
+    from app.services.transcription import WHISPER_PROMPT_DNI, texto_desde_audio_whatsapp
+
+    out = texto_desde_audio_whatsapp(
+        {"type": "audio", "audio": {"id": "media-1", "mime_type": "audio/ogg"}},
+        prompt=WHISPER_PROMPT_DNI,
+    )
+    assert out == "mi dni es 12345678"
+    assert captured.get("prompt") == WHISPER_PROMPT_DNI
+
+
 def test_texto_desde_audio_telegram_voice(monkeypatch):
     monkeypatch.setattr("app.services.transcription.WHISPER_ENABLED", True)
     monkeypatch.setattr(
@@ -107,7 +133,7 @@ def test_whatsapp_webhook_audio_inyecta_texto(monkeypatch):
     monkeypatch.setattr("app.api.v1.whatsapp.es_produccion", lambda: False)
     monkeypatch.setattr(
         "app.services.transcription.texto_desde_audio_whatsapp",
-        lambda _msg: "hola soy la vecina y se me cortó internet",
+        lambda _msg, **_k: "hola soy la vecina y se me cortó internet",
     )
     called = {}
 
@@ -163,7 +189,7 @@ def test_whatsapp_webhook_audio_fallback(monkeypatch):
     monkeypatch.setattr("app.api.v1.whatsapp.es_produccion", lambda: False)
     monkeypatch.setattr(
         "app.services.transcription.texto_desde_audio_whatsapp",
-        lambda _msg: "",
+        lambda _msg, **_k: "",
     )
     sent = {}
 
