@@ -1125,12 +1125,36 @@ def _clasificar_intencion_facturacion(t: str) -> str | None:
         k in t
         for k in (
             "me cortaron",
+            "me lo cortaron",
             "cortaron el servicio",
             "cortaron por",
             "corte por deuda",
             "por falta de pago",
             "sin servicio por deuda",
             "suspendido por",
+            "si me lo cortaron",
+            "sí me lo cortaron",
+        )
+    ):
+        hits.append("corte_deuda")
+
+    if re.search(r"\b(todavia|todavía|aun|aún)\s+no\s+(pag|abon)", t):
+        hits.append("corte_deuda")
+    elif re.search(r"\bno\s+(lo\s+)?(pague|pagué|abone|aboné)\b", t) and any(
+        k in t
+        for k in (
+            "cort",
+            "servicio",
+            "deuda",
+            "factura",
+            "pasa",
+            "todavia",
+            "todavía",
+            "aun",
+            "aún",
+            "internet",
+            "sé",
+            "se ",
         )
     ):
         hits.append("corte_deuda")

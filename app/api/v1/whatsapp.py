@@ -158,6 +158,12 @@ def _procesar_payload_whatsapp(payload: dict, org_id: str, org_slug: str) -> Non
                                 from app.services.transcription import WHISPER_PROMPT_DNI
 
                                 stt_prompt = WHISPER_PROMPT_DNI
+                            elif conv_hint.abonado_id or ctx_hint.get("identificado"):
+                                from app.services.transcription import (
+                                    WHISPER_PROMPT_FACTURACION,
+                                )
+
+                                stt_prompt = WHISPER_PROMPT_FACTURACION
                         except Exception:
                             logger.exception(
                                 "WhatsApp no pudo leer ctx para prompt DNI from=%s",

@@ -47,6 +47,18 @@ def test_transcribir_audio_ok(monkeypatch):
     assert "internet" in transcribir_audio(b"ogg-bytes")
 
 
+def test_normalizar_texto_audio_stt_pago_mal_transcrito():
+    from app.domain.flujos_abonado import clasificar_intencion
+    from app.services.diagnostico_n1 import _cliente_pendiente_pago_o_corte
+    from app.services.transcription import normalizar_texto_audio_stt
+
+    raw = "Lo que pasa es que todo bien nos pague y no sé si si me lo cortaron"
+    norm = normalizar_texto_audio_stt(raw)
+    assert "todavía no pagué" in norm.lower()
+    assert _cliente_pendiente_pago_o_corte(norm)
+    assert clasificar_intencion(norm) == "corte_deuda"
+
+
 def test_texto_desde_audio_whatsapp_none_si_no_audio():
     from app.services.transcription import texto_desde_audio_whatsapp
 

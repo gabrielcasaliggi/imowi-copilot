@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import httpx
 
@@ -20,6 +21,46 @@ WHISPER_PROMPT_DNI = (
     "Números: cero, uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve. "
     "Separador de miles con punto o coma."
 )
+
+# Sesgo STT genérico: pagos, deuda y corte (audios fuera del pedido de DNI).
+WHISPER_PROMPT_FACTURACION = (
+    "Consulta de facturación, pago, deuda, saldo, aviso de pago, corte por mora. "
+    "Todavía no pagué, no pagué, me cortaron el servicio, falta de pago."
+)
+
+
+def normalizar_texto_audio_stt(texto: str) -> str:
+    """Corrige errores frecuentes de Whisper en audios de abonados (sin LLM)."""
+    t = (texto or "").strip()
+    if not t:
+        return t
+    low = t.lower()
+    # «todo bien nos pague» ≈ «todavía no pagué»
+    if "todo bien" in low and re.search(r"\b(nos\s+)?pague?\b", low):
+        t = re.sub(
+            r"todo\s+bien.*?pague?\b",
+            "todavía no pagué",
+            t,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    elif re.search(r"\bnos\s+pague?\b", low) and any(
+        k in low
+        for k in (
+            "cort",
+            "servicio",
+            "internet",
+            "pasa",
+            "sé",
+            "se ",
+            "si ",
+            "sí ",
+            "deuda",
+            "factura",
+        )
+    ):
+        t = re.sub(r"\bnos\s+pague?\b", "no pagué", t, count=1, flags=re.IGNORECASE)
+    return t.strip()
 
 
 def whisper_disponible() -> bool:

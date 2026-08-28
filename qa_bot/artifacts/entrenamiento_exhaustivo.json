@@ -1,0 +1,2453 @@
+{
+  "started_at": "2026-08-28T17:38:11.542137+00:00",
+  "finished_at": "2026-08-28T17:38:39.672889+00:00",
+  "lote_hogar": "exhaustivo",
+  "metricas": {
+    "personas": 32,
+    "ok": 31,
+    "n2_evitables": 0,
+    "n2_legitimos": 8,
+    "tasa_ok": 0.969
+  },
+  "hogar": {
+    "personas": 28,
+    "ok": 27,
+    "n2_evitables": 0,
+    "n2_legitimos": 6,
+    "tasa_ok": 0.964,
+    "detalle": [
+      {
+        "persona_id": "P01",
+        "nombre": "Fibra se me cortó",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "internet_ftth",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Hola, se me cortó el internet en casa"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "El WiFi a veces falla"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa en todos los dispositivos o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P02",
+        "nombre": "LOS roja",
+        "n2_esperado": "optica",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1141",
+        "estado_final": "espera_agente",
+        "intencion_final": "internet_ftth",
+        "turnos": 2,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No tengo internet, es fibra"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La LOS está en rojo, hay una lucecita roja"
+          },
+          {
+            "rol": "bot",
+            "texto": "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. Generé el ticket IBOT-1141 y te derivo con un agente. Te van a responder por este mismo chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "P03",
+        "nombre": "Solo WiFi",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "wifi",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "El WiFi no llega a la habitación del fondo"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "En el living anda bien, lejos no"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Por cable al router hay internet, o tampoco navega?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Por los dos a veces, pero más por WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Les pasa a todos los equipos o solo a uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sigue cortándose"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "En el living anda bien, lejos no"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si tenés 2.4 y 5 GHz, ¿probaste la otra red?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Por cable anda, el WiFi no llega al fondo"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Podés alejar el router de microondas u otros equipos?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Hay como 3 equipos conectados"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si sigue mal, ¿querés que te derive?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir intentando acá"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue mal, ¿querés que te derive?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir intentando acá"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue mal, ¿querés que te derive?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P04",
+        "nombre": "Lento en pico",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "internet_lento",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Internet anda re lento desde ayer a la tarde"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Cuántos equipos hay conectados al WiFi ahora?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿La lentitud la notás por WiFi o también por cable al router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Por los dos a veces, pero más por WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Es lento todo el día o más a la tarde/noche?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "a la noche"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si podés, hacé un test por cable en fast.com (no por WiFi) y decime cuánto da.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Por los dos a veces, pero más por WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si usás PC con Windows, ¿hay una actualización descargándose? Eso a veces deja todo lento.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Anda lento, no es que esté cortado"
+          },
+          {
+            "rol": "bot",
+            "texto": "Reiniciá módem/router 30 segundos y probá de nuevo. ¿Mejoró?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sigue cortándose"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si sigue bajo, ¿querés que te pase con un agente?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir intentando acá"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue bajo, ¿querés que te pase con un agente?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir intentando acá"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue bajo, ¿querés que te pase con un agente?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir intentando acá"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue bajo, ¿querés que te pase con un agente?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P05",
+        "nombre": "Radio techo",
+        "n2_esperado": "post_n1_radio",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1142",
+        "estado_final": "espera_agente",
+        "intencion_final": "internet_radio",
+        "turnos": 7,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Se me cayó internet, tengo antena en el techo"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ok, por antena (BAI). ¿La fuente PoE tiene la lucecita prendida?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La fuente PoE tiene lucecita prendida"
+          },
+          {
+            "rol": "bot",
+            "texto": "El cable del inyector PoE (salida LAN) va al puerto azul/Internet del router. No desconectes el de la antena si no está identificado. ¿Está así?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Tampoco anda por cable"
+          },
+          {
+            "rol": "bot",
+            "texto": "Reiniciá antena y router 30 segundos; prendé primero la antena. ¿Volvió?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Ya reinicié 30 segundos y sigue igual"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El LED de enlace está fijo o parpadea/rojo?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Reinicié antena y router y no volvió"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿La antena sigue con vista libre a la torre?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Los vecinos dicen que a ellos les anda"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Les pasa también a vecinos, o solo en tu casa?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Los vecinos dicen que a ellos les anda"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1142. Quedate en este chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "P06",
+        "nombre": "Typo coloquial",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "internet_ftth",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "ola no anda el interntt, no me carga nadaa"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "El WiFi a veces falla"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa en todos los dispositivos o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P07",
+        "nombre": "Pide humano de entrada",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "internet_ftth",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Quiero hablar con una persona, pasame con un operador"
+          },
+          {
+            "rol": "bot",
+            "texto": "Puedo intentar ayudarte yo (internet, móvil IMOWI o factura/pago). Contame qué te pasa. Si insistís en hablar con una persona, te derivo.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es que no me anda internet"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "El WiFi a veces falla"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa en todos los dispositivos o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La PON está verde y la LOS apagada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. Dale, arrancamos por fibra. ¿La cajita blanca tiene luces encendidas?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P08",
+        "nombre": "Reitera sigue igual",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "internet",
+        "turnos": 4,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No tengo internet"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sigue igual, no tengo internet"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa en todos los dispositivos o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sigue igual, no tengo internet"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿Te pasa en todos los dispositivos o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sigue igual, no tengo internet"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿Te pasa en todos los dispositivos o solo en uno?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P09",
+        "nombre": "Intermitencia estabiliza",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "wifi",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Se me corta el internet a cada rato y después vuelve"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P10",
+        "nombre": "ADSL sync vuelve",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "internet_adsl",
+        "turnos": 4,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Se me cayó el internet, tengo ADSL por la línea del teléfono"
+          },
+          {
+            "rol": "bot",
+            "texto": "Vamos con ADSL. ¿El teléfono fijo tiene tono?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, el fijo tiene tono"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El microfiltro/splitter está bien colocado?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, el filtro está puesto"
+          },
+          {
+            "rol": "bot",
+            "texto": "Apagá el módem 30 segundos, prendelo y esperá un rato. ¿Volvió?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Listo, reinicié el módem. La luz DSL quedó fija y ya navego"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P11",
+        "nombre": "Cambio clave WiFi",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "cambio_clave_wifi",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Quiero cambiar la clave del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Querés cambiar la contraseña, el nombre de la red, o las dos cosas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "La contraseña del WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. En la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Tenés acceso al equipo para cambiarla?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P12",
+        "nombre": "Adulto mayor WhatsApp",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "wifi",
+        "turnos": 8,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Hola, no me anda internet, soy mayor y no entiendo mucho"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El WiFi falla en toda la casa o solo lejos del router?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Cuando lo llamo a veces no funciona el WhatsApp"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Por cable al router hay internet, o tampoco navega?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Por los dos a veces, pero más por WiFi"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Les pasa a todos los equipos o solo a uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Tiene luces, no sé cuáles"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sigue cortándose"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo el WiFi, por cable va"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si tenés 2.4 y 5 GHz, ¿probaste la otra red?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí me contestó, ya anda"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P13",
+        "nombre": "Quiere pagar factura",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "facturacion",
+        "turnos": 2,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Hola, quiero pagar la factura"
+          },
+          {
+            "rol": "bot",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No hace falta, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P14",
+        "nombre": "Avisa que pagó",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "facturacion",
+        "turnos": 3,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Hola, ya pagué, les aviso el pago"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entendido, Ana. Depende del medio con el que pagaste:\n• *Oficina virtual* (https://ov.batan.coop/#/pagar) o *QR Fiserv* de la factura: suelen acreditarse y rehabilitar al instante.\n• *Medio externo* (Rapipago, Pago Fácil, transferencia, etc.): cargá el aviso acá para reactivar si la cuenta estaba deshabilitada:\nhttps://ov.batan.coop/#/aviso-de-pago\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n¿Necesitás algo más?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456, pagué hace una hora por Mercado Pago QR"
+          },
+          {
+            "rol": "bot",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No hace falta, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P15",
+        "nombre": "Reactivación reciente",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "corte_deuda",
+        "turnos": 2,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Pagué hace 20 minutos y sigue cortado el servicio"
+          },
+          {
+            "rol": "bot",
+            "texto": "Tu cuenta figura con estado «suspendido» y saldo pendiente 0,00 pesos. Podés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No, espero un rato más, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Jorge. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P16",
+        "nombre": "Reclamo de monto",
+        "n2_esperado": "legitimo_factura",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1143",
+        "estado_final": "espera_agente",
+        "intencion_final": "facturacion",
+        "turnos": 6,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Me cobraron de más este mes, no reconozco el monto"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿De qué mes es la factura y qué monto ves (o cuánto era antes vs ahora)?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es de marzo, veo 8500, antes pagaba 4500"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Cambiaste de plan, sumaste un servicio o te avisaron de un ajuste de tarifas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No cambié de plan ni sumé nada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para mirar el detalle necesito DNI del titular o N.º de socio. ¿Me lo pasás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es de marzo, veo 8500, antes pagaba 4500"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Con lo que contás hace falta revisar la cuenta adentro. ¿Te derivo con facturación?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, derivame con facturación por favor"
+          },
+          {
+            "rol": "bot",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1143. Te van a responder por este mismo chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "P17",
+        "nombre": "Sensa app se arregla",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "tv_sensa",
+        "turnos": 8,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No me anda la app Sensa en la TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, vamos con TV. ¿Es la app/web Sensa o la TV con decodificador / Android TV Box de la cooperativa?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es la app Sensa en la Smart TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "En el equipo donde querés verla, ¿tenés internet funcionando?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, internet anda bien en la casa"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Desde qué equipo: Smart TV, celular/tablet, PC o TV Box?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Desde Smart TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "En ese mismo equipo, ¿abrís alguna página de internet sin problema?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, navego bien en esa TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿La app o la web de Sensa abre bien, o ni llega a entrar?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Ni llega a entrar bien a la app"
+          },
+          {
+            "rol": "bot",
+            "texto": "Cuando querés ver algo: ¿no reproduce, se queda cargando, error de cuenta o calidad baja?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "se queda cargando"
+          },
+          {
+            "rol": "bot",
+            "texto": "Probá reiniciar ese equipo y el router, cerrar otras apps que usen mucha red y actualizar Sensa. ¿Mejoró?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, mejoró: ya reproduce bien, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P18",
+        "nombre": "Sensa error de cuenta",
+        "n2_esperado": "legitimo_sensa",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1144",
+        "estado_final": "espera_agente",
+        "intencion_final": "tv_sensa",
+        "turnos": 9,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Sensa me da error de cuenta y no reproduce nada"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, vamos con TV. ¿Es la app/web Sensa o la TV con decodificador / Android TV Box de la cooperativa?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es la app Sensa en la Smart TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "En el equipo donde querés verla, ¿tenés internet funcionando?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, internet anda bien en la casa"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Desde qué equipo: Smart TV, celular/tablet, PC o TV Box?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Desde Smart TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "En ese mismo equipo, ¿abrís alguna página de internet sin problema?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, navego bien en esa TV"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿La app o la web de Sensa abre bien, o ni llega a entrar?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Abre pero falla al ver"
+          },
+          {
+            "rol": "bot",
+            "texto": "Cuando querés ver algo: ¿no reproduce, se queda cargando, error de cuenta o calidad baja?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "error de cuenta"
+          },
+          {
+            "rol": "bot",
+            "texto": "Probá reiniciar ese equipo y el router, cerrar otras apps que usen mucha red y actualizar Sensa. ¿Mejoró?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Hice todo eso y sigue igual, error de cuenta"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si sigue igual te derivo con dispositivo, síntoma y lo que ya probamos. Packs premium o habilitación de cuenta los ve comercial. ¿Abrimos el ticket?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, abrí el ticket por favor"
+          },
+          {
+            "rol": "bot",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1144. Te van a responder por este mismo chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "P19",
+        "nombre": "Móvil pack acreditado sin datos",
+        "n2_esperado": "legitimo_provision_movil",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1145",
+        "estado_final": "espera_agente",
+        "intencion_final": "movil_datos",
+        "turnos": 5,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No Tengo datos en Mar del Plata"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Datos móviles prendidos y sin modo avión?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, datos prendidos y sin modo avión"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te quedan datos del abono o cargaste un pack/bono? Si se acabaron: WhatsApp mensajería suele seguir; para navegar el resto comprá un bono en Autogestión Batán (ov.batan.coop) u oficina — no uses la autogestión de imowi.com.ar. Si el pack/bono figura OK en el sistema pero NO navegás, no hace falta seguir tocando el celular: hay que revisar la línea.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "El pack figura acreditado y me quedan datos, pero no navega nada"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Qué marca y modelo de celular tenés? (si ya lo dijiste, seguimos con el APN de ese sistema)",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es un Moto g72 Android"
+          },
+          {
+            "rol": "bot",
+            "texto": "En Android andá a Ajustes > Redes móviles o Conexiones > Nombres de punto de acceso (APN). Creá o editá uno con Nombre = imowi y APN = apn1.catel.org.ar (el resto en blanco). Guardalo, seleccioná ese APN y reiniciá los datos. ¿Navega?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es un Moto g72 Android"
+          },
+          {
+            "rol": "bot",
+            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1145. Quedate en este chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "P20",
+        "nombre": "2ª insistencia mismo pedido de agente",
+        "n2_esperado": "segunda_insistencia",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1146",
+        "estado_final": "espera_agente",
+        "intencion_final": "",
+        "turnos": 2,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "quiero hablar con un agente"
+          },
+          {
+            "rol": "bot",
+            "texto": "Puedo intentar ayudarte yo (internet, móvil IMOWI o factura/pago). Contame qué te pasa. Si insistís en hablar con una persona, te derivo.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "quiero hablar con un agente"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, te derivo con un agente y le paso lo que charlamos. Ticket IBOT-1146. Quedate en este chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "P21",
+        "nombre": "Saldo / cuánto debo",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "facturacion",
+        "turnos": 2,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Cuánto debo, quiero ver el saldo"
+          },
+          {
+            "rol": "bot",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPagos y gestiones:\nhttps://ov.batan.coop\nPara pagar con DNI:\nhttps://ov.batan.coop/#/pagar\n¿Necesitás algo más?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Dale, con eso me alcanza, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P22",
+        "nombre": "Factura más cara / aumento",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "facturacion",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Me vino más cara la factura, por qué subió?"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿De qué mes es la factura y qué monto ves (o cuánto era antes vs ahora)?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Me vino más cara la factura"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Cambiaste de plan, sumaste un servicio o te avisaron de un ajuste de tarifas?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Quiero entender por qué subió respecto al mes pasado"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para mirar el detalle necesito DNI del titular o N.º de socio. ¿Me lo pasás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "DNI 32123456"
+          },
+          {
+            "rol": "bot",
+            "texto": "Ya te tenía ubicado, Ana. No figuran deudas pendientes (saldo 0 pesos).\nEl pago puede demorar entre 24 y 48 hs en reflejarse en el sistema, según la entidad donde lo hayas abonado.\n\nSi el servicio está cortado por deuda, cargá el aviso de pago acá para habilitarlo automáticamente:\nhttps://ov.batan.coop/#/aviso-de-pago\nIngresá tu DNI, el monto abonado y dónde pagaste.\n¿Pudiste cargar el aviso?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P23",
+        "nombre": "Se acabaron los datos del abono",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "facturacion",
+        "turnos": 4,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Se me acabaron los datos del abono"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Datos móviles prendidos y sin modo avión?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Se me acabaron los datos del abono móvil"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te quedan datos del abono o cargaste un pack/bono? Si se acabaron: WhatsApp mensajería suele seguir; para navegar el resto comprá un bono en Autogestión Batán (ov.batan.coop) u oficina — no uses la autogestión de imowi.com.ar. Si el pack/bono figura OK en el sistema pero NO navegás, no hace falta seguir tocando el celular: hay que revisar la línea.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Ah perfecto, compro el bono en ov.batan.coop, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No hace falta, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P24",
+        "nombre": "SMS banco no llega (A2P)",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "movil_llamadas",
+        "turnos": 3,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No me llega el SMS de verificación del banco"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿No podés llamar, no te entran, o se cortan?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es el SMS de verificación del banco"
+          },
+          {
+            "rol": "bot",
+            "texto": "Reiniciá y probá una llamada. ¿Anduvo?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Probaré por otro medio, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Ana. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P25",
+        "nombre": "Fijo sin tono",
+        "n2_esperado": "post_n1_fija",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "telefono_fija",
+        "turnos": 12,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": false,
+        "fallas": [
+          "P25: no ofreció handoff tras agotar N1 fijo"
+        ],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No anda el fijo, sin tono"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa en todos los teléfonos de la casa o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "En todos los fijos de la casa"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El cable está bien enchufado en la toma de la pared?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, el cable está bien enchufado"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si podés, ¿probaste otro aparato en esa misma toma?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Probé otro teléfono en la misma toma y tampoco"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Hay ruido o estática en la línea al escuchar?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No, no hay ruido ni estática"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿En esa misma línea tenés internet ADSL? Si sí, no saques el splitter/filtros.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No, en esa línea no tengo ADSL"
+          },
+          {
+            "rol": "bot",
+            "texto": "Vamos con ADSL. ¿El teléfono fijo tiene tono?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No, al descolgar no hay tono"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El microfiltro/splitter está bien colocado?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No, en esa línea no tengo ADSL"
+          },
+          {
+            "rol": "bot",
+            "texto": "Apagá el módem 30 segundos, prendelo y esperá un rato. ¿Volvió?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "El fijo sigue sin tono"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, vamos con el fijo. ¿Al descolgar hay tono?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No, al descolgar no hay tono"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa en todos los teléfonos de la casa o solo en uno?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "En todos los fijos de la casa"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿El cable está bien enchufado en la toma de la pared?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, el cable está bien enchufado"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si podés, ¿probaste otro aparato en esa misma toma?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P26",
+        "nombre": "Typo menú móvil ,ovil",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "movil",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Hola"
+          },
+          {
+            "rol": "bot",
+            "texto": "¡Hola! ¿Tu consulta es por el servicio de telefonía móvil o por factura/deuda?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": ",ovil"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale. ¿Es un tema técnico, comercial, o administrativo referente a la facturación?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": ",ovil"
+          },
+          {
+            "rol": "bot",
+            "texto": "Dale, vamos con el servicio de telefonía móvil. ¿Qué te pasa: sin señal, sin datos o no podés llamar?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": ",ovil"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Datos móviles activos y modo avión apagado?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": ",ovil"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Probaste reiniciar el teléfono?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Apagué el WiFi y sigo sin datos móviles"
+          },
+          {
+            "rol": "bot",
+            "texto": "Modo avión 15 segundos y desactivalo. ¿Volvió?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, datos prendidos y sin modo avión"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si es Android: Ajustes > Redes móviles/Conexiones > APN. Nombre = imowi, APN = apn1.catel.org.ar (resto en blanco). Guardá y elegí ese APN. Si es iPhone 11+ o eSIM suele ser automático; si es más viejo: Datos celulares > Opciones > Red de datos → APN apn1.catel.org.ar y usuario imowi. ¿Me confirmás si es Android o iPhone y si quedó bien?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": ",ovil"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si podés, ¿probaste esa SIM en otro teléfono?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Apagué el WiFi y sigo sin datos móviles"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si fue robo o pérdida: desde otra compañía marcá *910 (opción 4 – imowi); desde una línea imowi *303; desde fijo 0800-147-0303. ¿Necesitás reposición de SIM/eSIM?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No sé configurar el APN"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Te pasa solo en un lugar o en varios? ¿Querés que te derive?",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "P27",
+        "nombre": "Corte por falta de pago cómo pago",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "facturacion",
+        "turnos": 2,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Me cortaron el servicio por falta de pago, como pago?"
+          },
+          {
+            "rol": "bot",
+            "texto": "No figuran deudas pendientes (saldo 0 pesos).\nPodés abonar acá:\nhttps://ov.batan.coop/#/pagar\nOficina virtual:\nhttps://ov.batan.coop\nTambién con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). Cuando se acredita, el servicio se reactiva solo. Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. ¿Pudiste pagar o necesitás que te ubique la cuenta?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No hace falta, gracias"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Jorge. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "P28",
+        "nombre": "Quiere contratar fibra",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "alta_plan",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Quiero contratar internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Alta nueva o cambio de plan? ¿Internet, móvil, Sensa u otro?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Alta nueva de internet fibra en Batán"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir, necesito ese dato. ¿En qué barrio o localidad lo necesitás?",
+            "estado": "bot"
+          }
+        ]
+      }
+    ]
+  },
+  "corporativo": {
+    "personas": 4,
+    "ok": 4,
+    "n2_evitables": 0,
+    "n2_legitimos": 2,
+    "tasa_ok": 1.0,
+    "detalle": [
+      {
+        "persona_id": "C01",
+        "nombre": "Cotización enlace",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "bot",
+        "intencion_final": "ecolan_b2b",
+        "turnos": 10,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Hola, necesito una cotización de enlace dedicado Ecolan para una sucursal"
+          },
+          {
+            "rol": "bot",
+            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "A toda la sede / sucursal"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Es solo cotización, no hay urgencia ni caída"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Ya probé y sigue igual"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
+          },
+          {
+            "rol": "bot",
+            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          }
+        ]
+      },
+      {
+        "persona_id": "C02",
+        "nombre": "VPN un usuario",
+        "n2_esperado": "nunca",
+        "ticket_creado": false,
+        "ticket_id": "",
+        "estado_final": "cerrado",
+        "intencion_final": "ecolan_b2b",
+        "turnos": 5,
+        "n2_evitable": false,
+        "n2_legitimo": false,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "No me conecta la VPN de la sucursal Ecolan, solo a mí"
+          },
+          {
+            "rol": "bot",
+            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir acá un poco más"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Solo a un usuario, el resto anda"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, está caído ahora y hay impacto operativo"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Desde el hotspot del celular la VPN ya funciona; solo falla en mi PC, el resto de la oficina anda"
+          },
+          {
+            "rol": "bot",
+            "texto": "De nada Pedro. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+            "estado": "cerrado"
+          }
+        ]
+      },
+      {
+        "persona_id": "C03",
+        "nombre": "Enlace sede caída",
+        "n2_esperado": "legitimo",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1147",
+        "estado_final": "espera_agente",
+        "intencion_final": "ecolan_b2b",
+        "turnos": 6,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Se nos cayó el enlace dedicado de la sucursal, no hay internet en toda la oficina"
+          },
+          {
+            "rol": "bot",
+            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir acá un poco más"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "A toda la sede / sucursal"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, está caído ahora y hay impacto operativo"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Reinicié el CPE y sigue caído en toda la oficina; por hotspot celular sí salgo"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, derivame con Ecolan por favor"
+          },
+          {
+            "rol": "bot",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1147. Te van a responder por este mismo chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      },
+      {
+        "persona_id": "C04",
+        "nombre": "VM DC impacto",
+        "n2_esperado": "legitimo",
+        "ticket_creado": true,
+        "ticket_id": "IBOT-1148",
+        "estado_final": "espera_agente",
+        "intencion_final": "ecolan_b2b",
+        "turnos": 6,
+        "n2_evitable": false,
+        "n2_legitimo": true,
+        "ok": true,
+        "fallas": [],
+        "transcript": [
+          {
+            "rol": "usuario",
+            "texto": "Tenemos una VM en el data center de Ecolan que no responde, impacto productivo"
+          },
+          {
+            "rol": "bot",
+            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Prefiero seguir acá un poco más"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Afecta el servicio en producción"
+          },
+          {
+            "rol": "bot",
+            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, está caído ahora y hay impacto operativo"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "No es tema de WiFi de casa, es la VM en el DC"
+          },
+          {
+            "rol": "bot",
+            "texto": "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "estado": "bot"
+          },
+          {
+            "rol": "usuario",
+            "texto": "Sí, derivame con Ecolan por favor"
+          },
+          {
+            "rol": "bot",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1148. Te van a responder por este mismo chat.",
+            "estado": "espera_agente"
+          }
+        ]
+      }
+    ]
+  },
+  "nota": "0 N2 evitables = corte del entrenamiento automatizado. Clientes reales (typos, síntomas ambiguos) siguen siendo la prueba final."
+}

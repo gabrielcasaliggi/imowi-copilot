@@ -801,6 +801,57 @@ def _mensaje_informar_pago_n1(
     )
 
 
+def _responder_pendiente_pago_o_corte(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado,
+    ctx: dict,
+    *,
+    canal: str,
+) -> dict:
+    """Abonado dice que aún no pagó o teme corte: OV/QR, no diagnóstico técnico."""
+    from app.services.eco_voice import PLANTILLA_PAGO_QR, texto_monto_ars
+
+    nombre = _primer_nombre_cliente(abonado)
+    deuda = str(abonado.deuda_monto or "0").strip() or "0"
+    estado = (abonado.estado or "").lower()
+    nota_baja = (
+        "La cuenta figura «de baja» en el padrón."
+        if estado == "baja"
+        else ""
+    )
+    intro = f"Entiendo{', ' + nombre if nombre else ''}."
+    if estado in ("corte", "cortado", "suspendido", "suspendida"):
+        intro += f" Tu cuenta figura «{abonado.estado}»."
+    elif _deuda_positiva(abonado):
+        intro += f" Tenés saldo pendiente {texto_monto_ars(deuda)}."
+    resp = (
+        f"{intro} Si todavía no pagaste, podés abonar así:\n"
+        f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
+        f"{PLANTILLA_PAGO_QR}"
+    )
+    ctx["intencion"] = "corte_deuda"
+    ctx["saludo"] = True
+    ctx["paso_idx"] = 0
+    ctx["diag_turnos"] = 0
+    ctx["pasos_cubiertos"] = []
+    ctx.pop("pppoe_informado", None)
+    ctx.pop("intencion_tecnica_pendiente", None)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "abonado": crepo.abonado_to_dict(abonado),
+        "intencion": "corte_deuda",
+    }
+
+
 def _mensaje_repreguntar_dni(*, entrada_audio: bool = False) -> str:
     if entrada_audio:
         return (
@@ -2320,6 +2371,13 @@ def _aplicar_diagnostico_ia(
     if not es_intencion_diagnostico(intencion):
         return None
 
+    from app.services.diagnostico_n1 import _cliente_pendiente_pago_o_corte
+
+    if abonado and _cliente_pendiente_pago_o_corte(texto):
+        return _responder_pendiente_pago_o_corte(
+            db, org_id, conv, abonado, ctx, canal=canal
+        )
+
     # Cierre primero: no seguir con ramas Wi‑Fi/PPPoE si el abonado ya resolvió
     if indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto):
         return _cerrar_consulta_resuelta(
@@ -2645,6 +2703,11 @@ def procesar_mensaje_entrante(
     texto = (texto or "").strip()
     if not texto:
         return {"ok": False, "error": "mensaje vacío"}
+
+    if entrada_audio:
+        from app.services.transcription import normalizar_texto_audio_stt
+
+        texto = normalizar_texto_audio_stt(texto)
 
     mid = (meta_message_id or "").strip()
     if mid and crepo.inbound_meta_ya_procesado(db, org_id, mid):
@@ -3233,6 +3296,7 @@ def procesar_mensaje_entrante(
     if abonado:
         from app.services.diagnostico_n1 import (
             _cliente_consulta_saldo,
+            _cliente_pendiente_pago_o_corte,
             _cliente_pide_oficina_virtual,
             _cliente_pide_pagar,
         )
@@ -3244,6 +3308,11 @@ def procesar_mensaje_entrante(
             if (abonado.estado or "").lower() == "baja"
             else ""
         )
+
+        if _cliente_pendiente_pago_o_corte(texto):
+            return _responder_pendiente_pago_o_corte(
+                db, org_id, conv, abonado, ctx, canal=canal
+            )
 
         if _cliente_pide_oficina_virtual(texto) or _cliente_pide_pagar(texto):
             resp = (

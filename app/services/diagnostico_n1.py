@@ -1180,6 +1180,47 @@ def _cliente_pide_pagar(texto: str) -> bool:
     )
 
 
+def _cliente_pendiente_pago_o_corte(texto: str) -> bool:
+    """Aún no pagó / teme corte — típico en audio mal transcrito."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if re.search(r"\b(todavia|todavía|aun|aún)\s+no\s+(pag|abon)", t):
+        return True
+    if re.search(r"\bno\s+(lo\s+)?(pague|pagué|abone|aboné)\b", t) and any(
+        k in t
+        for k in (
+            "cort",
+            "servicio",
+            "deuda",
+            "factura",
+            "pasa",
+            "todavia",
+            "todavía",
+            "aun",
+            "aún",
+            "internet",
+            "sé",
+            "se ",
+            "si ",
+            "sí ",
+        )
+    ):
+        return True
+    if any(
+        k in t
+        for k in (
+            "me lo cortaron",
+            "si me lo cortaron",
+            "sí me lo cortaron",
+            "no sé si me lo cortaron",
+            "no se si me lo cortaron",
+        )
+    ):
+        return True
+    return False
+
+
 def _cliente_pide_oficina_virtual(texto: str) -> bool:
     t = (texto or "").lower()
     return any(

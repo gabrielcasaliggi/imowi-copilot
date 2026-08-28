@@ -1192,6 +1192,65 @@ def test_saldo_billtrack_no_fuerza_cobro_ante_aumento_imowi():
     assert _es_solo_dni("corte desde el 10/08/2024 y no anda") is False
 
 
+def test_audio_pendiente_pago_no_sigue_diagnostico_tecnico():
+    """Tras PPPoE, audio «todavía no pagué» (mal transcrito) → corte_deuda, no fibra/radio."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from app.estate.models import Abonado
+    from app.services.canal_abonado import _aplicar_diagnostico_ia
+
+    abo = Abonado(
+        organizacion_id="x",
+        dni="30111222",
+        nombre="JORGE TEST",
+        estado="activo",
+        deuda_monto="15000",
+        servicio="internet",
+    )
+    conv = SimpleNamespace(id="c1", canal="whatsapp", ticket_id="", estado="bot")
+    ctx = {"intencion": "internet", "pppoe_informado": True, "diag_turnos": 1}
+    sent: list[str] = []
+
+    monkeypatch = __import__("pytest").MonkeyPatch()
+    monkeypatch.setattr(
+        "app.services.canal_abonado.resolve_canal_diagnostico_ia",
+        lambda _db: True,
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda db, org_id, conv, resp, **_k: sent.append(resp) or resp,
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.set_contexto",
+        lambda _c, _ctx: None,
+    )
+    try:
+        raw = "Lo que pasa es que todo bien nos pague y no sé si si me lo cortaron"
+        from app.services.transcription import normalizar_texto_audio_stt
+
+        texto = normalizar_texto_audio_stt(raw)
+        out = _aplicar_diagnostico_ia(
+            MagicMock(),
+            "org",
+            conv,
+            abo,
+            texto,
+            canal="whatsapp",
+            ctx=ctx,
+            intencion="internet",
+            usar_llama=True,
+        )
+    finally:
+        monkeypatch.undo()
+
+    assert out is not None
+    assert out.get("intencion") == "corte_deuda"
+    low = (sent[0] if sent else "").lower()
+    assert "ov.batan.coop" in low or "pagar" in low
+    assert "fibra óptica" not in low and "cajita blanca" not in low
+
+
 def test_wifi_parcial_no_cierra_resuelto():
     token = _identified_portal()
     _portal_msg(token, "El WiFi no llega a la habitación del fondo")
