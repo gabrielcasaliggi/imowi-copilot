@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import type { InboxMessage } from "@/lib/api-client";
 import { getBranding } from "@/lib/brand";
-import { EcoAvatar } from "@/components/ui/EcoAvatar";
+import { EkoAvatar } from "@/components/ui/EkoAvatar";
 
 type AutorKind = "cliente" | "bot" | "agente" | string;
 
@@ -147,7 +147,7 @@ function formatTime(iso?: string): string | null {
 function BotBubbleRow({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-end gap-2 mr-auto max-w-[min(90%,28rem)]">
-      <EcoAvatar className="h-7 w-7 mb-0.5" />
+      <EkoAvatar className="h-7 w-7 mb-0.5" />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

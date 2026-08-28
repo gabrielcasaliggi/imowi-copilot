@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/ChatMessageBubble";
 import { StarRatingInput } from "@/components/ui/StarRatingInput";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { botEstadoLabel, getBranding } from "@/lib/brand";
+import { botEstadoLabel, getBranding, portalAssistantLine } from "@/lib/brand";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 
 const PORTAL_KEY = "ops_hub_portal_session";
@@ -319,7 +319,7 @@ export default function PortalPage() {
             {getBranding().productDisplayName}
           </p>
           <p className="text-[10px] font-medium text-slate-500">
-            {getBranding().orgHint} · Ecolan + IMOWI
+            {portalAssistantLine()} · {getBranding().orgHint}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -341,7 +341,8 @@ export default function PortalPage() {
           <div className="rounded-2xl border border-slate-700/80 bg-slate-900/50 p-6 space-y-4 shadow-sm">
             <h1 className="text-lg font-semibold">Ingresá al portal</h1>
             <p className="text-xs text-slate-400">
-              Validamos tu DNI contra el padrón y te enviamos un código al email registrado.
+              {getBranding().assistantIntro} Validamos tu DNI contra el padrón y te enviamos un
+              código al email registrado.
             </p>
             <div className="flex gap-2 text-xs" role="tablist" aria-label="Modo de ingreso">
               <button

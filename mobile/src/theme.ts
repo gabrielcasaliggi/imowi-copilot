@@ -19,6 +19,8 @@ export type Branding = {
   botDisplayNameShort: string;
   orgHint: string;
   productDisplayName: string;
+  assistantTagline: string;
+  assistantIntro: string;
 };
 
 export const defaultBranding: Branding = {
@@ -26,4 +28,6 @@ export const defaultBranding: Branding = {
   botDisplayNameShort: "EKO",
   orgHint: "Cooperativa Batán",
   productDisplayName: "Soporte Batán",
+  assistantTagline: "Tu asistente virtual",
+  assistantIntro: "Hola, soy Eko, tu asistente virtual de Soporte Batán.",
 };

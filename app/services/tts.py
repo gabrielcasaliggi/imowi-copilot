@@ -128,19 +128,25 @@ def texto_para_habla(texto: str) -> str:
     for pat, rep in reemplazos:
         t = re.sub(pat, rep, t, flags=re.IGNORECASE)
 
-    # No pronunciar el nombre del bot (Eko/Eco/echo): saludo sin nombre
+    # No pronunciar el nombre del asistente en TTS: «Eko» suena ambiguo en español
     t = re.sub(
         r"\bsoy\s+(?:Ée-?co|Éco|Eko|Eco|echo)\s*,\s*",
         "soy ",
         t,
         flags=re.IGNORECASE,
     )
+    t = re.sub(
+        r"\bsoy\s+(?:Ée-?co|Éco|Eko|Eco|echo)\s*,\s*tu asistente virtual\b",
+        "soy tu asistente virtual",
+        t,
+        flags=re.IGNORECASE,
+    )
 
-    # Voz femenina Elena: concordancia
+    # Voz femenina Elena: concordancia (legacy + presentación Eko)
     t = re.sub(r"\bel asistente\b", "la asistente", t, flags=re.IGNORECASE)
     t = re.sub(
-        r"\bsoy\s+de\s+Soporte\s+Bat[aá]n\b",
-        "soy la asistente de la Cooperativa Batán",
+        r"\btu asistente virtual de Soporte Bat[aá]n\b",
+        "la asistente virtual de Soporte Batán",
         t,
         flags=re.IGNORECASE,
     )

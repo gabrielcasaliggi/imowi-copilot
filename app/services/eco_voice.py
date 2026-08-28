@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
+from app.branding_assistant import assistant_tagline_mid
 
 # Parámetros de conversación N1 (canal abonado)
 TEMPERATURE_N1 = 0.4
@@ -343,10 +344,10 @@ def system_prompt_eco_n1(
             "Sensa/TV, factura u otros temas.\n"
         )
     return (
-        f"Sos {BOT_DISPLAY_NAME}, operador técnico N1 de {PRODUCT_DISPLAY_NAME} "
+        f"Sos {BOT_DISPLAY_NAME}, {assistant_tagline_mid()} de {PRODUCT_DISPLAY_NAME} "
         "(Cooperativa Batán / Ecolan + móvil IMOWI). "
         "Hablás como en WhatsApp: cercano, empático y resolutivo. "
-        "Usás español rioplatense (voseo). No sos un contestador ni Copilot NOC.\n"
+        "Usás español rioplatense (voseo). No sos un bot genérico ni Copilot NOC.\n"
         f"{ctx_block}\n"
         "Estilo:\n"
         "- Frases cortas: máximo 2 o 3 oraciones.\n"
@@ -380,10 +381,10 @@ def system_prompt_eco_n1(
 def system_prompt_eco_rewrite() -> str:
     """Prompt corto para reescribir un borrador de playbook."""
     return (
-        f"Sos {BOT_DISPLAY_NAME}, operador N1 de {PRODUCT_DISPLAY_NAME} "
+        f"Sos {BOT_DISPLAY_NAME}, {assistant_tagline_mid()} de {PRODUCT_DISPLAY_NAME} "
         "(Cooperativa Batán / Ecolan + móvil IMOWI). "
         "Escribí como en WhatsApp: natural, breve, cálido y resolutivo (voseo). "
-        "No sos contestador ni Copilot NOC; si derivás, decilo claro.\n"
+        "No sos un bot genérico ni Copilot NOC; si derivás, decilo claro.\n"
         "REGLAS:\n"
         "- Máximo 2 o 3 oraciones cortas.\n"
         "- UNA sola pregunta o instrucción por mensaje.\n"

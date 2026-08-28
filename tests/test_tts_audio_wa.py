@@ -16,18 +16,17 @@ def test_texto_para_habla_marca_y_dni():
     from app.services.tts import texto_para_habla
 
     out = texto_para_habla(
-        "Hola, soy Eco, de Soporte Batán (Cooperativa Batán / Ecolan). Enviame tu DNI."
+        "Hola, soy Eko, tu asistente virtual de Soporte Batán (Cooperativa Batán / Ecolan). Enviame tu DNI."
     )
     low = out.lower()
     assert "punto com" not in low
     assert ".com" not in low
     assert "documento" in low
     assert "dni" not in low
-    assert "soy la asistente de la cooperativa batán" in low
+    assert "soy la asistente virtual de soporte batán" in low
     assert "eko" not in low
     assert "echo" not in low
     assert "ekao" not in low
-    assert "de soporte batán" not in low
     assert "el asistente" not in low
 
     out2 = texto_para_habla(
@@ -39,9 +38,9 @@ def test_texto_para_habla_marca_y_dni():
     assert "dni" not in low2
     assert " dn " not in f" {low2} "
 
-    out3 = texto_para_habla("Hola, soy Eko, la asistente de la Cooperativa Batán.")
+    out3 = texto_para_habla("Hola, soy Eko, tu asistente virtual de Soporte Batán.")
     low3 = out3.lower()
-    assert "soy la asistente de la cooperativa batán" in low3
+    assert "soy la asistente virtual de soporte batán" in low3
     assert "eko" not in low3
     assert "echo" not in low3
     assert "eka" not in low3

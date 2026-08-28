@@ -144,6 +144,8 @@ export const api = {
       bot_display_name_short: string;
       org_hint: string;
       product_display_name: string;
+      assistant_tagline: string;
+      assistant_intro: string;
     }>("/api/v1/public/branding", { skipAuth: true, timeoutMs: 8_000 });
   },
 

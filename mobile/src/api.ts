@@ -46,6 +46,9 @@ export const api = {
         orgHint: data.org_hint || defaultBranding.orgHint,
         productDisplayName:
           data.product_display_name || defaultBranding.productDisplayName,
+        assistantTagline:
+          data.assistant_tagline || defaultBranding.assistantTagline,
+        assistantIntro: data.assistant_intro || defaultBranding.assistantIntro,
       };
     } catch {
       return defaultBranding;

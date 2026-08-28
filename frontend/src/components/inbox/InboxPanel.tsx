@@ -445,7 +445,7 @@ export function InboxPanel() {
           <h2 className="text-xl font-semibold text-slate-50 tracking-tight">Bandeja</h2>
           <p className="text-sm text-slate-400 max-w-xl">
             {isAdmin
-              ? `Canal en vivo (portal / WhatsApp / Telegram). Filtrá por ${getBranding().botDisplayName} (N1) para monitorear al bot.`
+              ? `Canal en vivo (portal / WhatsApp / Telegram). Filtrá por ${getBranding().botDisplayName} (N1) para monitorear al asistente.`
               : can("tickets.reassign")
                 ? `Canal en vivo: monitoreá a ${getBranding().botDisplayName} (filtro N1) y tomá handoffs. Visitantes se atienden acá. La Cola es solo tickets N2.`
                 : "Canal en vivo: tomá chats de abonados y visitantes acá. La Cola es solo para tickets N2 técnicos."}

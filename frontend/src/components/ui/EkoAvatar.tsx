@@ -2,8 +2,8 @@
 
 import { getBranding } from "@/lib/brand";
 
-/** Avatar visual del asistente N1 (Eko). No usar en Copilot NOC. */
-export function EcoAvatar({ className = "h-7 w-7" }: { className?: string }) {
+/** Avatar visual del asistente virtual N1 (Eko). No usar en Copilot NOC. */
+export function EkoAvatar({ className = "h-7 w-7" }: { className?: string }) {
   const letter = (getBranding().botDisplayName.trim().charAt(0) || "E").toUpperCase();
   return (
     <span
@@ -15,3 +15,6 @@ export function EcoAvatar({ className = "h-7 w-7" }: { className?: string }) {
     </span>
   );
 }
+
+/** @deprecated Usar EkoAvatar */
+export const EcoAvatar = EkoAvatar;

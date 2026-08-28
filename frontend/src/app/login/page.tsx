@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { inputCls } from "@/components/ui/forms";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { getBranding } from "@/lib/brand";
+import { getBranding, portalAssistantLine } from "@/lib/brand";
 
 export default function LoginPage() {
   const { login, ready, user } = useApp();
@@ -54,7 +54,7 @@ export default function LoginPage() {
           <div>
             <h1 className="text-xl font-semibold text-slate-50 tracking-tight">{productDisplayName}</h1>
             <p className="text-xs font-mono text-slate-500">
-              {orgHint} · Ecolan + móvil · WhatsApp
+              {portalAssistantLine()} · {orgHint}
             </p>
           </div>
         </div>

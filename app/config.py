@@ -127,6 +127,10 @@ BOT_DISPLAY_NAME_SHORT = (
 PRODUCT_DISPLAY_NAME = (
     os.getenv("PRODUCT_DISPLAY_NAME", "Soporte Batán") or "Soporte Batán"
 ).strip() or "Soporte Batán"
+# Presentación del asistente (portal / WhatsApp). Ej: «tu asistente virtual».
+ASSISTANT_TAGLINE = (
+    os.getenv("ASSISTANT_TAGLINE", "Tu asistente virtual") or "Tu asistente virtual"
+).strip() or "Tu asistente virtual"
 # Prefijo de IDs de ticket (antes JSC-; legacy JSC-* se sigue contando para secuencia).
 TICKET_ID_PREFIX = (
     os.getenv("TICKET_ID_PREFIX", "IBOT") or "IBOT"

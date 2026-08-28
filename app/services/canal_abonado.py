@@ -8,6 +8,7 @@ import time
 
 from sqlalchemy.orm import Session
 
+from app.branding_assistant import frase_soy_eko, saludo_identificacion_dni
 from app.config import BOT_DISPLAY_NAME_SHORT
 from app.domain.canales import enviar_externo as _enviar_externo
 from app.domain.flujos_abonado import (
@@ -1943,7 +1944,7 @@ def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
             "Si ya sos abonado, intentá de nuevo con el DNI del titular."
         )
     return (
-        "Hola, soy la asistente de la Cooperativa Batán. "
+        f"{frase_soy_eko()}. "
         "Todavía no identifiqué tu cuenta, así que no puedo ver saldos ni diagnosticar "
         "tu servicio de forma automática. "
         "Te derivo con un agente; te responden por este mismo chat. "
@@ -2992,11 +2993,7 @@ def procesar_mensaje_entrante(
                     crepo.set_contexto(conv, ctx)
                     db.commit()
                 else:
-                    resp = (
-                        "Hola, soy la asistente de la Cooperativa Batán. "
-                        "Para ayudarte, enviame tu DNI o número de socio. "
-                        "Si preferís, escribí *agente*."
-                    )
+                    resp = saludo_identificacion_dni()
                 if usar_llama and not ctx.get("faq_pago_enviado"):
                     resp = _redactar_con_llama(
                         resp,

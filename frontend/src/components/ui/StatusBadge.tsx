@@ -20,7 +20,7 @@ const COLORS: Record<string, string> = {
   "Autónomo Predictivo": "bg-teal-50 text-teal-800 border-teal-200 dark:bg-ecolan-brand/15 dark:text-ecolan-brand dark:border-ecolan-brand/40",
   "Reporte Cliente": "bg-teal-50 text-teal-800 border-teal-200 dark:bg-ecolan-brand/15 dark:text-ecolan-brand dark:border-ecolan-brand/40",
   "Bot N1": BOT_N1_CLS,
-  "Eco (N1)": BOT_N1_CLS,
+  "Eko (N1)": BOT_N1_CLS,
   "Espera agente": "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-50/10 dark:text-amber-300 dark:border-amber-500/35",
   "Con agente": "bg-teal-50 text-teal-800 border-teal-200 dark:bg-ecolan-brand/15 dark:text-ecolan-brand dark:border-ecolan-brand/40",
 };

@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Política de privacidad — EKO-Asistente",
+  title: "Política de privacidad — Soporte Batán",
   description:
-    "Cómo Cooperativa Batán y Ecolan tratan los datos de la app EKO-Asistente y del portal de soporte.",
+    "Cómo Cooperativa Batán y Ecolan tratan los datos del portal Soporte Batán y del asistente virtual Eko.",
 };
 
 export default function PrivacidadPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-12 text-slate-200">
-      <p className="text-xs font-medium tracking-wide text-[#2298A6]">EKO-Asistente</p>
+      <p className="text-xs font-medium tracking-wide text-[#2298A6]">Soporte Batán · Eko</p>
       <h1 className="mt-2 text-3xl font-semibold text-slate-50">Política de privacidad</h1>
       <p className="mt-2 text-sm text-slate-400">Última actualización: 19 de agosto de 2026</p>
 
@@ -18,18 +18,19 @@ export default function PrivacidadPage() {
         <section>
           <h2 className="text-lg font-semibold text-slate-50">Quién es responsable</h2>
           <p className="mt-2">
-            La app <strong>EKO-Asistente</strong> y el portal de soporte son operados por{" "}
-            <strong>Cooperativa Batán</strong> junto con <strong>Ecolan</strong>, para que los
-            socios consulten sobre su servicio (internet y móvil) sin pasar por WhatsApp.
+            La app móvil <strong>Soporte Batán</strong> y el portal web son operados por{" "}
+            <strong>Cooperativa Batán</strong> junto con <strong>Ecolan</strong>. El asistente
+            virtual <strong>Eko</strong> te ayuda con consultas de internet y móvil; un agente humano
+            interviene cuando hace falta.
           </p>
           <p className="mt-2">
             Contacto:{" "}
             <a className="text-[#2298A6] underline" href="mailto:admin@ecolan.com">
               admin@ecolan.com
             </a>
-            . Sitio:{" "}
-            <a className="text-[#2298A6] underline" href="https://ibot.ecolan.com/portal">
-              ibot.ecolan.com/portal
+            . Portal:{" "}
+            <a className="text-[#2298A6] underline" href="/portal">
+              Soporte Batán (portal abonado)
             </a>
             .
           </p>
@@ -63,17 +64,16 @@ export default function PrivacidadPage() {
         <section>
           <h2 className="text-lg font-semibold text-slate-50">Dónde se procesan</h2>
           <p className="mt-2">
-            Los datos viajan cifrados (HTTPS) hacia los servidores de la cooperativa en{" "}
-            <code className="text-slate-100">ibot.ecolan.com</code>. El chat puede pasar por un
-            modelo de lenguaje contratado para redactar la respuesta automática; no se usa para
-            entrenar modelos propios de publicidad.
+            Los datos viajan cifrados (HTTPS) hacia los servidores de la cooperativa. El chat con{" "}
+            <strong>Eko</strong> puede usar un modelo de lenguaje contratado para redactar la
+            respuesta automática; no se usa para entrenar modelos de publicidad.
           </p>
         </section>
 
         <section id="eliminar-cuenta">
           <h2 className="text-lg font-semibold text-slate-50">Cómo borrar tus datos de la app</h2>
           <p className="mt-2">
-            En EKO-Asistente, con la sesión iniciada: <strong>Eliminar datos</strong>. Eso borra el
+            En la app móvil, con la sesión iniciada: <strong>Eliminar datos</strong>. Eso borra el
             PIN, los dispositivos registrados y el vínculo de la app. El padrón de socio de la
             cooperativa (servicio, facturación) no se elimina: es el registro de tu cuenta de
             socio, no de la app.

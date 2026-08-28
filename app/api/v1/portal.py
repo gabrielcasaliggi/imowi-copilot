@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.branding_assistant import frase_soy_eko, saludo_con_menu
 from app.config import (
     OTP_LENGTH,
     OTP_MAX_ATTEMPTS,
@@ -298,16 +299,13 @@ def _abrir_conversacion_identificada(
         estado = ((abo.estado if abo else "") or "").lower()
         if estado == "baja":
             saludo = (
-                f"Hola{(' ' + primer) if primer else ''}, soy la asistente de la Cooperativa Batán. "
+                f"{frase_soy_eko(primer_nombre=primer)}. "
                 "Tu cuenta figura «de baja» en el padrón. "
                 "Igual puedo ayudarte (reactivación, factura u otro trámite). ¿Qué necesitás?"
             )
         else:
             menu = texto_menu_consulta(abo.servicio if abo else "")
-            saludo = (
-                f"Hola{(' ' + primer) if primer else ''}, soy la asistente de la Cooperativa Batán. "
-                f"{menu}"
-            )
+            saludo = saludo_con_menu(primer_nombre=primer, menu=menu)
         crepo.add_mensaje(
             db, org.id, conv.id, direccion="out", autor="bot", texto=saludo
         )
@@ -489,10 +487,9 @@ def portal_auth_verify(
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
     if not mensajes:
         nombre = (abo.nombre if abo else hit.get("nombre") or "hola").split()[0]
-        menu = texto_menu_consulta(abo.servicio if abo else "")
-        saludo = (
-            f"Hola {nombre}, soy la asistente de la Cooperativa Batán. "
-            f"{menu}"
+        saludo = saludo_con_menu(
+            primer_nombre=nombre,
+            menu=texto_menu_consulta(abo.servicio if abo else ""),
         )
         crepo.add_mensaje(db, org.id, conv.id, direccion="out", autor="bot", texto=saludo)
         mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]

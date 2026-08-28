@@ -8,6 +8,8 @@ export type Branding = {
   botDisplayNameShort: string;
   orgHint: string;
   productDisplayName: string;
+  assistantTagline: string;
+  assistantIntro: string;
 };
 
 const DEFAULTS: Branding = {
@@ -20,6 +22,9 @@ const DEFAULTS: Branding = {
   orgHint: "Cooperativa Batán",
   productDisplayName:
     process.env.NEXT_PUBLIC_PRODUCT_DISPLAY_NAME?.trim() || "Soporte Batán",
+  assistantTagline:
+    process.env.NEXT_PUBLIC_ASSISTANT_TAGLINE?.trim() || "Tu asistente virtual",
+  assistantIntro: "Hola, soy Eko, tu asistente virtual de Soporte Batán.",
 };
 
 let cached: Branding = { ...DEFAULTS };
@@ -33,11 +38,23 @@ export function botEstadoLabel(): string {
   return `${cached.botDisplayName} (N1)`;
 }
 
+/** Subtítulo del portal: «Asistido por Eko · tu asistente virtual». */
+export function portalAssistantLine(): string {
+  const tag = cached.assistantTagline.trim();
+  const mid =
+    tag.length > 1 && tag[0] === tag[0].toUpperCase()
+      ? tag[0].toLowerCase() + tag.slice(1)
+      : tag;
+  return `Asistido por ${cached.botDisplayName} · ${mid}`;
+}
+
 export function applyBranding(partial: {
   bot_display_name?: string;
   bot_display_name_short?: string;
   org_hint?: string;
   product_display_name?: string;
+  assistant_tagline?: string;
+  assistant_intro?: string;
 }): Branding {
   cached = {
     botDisplayName: partial.bot_display_name?.trim() || cached.botDisplayName,
@@ -49,6 +66,9 @@ export function applyBranding(partial: {
     orgHint: partial.org_hint?.trim() || cached.orgHint,
     productDisplayName:
       partial.product_display_name?.trim() || cached.productDisplayName,
+    assistantTagline:
+      partial.assistant_tagline?.trim() || cached.assistantTagline,
+    assistantIntro: partial.assistant_intro?.trim() || cached.assistantIntro,
   };
   return cached;
 }
@@ -69,6 +89,8 @@ export async function hydrateBranding(apiBase?: string): Promise<Branding> {
       bot_display_name_short?: string;
       org_hint?: string;
       product_display_name?: string;
+      assistant_tagline?: string;
+      assistant_intro?: string;
     };
     return applyBranding(data);
   } catch {

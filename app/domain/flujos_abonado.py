@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.branding_assistant import frase_soy_eko
+
 
 @dataclass(frozen=True)
 class PasoPlaybook:
@@ -569,7 +571,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "general": [
         PasoPlaybook(
             "menu_servicio",
-            "Hola, soy la asistente de la Cooperativa Batán. "
+            f"{frase_soy_eko()}. "
             "¿En qué te ayudo: internet, telefonía móvil, teléfono fijo, Sensa/TV, factura o algo más?",
         ),
         PasoPlaybook(
