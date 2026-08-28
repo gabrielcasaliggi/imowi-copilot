@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
 from app.branding_assistant import assistant_tagline_mid
+from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
 
 # Parámetros de conversación N1 (canal abonado)
 TEMPERATURE_N1 = 0.4
