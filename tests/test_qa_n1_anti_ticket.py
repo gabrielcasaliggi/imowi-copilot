@@ -432,6 +432,20 @@ def test_clasifica_telefono_fija_y_cobertura_playbook():
     assert tag_para_intencion("telefono_fija") == "[TEL_FIJA]"
 
 
+def test_negacion_adsl_en_fijo_no_cambia_tema_ni_clasifica_adsl():
+    from app.domain.flujos_abonado import (
+        es_cambio_tema_claro,
+        refinar_intencion_internet,
+        respuesta_negacion_adsl_en_fijo,
+    )
+
+    msg = "No, en esa línea no tengo ADSL"
+    assert respuesta_negacion_adsl_en_fijo(msg) is True
+    assert refinar_intencion_internet(msg) is None
+    assert clasificar_intencion(msg) != "internet_adsl"
+    assert es_cambio_tema_claro(msg, "telefono_fija", "") is None
+
+
 def test_clasifica_imowi_robo_datos_y_a2p():
     assert clasificar_intencion("me robaron el celular imowi") == "movil"
     assert clasificar_intencion("perdi el celular necesito *910") == "movil"

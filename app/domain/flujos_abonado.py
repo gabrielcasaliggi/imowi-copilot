@@ -1426,7 +1426,8 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
         "adsl", "par de cobre", "modem adsl", "módem adsl", "splitter",
         "filtro adsl", "microfiltro",
     )):
-        return "internet_adsl"
+        if not respuesta_negacion_adsl_en_fijo(texto):
+            return "internet_adsl"
 
     if any(k in t for k in (
         "fibra", "ftth", "fibra optica", "fibra óptica", "ont",
@@ -1528,6 +1529,31 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
     return "general"
 
 
+def respuesta_negacion_adsl_en_fijo(texto: str) -> bool:
+    """Respuesta al paso «¿tenés ADSL en esa línea?» — no es cambio a internet ADSL."""
+    t = (texto or "").lower()
+    if not any(k in t for k in ("adsl", "splitter", "filtro", "microfiltro")):
+        return False
+    return any(
+        k in t
+        for k in (
+            "no tengo",
+            "no tenemos",
+            "no, en esa",
+            "no en esa",
+            "sin adsl",
+            "no es adsl",
+            "no hay adsl",
+            "no uso adsl",
+            "solo fijo",
+            "solo el fijo",
+            "solo telefono",
+            "solo teléfono",
+            "no tengo internet",
+        )
+    )
+
+
 def refinar_intencion_internet(texto: str) -> str | None:
     """Tras preguntar tipo de acceso (fibra/radio/ADSL), afina el playbook."""
     t = (texto or "").lower()
@@ -1538,7 +1564,8 @@ def refinar_intencion_internet(texto: str) -> str | None:
     if any(k in t for k in (
         "adsl", "cobre", "splitter", "microfiltro", "telefonica", "telefónica",
     )):
-        return "internet_adsl"
+        if not respuesta_negacion_adsl_en_fijo(texto):
+            return "internet_adsl"
     if any(k in t for k in (
         "radio", "antena", "cpe", "inalambr", "inalámbr", "torre", "wireless",
         "enlace", "techo", "poe",
@@ -1728,6 +1755,8 @@ def _senal_fuerte_dominio(texto: str, dominio: str) -> bool:
     if dominio == "tv_sensa":
         return "sensa" in t
     if dominio == "internet":
+        if respuesta_negacion_adsl_en_fijo(texto):
+            return False
         return any(
             k in t
             for k in (
@@ -1806,6 +1835,8 @@ def es_cambio_tema_claro(
     _ = servicio_abonado
     actual = (intencion_actual or "").strip()
     if not actual or actual in ("general", "multi_tema", "aviso_deuda"):
+        return None
+    if actual == "telefono_fija" and respuesta_negacion_adsl_en_fijo(texto):
         return None
     t = (texto or "").strip()
     if len(t) < 12:
