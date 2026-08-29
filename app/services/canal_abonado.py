@@ -2428,10 +2428,11 @@ def _mensaje_cierre_escalamiento(
         k in motivo_l for k in ("los", "fibra", "optica", "óptica", "wifi_post_los")
     ):
         return (
-            f"La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
-            f"Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
-            f"Generé el ticket {tid} y te derivo con un agente.{nota} "
-            "Te van a responder por este mismo chat."
+            f"Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra "
+            f"que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, "
+            f"pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la "
+            f"luz verde, hace falta visita técnica. Generé el ticket {tid} y te derivo "
+            f"con un agente.{nota} Te van a responder por este mismo chat."
         )
 
     if "pedido_humano" in motivo_l or "agente" in motivo_l:

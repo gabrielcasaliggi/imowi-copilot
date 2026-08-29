@@ -340,13 +340,20 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "El abonado tiene una ONT (cajita blanca) conectada con un cable de fibra "
                 "amarillo que viene de la calle, y un router WiFi conectado a la ONT por cable UTP.\n\n"
                 "Diagnóstico N1:\n"
-                "1) Reiniciar: desenchufar ONT y router 30s. Encender primero la ONT, esperar "
-                "   luz PON verde fija (~1 min), luego encender router.\n"
-                "2) Verificar luces ONT: PON=verde fijo (enlace OK), LOS=apagada (sin alarma). "
-                "   Si LOS está en rojo → alarma óptica: NO manipular el cable amarillo; "
-                "   derivar N2 (visita). Completar preguntas no equivale a resolver.\n"
+                "1) Reinicio físico (regla de los 30 segundos): desenchufar transformador de "
+                "   ONT Huawei y router WiFi. Mantener apagado ≥30s (limpia caché y sesión PPPoE). "
+                "   Encender primero la ONT, esperar 3–5 min a que estabilicen las luces, luego router.\n"
+                "2) Luces ONT Huawei: PON=verde fijo (enlace OK), LOS=apagada (sin alarma). "
+                "   LOS roja/titilando = falta señal óptica: verificar patchcord amarillo firme "
+                "   y sin dobleces marcados (NO manipular ni desconectar el cable amarillo; "
+                "   no doblar a 90° — núcleo de vidrio). "
+                "   Si persiste → N2 visita óptica; no pedir más reinicios.\n"
+                "   PON apagada/titilando = ONT sin registro en OLT: reinicio 30s; si no pasa a "
+                "   verde fijo → derivar soporte.\n"
+                "   Módem apagado = revisar toma, zapatilla y transformador (Dying Gasp).\n"
                 "3) Cables de energía y red (UTP) firmes, sin daño visible. "
-                "   No desconectar ni doblar la fibra.\n"
+                "   Potencia óptica ideal en ONT: entre -16 y -25 dBm. ONT elevada, ventilada, "
+                "   sin encerrar en muebles metálicos ni detrás de TV.\n"
                 "4) Probar cable vs WiFi: si por cable al router anda, el problema es WiFi.\n"
                 "5) Si nada de lo anterior resuelve → N2 (posible corte de fibra en la acometida "
                 "   o falla en el splitter/OLT de la central). Registrar dirección y síntoma.\n"
@@ -378,13 +385,16 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "enlace punto-multipunto). El abonado tiene un CPE/antena en el techo apuntando "
                 "a una torre, alimentado por PoE (inyector conectado al tomacorriente).\n\n"
                 "Diagnóstico N1:\n"
-                "1) Inyector PoE: ¿tiene luz encendida? Si no, verificar enchufe y fusible.\n"
+                "1) Fuente PoE Ubiquiti: ¿LED del inyector encendido? Si no, revisar enchufe. "
+                "   Cables UTP con clic firme en ambos extremos.\n"
                 "2) Cable PoE: la salida LAN del inyector/transformador va al puerto AZUL "
                 "   (también rotulado Internet/WAN) del router WiFi (FAQ Ecolan).\n"
                 "3) Reiniciar: desenchufar inyector PoE y router 30s. Enchufar primero el inyector, "
                 "   esperar ~1 min a que el CPE enganche señal, luego el router.\n"
+                "   NUNCA presionar el botón Reset del CPE >5s (pierde configuración de enlace).\n"
                 "4) LED del CPE: enlace/señal fijo = OK; parpadeo rápido o rojo = sin enlace.\n"
-                "5) Línea de vista: ¿crecieron árboles o hay construcción entre antena y torre?\n"
+                "5) Línea de vista (LOS inalámbrica): ¿crecieron árboles o hay construcción "
+                "   entre antena domiciliaria y nodo? Conectores UTP protegidos de intemperie.\n"
                 "6) Probar cable vs WiFi en un dispositivo.\n"
                 "7) ¿Vecinos de la misma torre con problemas? → falla zonal.\n"
                 "Escalar a N2 con: dirección, torre, síntoma, zonal o individual.\n"
@@ -415,8 +425,9 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "Diagnóstico N1:\n"
                 "1) Reiniciar módem ADSL 30s. Esperar ~2 min a sincronización (luz DSL/Sync fija).\n"
                 "2) Luces: DSL fija = sincronización OK. Si parpadea → no sincroniza con DSLAM.\n"
-                "3) Filtro/Splitter: todos los aparatos telefónicos (teléfonos, alarmas, fax) "
-                "   DEBEN tener filtro ADSL. El módem se conecta al puerto sin filtro del splitter.\n"
+                "3) Validar tono de marcación en la línea fija y microfiltros en TODOS los "
+                "   aparatos telefónicos (teléfonos, alarmas, fax). El módem va al puerto sin "
+                "   filtro del splitter.\n"
                 "4) Probar en la primera toma (la que viene de la calle), sin extensiones ni "
                 "   cables internos largos.\n"
                 "5) Cable vs WiFi: si por cable anda, es tema WiFi.\n"
@@ -496,10 +507,15 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             contenido=(
                 "Abonado hogareño FTTH. Preguntar luces de la ONT (cajita blanca) "
                 "antes de WiFi o visita.\n"
-                "PON verde fija + LOS apagada = enlace óptico OK: seguir con reinicio 30s "
-                "y cable vs WiFi. Completar preguntas no es resolver.\n"
-                "LOS roja o encendida = alarma óptica: no pedir pruebas de WiFi ni "
-                "tocar el cable amarillo. Escalar visita de campo (N2 cooperativa), no NOC móvil."
+                "Tabla rápida:\n"
+                "- LOS roja/titilando: falta señal óptica → verificar patchcord amarillo firme "
+                "  sin dobleces; NO reiniciar en loop; escalar visita si persiste.\n"
+                "- PON apagada/titilando: ONT sin registro → reinicio 30s; si no verde fijo → N2.\n"
+                "- Módem apagado: revisar transformador y toma (Dying Gasp).\n"
+                "PON verde fija + LOS apagada = enlace óptico OK: reinicio 30s, esperar 3–5 min, "
+                "luego cable vs WiFi. Completar preguntas no es resolver.\n"
+                "LOS roja confirmada: no pedir pruebas de WiFi ni tocar/desconectar fibra. "
+                "Escalar visita de campo (N2 cooperativa), no NOC móvil."
             ),
         ),
         KnowledgeArticle(
@@ -558,15 +574,17 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             categoria="Internet",
             contenido=(
                 "Problemas de WiFi (red del hogar, no necesariamente de la línea):\n"
-                "1) El WiFi pierde señal con cada pared (especialmente hormigón/ladrillo).\n"
-                "2) Router en el centro de la casa = mejor cobertura.\n"
-                "3) Banda 2.4 GHz: más alcance, menos velocidad. 5 GHz: menos alcance, más velocidad.\n"
-                "4) Interferencia: microondas, teléfonos inalámbricos, vecinos en mismo canal.\n"
-                "5) Clave olvidada: resetear el módem/router y usar nombre/clave de la etiqueta "
-                "   debajo del equipo (datos de fábrica).\n"
-                "6) Recomendación Ecolan BAI: cablear PCs, Smart TV y consolas a puertos LAN; "
-                "   dejar WiFi para celulares/tablets.\n"
-                "7) Si muchas habitaciones sin señal → sugerir access point o mesh (comercial).\n"
+                "1) El WiFi pierde señal con cada pared (especialmente hormigón/ladrillo). "
+                "   Agua y metal atenúan mucho: alejar de peceras, espejos, heladeras, tableros.\n"
+                "2) Router/ONT elevado, centro de la casa, ventilado; no detrás de TV ni "
+                "   dentro de muebles metálicos.\n"
+                "3) Banda 2.4 GHz: más alcance, más interferencia (microondas, teléfonos DECT). "
+                "   5 GHz: más velocidad, menos alcance y penetración.\n"
+                "4) Clave olvidada: etiqueta debajo del módem/router (datos de fábrica).\n"
+                "5) Recomendación Ecolan: cablear Smart TV/consolas a LAN; WiFi para móviles.\n"
+                "6) Dispositivos en standby (Smart TV, IoT) consumen airtime: desconectar los "
+                "   que no se usen. Cambiar clave WiFi ~1 vez/año para sacar equipos viejos.\n"
+                "7) Repetidores: ver artículo «N1 hogareño — repetidores WiFi domésticos».\n"
                 "La cooperativa puede ofrecer instalación de extensores (consultar comercial)."
             ),
         ),
@@ -583,6 +601,51 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
                 "4) Avisar que todos los dispositivos deberán reconectarse.\n"
                 "5) Validar con un dispositivo. Si no hay acceso al equipo → derivar N2.\n"
                 "Playbook: cambio_clave_wifi."
+            ),
+        ),
+
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — repetidores WiFi domésticos",
+            categoria="Internet",
+            contenido=(
+                "Los repetidores/extensores de pared son causa frecuente de «falsa lentitud» "
+                "o caídas intermitentes (amplifican ruido y pierden ancho de banda).\n\n"
+                "Reglas de oro:\n"
+                "1) Regla de la media distancia: NO colocar en la zona muerta sin señal. "
+                "   Ubicarlo a medio camino entre router y zona a cubrir, donde aún haya "
+                "   buena señal del router principal (> -65 dBm ideal).\n"
+                "2) Modo Punto de Acceso (recomendado): conectar repetidor al router con "
+                "   cable UTP Cat5e/Cat6 y configurar como AP — mantiene 100% velocidad.\n"
+                "3) Modo extensor inalámbrico (desaconsejado): repetidores 2.4 GHz pierden "
+                "   ~50% del rendimiento (half-duplex). Explicar al abonado que la velocidad "
+                "   será menor que junto al router.\n"
+                "4) Mismo SSID y contraseña en repetidor facilita roaming entre habitaciones.\n"
+                "5) Si internet anda bien cerca del módem pero lento en el repetidor: mover "
+                "   el repetidor más cerca del router o cablearlo.\n"
+                "Plantilla bot: «Si internet te anda bien cerca del módem principal pero lento "
+                "donde tenés el repetidor, puede estar recibiendo débil la señal base. Probá "
+                "mudarlo a un enchufe más cerca del router o conectarlo con cable de red.»"
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="N1 hogareño — plantillas respuesta conectividad",
+            categoria="Internet",
+            contenido=(
+                "Plantillas autorizadas para el bot N1 (tono EKO):\n\n"
+                "A) Luz LOS roja (FTTH): «Si la luz LOS está en rojo o parpadeando se "
+                "interrumpió la señal de fibra. Chequeá que el cablecito amarillo no esté "
+                "doblado, pisado o desenchufado. Si está firme y no vuelve la luz verde, "
+                "confirmame tu DNI para revisar la zona y programar visita.»\n\n"
+                "B) Lentitud / WiFi colgado: «Desenchufá el transformador del módem/router "
+                "30 segundos, volvé a conectar y esperá 3 minutos. Si tenés repetidores, "
+                "desenchufalos un rato para probar la señal directa del equipo principal. "
+                "¿Te cargan mejor los videos después?»\n\n"
+                "C) Repetidor doméstico: ver artículo repetidores WiFi.\n\n"
+                "D) Reconexión post-pago QR: «Si pagaste con QR (Fiserv) desde la billetera, "
+                "la acreditación es inmediata y habilita el servicio en minutos. Si pasaron "
+                "+15 min, reiniciá el módem 30 segundos para forzar reconexión.»"
             ),
         ),
 

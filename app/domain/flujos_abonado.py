@@ -240,7 +240,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("luces_los", "¿La luz PON está verde fija y la LOS apagada, o ves alguna en rojo?"),
         PasoPlaybook(
             "reinicio_ont",
-            "Desenchufá ONT y router 30 segundos; prendé primero la ONT y después el router. ¿Volvió?",
+            "Desenchufá ONT y router 30 segundos; prendé primero la ONT, esperá 3–5 min "
+            "a que estabilicen las luces, y después el router. ¿Volvió?",
         ),
         # Energía/UTP solamente. LOS roja → el motor escala a N2; no pedir manipular fibra.
         PasoPlaybook(
@@ -266,7 +267,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "reinicio_cpe",
-            "Reiniciá antena y router 30 segundos; prendé primero la antena. ¿Volvió?",
+            "Reiniciá antena y router 30 segundos; prendé primero la antena. "
+            "No presiones el botón Reset del CPE. ¿Volvió?",
         ),
         PasoPlaybook("led_enlace", "¿El LED de enlace está fijo o parpadea/rojo?"),
         PasoPlaybook("linea_vista", "¿La antena sigue con vista libre a la torre?"),
@@ -319,6 +321,11 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook("horario_lento", "¿Es lento todo el día o más a la tarde/noche?"),
         PasoPlaybook(
+            "repetidores_lento",
+            "Si tenés repetidores WiFi, desenchufalos un rato para probar la señal directa "
+            "del módem/router. ¿Mejoró la velocidad?",
+        ),
+        PasoPlaybook(
             "test_velocidad",
             "Si podés, hacé un test por cable en fast.com (no por WiFi) y decime cuánto da.",
         ),
@@ -336,6 +343,21 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "¿Por cable al router hay internet, o tampoco navega?",
         ),
         PasoPlaybook("otros_dispositivos_wifi", "¿Les pasa a todos los equipos o solo a uno?"),
+        PasoPlaybook(
+            "repetidor_wifi",
+            "¿Tenés repetidor/extensor? Si internet anda bien cerca del módem pero mal lejos, "
+            "el repetidor puede estar recibiendo señal débil.",
+        ),
+        PasoPlaybook(
+            "repetidor_ubicacion",
+            "Probá mover el repetidor a un enchufe más cerca del router (a medio camino, "
+            "no en la zona sin señal). ¿Mejoró la señal o las rayitas?",
+        ),
+        PasoPlaybook(
+            "repetidor_cable_ap",
+            "Si podés, conectar el repetidor al router con cable de red (modo Punto de Acceso) "
+            "da mejor velocidad que repetir por WiFi. ¿Lo probaste?",
+        ),
         PasoPlaybook("reinicio_router_wifi", "¿Reiniciaste el router 30 segundos? ¿Mejoró?"),
         PasoPlaybook(
             "clave_wifi_etiqueta",

@@ -1767,9 +1767,11 @@ def diagnosticar_turno(
             )
         else:
             msg_optico = (
-                "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
-                "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
-                "Te derivo con un agente para coordinarla."
+                "Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra "
+                "que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, "
+                "pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la "
+                "luz verde, hace falta visita técnica — te derivo con un agente para "
+                "coordinarla."
             )
         return {
             "accion": "escalate",
@@ -2145,9 +2147,11 @@ def diagnosticar_turno(
                 accion = "escalate"
                 motivo = opt2
                 mensaje = (
-                    "La luz LOS en rojo indica que la fibra no está llegando bien a la cajita. "
-                    "Eso ya no lo resolvemos reiniciando: hace falta una visita técnica. "
-                    "Te derivo con un agente para coordinarla."
+                    "Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra "
+                    "que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, "
+                    "pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la "
+                    "luz verde, hace falta visita técnica — te derivo con un agente para "
+                    "coordinarla."
                 )
 
         # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)

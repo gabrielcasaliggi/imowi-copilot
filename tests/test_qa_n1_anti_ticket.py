@@ -488,6 +488,10 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert "N1 hogareño — lentitud en horario pico" in by_title
     assert "N1 hogareño — PoE y antena de techo" in by_title
     assert "N1 hogareño — adulto mayor y WhatsApp (línea OK)" in by_title
+    assert "N1 hogareño — repetidores WiFi domésticos" in by_title
+    assert "N1 hogareño — plantillas respuesta conectividad" in by_title
+    assert "media distancia" in by_title["N1 hogareño — repetidores WiFi domésticos"].lower()
+    assert "30 segundos" in by_title["N1 hogareño — plantillas respuesta conectividad"]
     assert "LOS" in by_title["N1 hogareño — luces PON y LOS"]
     whatsapp = by_title["N1 hogareño — adulto mayor y WhatsApp (línea OK)"]
     assert "WhatsApp" in whatsapp
@@ -499,6 +503,19 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert "Facturación — descargar factura o talón" in by_title
     assert "ov.batan.coop" in by_title["Facturación — informar un pago"]
     assert "facturacion_estado_cuenta" in by_title["Facturación — estado de cuenta"]
+
+
+def test_playbooks_wifi_repetidor_y_ftth_reinicio():
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    rep = next(p.pregunta for p in PLAYBOOKS["wifi"] if p.id == "repetidor_wifi")
+    assert "repetidor" in rep.lower()
+    ubic = next(p.pregunta for p in PLAYBOOKS["wifi"] if p.id == "repetidor_ubicacion")
+    assert "medio camino" in ubic.lower() or "más cerca" in ubic.lower()
+    reinicio_ftth = next(p.pregunta for p in PLAYBOOKS["internet_ftth"] if p.id == "reinicio_ont")
+    assert "3" in reinicio_ftth and "30" in reinicio_ftth
+    rep_lento = next(p.pregunta for p in PLAYBOOKS["internet_lento"] if p.id == "repetidores_lento")
+    assert "repetidor" in rep_lento.lower()
 
 
 def test_playbooks_imowi_apn_y_autogestion_batan():

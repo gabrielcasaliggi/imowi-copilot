@@ -76,7 +76,7 @@ Sin desconectar la fibra, ¿los cables de energía y red están firmes y sin da�
 
 ### 10. `reinicio_controlado`
 
-Desconectá solo la alimentación eléctrica, esperá el tiempo aprobado y volvé a conectarla. Avisame cuando las luces estabilicen.
+Desconectá solo la alimentación eléctrica de ONT y router, esperá **30 segundos** mínimo y volvé a conectar (primero ONT, luego router). Esperá **3–5 minutos** a que las luces estabilicen antes de probar.
 
 - Preguntar cuando: `reinicio_previo=no and estado_led_los=apagada`
 
@@ -97,9 +97,9 @@ Probá abrir dos sitios o servicios. ¿Ya navega correctamente?
 ## Reglas de decisión
 
 - Si `estado_incidente=activo`: `inform/incidente_masivo`. Informar incidencia y estado/ETA solo si sistema lo confirma; no reiniciar ni derivar duplicado.
-- Si `estado_led_power=no and energia_verificada`: `n2/equipo_sin_energia`. Derivar con posible falla de fuente/ONT.
-- Si `estado_led_los in [roja_fija,roja_parpadeando]`: `n2/alarma_optica`. Derivar como alarma óptica; no pedir manipular fibra.
-- Si `estado_led_pon in [apagada,parpadeando] after wait_aprobado`: `n2/ont_sin_registro`. Derivar con estado PON registrado.
+- Si `estado_led_power=no and energia_verificada`: `n2/equipo_sin_energia`. Revisar transformador y toma (Dying Gasp).
+- Si `estado_led_los in [roja_fija,roja_parpadeando]`: `n2/alarma_optica`. Verificar patchcord amarillo firme sin dobleces; NO desconectar fibra; no pedir reinicios en loop.
+- Si `estado_led_pon in [apagada,parpadeando] after wait_aprobado`: `n2/ont_sin_registro`. Reinicio 30s; si no verde fijo → derivar.
 - Si `validacion_navegacion=si`: `resolved/servicio_restaurado`. Cerrar como resuelto por N1.
 - Si `validacion_navegacion=no`: `n2/sin_servicio_post_n1`. Derivar con diagnóstico y acciones realizadas.
 
