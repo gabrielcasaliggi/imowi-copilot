@@ -62,14 +62,17 @@ def test_plantilla_total():
 
 
 def test_plantilla_sin_eta_validada():
+    started = datetime(2026, 8, 17, 14, 30, tzinfo=UTC)  # 11:30 AR — evita colisión con eta 45
     msg = outage_svc.plantilla_mensaje_cliente(
         alcance="total",
         comentario="",
         eta_minutos=45,
+        started_at=started,
         eta_validada="No",
     )
     assert "validó" in msg.lower()
-    assert "45" not in msg
+    assert "45 minutos" not in msg.lower()
+    assert "de 45" not in msg.lower()
     assert "estimación" in msg.lower() or "confirmada" in msg.lower()
 
 
@@ -102,7 +105,8 @@ def test_mensaje_para_conversacion_no_inventa_eta_sin_validar():
     )
     msg = outage_svc.mensaje_para_conversacion(o, ya_informado=False)
     assert "validó" in msg.lower()
-    assert "45" not in msg
+    assert "45 minutos" not in msg.lower()
+    assert "de 45" not in msg.lower()
     assert "confirmada" in msg.lower() or "confirmada" in msg.lower() or "todavía" in msg.lower()
 
 
