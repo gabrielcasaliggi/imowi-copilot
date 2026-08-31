@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 LOTE_BASE = [f"P{i:02d}" for i in range(1, 19)]  # P01–P18
-LOTE_GUION = LOTE_BASE + [f"P{i:02d}" for i in range(19, 29)]  # + P19–P28
+LOTE_GUION = LOTE_BASE + [f"P{i:02d}" for i in range(19, 30)]  # + P19–P29
 LOTE_EXHAUSTIVO = LOTE_GUION
 
 LOTES: dict[str, list[str]] = {
@@ -23,7 +23,7 @@ LOTES: dict[str, list[str]] = {
         "P11",
         "P12",
     ],
-    "factura": ["P13", "P14", "P15", "P16", "P21", "P22", "P27"],
+    "factura": ["P13", "P14", "P15", "P16", "P21", "P22", "P27", "P29"],
     "movil": ["P19", "P23", "P24", "P26"],
     "agente": ["P07", "P20"],
     "sensa": ["P17", "P18"],

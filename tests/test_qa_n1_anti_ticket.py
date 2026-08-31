@@ -206,6 +206,10 @@ def test_escape_agente_y_sintoma():
     assert parse_menu_servicio("ovil") == "movil"
     assert parse_menu_servicio("movil") == "movil"
     assert parse_menu_servicio("No tengo datos en Mar del Plata") == "movil"
+    assert (
+        parse_menu_servicio("Quiero dar de baja todo el internet y sensa")
+        == "comercial"
+    )
     from app.domain.flujos_abonado import resolver_menu_servicio
 
     assert resolver_menu_servicio("No tengo datos en Mar del Plata", "movil") == "movil"
@@ -557,7 +561,7 @@ def test_playbooks_imowi_apn_y_autogestion_batan():
     assert "*910" in robo and "*303" in robo
     assert clasificar_intencion("quiero escuchar el correo de voz *333") == "movil_llamadas"
     assert clasificar_intencion("necesito activar la esim imowi") == "movil"
-    assert clasificar_intencion("quiero dar de baja imowi") == "alta_plan"
+    assert clasificar_intencion("quiero dar de baja imowi") == "baja_servicio"
 
 
 def test_playbooks_menu_y_portal_mencionan_servicios():
@@ -1866,3 +1870,83 @@ def test_cambio_tema_factura_sensa_datos_sin_ticket():
     assert r3.get("intencion") == "movil_datos"
     assert "ov.batan" in resp3
     assert any(k in resp3 for k in ("bono", "datos del abono", "abono"))
+
+
+def test_baja_con_deuda_no_empuja_pago_ni_diagnostico():
+    """Karina: baja internet+Sensa con deuda → comercial, no QR ni triaje técnico."""
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235560100"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "34964560"))
+        if abo is None:
+            abo = Abonado(
+                organizacion_id=org.id,
+                dni="34964560",
+                telefono_e164=tel,
+                nombre="Karina Da Silva",
+                servicio="ambos",
+                estado="activo",
+                deuda_monto="254393.06",
+                plan="Ecolan 50Mb + Sensa",
+                linea_msisdn="2235560100",
+            )
+            db.add(abo)
+            db.commit()
+            db.refresh(abo)
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(conv, {"saludo": True, "identificado": True})
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quiero dar de baja todo el internet la aplicación sensa todo",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r.get("intencion") == "baja_servicio"
+    resp = (r.get("respuesta") or "").lower()
+    assert "diagnóstico de internet" not in resp and "diagnostico de internet" not in resp
+    assert "qr fiserv" not in resp
+    assert "baja" in resp
+    assert "deuda" in resp or "saldo" in resp
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Saque todo xq se fue demaciado mucho para pagar",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "qr fiserv" not in resp2
+    assert "no reconocés" not in resp2 and "no reconoces" not in resp2
+    assert r2.get("intencion") in ("baja_servicio", "aviso_deuda")

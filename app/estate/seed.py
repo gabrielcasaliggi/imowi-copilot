@@ -318,6 +318,17 @@ def seed_abonados(db: Session) -> dict:
             plan="Ecolan 30Mb",
             linea_msisdn="",
         ),
+        Abonado(
+            organizacion_id=batan.id,
+            dni="34964560",
+            telefono_e164="5492235560100",
+            nombre="Karina Da Silva",
+            servicio="ambos",
+            estado="activo",
+            deuda_monto="254393.06",
+            plan="Ecolan 50Mb + Sensa",
+            linea_msisdn="2235560100",
+        ),
     ]
     db.add_all(abonados)
 

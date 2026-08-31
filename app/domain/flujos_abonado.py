@@ -62,6 +62,7 @@ TAG_POR_INTENCION: dict[str, str] = {
     "tv_sensa": "[TEC_TV_SENSA]",
     "ecolan_b2b": "[ECOLAN_B2B]",
     "alta_plan": "[HANDOFF_HUMANO]",
+    "baja_servicio": "[HANDOFF_HUMANO]",
     "portal_tramites": "[HANDOFF_HUMANO]",
     "turno_campo": "[HANDOFF_HUMANO]",
     "general": "[HANDOFF_HUMANO]",
@@ -580,6 +581,23 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         PasoPlaybook("zona_comercial", "¿En qué barrio o localidad lo necesitás?"),
         PasoPlaybook("derivar_comercial", "Te paso con comercial. ¿Te derivo?"),
     ],
+    "baja_servicio": [
+        PasoPlaybook(
+            "baja_detalle",
+            "¿Querés la baja total o solo de internet, Sensa/app, móvil u otro producto?",
+        ),
+        PasoPlaybook(
+            "requisitos_deuda_equipo",
+            "Con deuda pendiente la baja formal requiere saldo en cero (lo revisa comercial). "
+            "Si tenés fibra, la baja se toma con el equipo en mano; si no podés ir, puede ir "
+            "otra persona con nota firmada del titular. Desenchufar no da de baja el servicio. "
+            "¿Querés que te derive con comercial?",
+        ),
+        PasoPlaybook(
+            "derivar_comercial",
+            "Te paso con comercial para registrar la baja. ¿Te derivo?",
+        ),
+    ],
     "portal_tramites": [
         PasoPlaybook(
             "info_batan_coop",
@@ -683,11 +701,150 @@ def texto_menu_tipo_consulta() -> str:
     )
 
 
+def solicita_baja_servicio(texto: str) -> bool:
+    """True si el abonado pide cancelar/baja de servicio (no «baja velocidad»)."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "baja velocidad",
+            "baja de velocidad",
+            "muy lento",
+            "anda lento",
+            "velocidad baja",
+        )
+    ):
+        return False
+    if any(
+        k in t
+        for k in (
+            "dar de baja",
+            "dar la baja",
+            "quiero la baja",
+            "quiero baja",
+            "solicito la baja",
+            "solicitar baja",
+            "cancelar el servicio",
+            "cancelar servicio",
+            "baja del servicio",
+            "baja definitiva",
+            "baja imowi",
+            "darme de baja",
+            "darme la baja",
+            "arrepentimiento",
+        )
+    ):
+        return True
+    if "baja" in t and any(
+        k in t
+        for k in (
+            "internet",
+            "fibra",
+            "sensa",
+            "servicio",
+            "todo",
+            "aplicación",
+            "aplicacion",
+            "móvil",
+            "movil",
+            "linea",
+            "línea",
+            "abono",
+        )
+    ):
+        return True
+    if any(k in t for k in ("desenchuf", "desconect")) and any(
+        k in t for k in ("todo", "internet", "servicio", "fibra", "router", "equipo")
+    ):
+        return True
+    return False
+
+
+def cliente_imposibilidad_pago(texto: str) -> bool:
+    """No puede / no quiere pagar por costo (no es reclamo de monto)."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "no puedo pagar",
+            "no puedo abonar",
+            "no tengo plata",
+            "no tengo para pagar",
+            "no cuento con la plata",
+            "no tengo dinero",
+            "no tengo como pagar",
+            "demasiado caro",
+            "demaciado caro",
+            "muy caro",
+            "se fue mucho",
+            "se fue demasiado",
+            "mucho para pagar",
+            "demasiado para pagar",
+            "demaciado para pagar",
+            "demaciado mucho para pagar",
+            "no me alcanza",
+            "imposible pagar",
+            "no voy a pagar",
+            "no la pago",
+        )
+    )
+
+
+def mensaje_baja_servicio_n1(
+    abonado: object | None,
+    texto: str = "",
+    *,
+    deuda_monto: str | None = None,
+) -> str:
+    """Primer mensaje N1 para solicitud de baja (deuda, equipo, desenchufar)."""
+    from app.services.eco_voice import texto_monto_ars
+
+    partes = ["Entiendo que querés dar de baja el servicio."]
+    monto = deuda_monto
+    if monto is None and abonado is not None:
+        monto = str(getattr(abonado, "deuda_monto", "") or "").strip()
+    try:
+        deuda_pos = float(str(monto or "0").replace(",", "."))
+    except ValueError:
+        deuda_pos = 0.0
+    if deuda_pos > 0:
+        partes.append(
+            f"En tu cuenta figura un saldo pendiente de {texto_monto_ars(monto)}. "
+            "Para gestionar la baja formal, la cuenta tiene que quedar saldada (saldo en cero); "
+            "eso lo revisa el área comercial."
+        )
+    partes.append(
+        "Si tenés fibra, la baja se toma con el equipo (ONT/router) en mano. "
+        "Si no podés acercarte, puede ir otra persona con una nota firmada del titular "
+        "autorizándola, con los datos de ambos."
+    )
+    partes.append(
+        "Desenchufar o apagar el equipo no da de baja el servicio: sigue activo en sistema "
+        "hasta la gestión formal."
+    )
+    if cliente_imposibilidad_pago(texto):
+        partes.append(
+            "Si no podés abonar ahora, un agente comercial puede orientarte sobre la deuda "
+            "y la baja. ¿Querés que te derive?"
+        )
+    else:
+        partes.append(
+            "¿Es baja total o solo de internet, Sensa/app u otro producto?"
+        )
+    return " ".join(partes)
+
+
 def parse_menu_servicio(texto: str) -> str | None:
-    """Respuesta al 1.er menú: movil | internet | facturacion | None."""
+    """Respuesta al 1.er menú: movil | internet | facturacion | comercial | None."""
     t = (texto or "").lower().strip()
     if not t:
         return None
+    if solicita_baja_servicio(texto):
+        return "comercial"
     # Typos frecuentes: «,ovil», «ovil», «mvil» (móvil)
     compacto = (
         t.replace("á", "a")
@@ -778,6 +935,8 @@ def resolver_menu_servicio(texto: str, servicio_abonado: str = "") -> str | None
         "movil"
     ):
         return "movil"
+    if intent == "baja_servicio":
+        return "comercial"
     if intent in (
         "internet",
         "internet_ftth",
@@ -869,7 +1028,7 @@ def resolver_menu_tipo_consulta(texto: str, servicio_abonado: str = "") -> str |
         "movil"
     ):
         return "tecnico"
-    if intent == "alta_plan":
+    if intent in ("alta_plan", "baja_servicio"):
         return "comercial"
     if intent in (
         "facturacion",
@@ -1388,10 +1547,12 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
     if billed:
         return billed
 
+    if solicita_baja_servicio(texto):
+        return "baja_servicio"
+
     if any(k in t for k in (
         "dar de alta", "alta", "cambio de plan", "cambiar plan", "mejorar plan",
-        "contratar", "baja", "quiero el plan",
-        "dar de baja imowi", "baja imowi", "arrepentimiento",
+        "contratar", "quiero el plan",
     )):
         return "alta_plan"
 
@@ -2650,6 +2811,7 @@ def intencion_desde_tema(tema: str, texto_original: str = "") -> str:
             "general",
             "portal_tramites",
             "alta_plan",
+            "baja_servicio",
         ):
             return intent
     return "internet"
@@ -2841,6 +3003,7 @@ def resumen_handoff(
         "facturacion_reclamo": "Reclamo de factura",
         "reactivacion_pago": "Reactivación por pago",
         "alta_plan": "Alta/plan",
+        "baja_servicio": "Baja de servicio",
         "no_tecnico": "No técnico",
         "general": "General",
     }.get(intencion, intencion or "General")

@@ -1164,6 +1164,10 @@ def _fallback_ask(
 
 
 def _cliente_pide_pagar(texto: str) -> bool:
+    from app.domain.flujos_abonado import cliente_imposibilidad_pago, solicita_baja_servicio
+
+    if cliente_imposibilidad_pago(texto) or solicita_baja_servicio(texto):
+        return False
     t = (texto or "").lower()
     # «modo» = app MODO; no confundir con «modo avión» del playbook móvil (P19).
     t = re.sub(r"modo\s+avi[oó]n", " ", t)

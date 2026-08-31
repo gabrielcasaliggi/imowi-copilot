@@ -15,6 +15,7 @@ from app.domain.flujos_abonado import (
     acepta_derivacion_clara,
     ajustar_intencion_a_padron,
     clasificar_intencion,
+    cliente_imposibilidad_pago,
     contiene_sintoma_canal,
     declara_solo_movil_sin_fijo,
     destino_n2_canal,
@@ -30,6 +31,7 @@ from app.domain.flujos_abonado import (
     intencion_desde_tema,
     intencion_es_facturacion,
     intencion_es_internet,
+    mensaje_baja_servicio_n1,
     misma_queja,
     niega_producto_internet,
     parece_consulta_nueva,
@@ -43,6 +45,7 @@ from app.domain.flujos_abonado import (
     resolver_prioridad_tema,
     respuesta_paso_ok,
     resumen_handoff,
+    solicita_baja_servicio,
     tag_para_intencion,
     texto_menu_consulta,
     texto_menu_tipo_consulta,
@@ -981,6 +984,8 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    if cliente_imposibilidad_pago(texto) or solicita_baja_servicio(texto):
+        return None
     # Ya pagó → seguir con el diagnóstico técnico (vino por el servicio)
     if any(
         k in t
@@ -1657,7 +1662,38 @@ def _cerrar_consulta_resuelta(
     }
 
 
-_AVISO_ESPERA_COOLDOWN_S = 90
+def _intencion_comercial_desde_texto(texto: str) -> str:
+    return "baja_servicio" if solicita_baja_servicio(texto) else "alta_plan"
+
+
+def _iniciar_flujo_baja_servicio(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+) -> dict:
+    ctx["intencion"] = "baja_servicio"
+    ctx["paso_idx"] = 0
+    ctx["diag_turnos"] = 0
+    ctx["pasos_cubiertos"] = []
+    ctx.pop("intencion_tecnica_pendiente", None)
+    ctx.pop("aviso_deuda_ofrecido", None)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    resp = mensaje_baja_servicio_n1(abonado, texto)
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "intencion": "baja_servicio",
+    }
 
 
 def _intencion_desde_tipo_menu(tipo: str) -> str:
@@ -1753,8 +1789,23 @@ def _manejar_menu_consulta_n1(
                 "estado": conv.estado,
                 "menu_paso": "tipo",
             }
-        # internet / facturacion → arrancar flujo
-        intent = "internet" if elec == "internet" else "facturacion"
+        # internet / facturacion / comercial → arrancar flujo
+        if elec == "comercial":
+            intent = _intencion_comercial_desde_texto(texto)
+        else:
+            intent = "internet" if elec == "internet" else "facturacion"
+        if intent == "baja_servicio":
+            ctx.pop("menu_paso", None)
+            ctx.pop("menu_servicio", None)
+            return _iniciar_flujo_baja_servicio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+            )
         ctx.pop("menu_paso", None)
         ctx.pop("menu_servicio", None)
         return _arrancar_intencion_menu(
@@ -1783,9 +1834,19 @@ def _manejar_menu_consulta_n1(
                 "estado": conv.estado,
                 "menu_paso": "tipo",
             }
-        intent = _intencion_desde_tipo_menu(tipo)
+        intent = _intencion_comercial_desde_texto(texto) if tipo == "comercial" else _intencion_desde_tipo_menu(tipo)
         ctx.pop("menu_paso", None)
         ctx.pop("menu_servicio", None)
+        if intent == "baja_servicio":
+            return _iniciar_flujo_baja_servicio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+            )
         return _arrancar_intencion_menu(
             db,
             org_id,
@@ -1820,6 +1881,16 @@ def _arrancar_intencion_menu(
         refinada = clasificar_intencion(texto, servicio_abo)
         if refinada in ("movil_datos", "movil_llamadas", "movil"):
             intencion = refinada
+    if intencion == "baja_servicio":
+        return _iniciar_flujo_baja_servicio(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+        )
     ctx["intencion"] = intencion
     ctx["paso_idx"] = 0
     ctx["diag_turnos"] = 0
@@ -3373,6 +3444,19 @@ def procesar_mensaje_entrante(
                         usar_llama=usar_llama,
                         servicio_abo=servicio_abo,
                     )
+            if elec0 == "comercial":
+                ctx.pop("menu_paso", None)
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                return _iniciar_flujo_baja_servicio(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    texto,
+                    canal=canal,
+                    ctx=ctx,
+                )
             if elec0 in ("internet", "facturacion") and (
                 (elec0 == "internet" and tiene_internet_fijo(servicio_abo))
                 or elec0 == "facturacion"
@@ -3419,6 +3503,81 @@ def procesar_mensaje_entrante(
 
     # Saldo/pago/OV con cuenta identificada: respuesta fija (sin LLM).
     if abonado:
+        intencion_ctx = (ctx.get("intencion") or "").strip()
+        if intencion_ctx == "baja_servicio" and acepta_derivacion_clara(texto):
+            tid = _crear_ticket_n2(
+                db,
+                org_id,
+                conv,
+                abonado,
+                "Baja — derivación comercial aceptada",
+                intencion="baja_servicio",
+                paso_idx=int(ctx.get("paso_idx") or 0),
+                ctx=ctx,
+            )
+            resp = _mensaje_cierre_escalamiento(
+                tid,
+                motivo="Baja — derivación comercial aceptada",
+                mensaje_ia="",
+                nota_temas=_nota_temas_pendientes(ctx),
+                intencion="baja_servicio",
+            )
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "espera_agente",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "ticket_id": tid,
+                "intencion": "baja_servicio",
+            }
+        if intencion_ctx == "baja_servicio" and (
+            cliente_imposibilidad_pago(texto) or solicita_baja_servicio(texto)
+        ):
+            if ctx.get("baja_impago_rep") or acepta_derivacion_clara(texto):
+                ctx.pop("baja_impago_rep", None)
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                tid = _crear_ticket_n2(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    "Baja con deuda — gestión comercial",
+                    intencion="baja_servicio",
+                    paso_idx=int(ctx.get("paso_idx") or 0),
+                    ctx=ctx,
+                )
+                resp = _mensaje_cierre_escalamiento(
+                    tid,
+                    motivo="Baja con deuda — gestión comercial",
+                    mensaje_ia="",
+                    nota_temas=_nota_temas_pendientes(ctx),
+                    intencion="baja_servicio",
+                )
+                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+                return {
+                    "ok": True,
+                    "modo": "espera_agente",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                    "ticket_id": tid,
+                    "intencion": "baja_servicio",
+                }
+            ctx["baja_impago_rep"] = True
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return _iniciar_flujo_baja_servicio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+            )
         from app.services.diagnostico_n1 import (
             _cliente_consulta_saldo,
             _cliente_pendiente_pago_o_corte,
@@ -3480,6 +3639,19 @@ def procesar_mensaje_entrante(
     intencion = ctx.get("intencion") or ""
     servicio_abo = abonado.servicio if abonado else ""
 
+    if intencion == "corte_deuda" and (
+        solicita_baja_servicio(texto) or cliente_imposibilidad_pago(texto)
+    ):
+        return _iniciar_flujo_baja_servicio(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+        )
+
     # Menú ya se resolvió más arriba (antes de pide_humano)
 
     # Saludo corto: menú según padrón, sin deuda ni diagnóstico
@@ -3526,6 +3698,16 @@ def procesar_mensaje_entrante(
 
     # Aviso de deuda antes de diagnóstico técnico: esperar elección pago vs seguir
     if intencion == "aviso_deuda":
+        if solicita_baja_servicio(texto) or cliente_imposibilidad_pago(texto):
+            return _iniciar_flujo_baja_servicio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+            )
         if _debe_explicar_sin_internet(
             abonado, texto, str(ctx.get("intencion_tecnica_pendiente") or "")
         ):
@@ -3846,6 +4028,16 @@ def procesar_mensaje_entrante(
                 "intencion": "multi_tema",
             }
         intencion = clasificar_intencion(texto, servicio_abo)
+        if intencion == "baja_servicio":
+            return _iniciar_flujo_baja_servicio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+            )
         if _debe_explicar_sin_internet(abonado, texto, intencion):
             ctx["intencion"] = "general"
             ctx["paso_idx"] = 0

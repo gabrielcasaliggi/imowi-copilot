@@ -403,6 +403,10 @@ def test_menu_consulta_segun_padron():
     assert parse_menu_servicio("telefonía móvil") == "movil"
     assert parse_menu_servicio("factura") == "facturacion"
     assert parse_menu_servicio("internet fibra") == "internet"
+    assert (
+        parse_menu_servicio("Quiero dar de baja todo el internet la aplicación sensa")
+        == "comercial"
+    )
     assert parse_menu_tipo_consulta("técnico") == "tecnico"
     assert parse_menu_tipo_consulta("comercial") == "comercial"
     assert parse_menu_tipo_consulta("administrativo facturación") == "facturacion"
@@ -412,6 +416,8 @@ def test_aviso_deuda_no_interpreta_no_tengo_internet_como_diagnostico():
 
     assert _elige_pago_o_tecnico("no tengo internet") is None
     assert _elige_pago_o_tecnico("seguimos con internet") == "tecnico"
+    assert _elige_pago_o_tecnico("saque todo xq se fue demaciado mucho para pagar") is None
+    assert _elige_pago_o_tecnico("quiero pagar") == "pago"
 
 
 def test_pon_verde_no_pide_cable_amarillo(monkeypatch):

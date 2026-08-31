@@ -1,6 +1,6 @@
 """Entrenamiento exhaustivo N1 — reemplazo del barrido manual de ~2 semanas.
 
-Corre el lote hogareño del guion (P01–P28) + corporativo (C01–C04) contra la
+Corre el lote hogareño del guion (P01–P29) + corporativo (C01–C04) contra la
 API local (TestClient). Métrica de corte: **0 N2 evitables**.
 
 No sustituye la prueba con cliente real (typos, síntomas confusos, ruido).
@@ -48,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
         "--lote",
         default="exhaustivo",
         choices=sorted(LOTES.keys()),
-        help="Lote hogareño (default: exhaustivo = P01–P28)",
+        help="Lote hogareño (default: exhaustivo = P01–P29)",
     )
     parser.add_argument(
         "--solo",

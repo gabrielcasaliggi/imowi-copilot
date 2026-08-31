@@ -1,96 +1,40 @@
 {
   "personas": 1,
-  "ok": 0,
-  "n2_evitables": 1,
-  "n2_legitimos": 0,
-  "tasa_ok": 0.0,
+  "ok": 1,
+  "n2_evitables": 0,
+  "n2_legitimos": 1,
+  "tasa_ok": 1.0,
   "detalle": [
     {
-      "persona_id": "P25",
-      "nombre": "Fijo sin tono",
-      "n2_esperado": "nunca",
+      "persona_id": "P29",
+      "nombre": "Karina — baja con deuda impagable",
+      "n2_esperado": "legitimo_comercial",
       "ticket_creado": true,
-      "ticket_id": "IBOT-1129",
+      "ticket_id": "IBOT-1191",
       "estado_final": "espera_agente",
-      "intencion_final": "telefono_fija",
-      "turnos": 8,
-      "n2_evitable": true,
-      "n2_legitimo": false,
-      "ok": false,
-      "fallas": [
-        "N2 evitable: esta persona debía resolverse en N1"
-      ],
+      "intencion_final": "baja_servicio",
+      "turnos": 2,
+      "n2_evitable": false,
+      "n2_legitimo": true,
+      "ok": true,
+      "fallas": [],
       "transcript": [
         {
           "rol": "usuario",
-          "texto": "No anda el fijo, sin tono"
+          "texto": "Quiero dar de baja todo el internet la aplicación sensa todo"
         },
         {
           "rol": "bot",
-          "texto": "¿Te pasa en todos los teléfonos de la casa o solo en uno?",
+          "texto": "Entiendo que querés dar de baja el servicio. Si tenés fibra, la baja se toma con el equipo (ONT/router) en mano. Si no podés acercarte, puede ir otra persona con una nota firmada del titular autorizándola, con los datos de ambos. Desenchufar o apagar el equipo no da de baja el servicio: sigue activo en sistema hasta la gestión formal. ¿Es baja total o solo de internet, Sensa/app u otro producto?",
           "estado": "bot"
         },
         {
           "rol": "usuario",
-          "texto": "En todos los fijos de la casa"
+          "texto": "Saque todo xq se fue demaciado mucho para pagar"
         },
         {
           "rol": "bot",
-          "texto": "¿El cable está bien enchufado en la toma de la pared?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Sí, el cable está bien enchufado"
-        },
-        {
-          "rol": "bot",
-          "texto": "Si podés, ¿probaste otro aparato en esa misma toma?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Probé otro teléfono en la misma toma y tampoco"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿Hay ruido o estática en la línea al escuchar?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "No, no hay ruido ni estática"
-        },
-        {
-          "rol": "bot",
-          "texto": "¿En esa misma línea tenés internet ADSL? Si sí, no saques el splitter/filtros.",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "No, en esa línea no tengo ADSL"
-        },
-        {
-          "rol": "bot",
-          "texto": "Si sigue igual te derivo con N° de línea, tono sí/no y si hay ruido. ¿Abrimos el ticket?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Prefiero seguir acá un poco más"
-        },
-        {
-          "rol": "bot",
-          "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue igual te derivo con N° de línea, tono sí/no y si hay ruido. ¿Abrimos el ticket?",
-          "estado": "bot"
-        },
-        {
-          "rol": "usuario",
-          "texto": "Prefiero seguir acá un poco más"
-        },
-        {
-          "rol": "bot",
-          "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1129. Quedate en este chat.",
+          "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1191. Te van a responder por este mismo chat.",
           "estado": "espera_agente"
         }
       ]

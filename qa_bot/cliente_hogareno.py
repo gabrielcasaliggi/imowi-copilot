@@ -86,6 +86,7 @@ class Hechos:
     reply_menu_typo: str = ""
     tema_fijo: bool = False
     tema_comercial: str = ""  # alta | baja | plan
+    deuda_impagable: bool = False
 
 
 @dataclass
@@ -509,6 +510,19 @@ PERSONAS: list[Persona] = [
             apertura="Quiero contratar internet fibra en Batán",
         ),
     ),
+    Persona(
+        id="P29",
+        nombre="Karina — baja con deuda impagable",
+        descripcion="Baja internet+Sensa; no puede pagar; N2 comercial legítimo.",
+        n2_esperado="legitimo_comercial",
+        dni="27333444",
+        max_turnos=8,
+        hechos=Hechos(
+            tema_comercial="baja",
+            deuda_impagable=True,
+            apertura="Quiero dar de baja todo el internet la aplicación sensa todo",
+        ),
+    ),
 ]
 
 
@@ -533,8 +547,39 @@ def responder_como_cliente(
     if h.pide_agente_insistente:
         return "quiero hablar con un agente"
 
-    # —— Alta / comercial (P28) ——
+    # —— Alta / comercial (P28, P29) ——
     if h.tema_comercial:
+        if h.tema_comercial == "baja":
+            if any(
+                k in q
+                for k in (
+                    "agente",
+                    "deriv",
+                    "comercial",
+                    "te derivo",
+                    "pasame con",
+                    "querés que te derive",
+                    "quieres que te derive",
+                )
+            ):
+                return "Sí, pasame con comercial por favor"
+            if h.deuda_impagable and any(
+                k in q
+                for k in (
+                    "deuda",
+                    "saldo",
+                    "pagar",
+                    "cero",
+                    "derive",
+                    "comercial",
+                    "equipo",
+                    "desenchuf",
+                )
+            ):
+                return "Saque todo xq se fue demaciado mucho para pagar"
+            if any(k in q for k in ("baja", "internet", "sensa", "producto", "total")):
+                return "La baja del internet y la aplicación Sensa, todo"
+            return "Quiero dar de baja todo el internet la aplicación sensa todo"
         if any(k in q for k in ("agente", "deriv", "ticket", "comercial")):
             if turno >= 2:
                 return "Sí, pasame con comercial por favor"
@@ -1142,6 +1187,22 @@ def evaluar_resultado(
             if ticket:
                 n2_evitable = True
                 n2_legitimo = False
+    elif persona.n2_esperado == "legitimo_comercial":
+        if persona.id == "P29":
+            if "ov.batan.coop/#/pagar" in bot_blob or "qr fiserv" in bot_blob:
+                fallas.append("P29: ofreció pago a quien no puede pagar")
+            if "diagnóstico de internet" in bot_blob or "diagnostico de internet" in bot_blob:
+                fallas.append("P29: rutó a diagnóstico técnico en lugar de baja")
+            if "no reconocés" in bot_blob or "no reconoces" in bot_blob:
+                fallas.append("P29: confundió con reclamo de factura")
+        if ticket:
+            n2_legitimo = True
+            if turno_ticket is not None and turno_ticket == 0:
+                n2_evitable = True
+                n2_legitimo = False
+                fallas.append("N2 prematuro en baja comercial")
+        elif len(turnos) >= persona.max_turnos:
+            fallas.append("P29: no ofreció handoff comercial tras baja+deuda")
     elif persona.n2_esperado == "segunda_insistencia":
         if ticket and turno_ticket is not None and turno_ticket == 0:
             n2_evitable = True
@@ -1173,6 +1234,9 @@ def evaluar_resultado(
         ok = True
         fallas = [f for f in fallas if "no ofreció handoff" not in f]
     if persona.n2_esperado == "post_n1_fija" and ticket and not n2_evitable:
+        ok = True
+        fallas = [f for f in fallas if "no ofreció handoff" not in f]
+    if persona.n2_esperado == "legitimo_comercial" and ticket and not n2_evitable:
         ok = True
         fallas = [f for f in fallas if "no ofreció handoff" not in f]
     if persona.n2_esperado == "segunda_insistencia" and ticket and not n2_evitable:

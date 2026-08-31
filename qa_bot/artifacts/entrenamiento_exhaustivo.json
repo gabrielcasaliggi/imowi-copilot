@@ -1,19 +1,19 @@
 {
-  "started_at": "2026-08-31T11:35:21.405683+00:00",
-  "finished_at": "2026-08-31T11:35:51.268836+00:00",
+  "started_at": "2026-08-31T12:43:08.792217+00:00",
+  "finished_at": "2026-08-31T12:43:33.610904+00:00",
   "lote_hogar": "exhaustivo",
   "metricas": {
-    "personas": 32,
-    "ok": 32,
+    "personas": 29,
+    "ok": 29,
     "n2_evitables": 0,
-    "n2_legitimos": 9,
+    "n2_legitimos": 8,
     "tasa_ok": 1.0
   },
   "hogar": {
-    "personas": 28,
-    "ok": 28,
+    "personas": 29,
+    "ok": 29,
     "n2_evitables": 0,
-    "n2_legitimos": 7,
+    "n2_legitimos": 8,
     "tasa_ok": 1.0,
     "detalle": [
       {
@@ -127,7 +127,7 @@
         "nombre": "LOS roja",
         "n2_esperado": "optica",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1182",
+        "ticket_id": "IBOT-1199",
         "estado_final": "espera_agente",
         "intencion_final": "internet_ftth",
         "turnos": 2,
@@ -151,7 +151,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la luz verde, hace falta visita técnica. Generé el ticket IBOT-1182 y te derivo con un agente. Te van a responder por este mismo chat.",
+            "texto": "Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la luz verde, hace falta visita técnica. Generé el ticket IBOT-1199 y te derivo con un agente. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -373,7 +373,7 @@
         "nombre": "Radio techo",
         "n2_esperado": "post_n1_radio",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1183",
+        "ticket_id": "IBOT-1200",
         "estado_final": "espera_agente",
         "intencion_final": "internet_radio",
         "turnos": 7,
@@ -442,7 +442,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1183. Quedate en este chat.",
+            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1200. Quedate en este chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1215,7 +1215,7 @@
         "nombre": "Reclamo de monto",
         "n2_esperado": "legitimo_factura",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1184",
+        "ticket_id": "IBOT-1201",
         "estado_final": "espera_agente",
         "intencion_final": "facturacion",
         "turnos": 6,
@@ -1275,7 +1275,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1184. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1201. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1373,7 +1373,7 @@
         "nombre": "Sensa error de cuenta",
         "n2_esperado": "legitimo_sensa",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1185",
+        "ticket_id": "IBOT-1202",
         "estado_final": "espera_agente",
         "intencion_final": "tv_sensa",
         "turnos": 9,
@@ -1460,7 +1460,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1185. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1202. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1470,7 +1470,7 @@
         "nombre": "Móvil pack acreditado sin datos",
         "n2_esperado": "legitimo_provision_movil",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1186",
+        "ticket_id": "IBOT-1203",
         "estado_final": "espera_agente",
         "intencion_final": "movil_datos",
         "turnos": 5,
@@ -1521,7 +1521,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1186. Quedate en este chat.",
+            "texto": "Entiendo la molestia. Te derivo con un agente con el historial. Ticket IBOT-1203. Quedate en este chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1531,7 +1531,7 @@
         "nombre": "2ª insistencia mismo pedido de agente",
         "n2_esperado": "segunda_insistencia",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1187",
+        "ticket_id": "IBOT-1204",
         "estado_final": "espera_agente",
         "intencion_final": "",
         "turnos": 2,
@@ -1555,7 +1555,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Dale, te derivo con un agente y le paso lo que charlamos. Ticket IBOT-1187. Quedate en este chat.",
+            "texto": "Dale, te derivo con un agente y le paso lo que charlamos. Ticket IBOT-1204. Quedate en este chat.",
             "estado": "espera_agente"
           }
         ]
@@ -1809,7 +1809,7 @@
         "nombre": "Fijo sin tono",
         "n2_esperado": "post_n1_fija",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1188",
+        "ticket_id": "IBOT-1205",
         "estado_final": "espera_agente",
         "intencion_final": "telefono_fija",
         "turnos": 7,
@@ -1878,7 +1878,7 @@
           },
           {
             "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1188. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1205. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
@@ -2128,192 +2128,16 @@
             "estado": "bot"
           }
         ]
-      }
-    ]
-  },
-  "corporativo": {
-    "personas": 4,
-    "ok": 4,
-    "n2_evitables": 0,
-    "n2_legitimos": 2,
-    "tasa_ok": 1.0,
-    "detalle": [
-      {
-        "persona_id": "C01",
-        "nombre": "Cotización enlace",
-        "n2_esperado": "nunca",
-        "ticket_creado": false,
-        "ticket_id": "",
-        "estado_final": "bot",
-        "intencion_final": "ecolan_b2b",
-        "turnos": 10,
-        "n2_evitable": false,
-        "n2_legitimo": false,
-        "ok": true,
-        "fallas": [],
-        "transcript": [
-          {
-            "rol": "usuario",
-            "texto": "Hola, necesito una cotización de enlace dedicado Ecolan para una sucursal"
-          },
-          {
-            "rol": "bot",
-            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
-          },
-          {
-            "rol": "bot",
-            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "A toda la sede / sucursal"
-          },
-          {
-            "rol": "bot",
-            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Es solo cotización, no hay urgencia ni caída"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Ya probé y sigue igual"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
-          },
-          {
-            "rol": "bot",
-            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
-          },
-          {
-            "rol": "bot",
-            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
-          },
-          {
-            "rol": "bot",
-            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
-          },
-          {
-            "rol": "bot",
-            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No abras ticket técnico; pasame contacto comercial si podés"
-          },
-          {
-            "rol": "bot",
-            "texto": "Para seguir ayudándote necesito un poco más de detalle. Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          }
-        ]
       },
       {
-        "persona_id": "C02",
-        "nombre": "VPN un usuario",
-        "n2_esperado": "nunca",
-        "ticket_creado": false,
-        "ticket_id": "",
-        "estado_final": "cerrado",
-        "intencion_final": "ecolan_b2b",
-        "turnos": 5,
-        "n2_evitable": false,
-        "n2_legitimo": false,
-        "ok": true,
-        "fallas": [],
-        "transcript": [
-          {
-            "rol": "usuario",
-            "texto": "No me conecta la VPN de la sucursal Ecolan, solo a mí"
-          },
-          {
-            "rol": "bot",
-            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Prefiero seguir acá un poco más"
-          },
-          {
-            "rol": "bot",
-            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Solo a un usuario, el resto anda"
-          },
-          {
-            "rol": "bot",
-            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Sí, está caído ahora y hay impacto operativo"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Desde el hotspot del celular la VPN ya funciona; solo falla en mi PC, el resto de la oficina anda"
-          },
-          {
-            "rol": "bot",
-            "texto": "De nada Pedro. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
-            "estado": "cerrado"
-          }
-        ]
-      },
-      {
-        "persona_id": "C03",
-        "nombre": "Enlace sede caída",
-        "n2_esperado": "legitimo",
+        "persona_id": "P29",
+        "nombre": "Karina — baja con deuda impagable",
+        "n2_esperado": "legitimo_comercial",
         "ticket_creado": true,
-        "ticket_id": "IBOT-1189",
+        "ticket_id": "IBOT-1206",
         "estado_final": "espera_agente",
-        "intencion_final": "ecolan_b2b",
-        "turnos": 6,
+        "intencion_final": "baja_servicio",
+        "turnos": 3,
         "n2_evitable": false,
         "n2_legitimo": true,
         "ok": true,
@@ -2321,131 +2145,35 @@
         "transcript": [
           {
             "rol": "usuario",
-            "texto": "Se nos cayó el enlace dedicado de la sucursal, no hay internet en toda la oficina"
+            "texto": "Quiero dar de baja todo el internet la aplicación sensa todo"
           },
           {
             "rol": "bot",
-            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+            "texto": "Entiendo que querés dar de baja el servicio. Si tenés fibra, la baja se toma con el equipo (ONT/router) en mano. Si no podés acercarte, puede ir otra persona con una nota firmada del titular autorizándola, con los datos de ambos. Desenchufar o apagar el equipo no da de baja el servicio: sigue activo en sistema hasta la gestión formal. ¿Es baja total o solo de internet, Sensa/app u otro producto?",
             "estado": "bot"
           },
           {
             "rol": "usuario",
-            "texto": "Prefiero seguir acá un poco más"
+            "texto": "Saque todo xq se fue demaciado mucho para pagar"
           },
           {
             "rol": "bot",
-            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+            "texto": "Entiendo que querés dar de baja el servicio. Si tenés fibra, la baja se toma con el equipo (ONT/router) en mano. Si no podés acercarte, puede ir otra persona con una nota firmada del titular autorizándola, con los datos de ambos. Desenchufar o apagar el equipo no da de baja el servicio: sigue activo en sistema hasta la gestión formal. Si no podés abonar ahora, un agente comercial puede orientarte sobre la deuda y la baja. ¿Querés que te derive?",
             "estado": "bot"
           },
           {
             "rol": "usuario",
-            "texto": "A toda la sede / sucursal"
+            "texto": "Sí, pasame con comercial por favor"
           },
           {
             "rol": "bot",
-            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Sí, está caído ahora y hay impacto operativo"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Reinicié el CPE y sigue caído en toda la oficina; por hotspot celular sí salgo"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Sí, derivame con Ecolan por favor"
-          },
-          {
-            "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1189. Te van a responder por este mismo chat.",
-            "estado": "espera_agente"
-          }
-        ]
-      },
-      {
-        "persona_id": "C04",
-        "nombre": "VM DC impacto",
-        "n2_esperado": "legitimo",
-        "ticket_creado": true,
-        "ticket_id": "IBOT-1190",
-        "estado_final": "espera_agente",
-        "intencion_final": "ecolan_b2b",
-        "turnos": 6,
-        "n2_evitable": false,
-        "n2_legitimo": true,
-        "ok": true,
-        "fallas": [],
-        "transcript": [
-          {
-            "rol": "usuario",
-            "texto": "Tenemos una VM en el data center de Ecolan que no responde, impacto productivo"
-          },
-          {
-            "rol": "bot",
-            "texto": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Prefiero seguir acá un poco más"
-          },
-          {
-            "rol": "bot",
-            "texto": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Afecta el servicio en producción"
-          },
-          {
-            "rol": "bot",
-            "texto": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Sí, está caído ahora y hay impacto operativo"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si está caído: ¿probaste desde otro enlace o hotspot celular, y reiniciar el CPE del enlace? Contame qué pasó.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "No es tema de WiFi de casa, es la VM en el DC"
-          },
-          {
-            "rol": "bot",
-            "texto": "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
-            "estado": "bot"
-          },
-          {
-            "rol": "usuario",
-            "texto": "Sí, derivame con Ecolan por favor"
-          },
-          {
-            "rol": "bot",
-            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1190. Te van a responder por este mismo chat.",
+            "texto": "Con lo que me contaste ya hace falta un agente. Generé el ticket IBOT-1206. Te van a responder por este mismo chat.",
             "estado": "espera_agente"
           }
         ]
       }
     ]
   },
+  "corporativo": null,
   "nota": "0 N2 evitables = corte del entrenamiento automatizado. Clientes reales (typos, síntomas ambiguos) siguen siendo la prueba final."
 }
