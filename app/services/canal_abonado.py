@@ -325,7 +325,7 @@ def _responder_seleccion_cuenta_internet(
     if not indica_multi and not (pendiente and sintoma):
         return None
 
-    msg = bt.mensaje_seleccion_cuenta_internet(logins, repregunta=pendiente and not indica_multi)
+    msg = bt.mensaje_seleccion_cuenta_internet(servicios, repregunta=pendiente and not indica_multi)
     ctx["multi_cuenta_pendiente"] = True
     cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     if "seleccion_cuenta_internet" not in cub:
@@ -384,7 +384,7 @@ def _responder_consulta_senal_antena(
     logins = bt.listar_logins_conectividad(servicios)
 
     if not login and len(logins) > 1:
-        msg = bt.mensaje_seleccion_cuenta_internet(logins)
+        msg = bt.mensaje_seleccion_cuenta_internet(servicios)
         ctx["multi_cuenta_pendiente"] = True
         crepo.set_contexto(conv, ctx)
         db.commit()

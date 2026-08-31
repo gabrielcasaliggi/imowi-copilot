@@ -552,6 +552,9 @@ def extraer_login_en_texto(texto: str, servicios: list[Any] | None = None) -> st
     m = _RE_LOGIN_RADIUS.search(raw)
     if m:
         return m.group(1)
+    login_dom = extraer_login_por_domicilio(texto, servicios)
+    if login_dom:
+        return login_dom
     return ""
 
 
@@ -583,22 +586,105 @@ def listar_logins_conectividad(servicios: list[Any] | None) -> list[str]:
     return out
 
 
+def formatear_localidad_servicio(locality: str) -> str:
+    """Texto legible para el abonado (BillTrack api_service.locality)."""
+    raw = " ".join((locality or "").replace("_", " ").split()).strip()
+    if not raw:
+        return ""
+    # «PARAJE LOS ORTIZ - BATAN» → «Paraje los Ortiz, Batán»
+    parts = [p.strip() for p in re.split(r"\s*[-–/]\s*", raw) if p.strip()]
+    titulo = []
+    for p in parts:
+        low = p.lower()
+        if low in ("batan", "batán", "mdp", "mar del plata"):
+            titulo.append(p.title() if low != "mdp" else "Mar del Plata")
+        else:
+            titulo.append(p.title())
+    return ", ".join(titulo) if len(titulo) > 1 else (titulo[0] if titulo else raw.title())
+
+
+def _partes_localidad_busqueda(locality: str) -> list[str]:
+    """Fragmentos distintivos para matchear domicilio en texto del abonado."""
+    loc = formatear_localidad_servicio(locality).lower()
+    if not loc:
+        return []
+    partes: list[str] = []
+    for chunk in re.split(r"[,–\-/]", loc):
+        chunk = chunk.strip()
+        if len(chunk) >= 4:
+            partes.append(chunk)
+    # Subfrases útiles: «mar del plata», «los ortiz», «ruta 226»
+    for m in re.finditer(r"\b(?:ruta|km|paraje|camino)\s+[\w\s\d]{3,}", loc):
+        partes.append(m.group(0).strip())
+    genericos = {"batan", "batán", "mdp"}
+    out: list[str] = []
+    for p in partes:
+        if p in genericos:
+            continue
+        if p not in out:
+            out.append(p)
+    if not out and loc:
+        out.append(loc)
+    return out
+
+
+def extraer_login_por_domicilio(texto: str, servicios: list[Any] | None = None) -> str:
+    """Resuelve cuenta por mención de dirección/localidad."""
+    t = (texto or "").lower().strip()
+    if not t or not servicios:
+        return ""
+    matches: list[str] = []
+    for svc in servicios:
+        login = str(getattr(svc, "login", "") or "").strip()
+        if not login:
+            continue
+        loc_raw = str(getattr(svc, "locality", "") or "").strip()
+        loc_fmt = formatear_localidad_servicio(loc_raw).lower()
+        if loc_fmt and (loc_fmt in t or t in loc_fmt):
+            matches.append(login)
+            continue
+        for parte in _partes_localidad_busqueda(loc_raw):
+            if len(parte) >= 4 and parte in t:
+                matches.append(login)
+                break
+    uniq = list(dict.fromkeys(matches))
+    return uniq[0] if len(uniq) == 1 else ""
+
+
+def linea_cuenta_internet(svc: Any) -> str:
+    """Una línea: usuario + plan + domicilio."""
+    from app.services.velocidad_plan import extraer_mbps_plan
+
+    login = str(getattr(svc, "login", "") or "").strip()
+    if not login:
+        return ""
+    mbps = extraer_mbps_plan(
+        str(getattr(svc, "product", "") or ""),
+        str(getattr(svc, "label", "") or ""),
+    )
+    cab = f"{login} ({int(mbps)} Mb)" if mbps else login
+    loc = formatear_localidad_servicio(str(getattr(svc, "locality", "") or ""))
+    if loc:
+        return f"• {cab} — {loc}"
+    return f"• {cab}"
+
+
 def mensaje_seleccion_cuenta_internet(
-    logins: list[str],
+    servicios: list[Any] | None,
     *,
     repregunta: bool = False,
 ) -> str:
-    cuentas = ", ".join(logins)
-    if repregunta:
-        return (
-            f"¿Cuál de estas cuentas tiene el problema? {cuentas}. "
-            "Decime el usuario (ej. tupaciretacuidaBAI)."
-        )
-    n = len(logins)
-    return (
-        f"Veo que tenés {n} cuentas de internet: {cuentas}. "
-        "¿Con cuál tenés el problema? Decime el usuario (ej. tupaciretacuidaBAI)."
+    svcs = [s for s in (servicios or []) if str(getattr(s, "login", "") or "").strip()]
+    lineas = [ln for s in svcs if (ln := linea_cuenta_internet(s))]
+    n = len(lineas)
+    cuerpo = "\n".join(lineas) if lineas else ", ".join(listar_logins_conectividad(svcs))
+    pie = (
+        "¿Con cuál tenés el problema? Podés decirme el usuario o la dirección "
+        "(ej. tupaciretacuidaBAI o Mar del Plata)."
     )
+    if repregunta:
+        return f"¿Cuál de estas cuentas tiene el problema?\n{cuerpo}\n{pie}"
+    return f"Veo que tenés {n} cuentas de internet:\n{cuerpo}\n{pie}"
 
 
 def _billtrack_engine(db: Session | None = None):

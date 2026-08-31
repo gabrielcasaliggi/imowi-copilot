@@ -18,6 +18,7 @@ def _servicios_tupacireta() -> list[ServicioConectividad]:
             service_type_code="INTBA",
             service_type_label="ACCESO INTERNET INALAMBRICO",
             product="Internet acceso Bai Hogar 10MB",
+            locality="Paraje los Ortiz - BATAN",
             service_on=True,
         ),
         ServicioConectividad(
@@ -25,6 +26,7 @@ def _servicios_tupacireta() -> list[ServicioConectividad]:
             service_type_code="INTBA",
             service_type_label="ACCESO INTERNET INALAMBRICO",
             product="Internet acceso Bai Hogar 10MB",
+            locality="RUTA 226 KM 16 CAMINO A LOS HORTIZ - MAR DEL PLATA",
             service_on=True,
         ),
         ServicioConectividad(
@@ -32,6 +34,7 @@ def _servicios_tupacireta() -> list[ServicioConectividad]:
             service_type_code="INTBA",
             service_type_label="ACCESO INTERNET INALAMBRICO",
             product="Internet acceso Bai Hogar 15MB",
+            locality="PARAJE LOS ORTIZ - BATAN",
             service_on=True,
         ),
     ]
@@ -42,9 +45,24 @@ def test_extraer_login_en_texto_multi_cuenta():
     assert bt.extraer_login_en_texto("problemas con tupaciretacuidaBAI", svcs) == "tupaciretacuidaBAI"
     assert bt.extraer_login_en_texto("  tupaciretacuidaBAI ", svcs) == "tupaciretacuidaBAI"
     assert bt.extraer_login_en_texto("internet", svcs) == ""
+    assert bt.extraer_login_en_texto("la de mar del plata", svcs) == "tupaciretacuidaBAI"
+    assert bt.extraer_login_en_texto("los ortiz", svcs) == ""
 
 
-def test_resolver_login_unico_servicio():
+def test_mensaje_seleccion_cuenta_con_domicilio():
+    msg = bt.mensaje_seleccion_cuenta_internet(_servicios_tupacireta())
+    assert "3 cuentas" in msg
+    assert "tupaciretacuidaBAI" in msg
+    assert "Mar Del Plata" in msg or "Mar del Plata" in msg
+    assert "Paraje Los Ortiz" in msg or "Paraje los Ortiz" in msg
+    assert "dirección" in msg.lower() or "direccion" in msg.lower()
+    rep = bt.mensaje_seleccion_cuenta_internet(_servicios_tupacireta(), repregunta=True)
+    assert "Cuál de estas cuentas" in rep
+
+
+def test_mensaje_seleccion_cuenta():
+    msg = bt.mensaje_seleccion_cuenta_internet(_servicios_tupacireta())
+    assert "•" in msg
     svcs = [ServicioConectividad(login="soloBAI", service_type_code="INTBA", service_on=True)]
     assert bt.resolver_login_consulta("que señal tengo", svcs) == "soloBAI"
 
@@ -75,15 +93,6 @@ def test_cliente_indica_multi_cuenta():
         "el problema lo tengo con una de mis cuentas, porque son varias"
     )
     assert not cliente_indica_multi_cuenta_internet("lentitud")
-
-
-def test_mensaje_seleccion_cuenta():
-    logins = ["lemuramatiBAI", "tupaciretacuidaBAI", "tupaciretaBAI"]
-    msg = bt.mensaje_seleccion_cuenta_internet(logins)
-    assert "3 cuentas" in msg
-    assert "tupaciretacuidaBAI" in msg
-    rep = bt.mensaje_seleccion_cuenta_internet(logins, repregunta=True)
-    assert "Cuál de estas cuentas" in rep
 
 
 def test_responder_seleccion_cuenta_internet(monkeypatch):
@@ -123,6 +132,7 @@ def test_responder_seleccion_cuenta_internet(monkeypatch):
     assert out is not None
     assert out.get("seleccion_cuenta_internet") is True
     assert "tupaciretacuidaBAI" in sent[0]
+    assert "Mar Del Plata" in sent[0] or "Mar del Plata" in sent[0]
     assert ctx.get("multi_cuenta_pendiente") is True
 
     out2 = _responder_seleccion_cuenta_internet(
