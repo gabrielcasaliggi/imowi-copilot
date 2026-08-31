@@ -583,6 +583,24 @@ def listar_logins_conectividad(servicios: list[Any] | None) -> list[str]:
     return out
 
 
+def mensaje_seleccion_cuenta_internet(
+    logins: list[str],
+    *,
+    repregunta: bool = False,
+) -> str:
+    cuentas = ", ".join(logins)
+    if repregunta:
+        return (
+            f"¿Cuál de estas cuentas tiene el problema? {cuentas}. "
+            "Decime el usuario (ej. tupaciretacuidaBAI)."
+        )
+    n = len(logins)
+    return (
+        f"Veo que tenés {n} cuentas de internet: {cuentas}. "
+        "¿Con cuál tenés el problema? Decime el usuario (ej. tupaciretacuidaBAI)."
+    )
+
+
 def _billtrack_engine(db: Session | None = None):
     from app.config import BILLTRACK_ENABLED, es_produccion
 

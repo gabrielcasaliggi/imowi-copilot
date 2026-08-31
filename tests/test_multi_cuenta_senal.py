@@ -68,6 +68,77 @@ def test_informe_senal_incluye_dbm():
     assert "excelente" in msg
 
 
+def test_cliente_indica_multi_cuenta():
+    from app.domain.flujos_abonado import cliente_indica_multi_cuenta_internet
+
+    assert cliente_indica_multi_cuenta_internet(
+        "el problema lo tengo con una de mis cuentas, porque son varias"
+    )
+    assert not cliente_indica_multi_cuenta_internet("lentitud")
+
+
+def test_mensaje_seleccion_cuenta():
+    logins = ["lemuramatiBAI", "tupaciretacuidaBAI", "tupaciretaBAI"]
+    msg = bt.mensaje_seleccion_cuenta_internet(logins)
+    assert "3 cuentas" in msg
+    assert "tupaciretacuidaBAI" in msg
+    rep = bt.mensaje_seleccion_cuenta_internet(logins, repregunta=True)
+    assert "Cuál de estas cuentas" in rep
+
+
+def test_responder_seleccion_cuenta_internet(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from app.services.canal_abonado import _responder_seleccion_cuenta_internet
+
+    abo = SimpleNamespace(dni="30111222", client_number="2677")
+    conv = SimpleNamespace(id="c1", estado="bot", canal="whatsapp", telefono="5491", wa_id="5491")
+    ctx: dict = {}
+    db = MagicMock()
+    sent: list[str] = []
+
+    monkeypatch.setattr(
+        "app.services.canal_abonado._servicios_conectividad_abonado",
+        lambda _db, _abo: _servicios_tupacireta(),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda _db, _org, _conv, resp, **_k: sent.append(resp),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.set_contexto",
+        lambda _c, new_ctx: ctx.update(new_ctx),
+    )
+
+    out = _responder_seleccion_cuenta_internet(
+        db,
+        "org",
+        conv,
+        abo,
+        "el problema lo tengo con una de mis cuentas, porque son varias",
+        canal="whatsapp",
+        ctx=ctx,
+        intencion="internet",
+    )
+    assert out is not None
+    assert out.get("seleccion_cuenta_internet") is True
+    assert "tupaciretacuidaBAI" in sent[0]
+    assert ctx.get("multi_cuenta_pendiente") is True
+
+    out2 = _responder_seleccion_cuenta_internet(
+        db,
+        "org",
+        conv,
+        abo,
+        "lentitud",
+        canal="whatsapp",
+        ctx=ctx,
+        intencion="internet_lento",
+    )
+    assert out2 is not None
+    assert "Cuál de estas cuentas" in sent[1]
+
+
 def test_responder_consulta_senal_antena_mock_uisp(monkeypatch):
     from unittest.mock import MagicMock
 

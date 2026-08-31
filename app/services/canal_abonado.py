@@ -279,11 +279,71 @@ def _sincronizar_login_desde_mensaje(
     if login == prev:
         return login
     sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
+    ctx.pop("multi_cuenta_pendiente", None)
     cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     if "login_seleccionado" not in cub:
         cub.append("login_seleccionado")
     ctx["pasos_cubiertos"] = cub
     return login
+
+
+def _responder_seleccion_cuenta_internet(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Lista cuentas BAI/FTTH cuando el abonado tiene varias y no eligió usuario."""
+    from app.domain.flujos_abonado import (
+        cliente_indica_multi_cuenta_internet,
+        contiene_sintoma_canal,
+    )
+    from app.services import billtrack as bt
+    from app.services.diagnostico_n1 import es_intencion_diagnostico
+
+    if abonado is None or not es_intencion_diagnostico(intencion or ""):
+        return None
+
+    servicios = _servicios_conectividad_abonado(db, abonado)
+    logins = bt.listar_logins_conectividad(servicios)
+    if len(logins) <= 1:
+        return None
+    if bt.extraer_login_en_texto(texto, servicios) or ctx.get("login_seleccionado"):
+        return None
+
+    indica_multi = cliente_indica_multi_cuenta_internet(texto)
+    pendiente = bool(ctx.get("multi_cuenta_pendiente"))
+    t = (texto or "").lower()
+    sintoma = contiene_sintoma_canal(texto) or any(
+        k in t for k in ("lent", "lento", "lenta", "corte", "intermit", "wifi", "wi-fi")
+    )
+    if not indica_multi and not (pendiente and sintoma):
+        return None
+
+    msg = bt.mensaje_seleccion_cuenta_internet(logins, repregunta=pendiente and not indica_multi)
+    ctx["multi_cuenta_pendiente"] = True
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if "seleccion_cuenta_internet" not in cub:
+        cub.append("seleccion_cuenta_internet")
+    ctx["pasos_cubiertos"] = cub
+    ctx["ultima_diag_motivo"] = "seleccion_cuenta_internet"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "seleccion_cuenta_internet": True,
+    }
 
 
 def _responder_consulta_senal_antena(
@@ -324,10 +384,8 @@ def _responder_consulta_senal_antena(
     logins = bt.listar_logins_conectividad(servicios)
 
     if not login and len(logins) > 1:
-        msg = (
-            f"Tenés {len(logins)} cuentas de internet: {', '.join(logins)}. "
-            "¿Cuál querés consultar? Decime el usuario (ej. tupaciretacuidaBAI)."
-        )
+        msg = bt.mensaje_seleccion_cuenta_internet(logins)
+        ctx["multi_cuenta_pendiente"] = True
         crepo.set_contexto(conv, ctx)
         db.commit()
         _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
@@ -2865,6 +2923,12 @@ def _aplicar_diagnostico_ia(
     if abonado:
         _sincronizar_login_desde_mensaje(db, abonado, ctx, texto)
 
+    multi_cta = _responder_seleccion_cuenta_internet(
+        db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if multi_cta is not None:
+        return multi_cta
+
     senal_ant = _responder_consulta_senal_antena(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion
     )
@@ -4555,6 +4619,12 @@ def procesar_mensaje_entrante(
 
     if abonado:
         _sincronizar_login_desde_mensaje(db, abonado, ctx, texto)
+
+    multi_cta = _responder_seleccion_cuenta_internet(
+        db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""
+    )
+    if multi_cta is not None:
+        return multi_cta
 
     senal_ant = _responder_consulta_senal_antena(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""

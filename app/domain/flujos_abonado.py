@@ -2623,6 +2623,38 @@ def indica_resuelto(texto: str) -> bool:
     return False
 
 
+def cliente_indica_multi_cuenta_internet(texto: str) -> bool:
+    """Abonado tiene varias cuentas de internet y aún no nombró el usuario Radius."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "varias cuentas",
+            "varios servicios",
+            "son varias",
+            "tengo varias",
+            "tengo varios",
+            "mas de una cuenta",
+            "más de una cuenta",
+            "mas de un servicio",
+            "más de un servicio",
+            "una de mis cuentas",
+            "otra cuenta",
+            "alguna cuenta",
+            "cual cuenta",
+            "cuál cuenta",
+            "que cuenta",
+            "qué cuenta",
+            "multiples cuentas",
+            "múltiples cuentas",
+            "varias lineas",
+            "varias líneas",
+        )
+    )
+
+
 def cliente_pregunta_senal_antena(texto: str) -> bool:
     """Abonado pregunta por la señal/potencia de su antena CPE radio."""
     t = (texto or "").lower().strip()
