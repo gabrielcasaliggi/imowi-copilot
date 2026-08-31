@@ -1798,6 +1798,17 @@ def diagnosticar_turno(
             "motivo": "pon_verde_enlace_ok",
         }
 
+    from app.services.velocidad_plan import evaluar_speedtest_vs_plan
+
+    eval_vel = evaluar_speedtest_vs_plan(
+        mensaje_cliente,
+        historial_mensajes,
+        contexto_abonado,
+        intencion=intencion,
+    )
+    if eval_vel:
+        return eval_vel
+
     from app.services.eco_voice import (
         HISTORIAL_CHAT_MAX_MSGS,
         TEMPERATURE_N1,
@@ -2383,6 +2394,22 @@ def diagnosticar_turno(
                 mensaje = fb["mensaje"]
                 paso = fb.get("paso_cubierto") or paso
             motivo = "bloqueado_pregunta_pago"
+
+        if accion == "escalate" and not forzar_agente:
+            vel_ok = evaluar_speedtest_vs_plan(
+                mensaje_cliente,
+                historial_mensajes,
+                contexto_abonado,
+                intencion=intencion,
+            )
+            if vel_ok and vel_ok.get("motivo") in (
+                "velocidad_dentro_del_plan",
+                "velocidad_aceptable_vs_plan",
+            ):
+                accion = "ask"
+                motivo = "bloqueado_velocidad_dentro_del_plan"
+                mensaje = vel_ok["mensaje"]
+                paso = vel_ok.get("paso_cubierto") or paso or "test_velocidad"
 
         if not mensaje:
             fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)

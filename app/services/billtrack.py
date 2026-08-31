@@ -798,6 +798,19 @@ def ensure_local_abonado(
                 abo.servicio = "movil"
             else:
                 abo.servicio = ""
+    try:
+        from app.services.velocidad_plan import extraer_mbps_plan
+
+        inet = lookup_servicios_conectividad_por_dni(dni=dni_n, db=db)
+        svc = elegir_servicio_principal(inet)
+        if svc:
+            blob = " ".join(
+                x for x in (svc.product, svc.label) if str(x or "").strip()
+            ).strip()
+            if blob and (extraer_mbps_plan(blob) or not (abo.plan or "").strip()):
+                abo.plan = blob
+    except Exception:
+        logger.debug("No se pudo completar plan desde api_service", exc_info=True)
     db.commit()
     db.refresh(abo)
     return abo

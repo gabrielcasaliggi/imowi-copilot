@@ -93,6 +93,14 @@ class EstadoConexionPPPoE:
         )
         login = self.servicio.login or "(sin login)"
         parts = [f"tipo={tipo}", f"login={login}"]
+        producto = (self.servicio.product or self.servicio.label or "").strip()
+        if producto:
+            parts.append(f"producto={producto}")
+            from app.services.velocidad_plan import extraer_mbps_plan
+
+            mbps = extraer_mbps_plan(producto)
+            if mbps is not None:
+                parts.append(f"plan_mbps={mbps:g}")
         if self.sesion is None:
             if self.error:
                 parts.append(f"sesion=(sin dato — {self.error[:60]})")

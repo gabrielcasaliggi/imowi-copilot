@@ -446,6 +446,15 @@ def _talvez_mensaje_pppoe(
         if estado.sesion:
             ctx["pppoe_ip"] = estado.sesion.public_ip or ""
             ctx["pppoe_uptime"] = estado.sesion.uptime or ""
+        if estado.servicio:
+            from app.services.velocidad_plan import extraer_mbps_plan
+
+            prod = (estado.servicio.product or estado.servicio.label or "").strip()
+            if prod:
+                ctx["pppoe_producto"] = prod
+            mbps = extraer_mbps_plan(prod, estado.servicio.service_type_label)
+            if mbps is not None:
+                ctx["pppoe_plan_mbps"] = f"{mbps:g}"
 
         login = (estado.servicio.login if estado.servicio else "") or ""
         es_radio = (intencion or "").strip() == "internet_radio" or (
@@ -2725,6 +2734,10 @@ def _aplicar_diagnostico_ia(
         extras_ctx["uisp_resumen"] = str(ctx.get("uisp_resumen") or "")
     if ctx.get("uisp_triage"):
         extras_ctx["uisp_triage"] = str(ctx.get("uisp_triage") or "")
+    if ctx.get("pppoe_plan_mbps"):
+        extras_ctx["pppoe_plan_mbps"] = str(ctx.get("pppoe_plan_mbps") or "")
+    if ctx.get("pppoe_producto"):
+        extras_ctx["pppoe_producto"] = str(ctx.get("pppoe_producto") or "")
 
     result = diagnosticar_turno(
         intencion=intencion,

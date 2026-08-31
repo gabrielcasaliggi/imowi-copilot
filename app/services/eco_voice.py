@@ -26,8 +26,7 @@ OV_BATAN_AVISO_PAGO_URL = "https://ov.batan.coop/#/aviso-de-pago"
 
 # Una URL por línea para que el portal las muestre como links claros.
 TEXTO_OV_GESTIONES = (
-    f"Pagos y gestiones:\n{OV_BATAN_URL}\n"
-    f"Para pagar con DNI:\n{OV_BATAN_PAGAR_URL}"
+    f"Pagos y gestiones:\n{OV_BATAN_URL}\nPara pagar con DNI:\n{OV_BATAN_PAGAR_URL}"
 )
 
 # Plantilla fija N1 pagos — no depende del LLM (evita inventar CBU/adjuntos).
@@ -185,9 +184,7 @@ def servicio_cortado_desde_contexto(contexto_abonado: str | None) -> bool:
     """True si CONTEXTO_ABONADO indica corte/suspensión (no baja)."""
     import re
 
-    m = re.search(
-        r"estado_servicio:\s*([^\n]+)", contexto_abonado or "", flags=re.I
-    )
+    m = re.search(r"estado_servicio:\s*([^\n]+)", contexto_abonado or "", flags=re.I)
     if not m:
         return False
     e = (m.group(1) or "").strip().lower()
@@ -252,9 +249,7 @@ def mensaje_saldo_padron(
     monto = parse_monto(deuda_raw)
     debe = False
     if monto is None:
-        body = (
-            f"El saldo / última factura que figura es {texto_monto_ars(deuda_raw)}."
-        )
+        body = f"El saldo / última factura que figura es {texto_monto_ars(deuda_raw)}."
     elif monto > 0:
         debe = True
         body = f"El saldo / última factura pendiente es {texto_monto_ars(monto)}."
@@ -316,6 +311,8 @@ def enrich_contexto_desde_integraciones(
         "pppoe_nas": "",
         "pppoe_resumen": "",
         "pppoe_triage": "",
+        "pppoe_producto": "",
+        "pppoe_plan_mbps": "",
         "uisp_estado": "",
         "uisp_login": "",
         "uisp_sitio": "",
@@ -389,6 +386,19 @@ def build_contexto_abonado(
     nro = (integ.get("nro_asociado") or "").strip() or "(sin dato — integrar asociados)"
     servicio = str(getattr(abonado, "servicio", "") or "").strip() or "(sin dato)"
     plan = str(getattr(abonado, "plan", "") or "").strip() or "(sin dato)"
+    from app.services.velocidad_plan import extraer_mbps_plan, formatear_mbps
+
+    plan_mbps = extraer_mbps_plan(
+        integ.get("pppoe_plan_mbps") or "",
+        integ.get("pppoe_producto") or "",
+        plan,
+        pppoe_line,
+    )
+    if plan_mbps is None and (integ.get("pppoe_plan_mbps") or "").strip():
+        try:
+            plan_mbps = float(str(integ.get("pppoe_plan_mbps")).replace(",", "."))
+        except (TypeError, ValueError):
+            plan_mbps = None
     estado = str(getattr(abonado, "estado", "") or "").strip() or "(sin dato)"
     deuda = str(getattr(abonado, "deuda_monto", "") or "").strip() or "0"
     linea = str(getattr(abonado, "linea_msisdn", "") or "").strip() or "(sin dato)"
@@ -402,6 +412,14 @@ def build_contexto_abonado(
         f"- servicio: {servicio}",
         f"- servicios_contratados: {_etiqueta_servicios(servicio)}",
         f"- plan: {plan}",
+        *(
+            [
+                f"- plan_contratado: {formatear_mbps(plan_mbps)} Mbps",
+                f"- plan_mbps: {plan_mbps:g}",
+            ]
+            if plan_mbps
+            else []
+        ),
         f"- estado_servicio: {estado}",
         f"- deuda_monto: {deuda} (pesos argentinos / ARS — NUNCA dólares ni USD)",
         f"- linea: {linea}",
@@ -429,6 +447,9 @@ def build_contexto_abonado(
             "el dato real ni pidas reinicio de ONT si triage dice linea_ok.",
             "- Si uisp indica CPE radio, usá uisp_triage: no contradigas el estado de la antena. "
             "CPE fuera de línea → PoE/energía. Señal mala → línea de vista. Enlace OK → Wi‑Fi/router.",
+            "- Si hay plan_mbps, esa es la velocidad CONTRATADA. Un test ≥70% de ese valor "
+            "es NORMAL: no digas que está 'por debajo' ni derives a técnico. "
+            "«10M»/«10Mb» ES un resultado de test; no vuelvas a preguntar cuánto dio.",
         ]
     )
     return "\n".join(lines)
@@ -482,6 +503,14 @@ def system_prompt_eco_n1(
             "- NUNCA inventes una falla óptica ni uses plantillas de fibra en móvil, "
             "Sensa/TV, factura u otros temas.\n"
         )
+    reglas_plan = ""
+    if "plan_mbps" in ctx or "plan_contratado" in ctx:
+        reglas_plan = (
+            "- plan_mbps es la velocidad CONTRATADA (BillTrack). Si el test da ese valor "
+            "o ≥70%, la línea está OK: NO digas que está por debajo ni derives a técnico. "
+            "Explicá el plan y seguí por Wi‑Fi/equipos.\n"
+            "- Un «10M» o «10Mb» ES un resultado de speedtest; no preguntes de nuevo cuánto dio.\n"
+        )
     return (
         f"Sos {BOT_DISPLAY_NAME}, {assistant_tagline_mid()} de {PRODUCT_DISPLAY_NAME} "
         "(Cooperativa Batán / Ecolan + móvil IMOWI). "
@@ -501,6 +530,7 @@ def system_prompt_eco_n1(
         '{"accion":"ask"|"resolved"|"escalate","mensaje":"...","paso_cubierto":"id_o_vacio","motivo":"..."}\n\n'
         "Triaje N1 (sin tickets prematuros):\n"
         f"{reglas_optica}"
+        f"{reglas_plan}"
         f"- NO uses escalate hasta completar al menos {min_turnos_antes_escalar} turnos de "
         f"diagnóstico (ahora vas por el turno {turnos + 1}), salvo excepciones.\n"
         "- Si el cliente dice que NO tiene internet fijo / solo tiene móvil IMOWI, "

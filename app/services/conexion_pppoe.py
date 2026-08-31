@@ -287,6 +287,8 @@ def contexto_pppoe_para_abonado(
         "pppoe_nas": "",
         "pppoe_resumen": "",
         "pppoe_triage": "",
+        "pppoe_producto": "",
+        "pppoe_plan_mbps": "",
     }
     if abonado is None:
         return empty
@@ -314,6 +316,17 @@ def contexto_pppoe_para_abonado(
             or estado.servicio.product
             or estado.servicio.service_type_code
         )
+        if estado.servicio.product or estado.servicio.label:
+            out["pppoe_producto"] = (estado.servicio.product or estado.servicio.label).strip()
+        from app.services.velocidad_plan import extraer_mbps_plan
+
+        mbps = extraer_mbps_plan(
+            estado.servicio.product,
+            estado.servicio.label,
+            estado.servicio.service_type_label,
+        )
+        if mbps is not None:
+            out["pppoe_plan_mbps"] = f"{mbps:g}"
     if estado.sesion:
         out["pppoe_nas"] = estado.sesion.nas
         out["pppoe_ip"] = estado.sesion.public_ip
