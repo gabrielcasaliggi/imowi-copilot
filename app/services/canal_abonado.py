@@ -194,6 +194,53 @@ def _responder_confirmacion_mejora_wifi(
     }
 
 
+def _responder_paso_diagnostico_wifi(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Tras mover router/repetidor: preguntar si mejoró; no cerrar la consulta."""
+    from app.domain.flujos_abonado import (
+        contexto_diagnostico_wifi,
+        indica_paso_diagnostico_completado,
+        mensaje_confirmacion_paso_diagnostico_wifi,
+    )
+
+    historial = crepo.list_mensajes(db, conv.id)
+    if not contexto_diagnostico_wifi(historial, intencion=intencion):
+        return None
+    if not indica_paso_diagnostico_completado(texto, historial, intencion=intencion):
+        return None
+    msg = mensaje_confirmacion_paso_diagnostico_wifi(texto, historial)
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if "confirmacion_paso_wifi" not in cub:
+        cub.append("confirmacion_paso_wifi")
+    ctx["pasos_cubiertos"] = cub
+    ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
+    ctx["ultima_diag_motivo"] = "confirmacion_paso_diagnostico_wifi"
+    if (intencion or "").strip() == "internet":
+        ctx["intencion"] = "wifi"
+        intencion = "wifi"
+        conv.servicio_detectado = "wifi"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "diagnostico_ia": True,
+    }
+
+
 def _limpiar_ctx_outage(ctx: dict, *, preservar_resuelto_avisado: bool = False) -> None:
     avisado = ctx.get("outage_resuelto_avisado")
     for k in (
@@ -464,19 +511,18 @@ def _talvez_mensaje_pppoe(
         if login:
             try:
                 from app.services.conexion_uisp import (
+                    aplicar_uisp_a_ctx,
                     consultar_cpe_uisp,
                     es_servicio_radio,
                     mensaje_abonado_uisp,
                     resolve_uisp_client,
-                    triage_uisp_para_prompt,
                 )
 
                 if resolve_uisp_client(db) is not None:
                     if not es_radio:
                         es_radio = es_servicio_radio(estado.servicio)
                     cpe = consultar_cpe_uisp(login, db=db)
-                    ctx["uisp_resumen"] = cpe.resumen_prompt()
-                    ctx["uisp_triage"] = triage_uisp_para_prompt(cpe)
+                    aplicar_uisp_a_ctx(ctx, cpe)
                     msg_uisp = mensaje_abonado_uisp(cpe, es_radio=es_radio)
             except Exception:
                 logger.exception("UISP check falló en canal")
@@ -2611,7 +2657,19 @@ def _aplicar_diagnostico_ia(
             db, org_id, conv, abonado, ctx, canal=canal
         )
 
-    # Cierre primero: no seguir con ramas Wi‑Fi/PPPoE si el abonado ya resolvió
+    paso_wifi = _responder_paso_diagnostico_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if paso_wifi is not None:
+        return paso_wifi
+
+    conf_wifi = _responder_confirmacion_mejora_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if conf_wifi is not None:
+        return conf_wifi
+
+    # Cierre: no seguir con ramas Wi‑Fi/PPPoE si el abonado ya resolvió
     if indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto):
         return _cerrar_consulta_resuelta(
             db,
@@ -2624,12 +2682,6 @@ def _aplicar_diagnostico_ia(
                 f"{(texto or '').strip()[:200]}"
             ),
         )
-
-    conf_wifi = _responder_confirmacion_mejora_wifi(
-        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
-    )
-    if conf_wifi is not None:
-        return conf_wifi
 
     # Primer turno de internet: informar estado PPPoE real (no depender del LLM).
     pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion)
@@ -2734,6 +2786,10 @@ def _aplicar_diagnostico_ia(
         extras_ctx["uisp_resumen"] = str(ctx.get("uisp_resumen") or "")
     if ctx.get("uisp_triage"):
         extras_ctx["uisp_triage"] = str(ctx.get("uisp_triage") or "")
+    if ctx.get("uisp_signal_dbm"):
+        extras_ctx["uisp_signal_dbm"] = str(ctx.get("uisp_signal_dbm") or "")
+    if ctx.get("uisp_calidad_senal"):
+        extras_ctx["uisp_calidad_senal"] = str(ctx.get("uisp_calidad_senal") or "")
     if ctx.get("pppoe_plan_mbps"):
         extras_ctx["pppoe_plan_mbps"] = str(ctx.get("pppoe_plan_mbps") or "")
     if ctx.get("pppoe_producto"):
@@ -4283,6 +4339,12 @@ def procesar_mensaje_entrante(
                 "intencion": intencion,
             }
 
+    paso_wifi = _responder_paso_diagnostico_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion or ""
+    )
+    if paso_wifi is not None:
+        return paso_wifi
+
     conf_wifi = _responder_confirmacion_mejora_wifi(
         db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion or ""
     )
@@ -4867,6 +4929,12 @@ def procesar_mensaje_entrante(
             "ticket_id": tid,
             "intencion": intencion,
         }
+
+    paso_wifi = _responder_paso_diagnostico_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if paso_wifi is not None:
+        return paso_wifi
 
     # El abonado dice que ya quedó resuelto
     if indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto):

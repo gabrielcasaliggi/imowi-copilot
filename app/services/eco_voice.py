@@ -446,7 +446,8 @@ def build_contexto_abonado(
             "- Si pppoe indica conectado/desconectado, usá pppoe_triage: no contradigas "
             "el dato real ni pidas reinicio de ONT si triage dice linea_ok.",
             "- Si uisp indica CPE radio, usá uisp_triage: no contradigas el estado de la antena. "
-            "CPE fuera de línea → PoE/energía. Señal mala → línea de vista. Enlace OK → Wi‑Fi/router.",
+            "CPE fuera de línea → PoE/energía; si sigue offline, visita. Señal mala (< -75 dBm) → "
+            "visita para alinear/revisar antena. Enlace OK → Wi‑Fi/router.",
             "- Si hay plan_mbps, esa es la velocidad CONTRATADA. Un test ≥70% de ese valor "
             "es NORMAL: no digas que está 'por debajo' ni derives a técnico. "
             "«10M»/«10Mb» ES un resultado de test; no vuelvas a preguntar cuánto dio.",

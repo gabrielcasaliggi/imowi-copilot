@@ -6,14 +6,21 @@ El CPE se busca por `identification.name` = username Radius (login BillTrack).
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.uisp.client import UispNmsClient
+from app.uisp.client import UispNmsClient, clasificar_senal
 from app.uisp.contract import EstadoCpeUisp, RamaUisp
 
 logger = logging.getLogger("operations_hub")
+
+# Por debajo de -75 dBm la señal radio está fuera de parámetro → visita de campo.
+SENAL_RADIO_VISITA_DBM = -75
+SENAL_RADIO_IDEAL_DBM = -65
+
+_RE_SENAL_DBM = re.compile(r"senal=(-?\d+(?:\.\d+)?)\s*dBm", re.IGNORECASE)
 
 
 def resolve_uisp_client(db: Session | None = None) -> UispNmsClient | None:
@@ -38,11 +45,292 @@ def clasificar_rama_uisp(estado: EstadoCpeUisp) -> RamaUisp:
         return ""
     if estado.online is False:
         return "cpe_offline"
-    if estado.online is True and estado.calidad_senal == "mala":
+    if estado.online is True and requiere_visita_campo_por_senal(estado):
         return "senal_mala"
     if estado.online is True:
         return "enlace_ok"
     return ""
+
+
+def requiere_visita_campo_por_senal(estado: EstadoCpeUisp) -> bool:
+    """True si la telemetría UISP indica señal fuera de parámetro (< -75 dBm)."""
+    if not estado.encontrado or estado.online is not True:
+        return False
+    if estado.calidad_senal == "mala":
+        return True
+    if estado.signal_dbm is not None and estado.signal_dbm < SENAL_RADIO_VISITA_DBM:
+        return True
+    return False
+
+
+def requiere_visita_campo_antena(estado: EstadoCpeUisp) -> bool:
+    """Antena offline persistente o señal fuera de parámetro → visita técnica."""
+    if not estado.encontrado:
+        return False
+    if estado.online is False:
+        return True
+    return requiere_visita_campo_por_senal(estado)
+
+
+def _texto_calidad_senal(calidad: str, dbm: float | None) -> str:
+    if calidad == "buena":
+        return "excelente"
+    if calidad == "aceptable":
+        return "aceptable"
+    if calidad == "mala":
+        return "baja"
+    if dbm is not None and dbm >= SENAL_RADIO_IDEAL_DBM:
+        return "buena"
+    if dbm is not None and dbm >= SENAL_RADIO_VISITA_DBM:
+        return "aceptable"
+    if dbm is not None:
+        return "baja"
+    return "sin dato"
+
+
+def mensaje_informe_senal_antena(estado: EstadoCpeUisp) -> str:
+    """Responde cuánta señal tiene la antena y cuál es el rango ideal."""
+    if not estado.encontrado or estado.signal_dbm is None:
+        return (
+            "No pude leer la señal de tu antena en este momento. "
+            "¿El servicio no te anda en ningún dispositivo o solo por Wi‑Fi?"
+        )
+    dbm = estado.signal_dbm
+    calidad = estado.calidad_senal or clasificar_senal(dbm)
+    txt = _texto_calidad_senal(calidad, dbm)
+    return (
+        f"Tu antena está recibiendo {dbm:.0f} dBm, señal {txt}. "
+        f"Lo ideal es estar por encima de {SENAL_RADIO_IDEAL_DBM} dBm "
+        f"(excelente) o al menos por encima de {SENAL_RADIO_VISITA_DBM} dBm."
+    )
+
+
+def mensaje_visita_antena_por_senal(estado: EstadoCpeUisp) -> str:
+    """Deriva a agente para coordinar visita y revisar antena/alineación."""
+    sitio = f" hacia {estado.sitio}" if estado.sitio else ""
+    if estado.online is False:
+        return (
+            "Revisé tu antena en la red y no está en línea con la torre"
+            f"{sitio}. Con eso ya no alcanza seguir a distancia: te derivo con un agente "
+            "para coordinar una visita y revisar la antena, el PoE y el cableado."
+        )
+    dbm = estado.signal_dbm
+    calidad = estado.calidad_senal or (clasificar_senal(dbm) if dbm is not None else "")
+    detalle = ""
+    if dbm is not None:
+        detalle = f" ({dbm:.0f} dBm, señal {_texto_calidad_senal(calidad, dbm)})"
+    return (
+        f"Revisé tu antena: está en línea pero la señal está fuera de parámetro{detalle}. "
+        "Eso suele requerir revisar alineación, soporte o línea de vista en el domicilio. "
+        "Te derivo con un agente para coordinar una visita técnica."
+    )
+
+
+def aplicar_uisp_a_ctx(ctx: dict, cpe: EstadoCpeUisp) -> None:
+    """Persiste telemetría UISP en el contexto de la conversación."""
+    ctx["uisp_resumen"] = cpe.resumen_prompt()
+    ctx["uisp_triage"] = triage_uisp_para_prompt(cpe)
+    ctx["uisp_rama"] = clasificar_rama_uisp(cpe)
+    if cpe.signal_dbm is not None:
+        ctx["uisp_signal_dbm"] = f"{cpe.signal_dbm:g}"
+    if cpe.calidad_senal:
+        ctx["uisp_calidad_senal"] = cpe.calidad_senal
+    if cpe.online is True:
+        ctx["uisp_online"] = "1"
+    elif cpe.online is False:
+        ctx["uisp_online"] = "0"
+    if cpe.sitio:
+        ctx["uisp_sitio"] = cpe.sitio
+
+
+def parse_signal_dbm_desde_resumen(resumen: str) -> float | None:
+    m = _RE_SENAL_DBM.search(resumen or "")
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def parse_uisp_desde_contexto(contexto_abonado: str) -> dict[str, Any]:
+    """Extrae triage/señal del bloque CONTEXTO_ABONADO."""
+    ctx = contexto_abonado or ""
+    triage = ""
+    for line in ctx.splitlines():
+        low = line.strip().lower()
+        if low.startswith("- uisp_triage:"):
+            triage = line.split(":", 1)[1].strip()
+            break
+    resumen = ""
+    for line in ctx.splitlines():
+        low = line.strip().lower()
+        if low.startswith("- uisp:"):
+            resumen = line.split(":", 1)[1].strip()
+            break
+    signal = parse_signal_dbm_desde_resumen(resumen)
+    calidad = ""
+    m_cal = re.search(r"calidad=(buena|aceptable|mala)", resumen, re.IGNORECASE)
+    if m_cal:
+        calidad = m_cal.group(1).lower()
+    online: bool | None = None
+    if "estado=en_linea" in resumen or "estado=en linea" in resumen:
+        online = True
+    elif "estado=fuera_de_linea" in resumen or "estado=fuera de linea" in resumen:
+        online = False
+    return {
+        "triage": triage,
+        "resumen": resumen,
+        "signal_dbm": signal,
+        "calidad_senal": calidad,
+        "online": online,
+    }
+
+
+def estado_cpe_desde_contexto(contexto_abonado: str, *, login: str = "") -> EstadoCpeUisp:
+    parsed = parse_uisp_desde_contexto(contexto_abonado)
+    resumen = str(parsed.get("resumen") or "")
+    encontrado = bool(resumen) and "no encontrado" not in resumen.lower()
+    signal = parsed.get("signal_dbm")
+    calidad = str(parsed.get("calidad_senal") or "")
+    if not calidad and signal is not None:
+        calidad = clasificar_senal(signal)
+    return EstadoCpeUisp(
+        login=login,
+        encontrado=encontrado,
+        online=parsed.get("online"),
+        signal_dbm=signal,
+        calidad_senal=calidad,  # type: ignore[arg-type]
+    )
+
+
+def evaluar_turno_visita_antena_uisp(
+    *,
+    contexto_abonado: str,
+    mensaje_cliente: str,
+    historial_mensajes: list[Any] | None,
+    pasos_cubiertos: list[str],
+    turnos_diagnostico: int,
+    intencion: str,
+) -> dict[str, str] | None:
+    """Reglas determinísticas: señal/antena UISP → visita de campo vs seguir N1."""
+    from app.domain.flujos_abonado import (
+        cliente_pregunta_senal_antena,
+        indica_resuelto,
+        pide_humano,
+    )
+
+    if indica_resuelto(mensaje_cliente):
+        return None
+
+    parsed = parse_uisp_desde_contexto(contexto_abonado)
+    triage = str(parsed.get("triage") or "")
+    if not triage and not parsed.get("resumen"):
+        return None
+
+    es_radio = (intencion or "").strip() in (
+        "internet_radio",
+        "internet",
+        "internet_lento",
+        "internet_intermitente",
+    ) or any(k in triage for k in ("cpe_radio", "senal_mala", "offline"))
+    if not es_radio:
+        return None
+
+    # Enlace OK: no escalar por antena (sigue WiFi/router).
+    if "cpe_radio_enlace_ok" in triage and not requiere_visita_campo_por_senal(
+        estado_cpe_desde_contexto(contexto_abonado)
+    ):
+        if not cliente_pregunta_senal_antena(mensaje_cliente):
+            return None
+
+    estado = estado_cpe_desde_contexto(contexto_abonado)
+    turnos = max(0, int(turnos_diagnostico or 0))
+
+    if cliente_pregunta_senal_antena(mensaje_cliente) and estado.signal_dbm is not None:
+        msg = mensaje_informe_senal_antena(estado)
+        if requiere_visita_campo_por_senal(estado):
+            return {
+                "accion": "escalate",
+                "mensaje": f"{msg} {mensaje_visita_antena_por_senal(estado)}",
+                "paso_cubierto": "consulta_senal_antena",
+                "motivo": "uisp_consulta_senal_mala",
+            }
+        return {
+            "accion": "ask",
+            "mensaje": msg,
+            "paso_cubierto": "consulta_senal_antena",
+            "motivo": "uisp_consulta_senal",
+        }
+
+    offline = "cpe_radio_offline" in triage or estado.online is False
+    if offline:
+        t = (mensaje_cliente or "").lower()
+        poe_ok = any(
+            k in t
+            for k in (
+                "lucecita",
+                "luz del inyector",
+                "luz prend",
+                "po e",
+                "poe",
+                "inyect",
+            )
+        ) and any(k in t for k in ("si", "sí", "prend", "encend", "tiene luz", "esta prend"))
+        if poe_ok or "poe_antena" in pasos_cubiertos or turnos >= 2 or pide_humano(
+            mensaje_cliente
+        ):
+            return {
+                "accion": "escalate",
+                "mensaje": mensaje_visita_antena_por_senal(estado),
+                "paso_cubierto": "turno_campo_radio",
+                "motivo": "uisp_cpe_offline_visita",
+            }
+        return None
+
+    if not requiere_visita_campo_por_senal(estado):
+        return None
+
+    t = (mensaje_cliente or "").lower()
+    persistencia = any(
+        k in t
+        for k in (
+            "sigue sin",
+            "sigue igual",
+            "no anda",
+            "no mejora",
+            "no mejoró",
+            "no mejoro",
+            "sigue mal",
+            "sigue baja",
+            "sigue bajo",
+        )
+    )
+    if (
+        turnos >= 1
+        or persistencia
+        or pide_humano(mensaje_cliente)
+        or "linea_vista" in pasos_cubiertos
+        or "uisp_senal_mala" in pasos_cubiertos
+    ):
+        return {
+            "accion": "escalate",
+            "mensaje": mensaje_visita_antena_por_senal(estado),
+            "paso_cubierto": "turno_campo_radio",
+            "motivo": "uisp_senal_mala_visita",
+        }
+
+    if "uisp_senal_mala" not in pasos_cubiertos:
+        return {
+            "accion": "ask",
+            "mensaje": (
+                f"{mensaje_informe_senal_antena(estado)} "
+                "¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
+            ),
+            "paso_cubierto": "uisp_senal_mala",
+            "motivo": "uisp_senal_mala_linea_vista",
+        }
+    return None
 
 
 def consultar_cpe_uisp(
@@ -114,8 +402,8 @@ def mensaje_abonado_uisp(
         )
     if rama == "senal_mala":
         return (
-            "Revisé tu antena: está en línea con la torre, pero la señal está baja. "
-            "¿Sigue con vista libre, sin árboles, chapas o cosas nuevas adelante?"
+            "Revisé tu antena: está en línea con la torre, pero la señal está baja "
+            "(fuera de lo ideal). ¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
         )
     if rama == "enlace_ok":
         return (

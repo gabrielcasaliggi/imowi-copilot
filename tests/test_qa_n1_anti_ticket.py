@@ -1435,6 +1435,47 @@ def test_confirmacion_mejora_repetidor_no_es_cierre_ni_triaje_fibra():
     assert "repetidor" in resp or "probá" in resp or "probá conectarte" in resp
 
 
+def test_listo_ya_lo_movi_no_cierra_pregunta_mejora_wifi():
+    """Caso Vanesa: «listo ya lo moví» tras mover router ≠ cierre."""
+    from app.domain.flujos_abonado import (
+        indica_paso_diagnostico_completado,
+        indica_resuelto,
+        mensaje_confirmacion_paso_diagnostico_wifi,
+    )
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    msg = "listo ya lo movi"
+    hist = [
+        {"autor": "cliente", "texto": "internet"},
+        {"autor": "bot", "texto": "¿Notás lentitud solo por Wi‑Fi en algunos dispositivos?"},
+        {"autor": "cliente", "texto": "solo en algunos, en el fondo de mi casa"},
+        {
+            "autor": "bot",
+            "texto": (
+                "Tener el router detrás de la tele puede bloquear la señal. "
+                "¿Podrías moverlo a un lugar más despejado y alto?"
+            ),
+        },
+    ]
+    assert indica_resuelto(msg) is False
+    assert indica_paso_diagnostico_completado(msg, hist, intencion="internet_lento") is True
+    resp = mensaje_confirmacion_paso_diagnostico_wifi(msg, hist)
+    assert "mejor" in resp.lower()
+    assert "fondo" in resp.lower()
+    assert "de nada" not in resp.lower()
+
+    out = diagnosticar_turno(
+        intencion="internet_lento",
+        checklist=[{"id": "ubicacion_router", "pregunta": "¿Dónde está el router?"}],
+        historial_mensajes=hist,
+        mensaje_cliente=msg,
+        turnos_diagnostico=4,
+        pasos_cubiertos=["zona_wifi", "ubicacion_router"],
+    )
+    assert out["motivo"] == "confirmacion_paso_diagnostico_wifi"
+    assert "mejor" in (out.get("mensaje") or "").lower()
+
+
 def test_radio_por_aire_no_repite_triaje_fibra_adsl():
     """Regresión Jorge: «es por aire» + INALAMBRICO en historial → no repetir triaje."""
     import json

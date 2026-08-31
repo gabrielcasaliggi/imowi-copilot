@@ -19,9 +19,14 @@ def test_cierra_consulta_tras_gracias_perfecto():
     assert _cierra_consulta_facturacion("Bueno, perfecto, muchas gracias.") is True
     assert _cierra_consulta_facturacion("gracias") is True
     assert _cierra_consulta_facturacion("sigue el problema de la factura") is False
+    # Paso WiFi completado ≠ cierre
+    assert _cierra_consulta_facturacion("listo ya lo movi") is False
+    assert _cierra_consulta_facturacion("listo ya lo moví") is False
 
 
-def test_desiste_cuando_ya_esta_solucionado():
+def test_desiste_no_cierra_tras_mover_router():
+    assert _cliente_desiste_o_resuelto("listo ya lo movi") is False
+    assert _cliente_desiste_o_resuelto("listo gracias") is True
     assert (
         _cliente_desiste_o_resuelto("no, ya está todo solucionado, no necesito más nada")
         is True

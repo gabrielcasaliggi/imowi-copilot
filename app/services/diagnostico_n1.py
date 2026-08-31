@@ -1347,6 +1347,11 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
     t = (texto or "").lower().strip()
     if not t:
         return False
+    from app.domain.flujos_abonado import _parece_paso_diagnostico_wifi
+
+    # «listo ya lo moví» tras consejo WiFi: paso hecho, no cierre de consulta
+    if _parece_paso_diagnostico_wifi(texto):
+        return False
     if any(
         k in t
         for k in (
@@ -1809,6 +1814,19 @@ def diagnosticar_turno(
     if eval_vel:
         return eval_vel
 
+    from app.services.conexion_uisp import evaluar_turno_visita_antena_uisp
+
+    uisp_turno = evaluar_turno_visita_antena_uisp(
+        contexto_abonado=contexto_abonado,
+        mensaje_cliente=mensaje_cliente,
+        historial_mensajes=historial_mensajes,
+        pasos_cubiertos=list(pasos_cubiertos or []),
+        turnos_diagnostico=int(turnos_diagnostico or 0),
+        intencion=intencion,
+    )
+    if uisp_turno:
+        return uisp_turno
+
     from app.services.eco_voice import (
         HISTORIAL_CHAT_MAX_MSGS,
         TEMPERATURE_N1,
@@ -1850,7 +1868,9 @@ def diagnosticar_turno(
 
     from app.domain.flujos_abonado import (
         contexto_diagnostico_wifi,
+        indica_paso_diagnostico_completado,
         mensaje_confirmacion_mejora_senal_wifi,
+        mensaje_confirmacion_paso_diagnostico_wifi,
         pregunta_confirmacion_mejora_senal_wifi,
     )
 
@@ -1866,6 +1886,20 @@ def diagnosticar_turno(
             ),
             "paso_cubierto": "confirmacion_mejora_wifi",
             "motivo": "confirmacion_mejora_senal_wifi",
+        }
+
+    if contexto_diagnostico_wifi(
+        historial_mensajes, intencion=intencion
+    ) and indica_paso_diagnostico_completado(
+        mensaje_cliente, historial_mensajes, intencion=intencion
+    ):
+        return {
+            "accion": "ask",
+            "mensaje": mensaje_confirmacion_paso_diagnostico_wifi(
+                mensaje_cliente, historial_mensajes
+            ),
+            "paso_cubierto": "confirmacion_paso_wifi",
+            "motivo": "confirmacion_paso_diagnostico_wifi",
         }
 
     if es_movil:

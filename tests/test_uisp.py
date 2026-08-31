@@ -8,8 +8,14 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.services.conexion_uisp import (
+    aplicar_uisp_a_ctx,
     clasificar_rama_uisp,
+    evaluar_turno_visita_antena_uisp,
     mensaje_abonado_uisp,
+    mensaje_informe_senal_antena,
+    mensaje_visita_antena_por_senal,
+    parse_signal_dbm_desde_resumen,
+    requiere_visita_campo_por_senal,
     triage_uisp_para_prompt,
 )
 from app.uisp.client import (
@@ -111,6 +117,80 @@ def test_parse_y_match_por_username_radius():
 
     baja = parse_device(buscar_en_indice(idx, "senal-baja"), login="senal-baja")
     assert clasificar_rama_uisp(baja) == "senal_mala"
+    assert requiere_visita_campo_por_senal(baja) is True
+
+
+def test_informe_senal_buena_vs_mala():
+    buena = EstadoCpeUisp(
+        login="x", encontrado=True, online=True, signal_dbm=-33, calidad_senal="buena"
+    )
+    mala = EstadoCpeUisp(
+        login="x", encontrado=True, online=True, signal_dbm=-82, calidad_senal="mala"
+    )
+    txt_b = mensaje_informe_senal_antena(buena)
+    assert "-33" in txt_b
+    assert "excelente" in txt_b
+    assert "visita" not in txt_b.lower()
+    txt_m = mensaje_informe_senal_antena(mala)
+    assert "-82" in txt_m
+    assert "baja" in txt_m
+    assert "visita" in mensaje_visita_antena_por_senal(mala).lower()
+
+
+def test_parse_signal_desde_resumen():
+    assert parse_signal_dbm_desde_resumen("login=x; senal=-58dBm; calidad=buena") == -58
+    assert parse_signal_dbm_desde_resumen("sin dato") is None
+
+
+def test_evaluar_turno_senal_mala_deriva_visita():
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- uisp: login=x; estado=en_linea; senal=-82dBm; calidad=mala\n"
+        "- uisp_triage: triage=cpe_radio_senal_mala; linea_de_vista\n"
+    )
+    out = evaluar_turno_visita_antena_uisp(
+        contexto_abonado=ctx,
+        mensaje_cliente="sigue sin andar internet",
+        historial_mensajes=[],
+        pasos_cubiertos=["poe_antena"],
+        turnos_diagnostico=1,
+        intencion="internet_radio",
+    )
+    assert out is not None
+    assert out["accion"] == "escalate"
+    assert out["motivo"] == "uisp_senal_mala_visita"
+    assert "visita" in (out.get("mensaje") or "").lower()
+
+
+def test_evaluar_turno_senal_buena_consulta_no_deriva():
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- uisp: login=x; estado=en_linea; senal=-33dBm; calidad=buena\n"
+        "- uisp_triage: triage=cpe_radio_enlace_ok; indagar Wi‑Fi\n"
+    )
+    out = evaluar_turno_visita_antena_uisp(
+        contexto_abonado=ctx,
+        mensaje_cliente="que señal tengo y cual es el ideal",
+        historial_mensajes=[],
+        pasos_cubiertos=[],
+        turnos_diagnostico=2,
+        intencion="internet_lento",
+    )
+    assert out is not None
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "uisp_consulta_senal"
+    assert "-33" in (out.get("mensaje") or "")
+
+
+def test_aplicar_uisp_a_ctx():
+    ctx: dict = {}
+    cpe = EstadoCpeUisp(
+        login="4640854", encontrado=True, online=True, signal_dbm=-82, calidad_senal="mala"
+    )
+    aplicar_uisp_a_ctx(ctx, cpe)
+    assert ctx["uisp_signal_dbm"] == "-82"
+    assert ctx["uisp_calidad_senal"] == "mala"
+    assert "senal_mala" in ctx["uisp_triage"]
 
 
 def test_match_case_insensitive():

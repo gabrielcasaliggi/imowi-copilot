@@ -2316,9 +2316,21 @@ def contexto_diagnostico_wifi(historial, *, intencion: str = "") -> bool:
     blob = _texto_blob_historial(historial)
     if any(k in blob for k in ("repetidor", "rayita", "rayitas")):
         return True
-    wifi_markers = ("wifi", "wi-fi", "wi fi", "router", "televisor", "smart tv")
+    wifi_markers = ("wifi", "wi-fi", "wi fi", "router", "televisor", "smart tv", "tele")
     if any(k in blob for k in wifi_markers) and any(
-        k in blob for k in ("señal", "senal", "potencia", "cobertura", "llega", "rayita")
+        k in blob
+        for k in (
+            "señal",
+            "senal",
+            "potencia",
+            "cobertura",
+            "llega",
+            "rayita",
+            "lento",
+            "lentitud",
+            "lenta",
+            "fondo",
+        )
     ):
         return True
     return False
@@ -2402,6 +2414,93 @@ def mensaje_confirmacion_mejora_senal_wifi(
         f"Sí, con más señal en el repetidor debería andar bien{zona}. "
         "Probá conectarte un rato y avisame si sigue fallando."
     )
+
+
+_VERBOS_PASO_DIAGNOSTICO_WIFI = (
+    "movi",
+    "moví",
+    "mover",
+    "reubic",
+    "reinicie",
+    "reinicié",
+    "reinicio",
+    "probé",
+    "probe",
+    "desenchuf",
+    "enchuf",
+    "cambié",
+    "cambie",
+    "coloqué",
+    "coloque",
+    "puse",
+    "saqué",
+    "saque",
+    "alejé",
+    "aleje",
+)
+
+
+def _parece_paso_diagnostico_wifi(texto: str) -> bool:
+    """«listo ya lo moví» sin historial: no confundir con cierre de consulta."""
+    t = (texto or "").lower().strip()
+    if not t or indica_resuelto(texto):
+        return False
+    if not any(k in t for k in _VERBOS_PASO_DIAGNOSTICO_WIFI):
+        return False
+    return any(k in t for k in ("listo", "ya lo", "ya la", "hecho", "hice", "dale", "ok"))
+
+
+def indica_paso_diagnostico_completado(
+    texto: str,
+    historial=None,
+    *,
+    intencion: str = "",
+) -> bool:
+    """Abonado completó un paso sugerido (mover router, etc.) sin confirmar resultado.
+
+    «listo ya lo moví» ≠ cierre; hay que preguntar si mejoró.
+    """
+    t = (texto or "").lower().strip()
+    if not t or indica_resuelto(texto):
+        return False
+    if not contexto_diagnostico_wifi(historial, intencion=intencion):
+        return False
+    if not any(k in t for k in _VERBOS_PASO_DIAGNOSTICO_WIFI):
+        return False
+    if any(
+        k in t
+        for k in (
+            "gracias",
+            "perfecto",
+            "nada más",
+            "nada mas",
+            "eso era todo",
+            "muchas gracias",
+        )
+    ) and not any(k in t for k in ("listo", "ya lo", "ya la", "hecho", "hice")):
+        return False
+    if any(k in t for k in ("listo", "ya lo", "ya la", "hecho", "hice", "dale", "ok")):
+        return True
+    return bool(re.match(r"^(ya\s+)?(lo|la|el)\s+", t))
+
+
+def mensaje_confirmacion_paso_diagnostico_wifi(
+    texto: str,
+    historial=None,
+) -> str:
+    blob = _texto_blob_historial(historial) + " " + (texto or "").lower()
+    zona = ""
+    if "fondo" in blob:
+        zona = " en el fondo de la casa"
+    elif "cocina" in blob:
+        zona = " en la cocina"
+    elif "habitacion" in blob or "habitación" in blob:
+        zona = " en esas habitaciones"
+    elif "televisor" in blob or " smart tv" in blob or " tele" in blob:
+        zona = " cerca del televisor"
+    elif "baño" in blob or "bano" in blob:
+        zona = " en el baño"
+    return f"Bien. ¿Notás mejor señal o velocidad{zona} ahora?"
 
 
 def indica_resuelto(texto: str) -> bool:
@@ -2522,6 +2621,40 @@ def indica_resuelto(texto: str) -> bool:
     if _token_en_texto(t, "volvió") or _token_en_texto(t, "volvio"):
         return True
     return False
+
+
+def cliente_pregunta_senal_antena(texto: str) -> bool:
+    """Abonado pregunta por la señal/potencia de su antena CPE radio."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "que señal",
+            "qué señal",
+            "que senal",
+            "qué senal",
+            "cuanta señal",
+            "cuánta señal",
+            "cuanta senal",
+            "cuánta senal",
+            "valor de señal",
+            "valor de senal",
+            "que valor de señal",
+            "qué valor de señal",
+            "que potencia",
+            "qué potencia",
+            "cuantos dbm",
+            "cuántos dbm",
+            "cuanto dbm",
+            "cuánto dbm",
+            "señal tengo",
+            "senal tengo",
+            "cual es el ideal",
+            "cuál es el ideal",
+        )
+    )
 
 
 def es_paso_derivacion(paso: PasoPlaybook | None) -> bool:
