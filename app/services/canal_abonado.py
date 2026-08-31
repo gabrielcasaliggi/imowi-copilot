@@ -1662,6 +1662,9 @@ def _cerrar_consulta_resuelta(
     }
 
 
+_AVISO_ESPERA_COOLDOWN_S = 90
+
+
 def _intencion_comercial_desde_texto(texto: str) -> str:
     return "baja_servicio" if solicita_baja_servicio(texto) else "alta_plan"
 
