@@ -33,6 +33,11 @@ from app.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_DEFAULT_ORG_SLUG,
     TELEGRAM_WEBHOOK_SECRET,
+    UISP_API_TOKEN,
+    UISP_BASE_URL,
+    UISP_ENABLED,
+    UISP_TIMEOUT,
+    UISP_VERIFY_SSL,
     WHATSAPP_APP_SECRET,
     WHATSAPP_DEFAULT_ORG_SLUG,
     WHATSAPP_PHONE_NUMBER_ID,
@@ -54,6 +59,7 @@ _SECRET_KEYS = {
     ("billtrack", "password"),
     ("radius", "api_key"),
     ("radius", "token"),
+    ("uisp", "token"),
 }
 
 _URL_SECRET_KEYS = {
@@ -113,6 +119,18 @@ def _default_payload() -> dict[str, Any]:
             "nota": (
                 "API Radius/NAS Batan: get_nas + get_all_nas + list_ppp_session + rest_list_resources. "
                 "Credenciales solo por env/admin — nunca en código."
+            ),
+        },
+        "uisp": {
+            "enabled": UISP_ENABLED,
+            "base_url": UISP_BASE_URL,
+            "token": UISP_API_TOKEN,
+            "timeout": UISP_TIMEOUT,
+            "verify_ssl": UISP_VERIFY_SSL,
+            "nota": (
+                "UISP NMS (uisp.ecolan.com): estado del CPE radio. "
+                "El nombre del dispositivo coincide con el username Radius. "
+                "Token de solo lectura: Settings → Users → API tokens."
             ),
         },
         "knowledge": {
@@ -358,6 +376,45 @@ def resolve_radius(db: Session | None = None) -> dict[str, Any]:
     }
 
 
+def _as_bool(raw: Any, default: bool) -> bool:
+    if raw is None:
+        return default
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes", "on", "si", "sí")
+    return bool(raw)
+
+
+def resolve_uisp(db: Session | None = None) -> dict[str, Any]:
+    """Credenciales UISP NMS (solo lectura de CPE radio)."""
+    s = get_merged_settings(db).get("uisp") or {}
+    if not isinstance(s, dict):
+        s = {}
+    enabled = _as_bool(s.get("enabled"), UISP_ENABLED)
+    if UISP_ENABLED:
+        enabled = True
+
+    try:
+        timeout = float(s.get("timeout") if s.get("timeout") is not None else UISP_TIMEOUT)
+    except (TypeError, ValueError):
+        timeout = UISP_TIMEOUT
+
+    token = str(s.get("token") if s.get("token") is not None else "").strip()
+    if not token or "***" in token:
+        token = UISP_API_TOKEN
+
+    verify_ssl = _as_bool(s.get("verify_ssl"), UISP_VERIFY_SSL)
+    base_url = str(s.get("base_url") or UISP_BASE_URL or "").strip() or UISP_BASE_URL
+
+    return {
+        "enabled": enabled,
+        "base_url": base_url,
+        "token": token,
+        "timeout": timeout,
+        "verify_ssl": verify_ssl,
+        "nota": str(s.get("nota") or ""),
+    }
+
+
 def resolve_knowledge(db: Session | None = None) -> dict[str, float | int]:
     s = get_merged_settings(db)["knowledge"]
     return {
@@ -454,6 +511,7 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     ai = resolve_ai(db)
     bt = resolve_billtrack(db)
     radius = resolve_radius(db)
+    uisp = resolve_uisp(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
     bt_url = str(bt.get("url") or "")
     return {
@@ -469,6 +527,8 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
             radius.get("base_url") and (radius.get("token") or radius.get("api_key"))
         ),
         "radius_enabled": bool(radius.get("enabled")),
+        "uisp_configured": bool(uisp.get("base_url") and uisp.get("token")),
+        "uisp_enabled": bool(uisp.get("enabled") and uisp.get("token")),
         "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
         "updated_by": row.updated_by if row else "",
         "settings": s,

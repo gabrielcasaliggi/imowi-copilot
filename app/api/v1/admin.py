@@ -490,7 +490,17 @@ def update_platform_settings(
     if not isinstance(patch, dict):
         raise HTTPException(400, "Body inválido")
     # Solo secciones conocidas
-    allowed = {"ai", "whatsapp", "telegram", "database", "billtrack", "knowledge", "canal", "playbooks"}
+    allowed = {
+        "ai",
+        "whatsapp",
+        "telegram",
+        "database",
+        "billtrack",
+        "knowledge",
+        "canal",
+        "playbooks",
+        "uisp",
+    }
     clean = {k: v for k, v in patch.items() if k in allowed}
     save_settings(db, clean, actor=admin.usuario)
     org = repo.get_org_by_slug(db, "imowi")
@@ -806,3 +816,109 @@ def test_billtrack_connection(
         "No es la base del sistema ni debe usarse para persistir tickets."
     )
     return result
+
+
+@router.post("/admin/settings/test-uisp")
+def test_uisp_connection(
+    body: dict = Body(default={}),
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Prueba UISP NMS (lista dispositivos). Lookup opcional por username Radius."""
+    from app.services.platform_settings import resolve_uisp
+    from app.uisp.client import UispNmsClient, api_root
+
+    payload = body if isinstance(body, dict) else {}
+    cfg = resolve_uisp(db)
+
+    base_url = str(
+        payload.get("base_url") if payload.get("base_url") is not None else cfg.get("base_url") or ""
+    ).strip()
+    token = str(
+        payload.get("token") if payload.get("token") is not None else cfg.get("token") or ""
+    ).strip()
+    if "***" in token:
+        token = str(cfg.get("token") or "")
+    verify_raw = payload.get("verify_ssl")
+    if verify_raw is None:
+        verify_ssl = bool(cfg.get("verify_ssl", True))
+    elif isinstance(verify_raw, str):
+        verify_ssl = verify_raw.strip().lower() in ("1", "true", "yes", "on", "si", "sí")
+    else:
+        verify_ssl = bool(verify_raw)
+    try:
+        timeout = float(
+            payload.get("timeout") if payload.get("timeout") is not None else cfg.get("timeout") or 12
+        )
+    except (TypeError, ValueError):
+        timeout = 12.0
+
+    if not base_url:
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "uisp",
+            "error": "Falta la URL de UISP",
+            "hint": "Ejemplo: https://uisp.ecolan.com",
+        }
+    if not token:
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "uisp",
+            "error": "Falta el token NMS",
+            "hint": (
+                "En UISP: Settings → Users → API tokens → Create (Read Only). "
+                "Pegalo acá y guardá. El valor enmascarado no alcanza si nunca se guardó."
+            ),
+        }
+
+    client = UispNmsClient(
+        base_url=base_url,
+        token=token,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+    )
+    try:
+        ping = client.ping()
+    except Exception as exc:
+        err = str(exc)[:240]
+        hint = ""
+        low = err.lower()
+        if "401" in err or "token" in low:
+            hint = "Regenerá el token Read Only en UISP y pegalo de nuevo."
+        elif "ssl" in low or "certificate" in low:
+            hint = "Si el certificado es autofirmado, desmarcá «Verificar SSL»."
+        elif "timed out" in low or "timeout" in low:
+            hint = "UISP no respondió a tiempo. Revisá red/VPN desde el host del API."
+        elif "connect" in low or "name or service" in low:
+            hint = "No se alcanza uisp.ecolan.com desde el servidor del API."
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "uisp",
+            "base_url": api_root(base_url),
+            "error": err,
+            "hint": hint,
+        }
+
+    login = str(payload.get("login") or "").strip()
+    cpe = None
+    if login:
+        estado = client.buscar_cpe_por_login(login)
+        cpe = estado.to_dict()
+
+    return {
+        "ok": True,
+        "connected": True,
+        "scope": "uisp",
+        "base_url": client.root,
+        "devices": ping.get("devices"),
+        "online": ping.get("online"),
+        "latency_ms": ping.get("latency_ms"),
+        "modelos": ping.get("modelos") or [],
+        "cpe": cpe,
+        "nota": (
+            "API NMS de solo lectura. El CPE se busca por identification.name = username Radius."
+        ),
+    }

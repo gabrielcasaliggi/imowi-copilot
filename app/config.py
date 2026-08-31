@@ -200,6 +200,26 @@ try:
 except (TypeError, ValueError):
     RADIUS_API_TIMEOUT = 8.0
 
+# UISP NMS (radio CPE) — identification.name = username Radius
+UISP_BASE_URL = os.getenv("UISP_BASE_URL", "https://uisp.ecolan.com").strip() or "https://uisp.ecolan.com"
+UISP_API_TOKEN = os.getenv("UISP_API_TOKEN", "").strip()
+UISP_ENABLED = os.getenv("UISP_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+UISP_VERIFY_SSL = os.getenv("UISP_VERIFY_SSL", "true").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+try:
+    UISP_TIMEOUT = float(os.getenv("UISP_TIMEOUT", "12") or "12")
+except (TypeError, ValueError):
+    UISP_TIMEOUT = 12.0
+
 KNOWLEDGE_MAX_FRAGMENT_CHARS = int(os.getenv("KNOWLEDGE_MAX_FRAGMENT_CHARS", "1800"))
 KNOWLEDGE_MAX_SYSTEM_TOKENS = int(os.getenv("KNOWLEDGE_MAX_SYSTEM_TOKENS", "4500"))
 

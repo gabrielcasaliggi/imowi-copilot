@@ -425,32 +425,63 @@ def _talvez_mensaje_pppoe(
             client_number=str(getattr(abonado, "client_number", "") or ""),
             db=db,
         )
+        if estado.servicio:
+            from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
+
+            pb_tech = playbook_internet_desde_tipo_servicio(
+                estado.servicio.service_type_code,
+                estado.servicio.service_type_label,
+            )
+            if pb_tech:
+                ctx["tecnologia_acceso"] = pb_tech
+                cub = list(ctx.get("pasos_cubiertos") or [])
+                if "tipo_acceso" not in cub:
+                    cub.append("tipo_acceso")
+                ctx["pasos_cubiertos"] = cub
+
+        rama = clasificar_rama_pppoe(estado)
+        ctx["pppoe_rama"] = rama
+        ctx["pppoe_triage"] = triage_pppoe_para_prompt(estado)
+        ctx["pppoe_resumen"] = estado.resumen_prompt()
+        if estado.sesion:
+            ctx["pppoe_ip"] = estado.sesion.public_ip or ""
+            ctx["pppoe_uptime"] = estado.sesion.uptime or ""
+
+        login = (estado.servicio.login if estado.servicio else "") or ""
+        es_radio = (intencion or "").strip() == "internet_radio" or (
+            ctx.get("tecnologia_acceso") == "internet_radio"
+        )
+        msg_uisp = None
+        if login:
+            try:
+                from app.services.conexion_uisp import (
+                    consultar_cpe_uisp,
+                    es_servicio_radio,
+                    mensaje_abonado_uisp,
+                    resolve_uisp_client,
+                    triage_uisp_para_prompt,
+                )
+
+                if resolve_uisp_client(db) is not None:
+                    if not es_radio:
+                        es_radio = es_servicio_radio(estado.servicio)
+                    cpe = consultar_cpe_uisp(login, db=db)
+                    ctx["uisp_resumen"] = cpe.resumen_prompt()
+                    ctx["uisp_triage"] = triage_uisp_para_prompt(cpe)
+                    msg_uisp = mensaje_abonado_uisp(cpe, es_radio=es_radio)
+            except Exception:
+                logger.exception("UISP check falló en canal")
+
+        if msg_uisp:
+            if "cpe_radio_enlace_ok" in str(ctx.get("uisp_triage") or ""):
+                ctx["pppoe_rama"] = "wifi_lan"
+            return msg_uisp
+
         msg = mensaje_abonado_pppoe(
             estado,
             deuda_positiva=_deuda_positiva(abonado),
         )
-        if msg:
-            rama = clasificar_rama_pppoe(estado)
-            ctx["pppoe_rama"] = rama
-            ctx["pppoe_triage"] = triage_pppoe_para_prompt(estado)
-            ctx["pppoe_resumen"] = estado.resumen_prompt()
-            if estado.sesion:
-                ctx["pppoe_ip"] = estado.sesion.public_ip or ""
-                ctx["pppoe_uptime"] = estado.sesion.uptime or ""
-            if estado.servicio:
-                from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
-
-                pb_tech = playbook_internet_desde_tipo_servicio(
-                    estado.servicio.service_type_code,
-                    estado.servicio.service_type_label,
-                )
-                if pb_tech:
-                    ctx["tecnologia_acceso"] = pb_tech
-                    cub = list(ctx.get("pasos_cubiertos") or [])
-                    if "tipo_acceso" not in cub:
-                        cub.append("tipo_acceso")
-                    ctx["pasos_cubiertos"] = cub
-        else:
+        if not msg:
             logger.info(
                 "PPPoE sin mensaje útil dni=***%s err=%s online=%s",
                 str(abonado.dni)[-3:],
@@ -2690,6 +2721,10 @@ def _aplicar_diagnostico_ia(
         extras_ctx["pppoe_resumen"] = str(ctx.get("pppoe_resumen") or "")
     if ctx.get("pppoe_triage"):
         extras_ctx["pppoe_triage"] = str(ctx.get("pppoe_triage") or "")
+    if ctx.get("uisp_resumen"):
+        extras_ctx["uisp_resumen"] = str(ctx.get("uisp_resumen") or "")
+    if ctx.get("uisp_triage"):
+        extras_ctx["uisp_triage"] = str(ctx.get("uisp_triage") or "")
 
     result = diagnosticar_turno(
         intencion=intencion,

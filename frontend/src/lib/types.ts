@@ -183,6 +183,8 @@ export interface PlatformSettingsResponse {
   billtrack_configured?: boolean;
   billtrack_enabled?: boolean;
   billtrack_url_masked?: string;
+  uisp_configured?: boolean;
+  uisp_enabled?: boolean;
   updated_at?: string | null;
   updated_by?: string;
   settings: {
@@ -216,6 +218,15 @@ export interface PlatformSettingsResponse {
       nota?: string;
       url_configured?: boolean;
       password_configured?: boolean;
+    };
+    uisp?: {
+      enabled?: boolean;
+      base_url?: string;
+      token?: string;
+      timeout?: number;
+      verify_ssl?: boolean;
+      nota?: string;
+      token_configured?: boolean;
     };
     knowledge?: { min_score?: number; top_k?: number; max_fragment_chars?: number };
     canal?: { usar_llama_default?: boolean };

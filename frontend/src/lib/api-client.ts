@@ -1211,6 +1211,43 @@ export const api = {
     });
   },
 
+  testAdminUisp(payload?: {
+    base_url?: string;
+    token?: string;
+    verify_ssl?: boolean;
+    timeout?: number;
+    login?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      connected?: boolean;
+      scope?: string;
+      base_url?: string;
+      devices?: number;
+      online?: number;
+      latency_ms?: number;
+      modelos?: { modelo: string; n: number }[];
+      cpe?: {
+        login?: string;
+        encontrado?: boolean;
+        online?: boolean | null;
+        nombre?: string;
+        modelo?: string;
+        sitio?: string;
+        signal_dbm?: number | null;
+        calidad_senal?: string;
+        resumen?: string;
+        error?: string;
+      } | null;
+      nota?: string;
+      hint?: string;
+      error?: string;
+    }>("/api/v1/admin/settings/test-uisp", {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
   inboxConversations(
     params?: {
       estado?: string;

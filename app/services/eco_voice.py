@@ -294,11 +294,12 @@ def enrich_contexto_desde_integraciones(
     *,
     org_id: str = "",
 ) -> dict[str, str]:
-    """Hook para ONT/OLT Huawei, pagos Fiserv, cortes de zona y PPPoE/Radius.
+    """Hook para ONT/OLT Huawei, pagos Fiserv, cortes de zona, PPPoE/Radius y UISP radio.
 
     Claves:
       - nro_asociado, ont_estado, olt_huawei, pago_qr_reciente, cortes_zona
       - pppoe_estado, pppoe_login, pppoe_tipo, pppoe_ip, pppoe_uptime, pppoe_nas, pppoe_resumen
+      - uisp_estado, uisp_login, uisp_sitio, uisp_senal, uisp_modelo, uisp_resumen, uisp_triage
     """
     _ = org_id
     out = {
@@ -315,6 +316,13 @@ def enrich_contexto_desde_integraciones(
         "pppoe_nas": "",
         "pppoe_resumen": "",
         "pppoe_triage": "",
+        "uisp_estado": "",
+        "uisp_login": "",
+        "uisp_sitio": "",
+        "uisp_senal": "",
+        "uisp_modelo": "",
+        "uisp_resumen": "",
+        "uisp_triage": "",
     }
     if abonado is None:
         return out
@@ -327,6 +335,15 @@ def enrich_contexto_desde_integraciones(
                 out[k] = str(v).strip()
     except Exception:
         # Nunca tumbar el prompt del bot por fallas de Radius/BillTrack
+        pass
+    try:
+        from app.services.conexion_uisp import contexto_uisp_para_abonado
+
+        uisp = contexto_uisp_para_abonado(abonado, login=out.get("pppoe_login") or "")
+        for k, v in uisp.items():
+            if str(v or "").strip():
+                out[k] = str(v).strip()
+    except Exception:
         pass
     return out
 
@@ -345,7 +362,9 @@ def build_contexto_abonado(
                 integ[k] = str(v).strip()
 
     pppoe_line = integ.get("pppoe_resumen") or "(sin dato — integrar Radius/NAS)"
+    uisp_line = integ.get("uisp_resumen") or "(sin dato — integrar UISP)"
     triage = (integ.get("pppoe_triage") or "").strip()
+    uisp_triage = (integ.get("uisp_triage") or "").strip()
 
     if not abonado:
         lines = [
@@ -360,7 +379,8 @@ def build_contexto_abonado(
             f"- pago_qr_reciente: {integ.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
             f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
             f"- pppoe: {pppoe_line}",
-            "- Regla: no inventes saldos, ONT/OLT, PPPoE ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
+            f"- uisp: {uisp_line}",
+            "- Regla: no inventes saldos, ONT/OLT, PPPoE, UISP ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
         ]
         return "\n".join(lines)
 
@@ -393,6 +413,9 @@ def build_contexto_abonado(
     ]
     if triage:
         lines.append(f"- pppoe_triage: {triage}")
+    lines.append(f"- uisp: {uisp_line}")
+    if uisp_triage:
+        lines.append(f"- uisp_triage: {uisp_triage}")
     lines.extend(
         [
             "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
@@ -404,6 +427,8 @@ def build_contexto_abonado(
             "no tiene ese producto contratado. No inicies diagnóstico de Wi‑Fi ni ONT.",
             "- Si pppoe indica conectado/desconectado, usá pppoe_triage: no contradigas "
             "el dato real ni pidas reinicio de ONT si triage dice linea_ok.",
+            "- Si uisp indica CPE radio, usá uisp_triage: no contradigas el estado de la antena. "
+            "CPE fuera de línea → PoE/energía. Señal mala → línea de vista. Enlace OK → Wi‑Fi/router.",
         ]
     )
     return "\n".join(lines)
@@ -469,7 +494,7 @@ def system_prompt_eco_n1(
         "- Si el cliente está frustrado ('siempre lo mismo', 'nunca anda'), validá en pocas "
         "palabras y seguí con el próximo paso útil.\n"
         "- Evitá menús rígidos, listas largas, viñetas y tonos de contestador automático.\n"
-        "- No inventes datos (OLT, ONT, potencias, saldos, pagos, CBU, adjuntos QR, turnos, cortes de zona).\n"
+        "- No inventes datos (OLT, ONT, potencias, UISP, saldos, pagos, CBU, adjuntos QR, turnos, cortes de zona).\n"
         "- Montos de deuda/factura: siempre pesos argentinos (ARS). Nunca dólares/USD.\n"
         "- No uses jerga interna del NOC.\n\n"
         "Respondé SOLO JSON válido:\n"

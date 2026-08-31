@@ -13,7 +13,7 @@ import {
 
 const labelCls = "block text-xs text-slate-400 mb-1";
 
-type SettingsSection = "ai" | "whatsapp" | "telegram" | "database" | "billtrack" | "knowledge" | "playbooks";
+type SettingsSection = "ai" | "whatsapp" | "telegram" | "database" | "billtrack" | "uisp" | "knowledge" | "playbooks";
 
 export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string) => void }) {
   const botName = getBranding().botDisplayName;
@@ -47,6 +47,18 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     nota: "",
   });
   const [billtrackTest, setBilltrackTest] = useState<{
+    ok: boolean;
+    detail: string;
+  } | null>(null);
+  const [uisp, setUisp] = useState({
+    enabled: false,
+    base_url: "https://uisp.ecolan.com",
+    token: "",
+    timeout: "12",
+    verify_ssl: true,
+  });
+  const [uispLogin, setUispLogin] = useState("");
+  const [uispTest, setUispTest] = useState<{
     ok: boolean;
     detail: string;
   } | null>(null);
@@ -89,6 +101,13 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       sslmode: s.billtrack?.sslmode || "disable",
       nota: s.billtrack?.nota || "",
     });
+    setUisp({
+      enabled: Boolean(s.uisp?.enabled ?? res.uisp_enabled),
+      base_url: s.uisp?.base_url || "https://uisp.ecolan.com",
+      token: s.uisp?.token || "",
+      timeout: String(s.uisp?.timeout ?? 12),
+      verify_ssl: s.uisp?.verify_ssl !== false,
+    });
     setKb({
       min_score: Number(s.knowledge?.min_score ?? 0.15),
       top_k: Number(s.knowledge?.top_k ?? 1),
@@ -123,6 +142,13 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         telegram: tg,
         database: dbCfg,
         billtrack,
+        uisp: {
+          enabled: uisp.enabled,
+          base_url: uisp.base_url,
+          token: uisp.token,
+          timeout: Number(uisp.timeout) || 12,
+          verify_ssl: uisp.verify_ssl,
+        },
         knowledge: kb,
         playbooks,
       });
@@ -268,6 +294,44 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     }
   };
 
+  const testUisp = async () => {
+    setBusy(true);
+    try {
+      const r = await api.testAdminUisp({
+        base_url: uisp.base_url,
+        token: uisp.token,
+        verify_ssl: uisp.verify_ssl,
+        timeout: Number(uisp.timeout) || 12,
+        login: uispLogin.trim() || undefined,
+      });
+      if (r.ok) {
+        const parts = [
+          r.devices != null ? `${r.devices} equipos` : null,
+          r.online != null ? `${r.online} en línea` : null,
+          r.latency_ms != null ? `${r.latency_ms} ms` : null,
+        ].filter(Boolean);
+        let detail = parts.join(" · ");
+        if (r.cpe) {
+          detail += r.cpe.encontrado
+            ? ` · CPE ${r.cpe.nombre || r.cpe.login}: ${r.cpe.online ? "en línea" : "fuera de línea"}`
+            : ` · CPE «${uispLogin.trim()}» no encontrado`;
+        }
+        setUispTest({ ok: true, detail });
+        onMessage?.(`UISP OK · ${detail}`);
+      } else {
+        const detail = [r.error || "No se pudo conectar", r.hint].filter(Boolean).join(" — ");
+        setUispTest({ ok: false, detail });
+        onMessage?.(`UISP falló: ${detail}`);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Error test UISP";
+      setUispTest({ ok: false, detail });
+      onMessage?.(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <p className="text-slate-500 text-sm">Cargando configuración…</p>;
   }
@@ -277,6 +341,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     { id: "whatsapp", label: "WhatsApp" },
     { id: "telegram", label: "Telegram" },
     { id: "billtrack", label: "Clientes (BillTrack)" },
+    { id: "uisp", label: "Radio (UISP)" },
     { id: "database", label: "Data Estate" },
     { id: "knowledge", label: "Conocimiento" },
     { id: "playbooks", label: "Playbooks" },
@@ -329,6 +394,28 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                     ? "available"
                     : "soon"
                   : data.billtrack_enabled
+                    ? "available"
+                    : "neutral"
+              }
+            />
+            <StatusPill
+              label={
+                uispTest
+                  ? uispTest.ok
+                    ? "UISP OK"
+                    : "UISP falló"
+                  : data.uisp_enabled
+                    ? "UISP listo"
+                    : data.uisp_configured
+                      ? "UISP off"
+                      : "UISP pendiente"
+              }
+              tone={
+                uispTest
+                  ? uispTest.ok
+                    ? "available"
+                    : "soon"
+                  : data.uisp_enabled
                     ? "available"
                     : "neutral"
               }
@@ -623,6 +710,101 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                       : `Falló · ${billtrackTest.detail}`
                   }
                   tone={billtrackTest.ok ? "available" : "soon"}
+                />
+              )}
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {section === "uisp" && (
+        <GlassCard title="UISP — red de radio (CPE)" accent="cyan" variant="secondary">
+          <div className="grid gap-3 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs text-slate-400">
+              Consulta de solo lectura a <code className="text-slate-300">uisp.ecolan.com</code>. El
+              nombre del CPE en UISP es el mismo username Radius, así {botName} puede ver si la
+              antena está en línea y la calidad de señal. Token: UISP → Settings → Users → API
+              tokens → Read Only. Pegalo acá y guardá; no lo pongas en el chat.
+            </p>
+            <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={uisp.enabled}
+                onChange={(e) => setUisp({ ...uisp, enabled: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Habilitar consultas UISP para {botName}
+            </label>
+            <div className="md:col-span-2">
+              <label className={labelCls}>URL de UISP</label>
+              <input
+                className={inputCls}
+                value={uisp.base_url}
+                onChange={(e) => {
+                  setUisp({ ...uisp, base_url: e.target.value });
+                  setUispTest(null);
+                }}
+                placeholder="https://uisp.ecolan.com"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Token NMS (dejar enmascarado si no cambiás)</label>
+              <input
+                className={inputCls}
+                type="password"
+                value={uisp.token}
+                onChange={(e) => {
+                  setUisp({ ...uisp, token: e.target.value });
+                  setUispTest(null);
+                }}
+                placeholder="x-auth-token"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Timeout (segundos)</label>
+              <input
+                className={inputCls}
+                value={uisp.timeout}
+                onChange={(e) => setUisp({ ...uisp, timeout: e.target.value })}
+                placeholder="12"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-200 mt-5">
+              <input
+                type="checkbox"
+                checked={uisp.verify_ssl}
+                onChange={(e) => setUisp({ ...uisp, verify_ssl: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Verificar certificado SSL
+            </label>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Probar CPE (opcional, username Radius)</label>
+              <input
+                className={inputCls}
+                value={uispLogin}
+                onChange={(e) => setUispLogin(e.target.value)}
+                placeholder="mismo login que en Radius / nombre del dispositivo"
+              />
+            </div>
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void testUisp()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
+              >
+                Probar conexión UISP
+              </button>
+              {uispTest && (
+                <StatusPill
+                  label={
+                    uispTest.ok
+                      ? `Conectada · ${uispTest.detail}`
+                      : `Falló · ${uispTest.detail}`
+                  }
+                  tone={uispTest.ok ? "available" : "soon"}
                 />
               )}
             </div>

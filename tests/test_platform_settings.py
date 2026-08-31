@@ -38,6 +38,7 @@ def test_get_settings_admin():
     assert "playbooks" in body["settings"]
     assert "database" in body["settings"]
     assert "knowledge" in body["settings"]
+    assert "uisp" in body["settings"]
 
 
 def test_put_settings_ai_y_playbook():
