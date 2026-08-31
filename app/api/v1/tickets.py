@@ -594,6 +594,38 @@ def update_ticket(
     return {"status": "ok", "ticket": _ticket_out(t, pool=pool, db=db)}
 
 
+def _claim_linked_conversation(
+    db: Session,
+    org_id: str,
+    ticket_id: str,
+    agente_email: str,
+    agente_nombre: str,
+):
+    """Toma la conversación de canal ligada al ticket (como inbox claim)."""
+    from app.estate import canal_repo as crepo
+
+    conv = crepo.get_conversacion_by_ticket(db, org_id, ticket_id)
+    if not conv or conv.estado == "cerrado":
+        return conv
+    if conv.estado == "con_agente" and conv.agente_id and conv.agente_id != agente_email:
+        return conv
+    claimed_now = conv.estado != "con_agente" or conv.agente_id != agente_email
+    conv.estado = "con_agente"
+    conv.agente_id = agente_email
+    db.commit()
+    db.refresh(conv)
+    if claimed_now:
+        crepo.add_mensaje(
+            db,
+            org_id,
+            conv.id,
+            direccion="out",
+            autor="agente",
+            texto=f"[Sistema] Agente {agente_nombre} tomó el caso.",
+        )
+    return conv
+
+
 @router.post("/tickets/{ticket_id}/claim")
 def claim_ticket(
     ticket_id: str,
@@ -616,12 +648,15 @@ def claim_ticket(
         actual_l = actual.lower()
         if actual_l not in {yo.lower(), yo_alias} and yo.lower() not in actual_l:
             raise HTTPException(409, f"Ticket ya tomado por {actual}")
+        conv = _claim_linked_conversation(
+            db, t.organizacion_id, ticket_id, yo, ctx.usuario_nombre
+        )
         pool = _load_pool(db, ctx)
         return {
             "status": "ok",
             "ticket": _ticket_out(t, pool=pool, db=db),
             "ya_asignado": True,
-            "conversacion_id": "",
+            "conversacion_id": conv.id if conv else "",
         }
 
     t = repo.update_ticket(
@@ -634,14 +669,9 @@ def claim_ticket(
     )
     if not t:
         raise HTTPException(404, f"Ticket {ticket_id} no encontrado")
-    # Si hay conversación de canal ligada, también tomarla
-    from app.estate import canal_repo as crepo
-
-    conv = crepo.get_conversacion_by_ticket(db, t.organizacion_id, ticket_id)
-    if conv and conv.estado != "cerrado":
-        conv.estado = "con_agente"
-        conv.agente_id = yo
-        db.commit()
+    conv = _claim_linked_conversation(
+        db, t.organizacion_id, ticket_id, yo, ctx.usuario_nombre
+    )
     log_audit(
         db,
         org_id=t.organizacion_id,

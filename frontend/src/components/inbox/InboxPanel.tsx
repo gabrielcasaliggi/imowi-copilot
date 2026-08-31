@@ -316,10 +316,30 @@ export function InboxPanel() {
     setBusy(true);
     claimingRef.current = true;
     try {
+      const convId = selected;
+      if (
+        convId &&
+        (detail.estado === "espera_agente" || detail.estado === "bot")
+      ) {
+        try {
+          const claimed = await api.inboxClaim(convId, slug);
+          if (claimed.conversacion) setDetail(claimed.conversacion);
+        } catch {
+          /* claimTicket sincroniza la conv en backend */
+        }
+      }
       const res = await api.claimTicket(detail.ticket_id, slug);
+      detailSeq.current += 1;
+      const linkedConv = convId || res.conversacion_id || null;
+      if (linkedConv) {
+        await openConv(linkedConv);
+      }
+      await refreshList();
       await selectTicket(res.ticket.id);
       toast("Ticket tomado · abriendo Consola", "success");
-      router.push(`/soporte?ticket=${encodeURIComponent(res.ticket.id)}`);
+      const params = new URLSearchParams({ ticket: res.ticket.id });
+      if (linkedConv) params.set("conv", linkedConv);
+      router.push(`/soporte?${params.toString()}`);
     } catch (err) {
       toast(err instanceof Error ? err.message : "No se pudo tomar el ticket", "danger");
     } finally {

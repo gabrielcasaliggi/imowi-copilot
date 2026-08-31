@@ -353,6 +353,68 @@ def test_seed_inbox_no_recrea_si_solo_hay_cerradas():
     assert abiertas == []
 
 
+def test_claim_ticket_syncs_linked_conversation():
+    """POST /tickets/{id}/claim debe tomar la conversación ligada (también ya_asignado)."""
+    admin_headers = _admin_headers()
+    agent_headers = _batan_headers()
+    tel = "5492235560101"
+    _cerrar_convs_telefono(tel)
+    client.post(
+        "/api/v1/inbox/simulate",
+        headers=admin_headers,
+        json={"telefono": tel, "texto": "Hola", "usar_llama": False},
+    )
+    r_agente = client.post(
+        "/api/v1/inbox/simulate",
+        headers=admin_headers,
+        json={"telefono": tel, "texto": "*agente*", "usar_llama": False},
+    )
+    assert r_agente.status_code == 200
+    ticket_id = r_agente.json().get("ticket_id")
+    assert ticket_id
+
+    listed = client.get("/api/v1/inbox/conversations", headers=admin_headers)
+    conv = next(
+        c
+        for c in listed.json()["conversaciones"]
+        if c.get("ticket_id") == ticket_id
+    )
+    assert conv["estado"] == "espera_agente"
+
+    claim = client.post(f"/api/v1/tickets/{ticket_id}/claim", headers=agent_headers)
+    assert claim.status_code == 200
+    data = claim.json()
+    assert data["conversacion_id"] == conv["id"]
+    assert data.get("ya_asignado") is False
+
+    Session = get_session_factory()
+    with Session() as db:
+        c = db.get(ConversacionCanal, conv["id"])
+        assert c.estado == "con_agente"
+        assert c.agente_id == "batan@ops-hub.demo"
+
+    claim2 = client.post(f"/api/v1/tickets/{ticket_id}/claim", headers=agent_headers)
+    assert claim2.status_code == 200
+    assert claim2.json().get("ya_asignado") is True
+    assert claim2.json()["conversacion_id"] == conv["id"]
+
+    with Session() as db:
+        c = db.get(ConversacionCanal, conv["id"])
+        c.estado = "espera_agente"
+        c.agente_id = ""
+        db.commit()
+
+    claim3 = client.post(f"/api/v1/tickets/{ticket_id}/claim", headers=agent_headers)
+    assert claim3.status_code == 200
+    assert claim3.json().get("ya_asignado") is True
+    assert claim3.json()["conversacion_id"] == conv["id"]
+
+    with Session() as db:
+        c = db.get(ConversacionCanal, conv["id"])
+        assert c.estado == "con_agente"
+        assert c.agente_id == "batan@ops-hub.demo"
+
+
 def test_abonados_seed():
     headers = _batan_headers()
     r = client.get("/api/v1/inbox/abonados", headers=headers)

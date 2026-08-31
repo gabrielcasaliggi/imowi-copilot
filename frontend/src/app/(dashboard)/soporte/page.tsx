@@ -61,7 +61,7 @@ export default function SoportePage() {
           }`}
         >
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {isAdmin ? <NocBoard /> : <ChatPanel />}
+            {isAdmin && !ticketFormacion ? <NocBoard /> : <ChatPanel />}
           </div>
           {isAdmin && (
             <div className="px-3 py-2.5 border-t border-slate-800/80 shrink-0 bg-slate-950/40">

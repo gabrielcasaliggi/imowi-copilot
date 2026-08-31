@@ -120,8 +120,6 @@ export function ChatPanel() {
     return () => registerConsoleComposer(null);
   }, [registerConsoleComposer]);
 
-  if (isAdmin) return null;
-
   if (!ticketFormacion) {
     return (
       <div className="flex flex-col flex-1 min-h-0 items-center justify-center p-8 text-center gap-5">
