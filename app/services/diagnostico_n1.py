@@ -2154,6 +2154,29 @@ def diagnosticar_turno(
                     "coordinarla."
                 )
 
+        from app.domain.flujos_abonado import (
+            mensaje_tras_tipo_acceso_confirmado,
+            tipo_acceso_confirmado_en_historial,
+        )
+
+        tech_confirmada = tipo_acceso_confirmado_en_historial(
+            historial_mensajes, intencion=intencion
+        )
+        if (
+            accion == "ask"
+            and _parece_pregunta_tipo_acceso(mensaje)
+            and tech_confirmada
+        ):
+            accion = "ask"
+            motivo = "bloqueado_triaje_tipo_acceso_repetido"
+            mensaje = mensaje_tras_tipo_acceso_confirmado(
+                tech_confirmada,
+                intencion=intencion,
+                historial=historial_mensajes,
+                texto=mensaje_cliente,
+            )
+            paso = "tipo_acceso"
+
         # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)
         if not aplica_optica and (
             _motivo_es_optico(motivo)

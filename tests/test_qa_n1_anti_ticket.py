@@ -1431,6 +1431,60 @@ def test_confirmacion_mejora_repetidor_no_es_cierre_ni_triaje_fibra():
     assert "repetidor" in resp or "probá" in resp or "probá conectarte" in resp
 
 
+def test_radio_por_aire_no_repite_triaje_fibra_adsl():
+    """Regresión Jorge: «es por aire» + INALAMBRICO en historial → no repetir triaje."""
+    import json
+    from unittest.mock import patch
+
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Revisé tu cuenta de ACCESO INTERNET INALAMBRICO: la conexión está activa "
+                "(IP 181.41.253.219, hace 6 h). ¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+            ),
+        },
+        {
+            "autor": "cliente",
+            "texto": "internet. Estamos desde el sábado con cortes permanentes de señal",
+        },
+        {"autor": "cliente", "texto": "en todos lados, se cae la señal permanente"},
+    ]
+    msg = "es por aire"
+
+    def _fake_triaje_repetido(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Para ayudarte con internet, necesito saber qué tipo de conexión tenés: "
+                    "¿fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo, "
+                    "o ADSL por línea telefónica?"
+                ),
+                "paso_cubierto": "tipo_acceso",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch("app.llm.chat_completion", side_effect=_fake_triaje_repetido):
+        out = diagnosticar_turno(
+            intencion="internet_intermitente",
+            checklist=[{"id": "frecuencia_cortes", "pregunta": "¿Cada cuánto se corta?"}],
+            historial_mensajes=hist,
+            mensaje_cliente=msg,
+            turnos_diagnostico=4,
+            pasos_cubiertos=["alcance_cortes", "medio_conexion"],
+        )
+    assert out["motivo"] == "bloqueado_triaje_tipo_acceso_repetido"
+    low = (out.get("mensaje") or "").lower()
+    assert "antena" in low or "inalámbric" in low
+    assert "fibra óptica" not in low
+    assert "adsl" not in low
+
+
 def test_inbox_pide_agente_ya_no_ticket_en_primer_turno():
     """Regresión del comportamiento anterior: 1er pedido humano ≠ ticket."""
     from sqlalchemy import select

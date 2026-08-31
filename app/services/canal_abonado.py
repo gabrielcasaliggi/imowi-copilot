@@ -35,6 +35,7 @@ from app.domain.flujos_abonado import (
     parece_consulta_nueva,
     pide_humano,
     pide_humano_en_flujo_activo,
+    refinar_intencion_internet,
     refinar_playbook_internet,
     registrar_queja,
     resolver_menu_servicio,
@@ -433,6 +434,19 @@ def _talvez_mensaje_pppoe(
             if estado.sesion:
                 ctx["pppoe_ip"] = estado.sesion.public_ip or ""
                 ctx["pppoe_uptime"] = estado.sesion.uptime or ""
+            if estado.servicio:
+                from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
+
+                pb_tech = playbook_internet_desde_tipo_servicio(
+                    estado.servicio.service_type_code,
+                    estado.servicio.service_type_label,
+                )
+                if pb_tech:
+                    ctx["tecnologia_acceso"] = pb_tech
+                    cub = list(ctx.get("pasos_cubiertos") or [])
+                    if "tipo_acceso" not in cub:
+                        cub.append("tipo_acceso")
+                    ctx["pasos_cubiertos"] = cub
         else:
             logger.info(
                 "PPPoE sin mensaje útil dni=***%s err=%s online=%s",
@@ -4031,6 +4045,16 @@ def procesar_mensaje_entrante(
     )
     if conf_wifi is not None:
         return conf_wifi
+
+    tech_nueva = refinar_intencion_internet(texto)
+    if tech_nueva and intencion in ("internet_intermitente", "internet_lento", "wifi"):
+        ctx["tecnologia_acceso"] = tech_nueva
+        cub = list(ctx.get("pasos_cubiertos") or [])
+        if "tipo_acceso" not in cub:
+            cub.append("tipo_acceso")
+        ctx["pasos_cubiertos"] = cub
+        crepo.set_contexto(conv, ctx)
+        db.commit()
 
     if intencion == "internet":
         refinada = refinar_playbook_internet(texto)

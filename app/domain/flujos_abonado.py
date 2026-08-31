@@ -1568,11 +1568,131 @@ def refinar_intencion_internet(texto: str) -> str | None:
             return "internet_adsl"
     if any(k in t for k in (
         "radio", "antena", "cpe", "inalambr", "inalámbr", "torre", "wireless",
-        "enlace", "techo", "poe",
+        "enlace", "techo", "poe", "por aire", "es por aire", "bai",
+        "banda ancha inalambrica", "banda ancha inalámbrica",
+        "acceso inalambrico", "acceso inalámbrico", "internet inalambrico",
+        "internet inalámbrico",
     )):
         return "internet_radio"
     # "linea/telefono" solos son ambiguos (fija vs adsl); no forzar ADSL acá
     return None
+
+
+def playbook_internet_desde_tipo_servicio(
+    service_type_code: str = "",
+    service_type_label: str = "",
+) -> str | None:
+    """Mapea INTFO/INTBA/INTINA (BillTrack) al playbook de acceso."""
+    code = (service_type_code or "").upper().strip()
+    label = (service_type_label or "").lower()
+    if code == "INTBA" or "inalambr" in label:
+        return "internet_radio"
+    if code == "INTFO" or "ftth" in label or "fibra" in label:
+        return "internet_ftth"
+    if code == "INTINA" or "adsl" in label:
+        return "internet_adsl"
+    return None
+
+
+def tipo_acceso_confirmado_en_historial(
+    historial=None,
+    *,
+    intencion: str = "",
+    ctx: dict | None = None,
+) -> str | None:
+    """Playbook de acceso ya definido (historial, ctx o intención específica)."""
+    intent = (intencion or "").strip()
+    if intent in ("internet_ftth", "internet_radio", "internet_adsl"):
+        return intent
+    if ctx:
+        tech = str(ctx.get("tecnologia_acceso") or "").strip()
+        if tech in ("internet_ftth", "internet_radio", "internet_adsl"):
+            return tech
+        if tech == "radio":
+            return "internet_radio"
+        if tech == "ftth":
+            return "internet_ftth"
+        if tech == "adsl":
+            return "internet_adsl"
+    for m in historial or []:
+        if isinstance(m, dict):
+            txt = str(m.get("texto") or m.get("contenido") or "")
+        else:
+            txt = str(getattr(m, "texto", "") or "")
+        tech = refinar_intencion_internet(txt)
+        if tech:
+            return tech
+    blob = _texto_blob_historial(historial)
+    if any(
+        k in blob
+        for k in (
+            "acceso internet inalambrico",
+            "acceso internet inalámbrico",
+            "internet inalambrico",
+            "internet inalámbrico",
+            " intba",
+            "es por aire",
+            "por aire",
+            "por antena",
+            "es antena",
+        )
+    ):
+        return "internet_radio"
+    if any(k in blob for k in ("intfo", "fibra óptica", "fibra optica", "cajita blanca")):
+        return "internet_ftth"
+    if any(k in blob for k in ("intina", "adsl", "línea telefónica", "linea telefonica")):
+        return "internet_adsl"
+    return None
+
+
+def mensaje_tras_tipo_acceso_confirmado(
+    tech: str,
+    *,
+    intencion: str = "",
+    historial=None,
+    texto: str = "",
+) -> str:
+    """Siguiente paso N1 cuando el tipo de acceso ya está claro (no repetir triaje)."""
+    blob = _texto_blob_historial(historial) + " " + (texto or "").lower()
+    intent = (intencion or "").strip()
+    intermitente = intent == "internet_intermitente" or any(
+        k in blob
+        for k in (
+            "se corta",
+            "cortes",
+            "intermiten",
+            "cada 5",
+            "cada cinco",
+            "va y viene",
+            "se cae la señal",
+            "se cae la senal",
+        )
+    )
+    if intermitente and tech == "internet_radio":
+        if any(k in blob for k in ("lluvia", "viento", "tormenta", "temporal")):
+            return (
+                "Ok, es por antena. Con lluvia o viento a veces inestabiliza el enlace. "
+                "Reiniciá PoE y router 30 segundos y dejalo un rato. ¿Mejoró?"
+            )
+        return (
+            "Entiendo, es conexión inalámbrica por antena. "
+            "¿Cada cuánto se corta la señal y cuánto tarda en volver?"
+        )
+    if tech == "internet_radio":
+        return (
+            "Ok, por antena (BAI). ¿La fuente PoE tiene la lucecita prendida? "
+            "El cable del inyector va al puerto azul/Internet del router."
+        )
+    if tech == "internet_ftth":
+        return (
+            "Ok, por fibra. ¿La luz PON está verde fija y la LOS apagada, "
+            "o ves alguna en rojo?"
+        )
+    if tech == "internet_adsl":
+        return (
+            "Ok, por línea ADSL. ¿La luz DSL/Sync del módem está fija o parpadea?"
+        )
+    return "Gracias por aclararlo. Contame un poco más qué te pasa con la conexión."
 
 
 def refinar_playbook_internet(texto: str) -> str | None:
@@ -1619,6 +1739,11 @@ def refinar_playbook_internet(texto: str) -> str | None:
             "va y viene",
             "se cae y vuelve",
             "se me cae",
+            "cortes permanentes",
+            "cortes de señal",
+            "cortes de senal",
+            "corte de señal",
+            "corte de senal",
         )
     ):
         return "internet_intermitente"

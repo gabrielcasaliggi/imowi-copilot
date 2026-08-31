@@ -32,10 +32,43 @@ def test_destino_n2_hogareño_no_es_noc_movil():
 
 def test_refinar_playbook_internet_sale_del_triaje():
     assert refinar_intencion_internet("tengo fibra, cajita blanca") == "internet_ftth"
+    assert refinar_intencion_internet("es por aire") == "internet_radio"
     assert refinar_playbook_internet("es solo el wifi") == "wifi"
     assert refinar_playbook_internet("anda re lento") == "internet_lento"
     assert refinar_playbook_internet("se corta a cada rato") == "internet_intermitente"
+    assert refinar_playbook_internet("cortes permanentes de señal") == "internet_intermitente"
     assert refinar_playbook_internet("no me carga nada") is None
+
+
+def test_tipo_acceso_no_repite_tras_por_aire_o_pppoe():
+    from app.domain.flujos_abonado import (
+        mensaje_tras_tipo_acceso_confirmado,
+        playbook_internet_desde_tipo_servicio,
+        tipo_acceso_confirmado_en_historial,
+    )
+
+    assert playbook_internet_desde_tipo_servicio("INTBA", "ACCESO INTERNET INALAMBRICO") == (
+        "internet_radio"
+    )
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Revisé tu cuenta de ACCESO INTERNET INALAMBRICO: la conexión está activa. "
+                "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+            ),
+        },
+        {"autor": "cliente", "texto": "en todos lados, se cae la señal permanente"},
+        {"autor": "cliente", "texto": "es por aire"},
+    ]
+    tech = tipo_acceso_confirmado_en_historial(hist, intencion="internet_intermitente")
+    assert tech == "internet_radio"
+    msg = mensaje_tras_tipo_acceso_confirmado(
+        tech, intencion="internet_intermitente", historial=hist
+    )
+    assert "antena" in msg.lower() or "inalámbric" in msg.lower()
+    assert "fibra óptica" not in msg.lower()
+    assert "adsl" not in msg.lower()
 
 
 def test_playbook_internet_no_es_triaje_de_tres_pasos():
