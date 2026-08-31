@@ -2628,6 +2628,10 @@ def cliente_pregunta_senal_antena(texto: str) -> bool:
     t = (texto or "").lower().strip()
     if not t:
         return False
+    t = t.replace("señak", "señal").replace("senak", "senal")
+    if any(k in t for k in ("dbm", " antena", "antena ", " la antena")):
+        if any(k in t for k in ("señal", "senal", "potencia", "decir", "decime", "dime")):
+            return True
     return any(
         k in t
         for k in (
@@ -2653,6 +2657,10 @@ def cliente_pregunta_senal_antena(texto: str) -> bool:
             "senal tengo",
             "cual es el ideal",
             "cuál es el ideal",
+            "senal en la antena",
+            "señal en la antena",
+            "senal de la antena",
+            "señal de la antena",
         )
     )
 

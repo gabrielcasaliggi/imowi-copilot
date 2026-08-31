@@ -6,6 +6,7 @@ Independiente del Data Estate. No persistir tickets ni config de plataforma ahí
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
@@ -533,6 +534,53 @@ def elegir_servicio_principal(servicios: list[Any]) -> Any | None:
         return None
     on = [s for s in with_login if getattr(s, "service_on", True)]
     return (on or with_login)[0]
+
+
+_RE_LOGIN_RADIUS = re.compile(r"\b([a-z0-9]{3,}(?:BAI|bai))\b")
+
+
+def extraer_login_en_texto(texto: str, servicios: list[Any] | None = None) -> str:
+    """Detecta username Radius en el mensaje (ej. tupaciretacuidaBAI)."""
+    raw = (texto or "").strip()
+    if not raw:
+        return ""
+    tl = raw.lower()
+    for svc in servicios or []:
+        login = str(getattr(svc, "login", "") or "").strip()
+        if login and login.lower() in tl:
+            return login
+    m = _RE_LOGIN_RADIUS.search(raw)
+    if m:
+        return m.group(1)
+    return ""
+
+
+def resolver_login_consulta(
+    texto: str,
+    servicios: list[Any] | None,
+    *,
+    login_ctx: str = "",
+) -> str:
+    """Login activo: mensaje > contexto > único servicio del padrón."""
+    login = extraer_login_en_texto(texto, servicios)
+    if login:
+        return login
+    login_ctx = (login_ctx or "").strip()
+    if login_ctx:
+        return login_ctx
+    svcs = [s for s in (servicios or []) if getattr(s, "login", "")]
+    if len(svcs) == 1:
+        return str(getattr(svcs[0], "login", "") or "").strip()
+    return ""
+
+
+def listar_logins_conectividad(servicios: list[Any] | None) -> list[str]:
+    out: list[str] = []
+    for svc in servicios or []:
+        login = str(getattr(svc, "login", "") or "").strip()
+        if login and login not in out:
+            out.append(login)
+    return out
 
 
 def _billtrack_engine(db: Session | None = None):

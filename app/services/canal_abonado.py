@@ -241,6 +241,211 @@ def _responder_paso_diagnostico_wifi(
     }
 
 
+def _servicios_conectividad_abonado(
+    db: Session,
+    abonado: Abonado | None,
+) -> list:
+    if abonado is None:
+        return []
+    from app.services import billtrack as bt
+
+    dni = str(getattr(abonado, "dni", "") or "").strip()
+    client_number = str(getattr(abonado, "client_number", "") or "").strip()
+    try:
+        if client_number:
+            return bt.lookup_servicios_conectividad(client_number=client_number, db=db)
+        if dni:
+            return bt.lookup_servicios_conectividad_por_dni(dni=dni, db=db)
+    except Exception:
+        logger.exception("BillTrack servicios conectividad (canal) falló")
+    return []
+
+
+def _sincronizar_login_desde_mensaje(
+    db: Session,
+    abonado: Abonado | None,
+    ctx: dict,
+    texto: str,
+) -> str:
+    """Si el abonado nombra un login Radius, refresca PPPoE/UISP en ctx."""
+    from app.services import billtrack as bt
+    from app.services.conexion_uisp import sincronizar_servicio_login_en_ctx
+
+    servicios = _servicios_conectividad_abonado(db, abonado)
+    login = bt.extraer_login_en_texto(texto, servicios)
+    if not login:
+        return str(ctx.get("login_seleccionado") or "")
+    prev = str(ctx.get("login_seleccionado") or "")
+    if login == prev:
+        return login
+    sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if "login_seleccionado" not in cub:
+        cub.append("login_seleccionado")
+    ctx["pasos_cubiertos"] = cub
+    return login
+
+
+def _responder_consulta_senal_antena(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Consulta UISP en vivo y responde señal de antena (multi-cuenta)."""
+    from app.domain.flujos_abonado import cliente_pregunta_senal_antena
+    from app.services import billtrack as bt
+    from app.services.conexion_uisp import (
+        mensaje_informe_senal_antena,
+        mensaje_visita_antena_por_senal,
+        requiere_visita_campo_por_senal,
+        resolve_uisp_client,
+        sincronizar_servicio_login_en_ctx,
+    )
+
+    if not cliente_pregunta_senal_antena(texto) or abonado is None:
+        return None
+
+    servicios = _servicios_conectividad_abonado(db, abonado)
+    login = (
+        bt.extraer_login_en_texto(texto, servicios)
+        or str(ctx.get("login_seleccionado") or "").strip()
+        or bt.resolver_login_consulta(
+            texto,
+            servicios,
+            login_ctx=str(ctx.get("pppoe_login") or ""),
+        )
+    )
+    logins = bt.listar_logins_conectividad(servicios)
+
+    if not login and len(logins) > 1:
+        msg = (
+            f"Tenés {len(logins)} cuentas de internet: {', '.join(logins)}. "
+            "¿Cuál querés consultar? Decime el usuario (ej. tupaciretacuidaBAI)."
+        )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "intencion": intencion,
+            "consulta_senal_antena": True,
+        }
+
+    if not login:
+        return None
+
+    if resolve_uisp_client(db) is None:
+        msg = (
+            f"Por ahora no puedo leer la señal de la antena de {login} desde el sistema. "
+            "¿El problema es que no te anda en ningún dispositivo o solo va lento?"
+        )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+
+    cpe = sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if "consulta_senal_antena" not in cub:
+        cub.append("consulta_senal_antena")
+    ctx["pasos_cubiertos"] = cub
+    ctx["ultima_diag_motivo"] = "consulta_senal_antena_uisp"
+    ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+
+    if not cpe.encontrado:
+        msg = (
+            f"No encontré la antena de la cuenta {login} en la red. "
+            "¿El inyector PoE (fuente de la antena) tiene la lucecita prendida?"
+        )
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+
+    informe = mensaje_informe_senal_antena(cpe)
+    msg = f"Revisé la cuenta {login}. {informe}"
+
+    if cpe.online is False:
+        msg = (
+            f"Revisé la cuenta {login}: la antena no está en línea con la torre. "
+            "¿El inyector PoE tiene la lucecita prendida?"
+        )
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+
+    if requiere_visita_campo_por_senal(cpe):
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            f"Señal antena fuera de parámetro UISP ({login}, "
+            f"{cpe.signal_dbm:.0f} dBm)" if cpe.signal_dbm is not None else f"Señal antena mala ({login})",
+            intencion=intencion or "internet_radio",
+            paso_idx=int(ctx.get("paso_idx") or 0),
+            ctx=ctx,
+        )
+        msg = f"{msg} {mensaje_visita_antena_por_senal(cpe)}"
+        msg = _mensaje_cierre_escalamiento(
+            tid,
+            motivo="uisp_consulta_senal_mala",
+            mensaje_ia=msg,
+            intencion=intencion or "internet_radio",
+        )
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "ticket_id": tid,
+            "intencion": intencion,
+        }
+
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "diagnostico_ia": True,
+    }
+
+
 def _limpiar_ctx_outage(ctx: dict, *, preservar_resuelto_avisado: bool = False) -> None:
     avisado = ctx.get("outage_resuelto_avisado")
     for k in (
@@ -2657,6 +2862,15 @@ def _aplicar_diagnostico_ia(
             db, org_id, conv, abonado, ctx, canal=canal
         )
 
+    if abonado:
+        _sincronizar_login_desde_mensaje(db, abonado, ctx, texto)
+
+    senal_ant = _responder_consulta_senal_antena(
+        db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if senal_ant is not None:
+        return senal_ant
+
     paso_wifi = _responder_paso_diagnostico_wifi(
         db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
     )
@@ -4338,6 +4552,15 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "intencion": intencion,
             }
+
+    if abonado:
+        _sincronizar_login_desde_mensaje(db, abonado, ctx, texto)
+
+    senal_ant = _responder_consulta_senal_antena(
+        db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""
+    )
+    if senal_ant is not None:
+        return senal_ant
 
     paso_wifi = _responder_paso_diagnostico_wifi(
         db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion or ""

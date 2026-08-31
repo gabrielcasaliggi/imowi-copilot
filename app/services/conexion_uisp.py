@@ -143,6 +143,65 @@ def aplicar_uisp_a_ctx(ctx: dict, cpe: EstadoCpeUisp) -> None:
         ctx["uisp_sitio"] = cpe.sitio
 
 
+def sincronizar_servicio_login_en_ctx(
+    db: Session | None,
+    abonado: Any,
+    ctx: dict,
+    login: str,
+) -> EstadoCpeUisp:
+    """Refresca PPPoE + UISP en ctx para un login Radius concreto (multi-cuenta)."""
+    from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
+    from app.services.conexion_pppoe import (
+        clasificar_rama_pppoe,
+        consultar_conexion_pppoe,
+        triage_pppoe_para_prompt,
+    )
+    from app.services.velocidad_plan import extraer_mbps_plan
+
+    login_n = (login or "").strip()
+    cpe = EstadoCpeUisp(login=login_n, error="login vacío")
+    if not login_n or abonado is None:
+        return cpe
+
+    estado = consultar_conexion_pppoe(
+        dni=str(getattr(abonado, "dni", "") or ""),
+        client_number=str(getattr(abonado, "client_number", "") or ""),
+        login=login_n,
+        db=db,
+    )
+    ctx["login_seleccionado"] = login_n
+    ctx["pppoe_login"] = login_n
+    ctx["pppoe_resumen"] = estado.resumen_prompt()
+    ctx["pppoe_triage"] = triage_pppoe_para_prompt(estado)
+    ctx["pppoe_rama"] = clasificar_rama_pppoe(estado)
+    if estado.sesion:
+        ctx["pppoe_ip"] = estado.sesion.public_ip or ""
+        ctx["pppoe_uptime"] = estado.sesion.uptime or ""
+    if estado.servicio:
+        prod = (estado.servicio.product or estado.servicio.label or "").strip()
+        if prod:
+            ctx["pppoe_producto"] = prod
+        mbps = extraer_mbps_plan(prod, estado.servicio.service_type_label)
+        if mbps is not None:
+            ctx["pppoe_plan_mbps"] = f"{mbps:g}"
+        pb_tech = playbook_internet_desde_tipo_servicio(
+            estado.servicio.service_type_code,
+            estado.servicio.service_type_label,
+        )
+        if pb_tech:
+            ctx["tecnologia_acceso"] = pb_tech
+
+    if resolve_uisp_client(db) is not None:
+        cpe = consultar_cpe_uisp(login_n, db=db)
+        aplicar_uisp_a_ctx(ctx, cpe)
+    else:
+        ctx.pop("uisp_resumen", None)
+        ctx.pop("uisp_triage", None)
+        ctx.pop("uisp_signal_dbm", None)
+        ctx.pop("uisp_calidad_senal", None)
+    return cpe
+
+
 def parse_signal_dbm_desde_resumen(resumen: str) -> float | None:
     m = _RE_SENAL_DBM.search(resumen or "")
     if not m:

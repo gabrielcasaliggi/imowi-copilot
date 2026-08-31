@@ -1803,7 +1803,34 @@ def diagnosticar_turno(
             "motivo": "pon_verde_enlace_ok",
         }
 
+    from app.domain.flujos_abonado import cliente_pregunta_senal_antena
+    from app.services.conexion_uisp import (
+        evaluar_turno_visita_antena_uisp,
+        parse_uisp_desde_contexto,
+    )
     from app.services.velocidad_plan import evaluar_speedtest_vs_plan
+
+    if cliente_pregunta_senal_antena(mensaje_cliente):
+        uisp_turno = evaluar_turno_visita_antena_uisp(
+            contexto_abonado=contexto_abonado,
+            mensaje_cliente=mensaje_cliente,
+            historial_mensajes=historial_mensajes,
+            pasos_cubiertos=list(pasos_cubiertos or []),
+            turnos_diagnostico=int(turnos_diagnostico or 0),
+            intencion=intencion,
+        )
+        if uisp_turno:
+            return uisp_turno
+        if parse_uisp_desde_contexto(contexto_abonado).get("signal_dbm") is None:
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "Para decirte la señal de la antena necesito saber qué cuenta revisar. "
+                    "¿Cuál es el usuario? (ej. tupaciretacuidaBAI)"
+                ),
+                "paso_cubierto": "consulta_senal_antena",
+                "motivo": "bloqueado_senal_sin_uisp",
+            }
 
     eval_vel = evaluar_speedtest_vs_plan(
         mensaje_cliente,
@@ -1813,8 +1840,6 @@ def diagnosticar_turno(
     )
     if eval_vel:
         return eval_vel
-
-    from app.services.conexion_uisp import evaluar_turno_visita_antena_uisp
 
     uisp_turno = evaluar_turno_visita_antena_uisp(
         contexto_abonado=contexto_abonado,
