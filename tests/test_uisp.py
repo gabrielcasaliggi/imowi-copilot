@@ -162,6 +162,46 @@ def test_evaluar_turno_senal_mala_deriva_visita():
     assert "visita" in (out.get("mensaje") or "").lower()
 
 
+def test_evaluar_turno_senal_mala_voy_a_cortar_arbol_no_deriva():
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- uisp: login=x; estado=en_linea; senal=-79dBm; calidad=mala\n"
+        "- uisp_triage: triage=cpe_radio_senal_mala; linea_de_vista\n"
+    )
+    out = evaluar_turno_visita_antena_uisp(
+        contexto_abonado=ctx,
+        mensaje_cliente="voy a cortar un arbol que hay en el medio",
+        historial_mensajes=[],
+        pasos_cubiertos=["uisp_senal_mala"],
+        turnos_diagnostico=3,
+        intencion="internet_radio",
+    )
+    assert out is not None
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "uisp_linea_vista_accion_cliente"
+    assert "visita" not in (out.get("mensaje") or "").lower()
+    assert "despejes" in (out.get("mensaje") or "").lower()
+
+
+def test_evaluar_turno_senal_mala_pendiente_despeje_sigue_mal_deriva():
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- uisp: login=x; estado=en_linea; senal=-79dBm; calidad=mala\n"
+        "- uisp_triage: triage=cpe_radio_senal_mala; linea_de_vista\n"
+    )
+    out = evaluar_turno_visita_antena_uisp(
+        contexto_abonado=ctx,
+        mensaje_cliente="sigue sin andar",
+        historial_mensajes=[],
+        pasos_cubiertos=["uisp_senal_mala", "linea_vista_accion_pendiente"],
+        turnos_diagnostico=4,
+        intencion="internet_radio",
+    )
+    assert out is not None
+    assert out["accion"] == "escalate"
+    assert out["motivo"] == "uisp_senal_mala_visita"
+
+
 def test_evaluar_turno_senal_buena_consulta_no_deriva():
     ctx = (
         "CONTEXTO_ABONADO:\n"

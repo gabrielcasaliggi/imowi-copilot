@@ -365,13 +365,15 @@ def evaluar_turno_visita_antena_uisp(
             "sigue bajo",
         )
     )
-    if (
-        turnos >= 1
-        or persistencia
-        or pide_humano(mensaje_cliente)
-        or "linea_vista" in pasos_cubiertos
-        or "uisp_senal_mala" in pasos_cubiertos
-    ):
+    from app.domain.flujos_abonado import (
+        cliente_completo_despeje_linea_vista,
+        cliente_niega_obstruccion_linea_vista,
+        cliente_va_despejar_linea_vista,
+        mensaje_confirmacion_mejora_linea_vista,
+        mensaje_espera_despeje_linea_vista,
+    )
+
+    def _escalate_senal_mala() -> dict[str, str]:
         return {
             "accion": "escalate",
             "mensaje": mensaje_visita_antena_por_senal(estado),
@@ -379,17 +381,83 @@ def evaluar_turno_visita_antena_uisp(
             "motivo": "uisp_senal_mala_visita",
         }
 
-    if "uisp_senal_mala" not in pasos_cubiertos:
+    if "linea_vista_accion_hecha" in pasos_cubiertos and (
+        persistencia or pide_humano(mensaje_cliente)
+    ):
+        return _escalate_senal_mala()
+
+    if "linea_vista_accion_pendiente" in pasos_cubiertos:
+        if cliente_completo_despeje_linea_vista(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": mensaje_confirmacion_mejora_linea_vista(mensaje_cliente),
+                "paso_cubierto": "linea_vista_accion_hecha",
+                "motivo": "uisp_linea_vista_confirmar_mejora",
+            }
+        if persistencia or pide_humano(mensaje_cliente):
+            return _escalate_senal_mala()
+        if cliente_va_despejar_linea_vista(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": mensaje_espera_despeje_linea_vista(mensaje_cliente),
+                "paso_cubierto": "linea_vista_accion_pendiente",
+                "motivo": "uisp_linea_vista_accion_cliente",
+            }
         return {
             "accion": "ask",
             "mensaje": (
-                f"{mensaje_informe_senal_antena(estado)} "
-                "¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
+                "Dale. Avisame cuando hayas despejado la vista entre la antena y la torre "
+                "y probemos de nuevo."
             ),
-            "paso_cubierto": "uisp_senal_mala",
-            "motivo": "uisp_senal_mala_linea_vista",
+            "paso_cubierto": "linea_vista_accion_pendiente",
+            "motivo": "uisp_linea_vista_esperando_cliente",
         }
-    return None
+
+    if "uisp_senal_mala" in pasos_cubiertos:
+        if cliente_va_despejar_linea_vista(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": mensaje_espera_despeje_linea_vista(mensaje_cliente),
+                "paso_cubierto": "linea_vista_accion_pendiente",
+                "motivo": "uisp_linea_vista_accion_cliente",
+            }
+        if cliente_completo_despeje_linea_vista(mensaje_cliente):
+            return {
+                "accion": "ask",
+                "mensaje": mensaje_confirmacion_mejora_linea_vista(mensaje_cliente),
+                "paso_cubierto": "linea_vista_accion_hecha",
+                "motivo": "uisp_linea_vista_confirmar_mejora",
+            }
+        if persistencia or pide_humano(mensaje_cliente):
+            return _escalate_senal_mala()
+        if cliente_niega_obstruccion_linea_vista(mensaje_cliente):
+            return _escalate_senal_mala()
+        if "linea_vista" in pasos_cubiertos or turnos >= 2:
+            return _escalate_senal_mala()
+        if any(
+            k in t
+            for k in ("árbol", "arbol", "chapa", "obstruc", "tapado", "creció", "crecio", "rama")
+        ):
+            return _escalate_senal_mala()
+        return None
+
+    if (
+        persistencia
+        or pide_humano(mensaje_cliente)
+        or "linea_vista" in pasos_cubiertos
+        or turnos >= 2
+    ):
+        return _escalate_senal_mala()
+
+    return {
+        "accion": "ask",
+        "mensaje": (
+            f"{mensaje_informe_senal_antena(estado)} "
+            "¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
+        ),
+        "paso_cubierto": "uisp_senal_mala",
+        "motivo": "uisp_senal_mala_linea_vista",
+    }
 
 
 def consultar_cpe_uisp(

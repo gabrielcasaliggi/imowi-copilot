@@ -2503,6 +2503,99 @@ def mensaje_confirmacion_paso_diagnostico_wifi(
     return f"Bien. ¿Notás mejor señal o velocidad{zona} ahora?"
 
 
+_VERBOS_DESPEJE_LINEA_VISTA = (
+    "cortar",
+    "corto",
+    "corte",
+    "podar",
+    "podo",
+    "sacar",
+    "saco",
+    "quitar",
+    "quito",
+    "despejar",
+    "despejo",
+    "rama",
+    "ramas",
+    "árbol",
+    "arbol",
+    "chapa",
+    "chapas",
+)
+
+
+def cliente_va_despejar_linea_vista(texto: str) -> bool:
+    """Abonado va a despejar obstrucción (árbol, chapa) — no escalar aún."""
+    t = (texto or "").lower().strip()
+    if not t or indica_resuelto(texto):
+        return False
+    if any(
+        k in t
+        for k in (
+            "sigue sin",
+            "sigue igual",
+            "no anda",
+            "no mejora",
+            "visita",
+            "técnico",
+            "tecnico",
+            "agente",
+        )
+    ):
+        return False
+    if "voy a" in t and any(k in t for k in _VERBOS_DESPEJE_LINEA_VISTA):
+        return True
+    if any(k in t for k in ("tengo que", "mañana", "hoy voy", "ahora voy")) and any(
+        k in t for k in _VERBOS_DESPEJE_LINEA_VISTA
+    ):
+        return True
+    return False
+
+
+def cliente_completo_despeje_linea_vista(texto: str) -> bool:
+    """Ya despejó / cortó — preguntar si mejoró."""
+    t = (texto or "").lower().strip()
+    if not t or indica_resuelto(texto):
+        return False
+    if any(k in t for k in ("corté", "corte", "saqué", "saque", "quité", "quite", "despejé", "despeje", "podé", "pode")):
+        if any(k in t for k in _VERBOS_DESPEJE_LINEA_VISTA):
+            return True
+    if any(k in t for k in ("listo", "ya lo", "ya la", "hecho", "hice", "dale")) and any(
+        k in t for k in _VERBOS_DESPEJE_LINEA_VISTA
+    ):
+        return True
+    return False
+
+
+def cliente_niega_obstruccion_linea_vista(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "no hay",
+            "no creció",
+            "no crecio",
+            "nada nuevo",
+            "vista libre",
+            "sin obstruc",
+            "no hay nada",
+        )
+    )
+
+
+def mensaje_espera_despeje_linea_vista(texto: str = "") -> str:
+    return (
+        "Perfecto. Cuando despejes la vista entre la antena y la torre, "
+        "probá internet y contame si mejoró la señal o la velocidad."
+    )
+
+
+def mensaje_confirmacion_mejora_linea_vista(texto: str = "") -> str:
+    return "Bien. ¿Notás mejor señal o velocidad de internet ahora?"
+
+
 def indica_resuelto(texto: str) -> bool:
     """El abonado indica que el servicio ya volvió / funciona.
 
