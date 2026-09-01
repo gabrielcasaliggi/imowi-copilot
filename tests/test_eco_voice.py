@@ -226,7 +226,10 @@ def test_bloquea_handoff_y_pago_prematuro(monkeypatch):
 
 def test_cierre_escalamiento_los_no_es_cortante():
     from app.services.canal_abonado import _mensaje_cierre_escalamiento
-    from app.services.diagnostico_n1 import detectar_falla_optica_escalar
+    from app.services.diagnostico_n1 import (
+        detectar_enlace_optico_ok,
+        detectar_falla_optica_escalar,
+    )
 
     assert (
         detectar_falla_optica_escalar(
@@ -239,6 +242,24 @@ def test_cierre_escalamiento_los_no_es_cortante():
             ],
         )
         == "los_confirmada"
+    )
+    assert detectar_falla_optica_escalar(
+        "La PON está verde y la LOS apagada",
+        [
+            {
+                "autor": "bot",
+                "texto": "¿La luz PON está verde fija y la LOS apagada?",
+            }
+        ],
+    ) is None
+    assert detectar_enlace_optico_ok(
+        "La PON está verde y la LOS apagada",
+        [
+            {
+                "autor": "bot",
+                "texto": "¿La luz PON está verde fija y la LOS apagada?",
+            }
+        ],
     )
     msg = _mensaje_cierre_escalamiento(
         "IBOT-1016",

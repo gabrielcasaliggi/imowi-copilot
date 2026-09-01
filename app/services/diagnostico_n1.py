@@ -845,6 +845,44 @@ def _bot_menciona_los(texto: str) -> bool:
     )
 
 
+def _cliente_reporta_los_apagada_ok(texto: str) -> bool:
+    """LOS apagada / sin alarma = enlace óptico OK, no es falla."""
+    raw = texto or ""
+    t = raw.lower()
+    if "los" not in t and "LOS" not in raw:
+        return False
+    if any(k in t for k in ("roja", "rojo", "prendida", "encendida", "parpade")):
+        return False
+    return any(k in t for k in ("apagad", "sin alarma", "no hay luz roja"))
+
+
+def _cliente_indica_los_en_alarma(texto: str) -> bool:
+    """True solo si el cliente reporta LOS en rojo/alarma (no apagada = OK)."""
+    if _cliente_reporta_los_apagada_ok(texto):
+        return False
+    raw = texto or ""
+    t = raw.lower()
+    if "los" not in t and "LOS" not in raw:
+        return False
+    return any(
+        k in t
+        for k in (
+            "luz roja",
+            "los roja",
+            "los en rojo",
+            "los rojo",
+            "roja de los",
+            "rojo de los",
+            "luz los",
+            "los prendida",
+            "los encendida",
+            "los parpade",
+            "tengo los",
+            "led los",
+        )
+    ) or ("los" in t and any(k in t for k in ("roja", "rojo")))
+
+
 def _bot_pregunta_fibra(texto: str) -> bool:
     tl = (texto or "").lower()
     return any(
@@ -1001,7 +1039,11 @@ def detectar_falla_optica_escalar(
             bot_hablo_los = True
             for autor2, texto2 in recent[i + 1 :]:
                 if autor2 == "cliente":
-                    if _es_afirmacion(texto2) or _bot_menciona_los(texto2) or "roja" in texto2.lower():
+                    if _cliente_indica_los_en_alarma(texto2):
+                        cliente_confirmo_los = True
+                    elif _es_afirmacion(texto2) and any(
+                        k in (texto or "").lower() for k in ("roj", "alarma", "encendid")
+                    ):
                         cliente_confirmo_los = True
                     break
         if autor == "bot" and _bot_pregunta_fibra(texto):
@@ -1009,23 +1051,7 @@ def detectar_falla_optica_escalar(
 
     last_l = last.lower()
     dano = _tiene_dano_fibra(last_l)
-    cliente_dice_los = any(
-        k in last_l
-        for k in (
-            "luz los",
-            "los roja",
-            "los en rojo",
-            "tengo los",
-            "led los",
-            "la los",
-            "roja de los",
-            "rojo de los",
-            "luz de los",
-        )
-    ) or (
-        "los" in last_l
-        and any(k in last_l for k in ("roja", "rojo", "luz"))
-    )
+    cliente_dice_los = _cliente_indica_los_en_alarma(last)
 
     if dano and (bot_pregunto_fibra or bot_hablo_los or cliente_confirmo_los):
         return "fibra_danada"
@@ -1057,14 +1083,12 @@ def los_confirmada_en_historial(
         if autor == "bot" and _bot_menciona_los(texto):
             for autor2, texto2 in recent[i + 1 :]:
                 if autor2 == "cliente":
-                    if _es_afirmacion(texto2) or "roja" in (texto2 or "").lower():
+                    if _cliente_indica_los_en_alarma(texto2):
+                        return True
+                    if _es_afirmacion(texto2) and "roj" in (texto or "").lower():
                         return True
                     break
-    last_l = last.lower()
-    return any(
-        k in last_l
-        for k in ("luz los", "los roja", "los en rojo", "tengo los", "led los")
-    )
+    return _cliente_indica_los_en_alarma(last)
 
 
 def _extract_json(text: str) -> dict[str, Any]:

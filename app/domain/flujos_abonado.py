@@ -2923,8 +2923,19 @@ def es_paso_derivacion(paso: PasoPlaybook | None) -> bool:
         "¿querés que" in preg
         or "queres que" in preg
         or "te derive" in preg
+        or "¿te derivo" in preg
+        or "te derivo" in preg
         or "abra un ticket" in preg
         or "abra ticket" in preg
+    )
+
+
+def mensaje_contacto_alta_comercial() -> str:
+    """Alta/cambio de plan: contacto comercial sin ticket técnico N2."""
+    return (
+        "Perfecto. Para contratar o cambiar de plan coordiná con comercial: "
+        "WhatsApp 0223 4643010, teléfono 464-3000 u oficina en Batán con tu DNI. "
+        "¿Te ayudo con algo más?"
     )
 
 

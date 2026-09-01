@@ -4692,6 +4692,26 @@ def procesar_mensaje_entrante(
             )
             if contenido is not None:
                 return contenido
+        # Alta comercial: contacto Batán, sin ticket técnico N2
+        if intencion == "alta_plan":
+            from app.domain.flujos_abonado import mensaje_contacto_alta_comercial
+
+            resp = mensaje_contacto_alta_comercial()
+            ctx["intencion"] = "general"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         tid = _crear_ticket_n2(
             db,
             org_id,
@@ -4747,6 +4767,25 @@ def procesar_mensaje_entrante(
 
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
     if veredicto is True and es_paso_derivacion(paso_actual):
+        if acepta_derivacion_clara(texto) and intencion == "alta_plan":
+            from app.domain.flujos_abonado import mensaje_contacto_alta_comercial
+
+            resp = mensaje_contacto_alta_comercial()
+            ctx["intencion"] = "general"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = 0
+            ctx["pasos_cubiertos"] = []
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "general",
+            }
         if acepta_derivacion_clara(texto):
             return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
         # «si tengo» / señal: no es aceptar ticket — seguir N1
