@@ -218,6 +218,16 @@ def _alembic_config():
     return cfg
 
 
+def restaurar_logging_app() -> None:
+    """fileConfig de Alembic deja root en WARN; el boot de la API necesita INFO."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s:%(name)s:%(message)s",
+        force=True,
+    )
+    logging.getLogger("operations_hub").setLevel(logging.INFO)
+
+
 def sincronizar_alembic(engine: Engine) -> list[str]:
     """Stamp head si la DB no está versionada; upgrade si ya hay alembic_version.
 
@@ -237,12 +247,15 @@ def sincronizar_alembic(engine: Engine) -> list[str]:
     try:
         if not insp.has_table("alembic_version"):
             command.stamp(cfg, "head")
+            restaurar_logging_app()
             logger.info("Alembic: stamp head (schema ya existía)")
             return ["alembic stamp head"]
         command.upgrade(cfg, "head")
+        restaurar_logging_app()
         logger.info("Alembic: upgrade head")
         return ["alembic upgrade head"]
     except Exception:
+        restaurar_logging_app()
         logger.exception("Alembic no pudo sincronizar; el schema aditivo ya corrió")
         return []
 

@@ -94,3 +94,19 @@ def test_alembic_postgres_con_version_hace_upgrade(monkeypatch):
 
     assert mig.sincronizar_alembic(_Engine()) == ["alembic upgrade head"]
     assert upgraded == ["head"]
+
+
+def test_alembic_env_no_desactiva_loggers_existentes():
+    from pathlib import Path
+
+    env = Path(__file__).resolve().parents[1] / "alembic" / "env.py"
+    text = env.read_text(encoding="utf-8")
+    assert "disable_existing_loggers=False" in text
+
+
+def test_restaurar_logging_app_deja_info():
+    import logging
+
+    logging.getLogger("operations_hub").setLevel(logging.WARNING)
+    mig.restaurar_logging_app()
+    assert logging.getLogger("operations_hub").level == logging.INFO

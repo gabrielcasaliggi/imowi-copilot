@@ -13,7 +13,8 @@ from app.estate.database import Base
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # False: stamp/upgrade desde el boot de FastAPI no debe apagar operations_hub.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
