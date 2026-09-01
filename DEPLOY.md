@@ -53,7 +53,7 @@ Plantilla env: `.env.server.example` (`DISABLE_DEMO_USERS`, `ENABLE_DEMO_RESET=f
 |------|-----------|--------|
 | Data Estate | PostgreSQL (`DATABASE_URL`) | tickets, users, portal links, audit |
 | BillTrack | Postgres externo RO | padrón — sin writes |
-| Base conocimiento | `Base_de_Conocimiento_Tickets.md` | solo lectura en image |
+| Base conocimiento | KB tenant en Postgres; dump opcional `data/base_conocimiento.md` | no versionar el markdown |
 
 ---
 

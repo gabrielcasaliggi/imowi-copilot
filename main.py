@@ -102,13 +102,18 @@ async def lifespan(app: FastAPI):
 
     try:
         info = cargar_base_conocimiento(Path(__file__).resolve().parent)
-        logger.info(
-            "Base de conocimiento indexada [%s]: %s (%s bloques, %s tokens índice)",
-            info.get("modo", "keyword_rag"),
-            info["archivo"],
-            info["bloques"],
-            info["tokens_indice"],
-        )
+        if info.get("bloques"):
+            logger.info(
+                "Base de conocimiento indexada [%s]: %s (%s bloques, %s tokens índice)",
+                info.get("modo", "keyword_rag"),
+                info["archivo"],
+                info["bloques"],
+                info["tokens_indice"],
+            )
+        else:
+            logger.info(
+                "Base de conocimiento: sin dump markdown; N1 usa KB tenant en estate"
+            )
         app.state.knowledge = info
     except FileNotFoundError as e:
         logger.error("No se pudo cargar la base de conocimiento: %s", e)

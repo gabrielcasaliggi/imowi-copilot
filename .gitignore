@@ -7,6 +7,10 @@ __pycache__/
 .Python
 data/
 .tmp/
+# Dump RAG opcional (vive en data/ o KNOWLEDGE_FILE). No versionar.
+/base_conocimiento.md
+/Base_de_Conocimiento_Tickets.md
+/base_conocimiento_tickets.md
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**

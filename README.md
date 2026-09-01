@@ -144,8 +144,9 @@ app/                # FastAPI (API v1, agents, estate, services)
 frontend/           # Next.js (consola + portal)
 deploy/             # nginx + systemd + docker-compose
 main.py             # Entrypoint FastAPI
-Base_de_Conocimiento_Tickets.md
 ```
+
+Dump RAG opcional: `data/base_conocimiento.md` (gitignored). N1 usa la KB tenant en Postgres.
 
 ---
 

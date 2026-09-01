@@ -5,6 +5,7 @@ Solo fragmentos relevantes al mensaje del operador van al LLM (evita error 413).
 
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -75,7 +76,7 @@ TERMINOS_TECNICOS = frozenset(
     """.split()
 )
 
-CARPETAS_CONOCIMIENTO = ("contratos", "knowledge", "base_conocimiento")
+CARPETAS_CONOCIMIENTO = ("contratos", "knowledge")
 ARCHIVOS_CONOCIMIENTO = (
     "base_conocimiento.md",
     "Base_de_Conocimiento_Tickets.md",
@@ -224,28 +225,48 @@ def _construir_indice_invertido(bloques: list[BloqueConocimiento]) -> dict[str, 
 
 
 def resolver_ruta_base_conocimiento(raiz: Path | None = None) -> Path:
-    raiz = raiz or Path(__file__).resolve().parent.parent
-    for nombre in ARCHIVOS_CONOCIMIENTO:
-        ruta = raiz / nombre
-        if ruta.is_file():
-            return ruta
-    raise FileNotFoundError(
-        f"No se encontró base de conocimiento en {raiz}. "
-        f"Colocá base_conocimiento.md, una carpeta contratos/ con .md, "
-        f"o Base_de_Conocimiento_Tickets.md"
-    )
+    fuentes = resolver_fuentes_conocimiento(raiz)
+    if not fuentes:
+        raiz = raiz or Path(__file__).resolve().parent.parent
+        raise FileNotFoundError(
+            f"No se encontró dump markdown de conocimiento en {raiz}. "
+            f"Opcional: data/base_conocimiento.md o KNOWLEDGE_FILE. "
+            f"N1 usa la KB tenant en el estate."
+        )
+    return fuentes[0]
 
 
 def resolver_fuentes_conocimiento(raiz: Path | None = None) -> list[Path]:
-    """Archivo único .md o todos los .md dentro de contratos/ / knowledge/."""
+    """Una sola fuente: env, data/ (gitignored), carpetas, o legado en la raíz.
+
+    El dump de tickets no se versiona. Sin archivo, la lista queda vacía
+    (N1 sigue con artículos tenant en Postgres).
+    """
     raiz = raiz or Path(__file__).resolve().parent.parent
+    env_file = os.getenv("KNOWLEDGE_FILE", "").strip()
+    if env_file:
+        candidato = Path(env_file)
+        if not candidato.is_absolute():
+            candidato = raiz / candidato
+        if candidato.is_file():
+            return [candidato]
+
+    data_file = raiz / "data" / "base_conocimiento.md"
+    if data_file.is_file():
+        return [data_file]
+
     for carpeta in CARPETAS_CONOCIMIENTO:
         dir_path = raiz / carpeta
         if dir_path.is_dir():
             archivos = sorted(p for p in dir_path.rglob("*.md") if p.is_file())
             if archivos:
                 return archivos
-    return [resolver_ruta_base_conocimiento(raiz)]
+
+    for nombre in ARCHIVOS_CONOCIMIENTO:
+        ruta = raiz / nombre
+        if ruta.is_file():
+            return [ruta]
+    return []
 
 
 def cargar_base_conocimiento(raiz: Path | None = None) -> dict:
@@ -261,10 +282,17 @@ def cargar_base_conocimiento(raiz: Path | None = None) -> dict:
     _indice_invertido = _construir_indice_invertido(_bloques)
     _cargado = True
 
+    if not _fuentes:
+        archivo = "(sin dump markdown)"
+    elif len(_fuentes) == 1:
+        archivo = str(_fuentes[0])
+    else:
+        archivo = f"{len(_fuentes)} archivos"
+
     return {
         "modo": "keyword_rag",
         "fuentes": [str(p) for p in _fuentes],
-        "archivo": str(_fuentes[0]) if len(_fuentes) == 1 else f"{len(_fuentes)} archivos",
+        "archivo": archivo,
         "bloques": len(_bloques),
         "tokens_indice": len(_indice_invertido),
     }

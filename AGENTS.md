@@ -84,3 +84,4 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 | 2026-09-01 | Harness mínimo: este `AGENTS.md` + regla Cursor | Adoptar guía Scrum Manager (jun 2026): instrucciones, estado en git, sensores, WIP=1, bootstrap |
 | 2026-09-01 | Schema: `aplicar_schema` en boot | Production postgres con estate no usa `create_all`; Alembic stamp/upgrade; `migrate_schema` sigue aditivo |
 | 2026-09-01 | FE contrato + mobile CI | `npm test` del api-client (4 endpoints) y `tsc --noEmit` de `mobile/` en GitHub Actions |
+| 2026-09-01 | Dump KB fuera de git | Un dump opcional en `data/`; N1 usa estate. No versionar 52k duplicados |

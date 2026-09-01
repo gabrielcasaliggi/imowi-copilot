@@ -105,8 +105,8 @@ GET /cuentas/{msisdn}/estado
 
 | Demo | Producción |
 |------|------------|
-| KB tenant en SQLite + RAG Markdown global | KB curada por cooperativa + artículos de plataforma |
-| `Base_de_Conocimiento_Tickets.md` (51k líneas) | Subset indexado por categoría/ticket type |
+| KB tenant en Postgres + dump markdown opcional en `data/` | KB curada por cooperativa |
+| Dump histórico de tickets (no versionado) | Subset indexado por categoría/ticket type |
 
 **Recomendación post-piloto:** indexar solo artículos validados por NOC; desactivar RAG global durante flujo operativo activo (ya implementado parcialmente).
 
