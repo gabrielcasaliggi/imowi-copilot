@@ -1020,6 +1020,10 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    from app.domain.flujos_abonado import refinar_intencion_internet
+
+    if refinar_intencion_internet(texto):
+        return "tecnico"
     if cliente_imposibilidad_pago(texto) or solicita_baja_servicio(texto):
         return None
     # Ya pagó → seguir con el diagnóstico técnico (vino por el servicio)
@@ -1094,6 +1098,11 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
             "técnico",
             "tecnico",
             "fibra",
+            "antena",
+            "radio",
+            "inalambr",
+            "inalámbr",
+            "bai",
             # Síntoma técnico = eligió seguir con el diagnóstico
             "datos",
             "señal",
@@ -1919,6 +1928,10 @@ def _arrancar_intencion_menu(
     if intencion == "movil":
         refinada = clasificar_intencion(texto, servicio_abo)
         if refinada in ("movil_datos", "movil_llamadas", "movil"):
+            intencion = refinada
+    if intencion == "internet":
+        refinada = refinar_playbook_internet(texto)
+        if refinada:
             intencion = refinada
     if intencion == "baja_servicio":
         return _iniciar_flujo_baja_servicio(
@@ -3636,6 +3649,10 @@ def procesar_mensaje_entrante(
             }
         eleccion = _elige_pago_o_tecnico(texto)
         pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
+        refinada_acceso = refinar_intencion_internet(texto)
+        if refinada_acceso:
+            pendiente = refinada_acceso
+            ctx["intencion_tecnica_pendiente"] = refinada_acceso
         if eleccion is None:
             t_low = (texto or "").lower()
             if any(
@@ -3702,6 +3719,8 @@ def procesar_mensaje_entrante(
             }
         # Seguir técnico
         intencion = pendiente if _intencion_es_tecnica(pendiente) else "general"
+        if refinada_acceso:
+            ctx["tecnologia_acceso"] = refinada_acceso
         intencion = _intencion_compatible_padron(intencion, abonado, texto)
         # Si eligió seguir contando el síntoma (datos/llamadas), afinar playbook
         if intencion == "movil":

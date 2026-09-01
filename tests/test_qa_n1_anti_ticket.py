@@ -994,6 +994,25 @@ def test_elige_pago_entiende_sigamos():
     assert _elige_pago_o_tecnico("seguimos") == "tecnico"
 
 
+def test_elige_pago_entiende_bai_y_antena_como_radio():
+    from app.domain.flujos_abonado import (
+        clasificar_intencion,
+        parse_menu_servicio,
+        refinar_intencion_internet,
+    )
+    from app.services.canal_abonado import _elige_pago_o_tecnico
+
+    assert refinar_intencion_internet("bai") == "internet_radio"
+    assert refinar_intencion_internet("antena") == "internet_radio"
+    assert clasificar_intencion("bai") == "internet_radio"
+    assert clasificar_intencion("antena") == "internet_radio"
+    assert parse_menu_servicio("bai") == "internet"
+    assert parse_menu_servicio("antena") == "internet"
+    assert _elige_pago_o_tecnico("bai") == "tecnico"
+    assert _elige_pago_o_tecnico("antena") == "tecnico"
+    assert _elige_pago_o_tecnico("es por radio") == "tecnico"
+
+
 def test_datos_agotados_bono_no_ticket_por_modelo():
     from app.services.diagnostico_n1 import (
         aplicar_guardrails_movil,

@@ -920,6 +920,20 @@ def parse_menu_servicio(texto: str) -> str | None:
         return "movil"
     if any(k in t for k in ("internet", "fibra", "wifi", "wi-fi", "router", "onu")):
         return "internet"
+    if any(
+        k in t
+        for k in (
+            "antena",
+            "radio",
+            "inalambr",
+            "inalámbr",
+            "bai",
+            "banda ancha inalambrica",
+            "banda ancha inalámbrica",
+            "por aire",
+        )
+    ):
+        return "internet"
     if any(k in t for k in ("factura", "deuda", "pago", "saldo", "boleta")):
         return "facturacion"
     return None
@@ -1598,7 +1612,7 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
 
     if any(k in t for k in (
         "radio", "antena", "cpe", "inalambr", "inalámbr", "torre",
-        "wireless", "enlace", "poe", "inyector",
+        "wireless", "enlace", "poe", "inyector", "bai",
     )):
         return "internet_radio"
 
