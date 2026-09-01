@@ -18,7 +18,8 @@ Contrato largo en `AGENTS.md`. Aquí solo lo no negociable.
 “Listo” exige evidencia. Arrancar cada criterio en no cumplido.
 
 - Backend: `pytest` y `ruff` sobre lo tocado.
-- Frontend: `npm run lint`; si hay UI, flujo real en el navegador.
+- Frontend: `npm test` (contrato api-client) y `npm run lint`; si hay UI, flujo real en el navegador.
+- Mobile: `npm run lint` (`tsc --noEmit`) en `mobile/`.
 - No sustituir eso por la opinión de otro modelo.
 - No dar por buenos tests o fixtures que el mismo agente acaba de escribir para auto-aprobarse.
 

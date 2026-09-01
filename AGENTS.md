@@ -38,7 +38,7 @@ Python 3.12+, Next.js en `frontend/`, Expo en `mobile/`. No introducir framework
 | Superficie | Cierre mínimo |
 |---|---|
 | Backend (`app/`, `tests/`) | `.venv/bin/python -m pytest` y `.venv/bin/ruff check .` sobre lo tocado |
-| Frontend (`frontend/`) | `npm run lint` en `frontend/`; si cambió UI, flujo real en el navegador (no solo un screenshot) |
+| Frontend (`frontend/`) | `npm run lint` y `npm test` en `frontend/`; si cambió UI, flujo real en el navegador |
 | Mobile (`mobile/`) | typecheck/lint del paquete tocado |
 | Cualquier claim cuantitativo o de fuente | dato con origen en el repo o en el brief; no inventar |
 
@@ -83,3 +83,4 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 |---|---|---|
 | 2026-09-01 | Harness mínimo: este `AGENTS.md` + regla Cursor | Adoptar guía Scrum Manager (jun 2026): instrucciones, estado en git, sensores, WIP=1, bootstrap |
 | 2026-09-01 | Schema: `aplicar_schema` en boot | Production postgres con estate no usa `create_all`; Alembic stamp/upgrade; `migrate_schema` sigue aditivo |
+| 2026-09-01 | FE contrato + mobile CI | `npm test` del api-client (4 endpoints) y `tsc --noEmit` de `mobile/` en GitHub Actions |

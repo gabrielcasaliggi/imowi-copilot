@@ -41,7 +41,7 @@ jobs:
         run: python -m pytest
 
   frontend:
-    name: Frontend (build)
+    name: Frontend (test + build)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -56,6 +56,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
+      - name: Contract tests
+        run: npm test
       - name: Build
         env:
           # Same-origin en CI e2e vía rewrite; build también tolera absolute URL
@@ -134,3 +136,22 @@ jobs:
         run: |
           echo '--- API ---'; tail -n 80 /tmp/api-e2e.log || true
           echo '--- FE ---'; tail -n 80 /tmp/fe-e2e.log || true
+
+  mobile:
+    name: Mobile (typecheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run lint
