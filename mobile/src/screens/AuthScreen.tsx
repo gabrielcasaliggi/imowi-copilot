@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -93,6 +94,11 @@ export function AuthScreen({
       style={[styles.wrap, { paddingTop: topPad, paddingBottom: bottomPad }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <Image
+        source={require("../../assets/icon.png")}
+        style={styles.logo}
+        accessibilityLabel="Eko"
+      />
       <Text style={styles.kicker}>{branding.orgHint} · Ecolan + IMOWI</Text>
       <Text style={styles.title}>
         {step === "otp" ? "Código de verificación" : "Ingresá a " + branding.productDisplayName}
@@ -211,6 +217,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     paddingHorizontal: 24,
     justifyContent: "center",
+  },
+  logo: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignSelf: "center",
+    marginBottom: 20,
   },
   kicker: { color: colors.muted, fontSize: 12, marginBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: "700", marginBottom: 8 },

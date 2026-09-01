@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/ChatMessageBubble";
 import { StarRatingInput } from "@/components/ui/StarRatingInput";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { EkoAvatar } from "@/components/ui/EkoAvatar";
 import { botEstadoLabel, getBranding, portalAssistantLine } from "@/lib/brand";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 
@@ -314,13 +315,16 @@ export default function PortalPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-200">
       <header className="border-b border-slate-800/80 px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold tracking-tight">
-            {getBranding().productDisplayName}
-          </p>
-          <p className="text-[10px] font-medium text-slate-500">
-            {portalAssistantLine()} · {getBranding().orgHint}
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <EkoAvatar className="h-9 w-9" alt="Eko" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold tracking-tight">
+              {getBranding().productDisplayName}
+            </p>
+            <p className="text-[10px] font-medium text-slate-500">
+              {portalAssistantLine()} · {getBranding().orgHint}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
@@ -339,6 +343,15 @@ export default function PortalPage() {
       <main className="flex-1 flex flex-col max-w-lg mx-auto w-full p-4 gap-4">
         {step === "auth" && (
           <div className="rounded-2xl border border-slate-700/80 bg-slate-900/50 p-6 space-y-4 shadow-sm">
+            <div className="flex flex-col items-center text-center gap-2 pb-1">
+              <EkoAvatar className="h-16 w-16" alt="Eko" />
+              <div>
+                <p className="text-base font-semibold tracking-tight">
+                  {getBranding().botDisplayName}
+                </p>
+                <p className="text-xs text-slate-400">{getBranding().assistantTagline}</p>
+              </div>
+            </div>
             <h1 className="text-lg font-semibold">Ingresá al portal</h1>
             <p className="text-xs text-slate-400">
               {getBranding().assistantIntro} Validamos tu DNI contra el padrón y te enviamos un

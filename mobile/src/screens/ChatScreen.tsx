@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -180,13 +181,20 @@ export function ChatScreen({
       keyboardVerticalOffset={Platform.OS === "ios" ? topPad : 0}
     >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>{branding.botDisplayName}</Text>
-          <Text style={styles.headerSub}>
-            <Text style={{ color: colors.online }}>● </Text>
-            {estadoLabel(conv.estado, branding.botDisplayName)}
-            {nombre ? ` · ${nombre}` : ""}
-          </Text>
+        <View style={styles.headerIdentity}>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={styles.headerAvatar}
+            accessibilityLabel="Eko"
+          />
+          <View>
+            <Text style={styles.headerTitle}>{branding.botDisplayName}</Text>
+            <Text style={styles.headerSub}>
+              <Text style={{ color: colors.online }}>● </Text>
+              {estadoLabel(conv.estado, branding.botDisplayName)}
+              {nombre ? ` · ${nombre}` : ""}
+            </Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <Pressable onPress={onExit} hitSlop={12}>
@@ -220,18 +228,28 @@ export function ChatScreen({
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => {
           const mine = item.autor === "cliente" || item.direccion === "in";
+          const isEko = !mine && item.autor !== "agente";
           return (
-            <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-              {!mine ? (
-                <Text style={styles.author}>
-                  {item.autor === "agente" ? "Agente" : branding.botDisplayName}
-                </Text>
+            <View style={[styles.msgRow, mine ? styles.msgRowMine : styles.msgRowTheirs]}>
+              {isEko ? (
+                <Image
+                  source={require("../../assets/icon.png")}
+                  style={styles.msgAvatar}
+                  accessibilityLabel={branding.botDisplayName}
+                />
               ) : null}
-              <MessageText
-                texto={item.texto}
-                style={[styles.msg, mine ? styles.msgMine : styles.msgTheirs]}
-                linkStyle={mine ? styles.linkMine : styles.linkTheirs}
-              />
+              <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+                {!mine ? (
+                  <Text style={styles.author}>
+                    {item.autor === "agente" ? "Agente" : branding.botDisplayName}
+                  </Text>
+                ) : null}
+                <MessageText
+                  texto={item.texto}
+                  style={[styles.msg, mine ? styles.msgMine : styles.msgTheirs]}
+                  linkStyle={mine ? styles.linkMine : styles.linkTheirs}
+                />
+              </View>
             </View>
           );
         }}
@@ -287,6 +305,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
+  headerIdentity: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 },
+  headerAvatar: { width: 36, height: 36, borderRadius: 18 },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
   headerSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   headerActions: { alignItems: "flex-end", gap: 4 },
@@ -308,9 +328,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(34,152,166,0.28)",
   },
   list: { paddingVertical: 8, paddingBottom: 16 },
-  bubble: { maxWidth: "82%", borderRadius: 16, padding: 10, marginBottom: 8 },
-  mine: { alignSelf: "flex-end", backgroundColor: colors.userBubble },
-  theirs: { alignSelf: "flex-start", backgroundColor: colors.botBubble },
+  msgRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 8, maxWidth: "90%" },
+  msgRowMine: { alignSelf: "flex-end" },
+  msgRowTheirs: { alignSelf: "flex-start" },
+  msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, marginBottom: 2 },
+  bubble: { flexShrink: 1, borderRadius: 16, padding: 10 },
+  mine: { backgroundColor: colors.userBubble },
+  theirs: { backgroundColor: colors.botBubble },
   author: { color: colors.brandDark, fontSize: 10, fontWeight: "700", marginBottom: 4 },
   msg: { fontSize: 15, lineHeight: 21 },
   msgMine: { color: "#fff" },

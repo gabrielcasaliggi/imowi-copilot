@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { inputCls } from "@/components/ui/forms";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { EkoAvatar } from "@/components/ui/EkoAvatar";
 import { getBranding, portalAssistantLine } from "@/lib/brand";
 
 export default function LoginPage() {
@@ -45,12 +46,7 @@ export default function LoginPage() {
       </div>
       <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/60 p-8 glass shadow-sm">
         <div className="flex items-center gap-3 mb-8">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-ecolan-brand/20"
-            style={{ background: "linear-gradient(135deg, #2298A6, #1A7985)" }}
-          >
-            B
-          </div>
+          <EkoAvatar className="h-12 w-12" alt="Eko" />
           <div>
             <h1 className="text-xl font-semibold text-slate-50 tracking-tight">{productDisplayName}</h1>
             <p className="text-xs font-mono text-slate-500">

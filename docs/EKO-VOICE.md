@@ -66,7 +66,7 @@ API: `GET /api/v1/public/branding` → incluye `assistant_tagline` y `assistant_
 
 - Nombre del perfil: **Eko · Soporte Batán**
 - Descripción: “Asistente virtual de Cooperativa Batán…”
-- Foto alineada al avatar Eko (círculo brand #2298A6)
+- Foto: `frontend/public/eko-avatar.png` (cara de Eko, círculo teal)
 
 ## Dominio
 
