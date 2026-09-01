@@ -3267,6 +3267,156 @@ def _aplicar_diagnostico_ia(
     }
 
 
+def _omitir_duplicado(
+    db: Session,
+    org_id: str,
+    *,
+    canal: str,
+    meta_message_id: str,
+) -> dict | None:
+    """Si el inbound ya se procesó (idempotencia Meta), devolver el corto duplicado."""
+    mid = (meta_message_id or "").strip()
+    if mid and crepo.inbound_meta_ya_procesado(db, org_id, mid):
+        logger.warning(
+            "Mensaje entrante duplicado omitido canal=%s mid=%s",
+            canal,
+            mid[:48],
+        )
+        return {"ok": True, "modo": "duplicado", "meta_message_id": mid[:48]}
+    return None
+
+
+def _capturar_csat_o_none(
+    db: Session,
+    org_id: str,
+    *,
+    telefono: str,
+    texto: str,
+    canal: str,
+    wa_id: str,
+    meta_message_id: str,
+) -> dict | None:
+    """Voto CSAT sobre hilo cerrado; None si no aplica o si la captura falla."""
+    try:
+        capturado = intentar_capturar_voto(
+            db,
+            org_id,
+            telefono=telefono,
+            texto=texto,
+            canal=canal,
+            wa_id=wa_id,
+            meta_message_id=meta_message_id,
+            enviar_externo=_enviar_externo(canal),
+        )
+        if capturado is not None:
+            return capturado
+    except Exception:
+        db.rollback()
+        logger.exception("Error capturando voto CSAT canal=%s", canal)
+    return None
+
+
+def _respuesta_si_con_agente(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+) -> dict | None:
+    """Si el hilo ya está con agente o en espera, no corre el bot N1."""
+    if conv.estado not in ("con_agente", "espera_agente"):
+        return None
+    if conv.estado == "con_agente":
+        return {
+            "ok": True,
+            "modo": "agente",
+            "conversacion_id": conv.id,
+            "respuesta": "",
+            "estado": conv.estado,
+            "ticket_id": conv.ticket_id,
+        }
+    return _responder_espera_agente(db, org_id, conv, texto, canal=canal)
+
+
+def _identificar_por_dni_si_aplica(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    ctx: dict,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+) -> dict | None:
+    """Si el mensaje es solo DNI y aún no hay abonado, identificar y responder."""
+    if abonado or not _es_solo_dni(texto):
+        return None
+    abonado = _intentar_identificar_por_dni(db, org_id, texto)
+    if not abonado:
+        return None
+    conv.abonado_id = abonado.id
+    if abonado.telefono_e164:
+        # No pisar guest phone sintético si no hay tel real — opcional
+        pass
+    ctx["identificado"] = True
+    ctx["dni"] = abonado.dni
+    ctx.pop("invitado", None)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    nombre = (abonado.nombre or "").split()[0].title() or "ahí"
+    estado = (abonado.estado or "").lower()
+    pedi_saldo = _mensaje_pedi_saldo_reciente(db, conv.id)
+    deuda = str(abonado.deuda_monto or "0").strip() or "0"
+    if pedi_saldo:
+        baja_nota = (
+            "La cuenta figura «de baja» en el padrón."
+            if estado == "baja"
+            else ""
+        )
+        resp = (
+            f"Te ubiqué, {nombre}.\n"
+            + mensaje_saldo_padron(deuda, nota_extra=baja_nota)
+        )
+        ctx["intencion"] = "facturacion"
+        ctx["saludo"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+    elif estado == "baja":
+        resp = (
+            f"Te ubiqué, {nombre}: la cuenta figura «de baja» en el padrón. "
+            "Igual puedo ayudarte (reactivación, factura, o un trámite). "
+            "¿Qué necesitás?"
+        )
+    elif estado in ("corte", "suspendido"):
+        from app.services.eco_voice import texto_monto_ars
+
+        resp = (
+            f"Te ubiqué, {nombre}: la cuenta figura «{abonado.estado}». "
+            f"Saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
+            "¿Es por reactivar, pagar, o por otra consulta?"
+        )
+    else:
+        resp = (
+            f"Listo {nombre}, ya te identifiqué. "
+            f"{texto_menu_consulta(abonado.servicio)}"
+        )
+    if not pedi_saldo:
+        ctx["saludo"] = True
+        ctx["menu_paso"] = "servicio"
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "abonado": crepo.abonado_to_dict(abonado),
+    }
+
+
 def procesar_mensaje_entrante(
     db: Session,
     org_id: str,
@@ -3293,32 +3443,23 @@ def procesar_mensaje_entrante(
 
         texto = normalizar_texto_audio_stt(texto)
 
-    mid = (meta_message_id or "").strip()
-    if mid and crepo.inbound_meta_ya_procesado(db, org_id, mid):
-        logger.warning(
-            "Mensaje entrante duplicado omitido canal=%s mid=%s",
-            canal,
-            mid[:48],
-        )
-        return {"ok": True, "modo": "duplicado", "meta_message_id": mid[:48]}
+    duplicado = _omitir_duplicado(
+        db, org_id, canal=canal, meta_message_id=meta_message_id
+    )
+    if duplicado is not None:
+        return duplicado
 
-    # Voto CSAT sobre conversación cerrada con encuesta pendiente (antes de abrir hilo nuevo)
-    try:
-        capturado = intentar_capturar_voto(
-            db,
-            org_id,
-            telefono=telefono,
-            texto=texto,
-            canal=canal,
-            wa_id=wa_id,
-            meta_message_id=meta_message_id,
-            enviar_externo=_enviar_externo(canal),
-        )
-        if capturado is not None:
-            return capturado
-    except Exception:
-        db.rollback()
-        logger.exception("Error capturando voto CSAT canal=%s", canal)
+    csat = _capturar_csat_o_none(
+        db,
+        org_id,
+        telefono=telefono,
+        texto=texto,
+        canal=canal,
+        wa_id=wa_id,
+        meta_message_id=meta_message_id,
+    )
+    if csat is not None:
+        return csat
 
     conv: ConversacionCanal | None = None
     try:
@@ -3351,20 +3492,11 @@ def procesar_mensaje_entrante(
         )
         raise
 
-    # Si ya está con agente o en espera, no responde el bot N1
-    if conv.estado in ("con_agente", "espera_agente"):
-        if conv.estado == "con_agente":
-            return {
-                "ok": True,
-                "modo": "agente",
-                "conversacion_id": conv.id,
-                "respuesta": "",
-                "estado": conv.estado,
-                "ticket_id": conv.ticket_id,
-            }
-        return _responder_espera_agente(
-            db, org_id, conv, texto, canal=canal
-        )
+    con_agente = _respuesta_si_con_agente(
+        db, org_id, conv, texto, canal=canal
+    )
+    if con_agente is not None:
+        return con_agente
 
     # No reabrir hilos cerrados: si quedó cerrado, pedir uno nuevo (histórico intacto)
     if conv.estado == "cerrado":
@@ -3393,70 +3525,11 @@ def procesar_mensaje_entrante(
                 canal=canal,
             )
 
-    # DNI solo (p. ej. respuesta a «pasame DNI»): identificar antes de frustración/ticket
-    if not abonado and _es_solo_dni(texto):
-        abonado = _intentar_identificar_por_dni(db, org_id, texto)
-        if abonado:
-            conv.abonado_id = abonado.id
-            if abonado.telefono_e164:
-                # No pisar guest phone sintético si no hay tel real — opcional
-                pass
-            ctx["identificado"] = True
-            ctx["dni"] = abonado.dni
-            ctx.pop("invitado", None)
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            nombre = (abonado.nombre or "").split()[0].title() or "ahí"
-            estado = (abonado.estado or "").lower()
-            pedi_saldo = _mensaje_pedi_saldo_reciente(db, conv.id)
-            deuda = str(abonado.deuda_monto or "0").strip() or "0"
-            if pedi_saldo:
-                baja_nota = (
-                    "La cuenta figura «de baja» en el padrón."
-                    if estado == "baja"
-                    else ""
-                )
-                resp = (
-                    f"Te ubiqué, {nombre}.\n"
-                    + mensaje_saldo_padron(deuda, nota_extra=baja_nota)
-                )
-                ctx["intencion"] = "facturacion"
-                ctx["saludo"] = True
-                crepo.set_contexto(conv, ctx)
-                db.commit()
-            elif estado == "baja":
-                resp = (
-                    f"Te ubiqué, {nombre}: la cuenta figura «de baja» en el padrón. "
-                    "Igual puedo ayudarte (reactivación, factura, o un trámite). "
-                    "¿Qué necesitás?"
-                )
-            elif estado in ("corte", "suspendido"):
-                from app.services.eco_voice import texto_monto_ars
-
-                resp = (
-                    f"Te ubiqué, {nombre}: la cuenta figura «{abonado.estado}». "
-                    f"Saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
-                    "¿Es por reactivar, pagar, o por otra consulta?"
-                )
-            else:
-                resp = (
-                    f"Listo {nombre}, ya te identifiqué. "
-                    f"{texto_menu_consulta(abonado.servicio)}"
-                )
-            if not pedi_saldo:
-                ctx["saludo"] = True
-                ctx["menu_paso"] = "servicio"
-                crepo.set_contexto(conv, ctx)
-                db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "abonado": crepo.abonado_to_dict(abonado),
-            }
+    identificado = _identificar_por_dni_si_aplica(
+        db, org_id, conv, ctx, abonado, texto, canal=canal
+    )
+    if identificado is not None:
+        return identificado
 
     # Ya identificado y manda solo DNI (p. ej. tras un ask erróneo): no re-pedir identificación.
     # Excepción: en diagnóstico técnico (clave WiFi, etc.) un número suele ser dato técnico,
