@@ -10,7 +10,11 @@ from app.services.eco_voice import (
     build_contexto_abonado,
     enrich_contexto_desde_integraciones,
     historial_canal_a_mensajes_chat,
+    normalizar_monto_padron,
+    parse_monto,
+    sanitizar_montos_respuesta_cliente,
     system_prompt_eco_n1,
+    texto_monto_ars,
 )
 
 
@@ -46,6 +50,22 @@ def test_contexto_abonado_identificado():
     # Placeholders listos para conectar APIs
     assert "ont_estado" in txt
     assert "pago_qr_reciente" in txt
+    assert "NUNCA dólares" not in txt
+    assert "deuda_monto: 0" in txt
+
+
+def test_montos_sin_anotaciones_prompt():
+    leak = "0 (pesos argentinos / ARS — NUNCA dólares ni USD)"
+    assert normalizar_monto_padron(leak) == "0"
+    assert parse_monto(leak) == 0.0
+    assert texto_monto_ars(leak) == "0,00 pesos"
+    sucio = (
+        "El saldo es 0.00 (pesos argentinos / ARS — NUNCA dólares ni USD) pesos."
+    )
+    limpio = sanitizar_montos_respuesta_cliente(sucio)
+    assert "NUNCA" not in limpio
+    assert "pesos argentinos / ARS" not in limpio
+    assert "0.00" in limpio
 
 
 def test_enrich_hook_vacio_hasta_integracion():

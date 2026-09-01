@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.branding_assistant import assistant_tagline_mid
@@ -194,7 +195,8 @@ def servicio_cortado_desde_contexto(contexto_abonado: str | None) -> bool:
 def parse_monto(raw: str | float | int | None) -> float | None:
     if raw is None:
         return None
-    s = str(raw).strip().replace("$", "").replace(" ", "")
+    s = normalizar_monto_padron(raw)
+    s = s.replace("$", "").replace(" ", "")
     # Guiones unicode (BillTrack / Excel a veces manda − U+2212)
     s = s.replace("\u2212", "-").replace("\u2013", "-").replace("\u2014", "-")
     if not s:
@@ -208,6 +210,43 @@ def parse_monto(raw: str | float | int | None) -> float | None:
         return float(s)
     except ValueError:
         return None
+
+
+_RE_ANOTACION_MONEDA_CLIENTE = re.compile(
+    r"\s*\([^)]*(?:pesos\s+argentinos|ARS|NUNCA\s+dólares|NUNCA\s+dolares|USD)[^)]*\)",
+    re.IGNORECASE,
+)
+_RE_FRASE_MONEDA_LEAK = re.compile(
+    r"\s*[—–-]\s*NUNCA\s+dólares[^.]*",
+    re.IGNORECASE,
+)
+
+
+def normalizar_monto_padron(raw: str | float | int | None) -> str:
+    """Solo el valor numérico del padrón; sin anotaciones del prompt interno."""
+    if raw is None:
+        return ""
+    s = str(raw).strip()
+    if not s:
+        return ""
+    s = _RE_ANOTACION_MONEDA_CLIENTE.sub("", s)
+    s = _RE_FRASE_MONEDA_LEAK.sub("", s)
+    s = s.split("(")[0].strip()
+    m = re.match(r"^[\$]?\s*(-?[\d.,]+)", s)
+    if m:
+        return m.group(1).strip()
+    return s.lstrip("$").strip()
+
+
+def sanitizar_montos_respuesta_cliente(texto: str) -> str:
+    """Quita anotaciones internas de moneda que no deben verse en WhatsApp."""
+    t = texto or ""
+    if not t:
+        return t
+    t = _RE_ANOTACION_MONEDA_CLIENTE.sub("", t)
+    t = _RE_FRASE_MONEDA_LEAK.sub("", t)
+    t = re.sub(r"\s{2,}", " ", t)
+    return t.replace(" pesos pesos", " pesos").strip()
 
 
 def formatear_monto_ars(valor: float) -> str:
@@ -227,7 +266,10 @@ def texto_monto_ars(raw: str | float | int | None) -> str:
     """Monto listo para mostrar/hablar: siempre pesos argentinos (nunca USD)."""
     monto = parse_monto(raw)
     if monto is None:
-        s = str(raw or "0").strip().lstrip("$").strip() or "0"
+        s = normalizar_monto_padron(raw) or "0"
+        monto = parse_monto(s)
+        if monto is not None:
+            return f"{formatear_monto_ars(monto)} pesos"
         return f"{s} pesos"
     return f"{formatear_monto_ars(monto)} pesos"
 
@@ -421,7 +463,7 @@ def build_contexto_abonado(
             else []
         ),
         f"- estado_servicio: {estado}",
-        f"- deuda_monto: {deuda} (pesos argentinos / ARS — NUNCA dólares ni USD)",
+        f"- deuda_monto: {deuda}",
         f"- linea: {linea}",
         f"- ont_estado: {integ.get('ont_estado') or '(sin dato — integrar NMS)'}",
         f"- olt_huawei: {integ.get('olt_huawei') or '(sin dato — integrar NMS)'}",

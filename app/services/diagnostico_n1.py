@@ -1449,8 +1449,9 @@ def _saldo_desde_contexto(contexto_abonado: str) -> str | None:
     if not m:
         return None
     val = (m.group(1) or "").strip()
-    # Anotaciones del prompt (ej. «0 (pesos argentinos / ARS — …)») no son parte del monto.
-    val = val.split("(")[0].strip()
+    from app.services.eco_voice import normalizar_monto_padron
+
+    val = normalizar_monto_padron(val)
     if not val or "sin dato" in val.lower():
         return None
     return val.strip().lstrip("$").strip()

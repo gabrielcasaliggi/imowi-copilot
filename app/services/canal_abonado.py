@@ -2600,6 +2600,9 @@ def _enviar_respuesta(
     *,
     enviar_externo: bool = True,
 ) -> str:
+    from app.services.eco_voice import sanitizar_montos_respuesta_cliente
+
+    texto = sanitizar_montos_respuesta_cliente(texto)
     crepo.add_mensaje(db, org_id, conv.id, direccion="out", autor="bot", texto=texto)
     if enviar_externo and _es_canal_externo(conv.canal):
         prefer_audio = False
