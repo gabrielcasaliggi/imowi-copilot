@@ -55,6 +55,13 @@ _SENTRY_OK = init_sentry()
 _SENTRY_RISK_ACCEPTED = sentry_risk_accepted()
 
 
+def cargar_persistencia_tickets_legacy() -> int:
+    """JSON/Supabase REST de tickets. Solo si la API legacy está montada."""
+    if not ENABLE_LEGACY_API:
+        return 0
+    return tickets_store.cargar_tickets_desde_disco()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: Data Estate (SQLite o PostgreSQL) + KB legacy + persistencia tickets."""
@@ -109,17 +116,18 @@ async def lifespan(app: FastAPI):
         app.state.knowledge = {"error": str(e), "bloques": 0}
 
     cargar_tokens_desde_disco()
-    n_tickets = tickets_store.cargar_tickets_desde_disco()
+    n_tickets = cargar_persistencia_tickets_legacy()
     backend = (
         "PostgreSQL (Data Estate)"
         if es_postgres()
         else ("Supabase REST" if supabase_configurado() else "JSON local (data/)")
     )
     logger.info(
-        "Persistencia [%s]: auth JWT, %s tickets | env=%s",
+        "Persistencia [%s]: auth JWT, legacy_tickets=%s | env=%s | ENABLE_LEGACY_API=%s",
         backend,
         n_tickets,
         "production" if es_produccion() else "development",
+        ENABLE_LEGACY_API,
     )
     yield
     logger.info("Apagando Operations Hub")
@@ -147,9 +155,9 @@ app.add_middleware(
 
 app.include_router(api_v1)
 app.include_router(auth_router.router)
-# tickets_router: endpoints con JWT (compat listar/crear). chat_router: API legacy (ENABLE_LEGACY_API).
-app.include_router(tickets_router.router)
+# HTML Copilot + /api/tickets JSON: solo si ENABLE_LEGACY_API (off en production).
 if ENABLE_LEGACY_API:
+    app.include_router(tickets_router.router)
     app.include_router(chat_router.router)
 
 
