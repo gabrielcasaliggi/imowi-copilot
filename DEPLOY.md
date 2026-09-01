@@ -18,9 +18,9 @@ cd /ruta/al/repo && git pull
 
 # 3) Backend
 source .venv/bin/activate
-pip install -r requirements.txt
-# Migraciones: create_all + migrate_schema al reiniciar;
-# esquema versionado (baseline): alembic stamp head  (ver docs/QA-PILOTO.md / alembic/)
+pip install -r requirements.txt   # incluye alembic
+# Migraciones al reiniciar: migrate_schema (aditivo) + alembic stamp/upgrade.
+# Production postgres con tablas: no corre create_all.
 sudo systemctl restart operations-hub-api
 
 # 4) Frontend (solo si cambió UI)

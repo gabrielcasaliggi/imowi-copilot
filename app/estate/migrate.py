@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
+
+from app.config import es_postgres, es_produccion
+from app.estate.database import Base
 
 logger = logging.getLogger("operations_hub")
 
@@ -181,6 +185,66 @@ def migrate_schema(engine: Engine) -> list[str]:
 
     cambios.extend(_ensure_auth_tables(engine, insp))
     return cambios
+
+
+def debe_crear_tablas_en_boot(engine: Engine) -> bool:
+    """create_all en tests/dev o Postgres vacío. Production con estate: no."""
+    if not (es_produccion() and es_postgres()):
+        return True
+    return not inspect(engine).has_table("tickets_estate")
+
+
+def aplicar_schema(engine: Engine) -> list[str]:
+    """Única entrada de schema al arranque.
+
+    Production postgres con tablas: no create_all (evita carrera entre workers).
+    Alembic se stamp/upgrade solo en Postgres. migrate_schema sigue como red aditiva
+    hasta que cada ALTER viva en una revisión.
+    """
+    if debe_crear_tablas_en_boot(engine):
+        Base.metadata.create_all(bind=engine)
+    cambios = migrate_schema(engine)
+    cambios.extend(sincronizar_alembic(engine))
+    return cambios
+
+
+def _alembic_config():
+    from alembic.config import Config
+
+    root = Path(__file__).resolve().parents[2]
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "alembic"))
+    cfg.set_main_option("prepend_sys_path", str(root))
+    return cfg
+
+
+def sincronizar_alembic(engine: Engine) -> list[str]:
+    """Stamp head si la DB no está versionada; upgrade si ya hay alembic_version.
+
+    Solo Postgres. SQLite (tests/dev) sigue en create_all + migrate_schema.
+    Un fallo no tumba el boot: migrate_schema ya aplicó lo aditivo.
+    """
+    if engine.dialect.name != "postgresql":
+        return []
+    try:
+        from alembic import command
+    except ImportError:
+        logger.warning("Alembic no instalado; pip install -r requirements.txt")
+        return []
+
+    insp = inspect(engine)
+    cfg = _alembic_config()
+    try:
+        if not insp.has_table("alembic_version"):
+            command.stamp(cfg, "head")
+            logger.info("Alembic: stamp head (schema ya existía)")
+            return ["alembic stamp head"]
+        command.upgrade(cfg, "head")
+        logger.info("Alembic: upgrade head")
+        return ["alembic upgrade head"]
+    except Exception:
+        logger.exception("Alembic no pudo sincronizar; el schema aditivo ya corrió")
+        return []
 
 
 def _drop_ticket_notification_fk(engine: Engine) -> bool:

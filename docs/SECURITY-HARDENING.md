@@ -37,7 +37,7 @@ Nunca mezclar tokens. BillTrack es **solo lectura**.
 2. `cd /opt/ops-hub` (o ruta del repo) && `git pull`
 3. Backend: `.venv/bin/pip install -r requirements.txt` → reiniciar API
    - `sudo systemctl restart operations-hub-api`
-   - Migraciones aditivas corren al boot (`migrate_schema`); Alembic baseline: `alembic stamp head` en DB existentes
+   - Migraciones al boot: `aplicar_schema` (sin `create_all` si el estate ya existe) + Alembic stamp/upgrade en Postgres
 4. Frontend: `cd frontend && npm ci && npm run build && sudo systemctl restart operations-hub-frontend`
 5. Nginx: `sudo nginx -t && sudo systemctl reload nginx`
 6. Verificar: `./scripts/verify-production.sh https://ibot.ecolan.com`

@@ -4,10 +4,8 @@ Revision ID: 20260804_0001
 Revises:
 Create Date: 2026-08-04
 
-Bases ya existentes en producción: ejecutar
-  alembic stamp head
-Nuevos entornos pueden seguir usando create_all + migrate_schema en boot
-hasta consolidar el esquema solo con Alembic.
+Production postgres con estate: el boot hace stamp head si no hay
+alembic_version. SQLite (tests/dev) sigue en create_all + migrate_schema.
 """
 
 from __future__ import annotations
@@ -21,9 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Baseline vacío: el esquema vivo se gestiona hoy con
-    # Base.metadata.create_all + app.estate.migrate.migrate_schema.
-    # Próximos cambios de columnas van como revisiones Alembic reales.
+    # Baseline vacío: el esquema vivo ya estaba en production.
+    # Columnas nuevas: revisión Alembic + (mientras tanto) migrate_schema.
     pass
 
 

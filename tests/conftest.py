@@ -24,7 +24,7 @@ from app.estate.models import NetworkElement, Organization, Ticket  # noqa: E402
 
 @pytest.fixture(scope="session", autouse=True)
 def _bootstrap_seeded_app():
-    """Dispara lifespan de FastAPI → create_all + migrate + seed estate."""
+    """Dispara lifespan de FastAPI → aplicar_schema + seed estate."""
     from main import app
 
     with TestClient(app):

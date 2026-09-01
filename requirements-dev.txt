@@ -4,4 +4,3 @@ pytest
 pytest-asyncio
 pytest-cov
 ruff
-alembic>=1.14.0

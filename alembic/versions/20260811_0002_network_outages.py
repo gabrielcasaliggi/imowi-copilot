@@ -19,6 +19,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    from sqlalchemy import inspect
+
+    bind = op.get_bind()
+    if inspect(bind).has_table("network_outages"):
+        return
     op.create_table(
         "network_outages",
         sa.Column("id", sa.String(length=36), nullable=False),

@@ -28,9 +28,9 @@ from app.config import (
     es_produccion,
     supabase_configurado,
 )
-from app.estate.database import Base, get_engine, get_session_factory
+from app.estate.database import get_engine, get_session_factory
 from app.estate.health import verificar_database
-from app.estate.migrate import migrate_schema
+from app.estate.migrate import aplicar_schema
 from app.estate.seed import (
     seed_abonados,
     seed_estate,
@@ -78,8 +78,7 @@ async def lifespan(app: FastAPI):
         logger.warning("Config producción: %s", aviso)
 
     engine = get_engine()
-    Base.metadata.create_all(bind=engine)
-    migrados = migrate_schema(engine)
+    migrados = aplicar_schema(engine)
     if migrados:
         logger.info("Migración schema: %s", migrados)
     with get_session_factory()() as db:

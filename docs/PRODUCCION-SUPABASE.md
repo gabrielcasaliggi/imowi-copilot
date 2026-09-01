@@ -9,7 +9,7 @@ En producción el **Data Estate** (organizaciones, usuarios, tickets, casos de c
 └─────────────────┘                └──────────────────┘     └─────────────────────┘
 ```
 
-Al arrancar la API, SQLAlchemy crea las tablas (`create_all`) y ejecuta el seed si la base está vacía.
+Al arrancar la API, `aplicar_schema` crea tablas solo si el estate está vacío; si ya hay `tickets_estate` en production no corre `create_all`. El seed corre si la base está vacía.
 
 ---
 
