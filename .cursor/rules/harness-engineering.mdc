@@ -1,0 +1,33 @@
+---
+description: Harness operativo — WIP=1, pass-state gating, sensores computacionales, steering
+alwaysApply: true
+---
+
+# Harness de este repo
+
+Contrato largo en `AGENTS.md`. Aquí solo lo no negociable.
+
+## Antes de actuar
+
+- Una tarea por sesión. Cerrar y verificar antes de la siguiente.
+- Re-ground en archivos del repo, no en la memoria del chat.
+- Topología fija: FastAPI (`app/`) + Next.js (`frontend/`) + Expo (`mobile/`) + PostgreSQL. No ampliar el stack.
+
+## Cerrar una tarea (pass-state, default-FAIL)
+
+“Listo” exige evidencia. Arrancar cada criterio en no cumplido.
+
+- Backend: `pytest` y `ruff` sobre lo tocado.
+- Frontend: `npm run lint`; si hay UI, flujo real en el navegador.
+- No sustituir eso por la opinión de otro modelo.
+- No dar por buenos tests o fixtures que el mismo agente acaba de escribir para auto-aprobarse.
+
+## Steering
+
+Si falla: no reñir al modelo. Faltaba guía, sensor, alcance o legibilidad. El arreglo vive en el repo (`AGENTS.md`, test, linter o bitácora).
+
+## No hacer
+
+- Secretos o `.env` en el chat o en git.
+- Varias tareas en paralelo “para ahorrar contexto”.
+- Instrucciones genéricas (“sé riguroso”) en lugar de una convención o un sensor.

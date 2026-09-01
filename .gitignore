@@ -7,7 +7,9 @@ __pycache__/
 .Python
 data/
 .tmp/
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 *.log
 .DS_Store
 
