@@ -203,6 +203,44 @@ def test_whatsapp_dni_desconocido_deriva_visitante():
     assert sample.get("cola_prioridad") == "baja"
 
 
+def test_visitante_en_cola_identifica_con_dni_despues():
+    """En espera_agente, un DNI válido vincula la cuenta sin repetir «ya derivado»."""
+    headers = _admin_headers()
+    tel = "5492235599977"
+    _cerrar_convs_telefono(tel)
+    r1 = client.post(
+        "/api/v1/inbox/simulate",
+        headers=headers,
+        json={"telefono": tel, "texto": "Hola", "usar_llama": False},
+    )
+    assert r1.status_code == 200
+    r2 = client.post(
+        "/api/v1/inbox/simulate",
+        headers=headers,
+        json={"telefono": tel, "texto": "99887766", "usar_llama": False},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["estado"] == "espera_agente"
+
+    r3 = client.post(
+        "/api/v1/inbox/simulate",
+        headers=headers,
+        json={"telefono": tel, "texto": "30111222", "usar_llama": False},
+    )
+    assert r3.status_code == 200
+    data = r3.json()
+    assert data["estado"] == "espera_agente"
+    resp = (data.get("respuesta") or "").lower()
+    assert "ya te identifiqu" in resp or "ya te identifique" in resp
+    assert "ya está derivado" not in resp and "ya esta derivado" not in resp
+    assert data.get("identificado_en_cola") is True
+
+    listed = client.get("/api/v1/inbox/conversations", headers=headers)
+    sample = next(c for c in listed.json()["conversaciones"] if c["id"] == data["conversacion_id"])
+    assert sample.get("abonado")
+    assert sample.get("cola_prioridad") == "alta"
+
+
 def test_batan_no_puede_inyectar():
     headers = _batan_headers()
     r = client.post(

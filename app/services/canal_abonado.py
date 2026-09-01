@@ -2085,6 +2085,108 @@ def _mensaje_pago_publico_sin_cuenta(*, en_cola: bool = False) -> str:
     )
 
 
+def _vincular_abonado_a_conversacion(
+    conv: ConversacionCanal,
+    ctx: dict,
+    abonado: Abonado,
+    *,
+    desde_visitante: bool = False,
+) -> dict:
+    conv.abonado_id = abonado.id
+    out = dict(ctx or {})
+    out["identificado"] = True
+    out["dni"] = abonado.dni
+    out.pop("invitado", None)
+    out.pop("visitante", None)
+    if desde_visitante:
+        out["cola_prioridad"] = "alta"
+        out["identificado_en_cola"] = True
+    return out
+
+
+def _mensaje_identificado_en_cola(nombre: str, abonado: Abonado) -> str:
+    from app.services.eco_voice import texto_monto_ars
+
+    nom = (nombre or "").strip() or "ahí"
+    estado = (abonado.estado or "").lower()
+    msg = (
+        f"Listo {nom}, ya te identifiqué y vinculé tu cuenta. "
+        "Seguís en cola con un agente; cuando te respondan ya van a ver tu ficha en el sistema."
+    )
+    if estado in ("corte", "cortado", "suspendido", "suspendida"):
+        msg += (
+            f" La cuenta figura «{abonado.estado}» "
+            f"(saldo {texto_monto_ars(abonado.deuda_monto)})."
+        )
+    return msg
+
+
+def _intentar_identificar_en_espera_agente(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+) -> dict | None:
+    """Visitante en cola que manda DNI: vincular cuenta sin perder la espera de agente."""
+    if getattr(conv, "abonado_id", None) or not _extraer_dni(texto):
+        return None
+
+    ctx = crepo.get_contexto(conv)
+    abonado = _intentar_identificar_por_dni(db, org_id, texto)
+    if not abonado:
+        dni = _extraer_dni(texto)
+        if not dni:
+            return None
+        ctx["dni_intentado"] = dni
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        aviso = (
+            f"No encontré el DNI {dni} en el padrón. "
+            "Seguís en cola con un agente; te van a ayudar a ubicar la cuenta."
+        )
+        _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": aviso,
+            "estado": conv.estado,
+            "ticket_id": conv.ticket_id or "",
+            "dni_no_encontrado_en_cola": True,
+        }
+
+    ctx = _vincular_abonado_a_conversacion(
+        conv, ctx, abonado, desde_visitante=True
+    )
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+
+    tid = conv.ticket_id or ""
+    if tid:
+        _append_evidencia_ticket(
+            db,
+            org_id,
+            tid,
+            f"[Identificación en cola] Abonado vinculado: {abonado.nombre} DNI {abonado.dni}",
+        )
+
+    nombre = (abonado.nombre or "").split()[0].title() or "ahí"
+    resp = _mensaje_identificado_en_cola(nombre, abonado)
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "espera_agente",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "ticket_id": tid,
+        "abonado": crepo.abonado_to_dict(abonado),
+        "identificado_en_cola": True,
+    }
+
+
 def _responder_espera_agente(
     db: Session,
     org_id: str,
@@ -2094,6 +2196,12 @@ def _responder_espera_agente(
     canal: str,
 ) -> dict:
     """En espera de agente: si ya resolvió, cierra; si insiste en otro tema, anota."""
+    identificado = _intentar_identificar_en_espera_agente(
+        db, org_id, conv, texto, canal=canal
+    )
+    if identificado is not None:
+        return identificado
+
     if _cliente_desiste_o_resuelto(texto):
         return _cerrar_consulta_resuelta(
             db,
@@ -2661,13 +2769,7 @@ def _identificar_por_dni_si_aplica(
     abonado = _intentar_identificar_por_dni(db, org_id, texto)
     if not abonado:
         return None
-    conv.abonado_id = abonado.id
-    if abonado.telefono_e164:
-        # No pisar guest phone sintético si no hay tel real — opcional
-        pass
-    ctx["identificado"] = True
-    ctx["dni"] = abonado.dni
-    ctx.pop("invitado", None)
+    ctx = _vincular_abonado_a_conversacion(conv, ctx, abonado)
     crepo.set_contexto(conv, ctx)
     db.commit()
     nombre = (abonado.nombre or "").split()[0].title() or "ahí"
