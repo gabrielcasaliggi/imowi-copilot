@@ -348,6 +348,38 @@ def test_facturacion_si_tras_oferta_pago_incluye_ov():
     assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
 
 
+def test_facturacion_si_tras_algo_mas_saldo_cero_no_repite_pago():
+    from app.services.diagnostico_n1 import _facturacion_deterministica, _saldo_desde_contexto
+
+    ctx = (
+        "CONTEXTO_ABONADO:\n- modo: identificado\n"
+        "- deuda_monto: 0 (pesos argentinos / ARS — NUNCA dólares ni USD)\n"
+    )
+    assert _saldo_desde_contexto(ctx) == "0"
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "No figuran deudas pendientes (saldo 0 pesos).\n"
+                "Pagos y gestiones:\nhttps://ov.batan.coop\n"
+                "Para pagar con DNI:\nhttps://ov.batan.coop/#/pagar\n"
+                "¿Necesitás algo más?"
+            ),
+        },
+    ]
+    out = _facturacion_deterministica(
+        "si",
+        contexto_abonado=ctx,
+        historial_mensajes=hist,
+    )
+    assert out is not None
+    assert out["motivo"] == "facturacion_si_algo_mas"
+    msg = (out.get("mensaje") or "").lower()
+    assert "en qué más" in msg or "en que mas" in msg
+    assert "pudiste pagar" not in msg
+    assert "nunca dólares" not in msg
+
+
 def test_facturacion_oficina_virtual_nunca_niega(monkeypatch):
     import json
 

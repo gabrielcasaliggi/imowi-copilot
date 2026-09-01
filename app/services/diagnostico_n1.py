@@ -1449,9 +1449,54 @@ def _saldo_desde_contexto(contexto_abonado: str) -> str | None:
     if not m:
         return None
     val = (m.group(1) or "").strip()
+    # Anotaciones del prompt (ej. «0 (pesos argentinos / ARS — …)») no son parte del monto.
+    val = val.split("(")[0].strip()
     if not val or "sin dato" in val.lower():
         return None
     return val.strip().lstrip("$").strip()
+
+
+def _historial_bot_texto(historial_mensajes: list | None, *, ultimos: int = 8) -> str:
+    partes: list[str] = []
+    for m in (historial_mensajes or [])[-ultimos:]:
+        autor, txt = _autor_texto(m)
+        if autor.lower() in ("bot", "eco", "assistant", "sistema", "eko"):
+            partes.append(txt)
+    return " ".join(partes).lower()
+
+
+def _bot_pregunto_solo_algo_mas(historial_mensajes: list | None) -> bool:
+    h = _historial_bot_texto(historial_mensajes)
+    if "abonar o algo más" in h or "abonar o algo mas" in h:
+        return False
+    return any(
+        k in h
+        for k in (
+            "necesitás algo más",
+            "necesitas algo mas",
+            "damos por cerrada la consulta",
+        )
+    )
+
+
+def _bot_ofrecio_guia_pago(historial_mensajes: list | None) -> bool:
+    h = _historial_bot_texto(historial_mensajes)
+    return any(
+        k in h
+        for k in (
+            "cómo podés realizar el pago",
+            "como podes realizar el pago",
+            "querés que te explique",
+            "quieres que te explique",
+            "te explico cómo",
+            "te explico como",
+            "explicarte cómo pagar",
+            "explicarte como pagar",
+            "pudiste pagar o necesitás que te ubique",
+            "podés abonar acá",
+            "podes abonar aca",
+        )
+    )
 
 
 def _facturacion_deterministica(
@@ -1598,22 +1643,22 @@ def _facturacion_deterministica(
     hist_txt = " ".join(
         _autor_texto(m)[1] for m in (historial_mensajes or [])[-8:]
     ).lower()
-    oferta_pago_previa = any(
-        k in hist_txt
-        for k in (
-            "qr",
-            "fiserv",
-            "pagar",
-            "pago",
-            "abonar",
-            "mercado pago",
-            "oficina virtual",
-            "ov.batan",
-            "cómo podés",
-            "como podes",
-            "realizar el pago",
-        )
-    )
+    oferta_pago_previa = _bot_ofrecio_guia_pago(historial_mensajes)
+
+    if identificado and t in ("ambas", "si", "sí", "dale", "ok", "dale si", "bueno"):
+        from app.services.eco_voice import parse_monto
+
+        monto = parse_monto(saldo) if saldo is not None else None
+        if _bot_pregunto_solo_algo_mas(historial_mensajes) and monto is not None and monto <= 0:
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "¿En qué más te puedo ayudar? Podés consultarme por internet, "
+                    "factura, móvil o telefonía fija."
+                ),
+                "paso_cubierto": "facturacion_seguimiento",
+                "motivo": "facturacion_si_algo_mas",
+            }
 
     if identificado and (
         _pide_cbu_o_adjunto(mensaje_cliente)
