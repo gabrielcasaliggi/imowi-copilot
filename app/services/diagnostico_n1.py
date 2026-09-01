@@ -2275,17 +2275,30 @@ def diagnosticar_turno(
                 )
 
         from app.domain.flujos_abonado import (
+            diagnostico_wifi_en_curso,
+            interferencias_wifi_ya_respondidas,
+            mensaje_confirmacion_mejora_senal_wifi,
             mensaje_tras_tipo_acceso_confirmado,
+            parece_pregunta_interferencia_wifi,
+            pregunta_confirmacion_mejora_senal_wifi,
             tipo_acceso_confirmado_en_historial,
         )
 
         tech_confirmada = tipo_acceso_confirmado_en_historial(
-            historial_mensajes, intencion=intencion
+            historial_mensajes,
+            intencion=intencion,
+            contexto_abonado=contexto_abonado,
+        )
+        wifi_en_curso = diagnostico_wifi_en_curso(
+            historial_mensajes,
+            intencion=intencion,
+            pasos_cubiertos=pasos_cubiertos,
         )
         if (
             accion == "ask"
             and _parece_pregunta_tipo_acceso(mensaje)
             and tech_confirmada
+            and not wifi_en_curso
         ):
             accion = "ask"
             motivo = "bloqueado_triaje_tipo_acceso_repetido"
@@ -2296,6 +2309,39 @@ def diagnosticar_turno(
                 texto=mensaje_cliente,
             )
             paso = "tipo_acceso"
+
+        if (
+            wifi_en_curso
+            and accion == "ask"
+            and _parece_pregunta_tipo_acceso(mensaje)
+        ):
+            accion = "ask"
+            motivo = "bloqueado_triaje_tipo_acceso_wifi"
+            if pregunta_confirmacion_mejora_senal_wifi(
+                mensaje_cliente, historial_mensajes, intencion=intencion
+            ):
+                mensaje = mensaje_confirmacion_mejora_senal_wifi(
+                    mensaje_cliente, historial_mensajes
+                )
+                paso = "confirmacion_mejora_wifi"
+            else:
+                fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso
+
+        if (
+            wifi_en_curso
+            and accion == "ask"
+            and parece_pregunta_interferencia_wifi(mensaje)
+            and interferencias_wifi_ya_respondidas(
+                historial_mensajes, pasos_cubiertos=pasos_cubiertos
+            )
+        ):
+            accion = "ask"
+            motivo = "bloqueado_repetir_interferencia_wifi"
+            fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+            mensaje = fb["mensaje"]
+            paso = fb.get("paso_cubierto") or paso
 
         # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)
         if not aplica_optica and (
@@ -2557,27 +2603,6 @@ def diagnosticar_turno(
             motivo = g_wifi["motivo"]
             if g_wifi.get("paso_cubierto"):
                 paso = g_wifi["paso_cubierto"]
-
-        if (
-            contexto_diagnostico_wifi(historial_mensajes, intencion=intencion)
-            and accion == "ask"
-            and _parece_pregunta_tipo_acceso(mensaje)
-            and (
-                pregunta_confirmacion_mejora_senal_wifi(
-                    mensaje_cliente, historial_mensajes, intencion=intencion
-                )
-                or any(
-                    k in (mensaje_cliente or "").lower()
-                    for k in ("rayita", "potencia", "repetidor", "más señal", "mas señal")
-                )
-            )
-        ):
-            accion = "ask"
-            motivo = "bloqueado_triaje_tipo_acceso_wifi"
-            mensaje = mensaje_confirmacion_mejora_senal_wifi(
-                mensaje_cliente, historial_mensajes
-            )
-            paso = "confirmacion_mejora_wifi"
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"

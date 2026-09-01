@@ -1454,6 +1454,137 @@ def test_confirmacion_mejora_repetidor_no_es_cierre_ni_triaje_fibra():
     assert "repetidor" in resp or "probá" in resp or "probá conectarte" in resp
 
 
+def test_wifi_interferencias_no_repregunta_tipo_acceso():
+    """Regresión Mauricio: mid-diagnóstico WiFi (cable OK, interferencias descartadas)."""
+    import json
+    from unittest.mock import patch
+
+    from app.domain.flujos_abonado import PLAYBOOKS, diagnostico_wifi_en_curso
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Buenísimo, entonces el problema es solo con la señal inalámbrica. "
+                "¿Tenés muchos dispositivos conectados al mismo tiempo o notás que el problema "
+                "es en todos, incluso en los que están más cerca del router?"
+            ),
+        },
+        {"autor": "cliente", "texto": "en todos"},
+        {
+            "autor": "bot",
+            "texto": (
+                "Como por cable funciona pero por Wi-Fi no en ningún dispositivo, "
+                "¿podrías decirme si el router está cerca de algún objeto metálico o "
+                "electrodoméstico que pueda estar interfiriendo con la señal?"
+            ),
+        },
+    ]
+    msg = (
+        "esta libre de interferencias, ningun objeto metalico, que puede ser?"
+    )
+    assert diagnostico_wifi_en_curso(
+        hist, intencion="wifi", pasos_cubiertos=["zona_wifi", "conexion_cableada"]
+    )
+
+    def _fake_triaje_fibra(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Para ayudarte con internet, necesito saber qué tipo de conexión tenés: "
+                    "¿fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo, "
+                    "o ADSL por línea telefónica?"
+                ),
+                "paso_cubierto": "tipo_acceso",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    checklist = [{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]]
+    with patch("app.llm.chat_completion", side_effect=_fake_triaje_fibra):
+        out = diagnosticar_turno(
+            intencion="wifi",
+            checklist=checklist,
+            historial_mensajes=hist,
+            mensaje_cliente=msg,
+            turnos_diagnostico=4,
+            pasos_cubiertos=[
+                "zona_wifi",
+                "conexion_cableada",
+                "otros_dispositivos_wifi",
+            ],
+        )
+    assert out["motivo"] == "bloqueado_triaje_tipo_acceso_wifi"
+    resp = (out.get("mensaje") or "").lower()
+    assert "fibra" not in resp
+    assert "adsl" not in resp
+    assert "cajita blanca" not in resp
+    assert "antena en el techo" not in resp
+
+
+def test_wifi_no_repite_interferencia_tras_responder():
+    """Regresión Mauricio: tras descartar interferencias no volver a preguntar."""
+    import json
+    from unittest.mock import patch
+
+    from app.domain.flujos_abonado import PLAYBOOKS
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Como por cable funciona pero por Wi-Fi no, ¿podrías decirme si el router "
+                "está cerca de algún objeto metálico o electrodoméstico que pueda estar "
+                "interfiriendo con la señal?"
+            ),
+        },
+        {
+            "autor": "cliente",
+            "texto": "esta libre de interferencias, ningun objeto metalico",
+        },
+    ]
+    msg = "radio antena"
+
+    def _fake_triaje_interferencia(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Entiendo, Mauricio. Como por cable funciona pero por Wi-Fi no, "
+                    "¿podrías decirme si el router está cerca de algún objeto metálico "
+                    "o electrodoméstico que pueda estar interfiriendo con la señal?"
+                ),
+                "paso_cubierto": "canal_interferencia",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    checklist = [{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]]
+    with patch("app.llm.chat_completion", side_effect=_fake_triaje_interferencia):
+        out = diagnosticar_turno(
+            intencion="wifi",
+            checklist=checklist,
+            historial_mensajes=hist,
+            mensaje_cliente=msg,
+            turnos_diagnostico=5,
+            pasos_cubiertos=[
+                "zona_wifi",
+                "conexion_cableada",
+                "otros_dispositivos_wifi",
+            ],
+        )
+    assert out["motivo"] == "bloqueado_repetir_interferencia_wifi"
+    resp = (out.get("mensaje") or "").lower()
+    assert "objeto metálico" not in resp
+    assert "objeto metalico" not in resp
+    assert "interfiriendo" not in resp
+
+
 def test_listo_ya_lo_movi_no_cierra_pregunta_mejora_wifi():
     """Caso Vanesa: «listo ya lo moví» tras mover router ≠ cierre."""
     from app.domain.flujos_abonado import (

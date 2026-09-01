@@ -3099,10 +3099,14 @@ def procesar_mensaje_entrante(
 
     # Reiteración temprana (mismo síntoma sin progreso): reformular, no ticket.
     # No aplicar si está pidiendo persona: eso es 2ª insistencia, no síntoma repetido.
+    # Tampoco en aviso_deuda ni cuando responde pagar vs diagnóstico.
+    intent_actual = str(ctx.get("intencion") or "")
     reiteracion_temprana = (
         misma_queja(texto, ctx)
         and int(ctx.get("paso_idx") or 0) < 2
         and not pide_humano(texto)
+        and intent_actual != "aviso_deuda"
+        and _elige_pago_o_tecnico(texto) is None
     )
     ctx = registrar_queja(ctx, texto)
     crepo.set_contexto(conv, ctx)

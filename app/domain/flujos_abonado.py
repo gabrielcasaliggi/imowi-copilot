@@ -1769,16 +1769,59 @@ def playbook_internet_desde_tipo_servicio(
     return None
 
 
+def tecnologia_desde_contexto_padron(contexto_abonado: str = "") -> str | None:
+    """Infiere playbook de acceso desde CONTEXTO_ABONADO (pppoe/uisp en BillTrack)."""
+    blob = (contexto_abonado or "").lower()
+    if not blob:
+        return None
+    for code in ("intba", "intfo", "intina"):
+        if code in blob:
+            return playbook_internet_desde_tipo_servicio(code.upper(), blob)
+    return playbook_internet_desde_tipo_servicio("", blob)
+
+
+PASOS_DIAGNOSTICO_WIFI = frozenset(
+    {
+        "zona_wifi",
+        "conexion_cableada",
+        "otros_dispositivos_wifi",
+        "repetidor_wifi",
+        "repetidor_ubicacion",
+        "repetidor_cable_ap",
+        "reinicio_router_wifi",
+        "clave_wifi_etiqueta",
+        "banda_wifi",
+        "canal_interferencia",
+    }
+)
+
+
+def diagnostico_wifi_en_curso(
+    historial=None,
+    *,
+    intencion: str = "",
+    pasos_cubiertos: list[str] | None = None,
+) -> bool:
+    """True si ya estamos en diagnóstico WiFi y no debe repetirse triaje fibra/radio/ADSL."""
+    if set(pasos_cubiertos or []) & PASOS_DIAGNOSTICO_WIFI:
+        return True
+    return contexto_diagnostico_wifi(historial, intencion=intencion)
+
+
 def tipo_acceso_confirmado_en_historial(
     historial=None,
     *,
     intencion: str = "",
     ctx: dict | None = None,
+    contexto_abonado: str = "",
 ) -> str | None:
     """Playbook de acceso ya definido (historial, ctx o intención específica)."""
     intent = (intencion or "").strip()
     if intent in ("internet_ftth", "internet_radio", "internet_adsl"):
         return intent
+    tech_padron = tecnologia_desde_contexto_padron(contexto_abonado)
+    if tech_padron:
+        return tech_padron
     if ctx:
         tech = str(ctx.get("tecnologia_acceso") or "").strip()
         if tech in ("internet_ftth", "internet_radio", "internet_adsl"):
@@ -2344,6 +2387,71 @@ def contexto_diagnostico_wifi(historial, *, intencion: str = "") -> bool:
             "lentitud",
             "lenta",
             "fondo",
+            "inalámbr",
+            "inalambr",
+            "interferenc",
+        )
+    ):
+        return True
+    if any(k in blob for k in ("por cable", "con cable", "cable funciona", "cable anda")) and any(
+        k in blob for k in ("wifi", "wi-fi", "wi fi", "inalámbr", "inalambr")
+    ):
+        return True
+    if any(
+        k in blob
+        for k in (
+            "señal inalámbrica",
+            "senal inalambrica",
+            "objeto metálico",
+            "objeto metalico",
+            "objetos metálicos",
+            "libre de interferencias",
+            "dispositivos conectados",
+            "más cerca del router",
+            "mas cerca del router",
+        )
+    ):
+        return True
+    return False
+
+
+def parece_pregunta_interferencia_wifi(mensaje: str) -> bool:
+    """Pregunta sobre objetos metálicos / interferencias en diagnóstico WiFi."""
+    tl = (mensaje or "").lower()
+    return any(
+        k in tl
+        for k in (
+            "objeto metálico",
+            "objeto metalico",
+            "objetos metálicos",
+            "electrodoméstico",
+            "electrodomestico",
+            "interfiriendo",
+            "interferencia",
+            "microondas",
+        )
+    ) and any(k in tl for k in ("wifi", "wi-fi", "wi fi", "router", "señal", "senal"))
+
+
+def interferencias_wifi_ya_respondidas(
+    historial=None,
+    *,
+    pasos_cubiertos: list[str] | None = None,
+) -> bool:
+    """True si el abonado ya descartó interferencias en el hilo WiFi."""
+    if "canal_interferencia" in set(pasos_cubiertos or []):
+        return True
+    blob = _texto_blob_historial(historial)
+    if any(
+        k in blob
+        for k in (
+            "libre de interferencias",
+            "sin interferencias",
+            "ningun objeto metal",
+            "ningún objeto metálico",
+            "ningun objeto metalico",
+            "no hay interferencias",
+            "ya te dije que no",
         )
     ):
         return True

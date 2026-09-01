@@ -347,6 +347,9 @@ def test_aviso_deuda_elige_pago_o_tecnico():
     assert _intencion_es_tecnica("internet_ftth") is True
     assert _intencion_es_tecnica("facturacion") is False
     assert _elige_pago_o_tecnico("quiero pagar") == "pago"
+    assert _elige_pago_o_tecnico("internet") == "tecnico"
+    assert _elige_pago_o_tecnico("bai") == "tecnico"
+    assert _elige_pago_o_tecnico("antena") == "tecnico"
     assert _elige_pago_o_tecnico("seguimos con internet") == "tecnico"
     assert _elige_pago_o_tecnico("después pago, seguí con el diagnóstico") == "tecnico"
     assert (
