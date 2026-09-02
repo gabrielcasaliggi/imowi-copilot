@@ -106,6 +106,40 @@ def test_tipo_acceso_desde_menu():
     assert comp.hechos_nuevos.get("tecnologia_acceso") == "internet_radio"
 
 
+def test_no_solo_en_ese_es_varios_dispositivos():
+    from app.domain.flujos_abonado import interpreta_alcance_dispositivos
+
+    assert interpreta_alcance_dispositivos("no solo en ese") == "todos"
+    assert interpreta_alcance_dispositivos("solo en este dispositivo") == "uno"
+    assert interpreta_alcance_dispositivos("en la table") == "uno"
+
+
+def test_wifi_a_veces_zona_parcial():
+    comp = interpretar_turno_abonado(
+        "a veces",
+        ctx={"intencion": "wifi"},
+        ultimo_bot="¿Te pasa lo mismo en otras habitaciones o solo ahí?",
+    )
+    assert comp.hechos_nuevos.get("zona_wifi") == "parcial"
+
+
+def test_wifi_table_typo_marca_sin_ethernet():
+    texto, ctx = preparar_turno_comprension(
+        "en la table",
+        {"intencion": "wifi", "pasos_cubiertos": ["zona_wifi"]},
+        historial=[
+            {"autor": "bot", "texto": "¿Les pasa a todos los equipos o solo a uno?"},
+        ],
+    )
+    assert "tablet" in texto.lower()
+    hechos = ctx.get("hechos") or {}
+    assert hechos.get("dispositivo_sin_ethernet") is True
+    assert hechos.get("dispositivo_afectado") == "tablet"
+    assert "conexion_cableada" in (ctx.get("pasos_cubiertos") or [])
+    assert hechos.get("alcance_wifi") == "uno"
+    assert "otros_dispositivos_wifi" in (ctx.get("pasos_cubiertos") or [])
+
+
 def test_wifi_interferencias_negacion_marca_paso():
     comp = interpretar_turno_abonado(
         "no hay nada",

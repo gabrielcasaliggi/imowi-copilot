@@ -17,7 +17,11 @@ from typing import Any
 from app.domain.comprension_abonado import ComprensionTurnoAbonado, PreguntaPendienteAbonado
 from app.domain.conversacion import AFIRMACION_CORTA
 from app.domain.flujos_abonado import (
+    dispositivo_sin_puerto_ethernet,
+    interpreta_alcance_dispositivos,
+    parece_pregunta_alcance_dispositivos,
     parece_pregunta_interferencia_wifi,
+    parece_pregunta_zona_wifi,
     refinar_intencion_internet,
 )
 from app.services.comprension_lexico import (
@@ -133,6 +137,12 @@ def inferir_pregunta_pendiente_abonado(ultimo_bot: str, ctx: dict | None) -> Pre
 
     if parece_pregunta_interferencia_wifi(ultimo_bot):
         return PreguntaPendienteAbonado.WIFI_INTERFERENCIAS
+
+    if parece_pregunta_alcance_dispositivos(ultimo_bot):
+        return PreguntaPendienteAbonado.WIFI_DISPOSITIVOS
+
+    if parece_pregunta_zona_wifi(ultimo_bot):
+        return PreguntaPendienteAbonado.WIFI_ZONA
 
     bot = (ultimo_bot or "").lower()
     if intent in ("wifi", "cambio_clave_wifi", "internet_lento") and any(
@@ -385,8 +395,53 @@ def interpretar_turno_abonado(
         contextual = _interpretar_tipo_acceso(texto_reglas)
     elif pregunta == PreguntaPendienteAbonado.WIFI_INTERFERENCIAS:
         contextual = _interpretar_wifi_interferencias(texto_reglas)
+    elif pregunta == PreguntaPendienteAbonado.WIFI_DISPOSITIVOS:
+        alcance = interpreta_alcance_dispositivos(texto_reglas)
+        if alcance:
+            contextual = ComprensionTurnoAbonado(
+                confianza=0.9,
+                fuente="contexto_wifi",
+                hechos_nuevos={"alcance_wifi": alcance},
+                evidencia=[f"alcance_wifi={alcance}"],
+            )
+    elif pregunta == PreguntaPendienteAbonado.WIFI_ZONA:
+        t = (texto_reglas or "").lower().strip()
+        zona = "parcial" if t in ("a veces", "aveces", "a veces si", "a veces sí") else (
+            t[:40] if t else None
+        )
+        if zona:
+            contextual = ComprensionTurnoAbonado(
+                confianza=0.82,
+                fuente="contexto_wifi",
+                hechos_nuevos={"zona_wifi": zona},
+                evidencia=["zona_wifi"],
+            )
     else:
         contextual = _interpretar_confirmacion(texto_reglas, pregunta)
+
+    disp = dispositivo_sin_puerto_ethernet(texto_reglas)
+    extra: dict[str, Any] = {}
+    if disp:
+        extra["dispositivo_afectado"] = disp
+        extra["dispositivo_sin_ethernet"] = True
+        if interpreta_alcance_dispositivos(texto_reglas) == "uno" or re.search(
+            r"\ben la (tablet|table)\b", texto_reglas.lower()
+        ):
+            extra.setdefault("alcance_wifi", "uno")
+    alcance_libre = interpreta_alcance_dispositivos(texto_reglas)
+    if alcance_libre:
+        extra["alcance_wifi"] = alcance_libre
+    if extra:
+        if contextual:
+            contextual.hechos_nuevos = {**contextual.hechos_nuevos, **extra}
+            contextual.evidencia = list(contextual.evidencia) + list(extra.keys())
+        else:
+            contextual = ComprensionTurnoAbonado(
+                confianza=0.88,
+                fuente="lexico_dispositivo",
+                hechos_nuevos=extra,
+                evidencia=list(extra.keys()),
+            )
 
     if not contextual:
         return base
@@ -425,6 +480,27 @@ def fusionar_comprension_en_ctx(ctx: dict, comp: ComprensionTurnoAbonado) -> dic
         if "canal_interferencia" not in cub:
             cub.append("canal_interferencia")
             ctx["pasos_cubiertos"] = cub
+
+    if hechos.get("dispositivo_sin_ethernet"):
+        cub = list(ctx.get("pasos_cubiertos") or [])
+        if "conexion_cableada" not in cub:
+            cub.append("conexion_cableada")
+            ctx["pasos_cubiertos"] = cub
+
+    if hechos.get("alcance_wifi") in ("uno", "todos"):
+        cub = list(ctx.get("pasos_cubiertos") or [])
+        if "otros_dispositivos_wifi" not in cub:
+            cub.append("otros_dispositivos_wifi")
+            ctx["pasos_cubiertos"] = cub
+
+    if hechos.get("zona_wifi"):
+        cub = list(ctx.get("pasos_cubiertos") or [])
+        if "zona_wifi" not in cub:
+            cub.append("zona_wifi")
+            ctx["pasos_cubiertos"] = cub
+        intent = str(ctx.get("intencion") or "")
+        if intent.startswith("internet") or not intent:
+            ctx["intencion"] = "wifi"
 
     ctx["comprension_turno"] = comp.to_dict()
     if comp.texto_original and comp.texto_original != comp.texto_para_reglas:

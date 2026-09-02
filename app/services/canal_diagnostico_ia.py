@@ -204,6 +204,15 @@ def _aplicar_diagnostico_ia(
             intencion = "wifi"
             ctx["intencion"] = "wifi"
 
+    from app.domain.flujos_abonado import PASOS_DIAGNOSTICO_WIFI
+
+    cubiertos_prev = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if (intencion or "").startswith("internet") and (
+        set(cubiertos_prev) & PASOS_DIAGNOSTICO_WIFI
+    ):
+        intencion = "wifi"
+        ctx["intencion"] = "wifi"
+
     pb = _playbooks(db)
     checklist = pb.get(intencion) or pb.get("general") or []
     historial = crepo.list_mensajes(db, conv.id)

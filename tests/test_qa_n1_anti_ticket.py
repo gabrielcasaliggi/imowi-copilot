@@ -74,6 +74,13 @@ def _identified_portal(dni: str = "30111222") -> str:
                 "diag_turnos",
                 "pidio_humano",
                 "pedido_humano_count",
+                "pasos_cubiertos",
+                "hechos",
+                "comprension_turno",
+                "wifi_rama_activada",
+                "pppoe_rama",
+                "reiteracion_queja",
+                "ultima_queja",
             ):
                 ctx.pop(k, None)
             ctx["identificado"] = True
@@ -1523,6 +1530,178 @@ def test_wifi_interferencias_no_repregunta_tipo_acceso():
     assert "adsl" not in resp
     assert "cajita blanca" not in resp
     assert "antena en el techo" not in resp
+
+
+def test_wifi_solo_este_dispositivo_no_repregunta_tipo_acceso():
+    """Tras WiFi + un dispositivo, no volver a fibra/radio/ADSL."""
+    import json
+    from unittest.mock import patch
+
+    from app.domain.flujos_abonado import PLAYBOOKS
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Revisé tu cuenta de ACCESO INTERNET FIBRA OPTICA: la conexión está activa. "
+                "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+            ),
+        },
+        {"autor": "cliente", "texto": "wifi"},
+        {"autor": "bot", "texto": "¿En qué parte de tu casa sentís que la señal es más débil?"},
+        {"autor": "cliente", "texto": "baño"},
+        {
+            "autor": "bot",
+            "texto": "¿Te sucede esto solo en la tablet o también en otros dispositivos?",
+        },
+        {"autor": "cliente", "texto": "en la tablet"},
+        {"autor": "cliente", "texto": "solo en este dispositivo"},
+    ]
+
+    def _fake_tipo(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Para ayudarte con internet, necesito saber qué tipo de conexión tenés: "
+                    "¿fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo, "
+                    "o ADSL por línea telefónica?"
+                ),
+                "paso_cubierto": "tipo_acceso",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    checklist = [{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["internet_ftth"]]
+    with patch("app.llm.chat_completion", side_effect=_fake_tipo):
+        out = diagnosticar_turno(
+            intencion="internet_ftth",
+            checklist=checklist,
+            historial_mensajes=hist,
+            mensaje_cliente="solo en este dispositivo",
+            turnos_diagnostico=8,
+            pasos_cubiertos=["wifi_vs_cable_ftth", "zona_wifi", "otros_dispositivos_wifi"],
+            contexto_abonado="linea_ok ACCESO INTERNET FIBRA OPTICA",
+        )
+    assert out["motivo"] in (
+        "bloqueado_triaje_tipo_acceso_wifi",
+        "bloqueado_repetir_alcance_wifi",
+    )
+    resp = (out.get("mensaje") or "").lower()
+    assert "adsl" not in resp
+    assert "cajita blanca" not in resp
+    assert "tipo de conexión" not in resp
+    assert "tipo de conexion" not in resp
+
+
+def test_wifi_no_repite_pregunta_dispositivos():
+    import json
+    from unittest.mock import patch
+
+    from app.domain.flujos_abonado import PLAYBOOKS
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {"autor": "bot", "texto": "¿Les pasa a todos los equipos o solo a uno?"},
+        {"autor": "cliente", "texto": "en la tablet"},
+    ]
+
+    def _fake_otra_vez(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "¿Te sucede esto solo en la tablet o también notaste que otros "
+                    "dispositivos (como un celular u otra computadora) tienen problemas?"
+                ),
+                "paso_cubierto": "otros_dispositivos_wifi",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch("app.llm.chat_completion", side_effect=_fake_otra_vez):
+        out = diagnosticar_turno(
+            intencion="wifi",
+            checklist=[{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]],
+            historial_mensajes=hist,
+            mensaje_cliente="ya lo hice",
+            turnos_diagnostico=6,
+            pasos_cubiertos=["zona_wifi", "otros_dispositivos_wifi"],
+        )
+    assert out["motivo"] == "bloqueado_repetir_alcance_wifi"
+    resp = (out.get("mensaje") or "").lower()
+    assert "otros dispositivo" not in resp
+    assert "solo a uno" not in resp
+
+
+def test_wifi_no_pide_cable_ethernet_a_tablet():
+    """Regresión: no pedir cable de red a una tablet (caso Gabriel 2026-09-02)."""
+    import json
+    from unittest.mock import patch
+
+    from app.domain.flujos_abonado import MSG_WIFI_SIN_CABLE_MOVIL, PLAYBOOKS
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {"autor": "bot", "texto": "¿Les pasa a todos los equipos o solo a uno?"},
+        {"autor": "cliente", "texto": "en la tablet"},
+    ]
+    msg = "en la tablet"
+
+    def _fake_cable_tablet(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "¿Podrías probar conectando la tablet directamente al router "
+                    "con un cable de red para ver si así funciona bien?"
+                ),
+                "paso_cubierto": "conexion_cableada",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    checklist = [{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]]
+    with patch("app.llm.chat_completion", side_effect=_fake_cable_tablet):
+        out = diagnosticar_turno(
+            intencion="wifi",
+            checklist=checklist,
+            historial_mensajes=hist,
+            mensaje_cliente=msg,
+            turnos_diagnostico=3,
+            pasos_cubiertos=["zona_wifi", "otros_dispositivos_wifi"],
+        )
+    assert out["motivo"] == "bloqueado_cable_en_dispositivo_movil"
+    assert out["mensaje"] == MSG_WIFI_SIN_CABLE_MOVIL
+    resp = (out.get("mensaje") or "").lower()
+    assert "conectando la tablet" not in resp
+    assert "adaptador" not in resp
+
+
+def test_wifi_como_conecto_tablet_por_cable():
+    from app.domain.flujos_abonado import MSG_WIFI_SIN_CABLE_MOVIL, PLAYBOOKS
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": "¿Podrías probar conectando la tablet con un cable de red?",
+        },
+    ]
+    out = diagnosticar_turno(
+        intencion="wifi",
+        checklist=[{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]],
+        historial_mensajes=hist,
+        mensaje_cliente="como conecto la tablet por cable de red?",
+        turnos_diagnostico=4,
+        pasos_cubiertos=["zona_wifi", "otros_dispositivos_wifi"],
+    )
+    assert out["motivo"] == "bloqueado_cable_en_dispositivo_movil"
+    assert out["mensaje"] == MSG_WIFI_SIN_CABLE_MOVIL
 
 
 def test_wifi_no_repite_interferencia_tras_responder():

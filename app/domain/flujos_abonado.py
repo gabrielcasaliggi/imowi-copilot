@@ -1795,6 +1795,205 @@ PASOS_DIAGNOSTICO_WIFI = frozenset(
     }
 )
 
+_DISPOSITIVOS_SIN_ETHERNET = (
+    "tablet",
+    "tablets",
+    "ipad",
+    "celular",
+    "celulares",
+    "celu",
+    "smartphone",
+    "iphone",
+)
+
+MSG_WIFI_SIN_CABLE_MOVIL = (
+    "Las tablets y celulares no se conectan por cable de red. "
+    "¿Tenés una notebook o PC para probar internet por cable al router, "
+    "o preferís que reiniciemos el router 30 segundos?"
+)
+
+
+def _textos_cliente_historial(historial) -> str:
+    parts: list[str] = []
+    for m in historial or []:
+        if isinstance(m, dict):
+            rol = str(m.get("rol") or m.get("autor") or m.get("direccion") or "").lower()
+            if rol in ("bot", "asistente", "out", "eco", "agente"):
+                continue
+            parts.append(str(m.get("texto") or m.get("contenido") or ""))
+        else:
+            autor = str(getattr(m, "autor", "") or getattr(m, "direccion", "") or "").lower()
+            if autor in ("bot", "asistente", "out", "eco", "agente"):
+                continue
+            parts.append(str(getattr(m, "texto", "") or getattr(m, "contenido", "") or ""))
+    return " ".join(parts).lower()
+
+
+def dispositivo_sin_puerto_ethernet(texto: str = "", historial=None) -> str | None:
+    """Dispositivo afectado sin RJ45 (tablet/celular). None si no está claro."""
+    blob = f"{texto or ''} {_textos_cliente_historial(historial)}".lower()
+    for k in _DISPOSITIVOS_SIN_ETHERNET:
+        if re.search(rf"\b{re.escape(k)}\b", blob):
+            if k in ("tablet", "tablets", "ipad"):
+                return "tablet"
+            return "celular"
+    return None
+
+
+def parece_pedir_cable_a_dispositivo_movil(mensaje_bot: str) -> bool:
+    """El bot pide enchufar ethernet a tablet/celular (paso inválido)."""
+    t = (mensaje_bot or "").lower()
+    if not t:
+        return False
+    if "no hace falta cable" in t or "no se conectan por cable" in t:
+        return False
+    habla_cable = any(
+        k in t
+        for k in (
+            "cable de red",
+            "cable al router",
+            "por cable",
+            "con un cable",
+            "conectando",
+            "conectar",
+            "enchuf",
+        )
+    )
+    if not habla_cable:
+        return False
+    return dispositivo_sin_puerto_ethernet(t) is not None
+
+
+def parece_pregunta_alcance_dispositivos(mensaje: str) -> bool:
+    """El bot pregunta si falla en todos los equipos o solo en uno."""
+    t = (mensaje or "").lower()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "todos los equipos",
+            "todos los dispositivo",
+            "otro dispositivo",
+            "otros dispositivo",
+            "solo a uno",
+            "solo en uno",
+            "solo en un",
+            "un dispositivo",
+            "uno en particular",
+            "celular o una notebook",
+            "celular u otra",
+        )
+    )
+
+
+def parece_pregunta_zona_wifi(mensaje: str) -> bool:
+    t = (mensaje or "").lower()
+    return any(
+        k in t
+        for k in (
+            "parte de tu casa",
+            "otras habitaciones",
+            "toda la casa",
+            "solo ahí",
+            "solo ahi",
+            "lejos del router",
+        )
+    )
+
+
+def interpreta_alcance_dispositivos(texto: str) -> str | None:
+    """'todos' | 'uno' | None. 'No solo en ese' niega la exclusividad."""
+    t = re.sub(r"\s+", " ", (texto or "").lower().strip())
+    if not t:
+        return None
+    if re.search(
+        r"no\s+solo\s+en\s+(ese|esa|eso|este|esta|uno|un|la|el)\b",
+        t,
+    ) or re.search(r"no\s+solamente\s+(en\s+)?(ese|esa|eso|este|esta)\b", t):
+        return "todos"
+    if any(
+        k in t
+        for k in (
+            "en todos",
+            "a todos",
+            "varios dispositivo",
+            "varios equipo",
+            "también en otro",
+            "tambien en otro",
+            "tambien otros",
+            "también otros",
+        )
+    ):
+        return "todos"
+    if re.search(
+        r"solo\s+en\s+(este|esta|ese|esa|uno|un|la|el)\b",
+        t,
+    ) or re.search(r"solo\s+(a|en)\s+(uno|un dispositivo|este dispositivo)", t):
+        return "uno"
+    if re.search(
+        r"\ben la (tablet|table)\b|\ben el (celular|celu|iphone)\b",
+        t,
+    ):
+        return "uno"
+    return None
+
+
+def alcance_dispositivos_wifi_conocido(
+    texto: str = "",
+    historial=None,
+) -> str | None:
+    """Última respuesta de alcance (el turno actual pisa las anteriores)."""
+    ahora = interpreta_alcance_dispositivos(texto)
+    if ahora:
+        return ahora
+    for m in reversed(list(historial or [])):
+        if isinstance(m, dict):
+            rol = str(m.get("rol") or m.get("autor") or m.get("direccion") or "").lower()
+            txt = str(m.get("texto") or m.get("contenido") or "")
+        else:
+            rol = str(getattr(m, "autor", "") or getattr(m, "direccion", "") or "").lower()
+            txt = str(getattr(m, "texto", "") or getattr(m, "contenido", "") or "")
+        if rol in ("bot", "asistente", "out", "eco", "agente"):
+            continue
+        got = interpreta_alcance_dispositivos(txt)
+        if got:
+            return got
+    return None
+
+
+def mensaje_continuidad_wifi(
+    *,
+    mensaje_cliente: str = "",
+    historial=None,
+    pasos_cubiertos: list[str] | None = None,
+) -> str:
+    """Próximo paso WiFi sin re-triar fibra/radio/ADSL ni repetir alcance."""
+    cub = set(pasos_cubiertos or [])
+    alcance = alcance_dispositivos_wifi_conocido(mensaje_cliente, historial)
+    if "reinicio_router_wifi" not in cub:
+        if alcance == "uno" and dispositivo_sin_puerto_ethernet(
+            mensaje_cliente, historial
+        ):
+            return (
+                "Si es solo ese equipo, no hace falta cable de red. "
+                "¿Reiniciaste el router 30 segundos (desenchufá y volvé a enchufar) "
+                "y la tablet sigue igual al lado del router?"
+            )
+        if alcance == "todos":
+            return (
+                "Si les pasa a varios equipos, el tema es el Wi‑Fi del router. "
+                "¿Reiniciaste el router 30 segundos? ¿Mejoró?"
+            )
+        return (
+            "Sigamos con el Wi‑Fi (el acceso a la red ya está OK). "
+            "¿Reiniciaste el router 30 segundos? ¿Mejoró?"
+        )
+    return (
+        "El acceso a la red ya está OK; no hace falta repetir si es fibra, antena o ADSL. "
+        "¿Querés que te derive con un agente para el Wi‑Fi?"
+    )
+
 
 def diagnostico_wifi_en_curso(
     historial=None,

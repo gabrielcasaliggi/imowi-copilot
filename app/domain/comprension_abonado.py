@@ -16,6 +16,8 @@ class PreguntaPendienteAbonado(str, Enum):
     MENU_TIPO_ACCESO = "menu_tipo_acceso"
     WIFI_INTERFERENCIAS = "wifi_interferencias"
     WIFI_MEJORA = "wifi_mejora"
+    WIFI_DISPOSITIVOS = "wifi_dispositivos"
+    WIFI_ZONA = "wifi_zona"
     CONFIRMAR_PASO = "confirmar_paso"
     CONFIRMAR_SI_NO = "confirmar_si_no"
 

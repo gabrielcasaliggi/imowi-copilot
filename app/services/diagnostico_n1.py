@@ -1145,8 +1145,14 @@ def _fallback_ask(
     mensaje_cliente: str,
     *,
     saltar_wifi: bool = False,
+    historial_mensajes=None,
 ) -> dict[str, str]:
     done = set(cubiertos or [])
+    from app.domain.flujos_abonado import dispositivo_sin_puerto_ethernet
+
+    sin_rj45 = dispositivo_sin_puerto_ethernet(
+        mensaje_cliente, historial_mensajes
+    )
     for p in pasos or []:
         if isinstance(p, PasoPlaybook):
             pid, preg = p.id, p.pregunta
@@ -1158,6 +1164,8 @@ def _fallback_ask(
         if pid in done or not preg:
             continue
         if pid == "so_dispositivo" and detectar_so_movil(mensaje_cliente):
+            continue
+        if pid == "conexion_cableada" and sin_rj45:
             continue
         if saltar_wifi and (
             "wifi" in pid.lower()
@@ -1962,7 +1970,9 @@ def diagnosticar_turno(
         }
 
     from app.domain.flujos_abonado import (
+        MSG_WIFI_SIN_CABLE_MOVIL,
         contexto_diagnostico_wifi,
+        dispositivo_sin_puerto_ethernet,
         indica_paso_diagnostico_completado,
         mensaje_confirmacion_mejora_senal_wifi,
         mensaje_confirmacion_paso_diagnostico_wifi,
@@ -1996,6 +2006,26 @@ def diagnosticar_turno(
             "paso_cubierto": "confirmacion_paso_wifi",
             "motivo": "confirmacion_paso_diagnostico_wifi",
         }
+
+    if contexto_diagnostico_wifi(
+        historial_mensajes, intencion=intencion
+    ) and dispositivo_sin_puerto_ethernet(mensaje_cliente):
+        tcli = (mensaje_cliente or "").lower()
+        if any(
+            k in tcli
+            for k in (
+                "cable",
+                "cómo conecto",
+                "como conecto",
+                "adaptador",
+            )
+        ):
+            return {
+                "accion": "ask",
+                "mensaje": MSG_WIFI_SIN_CABLE_MOVIL,
+                "paso_cubierto": "conexion_cableada",
+                "motivo": "bloqueado_cable_en_dispositivo_movil",
+            }
 
     if es_movil:
         pasos_cubiertos = _enriquecer_pasos_movil(
@@ -2107,6 +2137,18 @@ def diagnosticar_turno(
             "confirmes como cambio hecho; reiterá la guía del equipo.\n"
         )
 
+    reglas_wifi = ""
+    if (intencion or "").strip() in ("wifi", "internet_lento") or contexto_diagnostico_wifi(
+        historial_mensajes, intencion=intencion
+    ):
+        reglas_wifi = (
+            "\nReglas EXTRA — Wi‑Fi (prioridad alta):\n"
+            "- Tablet, celular, iPhone o smartphone NO tienen puerto de red. "
+            "NUNCA pidas conectar esos equipos al router con cable ethernet.\n"
+            "- Si el problema es solo en tablet/celular: proponé reiniciar el router "
+            "o probar una notebook/PC por cable. No improvises adaptadores USB.\n"
+        )
+
     reglas_movil = ""
     if es_movil:
         so_txt = so_movil or "desconocido"
@@ -2135,7 +2177,7 @@ def diagnosticar_turno(
             intencion=intencion,
             turnos=turnos,
             min_turnos_antes_escalar=MIN_TURNOS_ANTES_ESCALAR,
-            reglas_extra=reglas_facturacion + reglas_tv + reglas_clave_wifi + reglas_movil,
+            reglas_extra=reglas_facturacion + reglas_tv + reglas_clave_wifi + reglas_wifi + reglas_movil,
             contexto_abonado=contexto_abonado,
         )
     )
@@ -2299,10 +2341,17 @@ def diagnosticar_turno(
                 )
 
         from app.domain.flujos_abonado import (
+            MSG_WIFI_SIN_CABLE_MOVIL,
+            PLAYBOOKS,
+            alcance_dispositivos_wifi_conocido,
             diagnostico_wifi_en_curso,
+            dispositivo_sin_puerto_ethernet,
             interferencias_wifi_ya_respondidas,
             mensaje_confirmacion_mejora_senal_wifi,
+            mensaje_continuidad_wifi,
             mensaje_tras_tipo_acceso_confirmado,
+            parece_pedir_cable_a_dispositivo_movil,
+            parece_pregunta_alcance_dispositivos,
             parece_pregunta_interferencia_wifi,
             pregunta_confirmacion_mejora_senal_wifi,
             tipo_acceso_confirmado_en_historial,
@@ -2349,9 +2398,43 @@ def diagnosticar_turno(
                 )
                 paso = "confirmacion_mejora_wifi"
             else:
-                fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
-                mensaje = fb["mensaje"]
-                paso = fb.get("paso_cubierto") or paso
+                checklist_wifi = PLAYBOOKS.get("wifi") or checklist
+                fb = _fallback_ask(
+                    checklist_wifi,
+                    pasos_cubiertos,
+                    mensaje_cliente,
+                    historial_mensajes=historial_mensajes,
+                )
+                cand = fb.get("mensaje") or ""
+                if _parece_pregunta_tipo_acceso(cand) or parece_pregunta_alcance_dispositivos(
+                    cand
+                ):
+                    mensaje = mensaje_continuidad_wifi(
+                        mensaje_cliente=mensaje_cliente,
+                        historial=historial_mensajes,
+                        pasos_cubiertos=pasos_cubiertos,
+                    )
+                    paso = "reinicio_router_wifi"
+                else:
+                    mensaje = cand
+                    paso = fb.get("paso_cubierto") or paso
+
+        alcance_ya = alcance_dispositivos_wifi_conocido(
+            mensaje_cliente, historial_mensajes
+        )
+        if (
+            accion == "ask"
+            and parece_pregunta_alcance_dispositivos(mensaje)
+            and alcance_ya
+        ):
+            accion = "ask"
+            motivo = "bloqueado_repetir_alcance_wifi"
+            mensaje = mensaje_continuidad_wifi(
+                mensaje_cliente=mensaje_cliente,
+                historial=historial_mensajes,
+                pasos_cubiertos=pasos_cubiertos,
+            )
+            paso = "reinicio_router_wifi"
 
         if (
             wifi_en_curso
@@ -2363,9 +2446,29 @@ def diagnosticar_turno(
         ):
             accion = "ask"
             motivo = "bloqueado_repetir_interferencia_wifi"
-            fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+            fb = _fallback_ask(
+                checklist,
+                pasos_cubiertos,
+                mensaje_cliente,
+                historial_mensajes=historial_mensajes,
+            )
             mensaje = fb["mensaje"]
             paso = fb.get("paso_cubierto") or paso
+
+        if (
+            accion == "ask"
+            and motivo not in (
+                "bloqueado_repetir_alcance_wifi",
+                "bloqueado_triaje_tipo_acceso_wifi",
+            )
+            and (
+                parece_pedir_cable_a_dispositivo_movil(mensaje)
+            )
+        ):
+            accion = "ask"
+            motivo = "bloqueado_cable_en_dispositivo_movil"
+            mensaje = MSG_WIFI_SIN_CABLE_MOVIL
+            paso = "conexion_cableada"
 
         # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)
         if not aplica_optica and (
@@ -2401,11 +2504,21 @@ def diagnosticar_turno(
         ):
             accion = "ask"
             motivo = "bloqueado_ont_post_linea_ok"
-            mensaje = (
-                "Como la línea ya está OK, sigamos con el Wi‑Fi. "
-                "¿Les pasa a todos los equipos o solo a uno?"
-            )
-            paso = "otros_dispositivos_wifi"
+            if wifi_en_curso or alcance_dispositivos_wifi_conocido(
+                mensaje_cliente, historial_mensajes
+            ):
+                mensaje = mensaje_continuidad_wifi(
+                    mensaje_cliente=mensaje_cliente,
+                    historial=historial_mensajes,
+                    pasos_cubiertos=pasos_cubiertos,
+                )
+                paso = "reinicio_router_wifi"
+            else:
+                mensaje = (
+                    "Como la línea ya está OK, sigamos con el Wi‑Fi. "
+                    "¿Les pasa a todos los equipos o solo a uno?"
+                )
+                paso = "otros_dispositivos_wifi"
 
         if accion == "resolved":
             from app.domain.flujos_abonado import confirma_contacto_sin_servicio

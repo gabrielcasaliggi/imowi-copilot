@@ -28,6 +28,10 @@ _REEMPLAZOS_BASE: tuple[tuple[str, str], ...] = (
     (r"\banel\b", "antena"),
     (r"\banntena\b", "antena"),
     (r"\bfibbra\b", "fibra"),
+    # Español: «table» es typo de tablet, no «mesa».
+    (r"\btable\b", "tablet"),
+    (r"\btavlet\b", "tablet"),
+    (r"\btablt\b", "tablet"),
 )
 
 
