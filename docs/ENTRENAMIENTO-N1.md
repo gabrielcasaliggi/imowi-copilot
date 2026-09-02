@@ -12,14 +12,14 @@ Proceso para bajar **tickets N2 evitables** sin tapar visitas ópticas ni handof
 6. Métrica de corte: **0 N2 evitables**. N2 ópticos / radio agotado / provisión móvil / B2B productivo = OK.
 
 ```bash
-.venv/bin/python -m qa_bot.entrenamiento_exhaustivo          # P01–P28 + C01–C04
+.venv/bin/python -m qa_bot.entrenamiento_exhaustivo          # P01–P31 + C01–C04
 .venv/bin/python -m qa_bot.entrenamiento_exhaustivo --lote movil
 .venv/bin/python -m qa_bot.cliente_hogareno --lote exhaustivo
 .venv/bin/python -m qa_bot.cliente_hogareno --personas P13,P16,P17,P18
 .venv/bin/python -m qa_bot.cliente_corporativo               # C01–C04
 ```
 
-Lotes hogareños (`--lote`): `base` (P01–P18), `guion`/`exhaustivo` (P01–P28), `internet`, `factura`, `movil`, `agente`, `sensa`.
+Lotes hogareños (`--lote`): `base` (P01–P18), `guion`/`exhaustivo` (P01–P31), `internet`, `factura`, `movil`, `agente`, `sensa`.
 
 Métrica de corte del automatizado: **0 N2 evitables**. Artefacto: `qa_bot/artifacts/entrenamiento_exhaustivo.json`.
 
@@ -64,6 +64,9 @@ Reglas:
 | Typo menú `,ovil` | menú servicio | — | P26 | nunca |
 | Corte por falta de pago / cómo pago | `facturacion_pago` | medios OV/QR | P27 | nunca |
 | Quiere contratar fibra | `alta_plan` | — | P28 | nunca (comercial, no N2 técnico) |
+| Baja internet+Sensa con deuda | `baja_servicio` | — | P29 | N2 comercial legítimo |
+| Aviso mora + «internet»/coloquial | aviso_deuda → técnico | — | P30 | nunca |
+| WiFi solo en tablet (typo «table») | `wifi` | N1 hogareño — cable vs WiFi | P31 | nunca (sin RJ45 ni re-triaje) |
 
 ## Matriz corporativa (Ecolan B2B)
 

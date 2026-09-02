@@ -219,12 +219,26 @@ def test_loop_lote_guion_extra_sin_n2_evitable():
         assert not r.n2_evitable, pid
 
 
-def test_lotes_exhaustivo_cubre_p19_p28():
+def test_lotes_exhaustivo_cubre_p19_p31():
     from qa_bot.lotes import LOTES
 
     assert "P19" in LOTES["exhaustivo"]
     assert "P28" in LOTES["exhaustivo"]
+    assert "P30" in LOTES["exhaustivo"]
+    assert "P31" in LOTES["exhaustivo"]
+    assert "P30" in LOTES["internet"]
+    assert "P31" in LOTES["internet"]
     assert set(LOTES["movil"]) == {"P19", "P23", "P24", "P26"}
+
+
+def test_loop_p30_p31_sin_n2_evitable():
+    ids = ["P30", "P31"]
+    results = run_loop(ids=ids, client=client)
+    by_id = {r.persona_id: r for r in results}
+    for pid in ids:
+        r = by_id[pid]
+        assert r.ok, f"{pid} fallas={r.fallas} ticket={r.ticket_id} transcript={r.transcript}"
+        assert not r.n2_evitable, pid
 
 
 def test_kb_sensa_n1_seed():

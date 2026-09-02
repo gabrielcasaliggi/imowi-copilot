@@ -87,6 +87,12 @@ class Hechos:
     tema_fijo: bool = False
     tema_comercial: str = ""  # alta | baja | plan
     deuda_impagable: bool = False
+    # Continuidad WiFi / aviso deuda (casos reales 2026-09)
+    aviso_deuda_elige: str = ""  # tecnico | pago
+    reply_deuda_tecnico: str = ""
+    dispositivo_wifi: str = ""  # tablet | todos
+    reply_dispositivo: str = ""
+    no_puerto_ethernet: bool = False
 
 
 @dataclass
@@ -523,6 +529,46 @@ PERSONAS: list[Persona] = [
             apertura="Quiero dar de baja todo el internet la aplicación sensa todo",
         ),
     ),
+    Persona(
+        id="P30",
+        nombre="Mauricio — deuda + internet coloquial",
+        descripcion="Aviso de mora; responde «internet»/«beibe» para seguir N1. Sin ticket.",
+        n2_esperado="nunca",
+        dni="28555666",
+        max_turnos=10,
+        hechos=Hechos(
+            tecnologia="ftth",
+            reply_tecnologia="es fibra",
+            luces_ont="luces normales",
+            pon="verde",
+            los="apagada",
+            cable_anda=True,
+            wifi_zona="lejos",
+            aviso_deuda_elige="tecnico",
+            reply_deuda_tecnico="internet",
+            apertura="no tengo internet",
+        ),
+    ),
+    Persona(
+        id="P31",
+        nombre="Gabriel — WiFi en la tablet",
+        descripcion="Línea OK; solo WiFi en tablet (typo «table»). No cable RJ45 ni re-triaje.",
+        n2_esperado="nunca",
+        max_turnos=10,
+        hechos=Hechos(
+            tecnologia="ftth",
+            reply_tecnologia="fibra",
+            luces_ont="luces normales",
+            pon="verde",
+            los="apagada",
+            cable_anda=None,
+            wifi_zona="lejos",
+            dispositivo_wifi="tablet",
+            reply_dispositivo="en la table",
+            no_puerto_ethernet=True,
+            apertura="no me anda el wifi en la table",
+        ),
+    ),
 ]
 
 
@@ -781,6 +827,99 @@ def responder_como_cliente(
     ):
         return "No, lo pago mañana, sigamos con el problema de internet"
 
+    # —— P30: aviso deuda → seguir diagnóstico (no pagar) ——
+    if h.aviso_deuda_elige == "tecnico":
+        if any(
+            k in q
+            for k in (
+                "pagar",
+                "deuda",
+                "saldo",
+                "diagnóstico",
+                "diagnostico",
+                "preferís",
+                "preferis",
+                "qr",
+            )
+        ) and not any(k in q for k in ("wifi", "reinici", "cable", "equipo", "habitacion")):
+            return h.reply_deuda_tecnico or "internet"
+
+    # —— P31: tablet sin RJ45 (typo «table») ——
+    if h.no_puerto_ethernet or h.dispositivo_wifi == "tablet":
+        if "no se conectan por cable" in q:
+            return "no tengo pc, solo la tablet. me acerco al router, gracias"
+        if any(
+            k in q
+            for k in (
+                "solo el wifi",
+                "es solo el wifi",
+                "no te carga",
+                "anda lento",
+            )
+        ):
+            return "es solo el wifi"
+        if (
+            ("adsl" in q and ("fibra" in q or "antena" in q or "cajita" in q))
+            or "tipo de acceso" in q
+            or "qué tipo" in q
+            or "que tipo" in q
+        ):
+            return h.reply_tecnologia or "fibra"
+        if any(
+            k in q
+            for k in (
+                "cable de red",
+                "conectando la tablet",
+                "conectar la tablet",
+                "adaptador",
+            )
+        ):
+            return "como conecto la tablet por cable de red?"
+        if any(
+            k in q
+            for k in (
+                "otro dispositivo",
+                "otros dispositivo",
+                "todos los equipos",
+                "todos los dispositivos",
+                "solo a uno",
+                "solo en uno",
+                "solo en este",
+                "un dispositivo",
+                "uno en particular",
+                "celular o una notebook",
+                "tablet",
+            )
+        ):
+            return h.reply_dispositivo or "en la table"
+        if any(
+            k in q
+            for k in (
+                "otras habitaciones",
+                "solo ahí",
+                "solo ahi",
+            )
+        ):
+            return "a veces"
+        if any(
+            k in q
+            for k in (
+                "parte de tu casa",
+                "más débil",
+                "mas debil",
+                "lejos del router",
+            )
+        ):
+            return "baño"
+        if "al lado" in q or "cerca del router" in q:
+            return "estoy al lado"
+        if any(k in q for k in ("olvidar la red", "olvidar", "contraseña", "clave")):
+            return "ya lo hice"
+        if "2.4" in q or "5 ghz" in q or "5ghz" in q:
+            return "ambas"
+        if "mensaje de error" in q or "desconecta" in q:
+            return "me dice conectado sin internet"
+
     if h.sintoma_whatsapp and any(
         k in q for k in ("aparato", "dispositivo", "celular", "computadora", "tablet")
     ):
@@ -799,8 +938,17 @@ def responder_como_cliente(
         if any(k in q for k in ("conectó", "conecto", "navega", "valid")):
             return "Sí, ya anda"
 
-    # ADSL
-    if h.tecnologia == "adsl" or any(k in q for k in ("adsl", "microfiltro", "splitter", "dsl", "sync", "tono")):
+    # ADSL (no confundir con el triaje fibra/radio/ADSL)
+    _triaje_acceso = "adsl" in q and (
+        "fibra" in q or "antena" in q or "cajita" in q
+    )
+    if (
+        not _triaje_acceso
+        and (
+            h.tecnologia == "adsl"
+            or any(k in q for k in ("microfiltro", "splitter", "dsl", "sync"))
+        )
+    ):
         if "tono" in q:
             return "Sí, el fijo tiene tono" if h.tono_fijo else "No tiene tono"
         if any(k in q for k in ("filtro", "splitter", "microfiltro")):
@@ -869,6 +1017,8 @@ def responder_como_cliente(
         return "Todavía no navega"
 
     if any(k in q for k in ("cable", "utp", "amarillo", "navega por cable", "firmes")):
+        if h.no_puerto_ethernet:
+            return "como conecto la tablet por cable de red?"
         if h.cable_anda is True:
             return "Por cable al router anda bien, el problema es el WiFi"
         if h.cable_anda is False:
@@ -914,7 +1064,7 @@ def responder_como_cliente(
     if any(k in q for k in ("nada", "lento", "corta", "síntoma", "sintoma", "carga")):
         if persona.id == "P04":
             return "Anda lento, no es que esté cortado"
-        if persona.id == "P03":
+        if persona.id == "P03" or h.dispositivo_wifi == "tablet":
             return "Es solo el WiFi"
         if persona.id == "P09":
             return "Se corta y vuelve, no es que esté muerto del todo"
@@ -927,6 +1077,8 @@ def responder_como_cliente(
     if "todos los dispositivos" in q or "solo en uno" in q or "un dispositivo" in q:
         if h.sintoma_whatsapp:
             return "Me pasa en el celular"
+        if h.reply_dispositivo:
+            return h.reply_dispositivo
         return "En todos los equipos"
 
     if any(k in q for k in ("agente", "deriv", "ticket", "visita", "técnico", "tecnico")):
@@ -998,12 +1150,42 @@ def responder_como_cliente(
     if h.los == "roja":
         return "La LOS está en rojo"
     if h.tecnologia == "ftth":
+        if h.no_puerto_ethernet:
+            return h.reply_dispositivo or "en la table"
         if h.wifi_zona == "lejos":
             return "Por cable anda, el WiFi no llega al fondo"
         if h.n_equipos:
             return f"Hay {h.n_equipos} equipos y es más a la noche"
         return h.reply_tecnologia or "Es fibra, cajita blanca"
     return "Es de casa, internet fijo"
+
+
+def _asegurar_padron_persona(persona: Persona) -> None:
+    """El sqlite de test puede divergir del seed; P30 necesita internet + mora."""
+    if persona.id != "P30":
+        return
+    from sqlalchemy import select
+
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, Organization
+
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        if not org:
+            return
+        abo = db.scalar(select(Abonado).where(Abonado.dni == persona.dni))
+        campos = dict(
+            servicio="internet",
+            estado="activo",
+            deuda_monto="4500",
+        )
+        if abo is None:
+            db.add(Abonado(organizacion_id=org.id, dni=persona.dni, **campos))
+        else:
+            for k, v in campos.items():
+                setattr(abo, k, v)
+        db.commit()
 
 
 def _identificar_portal(client: Any, dni: str = "30111222") -> str:
@@ -1061,6 +1243,12 @@ def _reset_hilo_n1(conv_id: str) -> None:
             "menu_paso",
             "ultima_queja",
             "reiteracion_queja",
+            "hechos",
+            "comprension_turno",
+            "aviso_deuda_ofrecido",
+            "intencion_tecnica_pendiente",
+            "aviso_sin_internet",
+            "temas_pendientes",
         ):
             ctx.pop(k, None)
         ctx["identificado"] = True
@@ -1118,6 +1306,59 @@ def evaluar_resultado(
             k in bot_blob for k in ("visita", "ticket")
         ) and "wifi" not in bot_blob:
             fallas.append("P03: derivó sin playbook WiFi")
+        if persona.id == "P30":
+            if "no figura internet fijo" in bot_blob:
+                fallas.append("P30: padrón sin internet fijo (DNI incorrecto)")
+            if "diagnóstico" not in bot_blob and "diagnostico" not in bot_blob:
+                fallas.append("P30: no ofreció aviso deuda (pagar vs diagnóstico)")
+            eligio_tecnico = False
+            reasks = 0
+            for t in turnos:
+                u = (t.usuario or "").lower().strip()
+                if u in ("internet", "beibe") or u == (
+                    persona.hechos.reply_deuda_tecnico or "internet"
+                ):
+                    eligio_tecnico = True
+                    continue
+                if eligio_tecnico:
+                    r = (t.respuesta or "").lower()
+                    if "pagar" in r and (
+                        "diagnóstico" in r or "diagnostico" in r
+                    ):
+                        reasks += 1
+            if reasks >= 2:
+                fallas.append("P30: loop aviso deuda tras elegir técnico")
+        if persona.id == "P31":
+            wifi_en_curso = False
+            for t in turnos:
+                r = (t.respuesta or "").lower()
+                if any(
+                    k in r
+                    for k in (
+                        "dispositivos",
+                        "habitacion",
+                        "olvidar la red",
+                        "2.4",
+                        "solo el wifi",
+                        "cable al router",
+                        "tablets y celulares",
+                    )
+                ):
+                    wifi_en_curso = True
+                if (
+                    ("conectando la tablet" in r or "conectar la tablet" in r)
+                    and "cable" in r
+                ):
+                    fallas.append("P31: pidió cable ethernet a la tablet")
+                    break
+                if not wifi_en_curso:
+                    continue
+                if "tipo de conexión" in r or "tipo de conexion" in r:
+                    fallas.append("P31: re-trió tipo de acceso mid-WiFi")
+                    break
+                if "cajita blanca" in r and "adsl" in r and "antena" in r:
+                    fallas.append("P31: re-trió tipo de acceso mid-WiFi")
+                    break
         if persona.id == "P02":
             pass
     elif persona.n2_esperado == "optica":
@@ -1273,6 +1514,8 @@ def run_persona(client: Any, persona: Persona, *, usar_llama: bool = False) -> R
         patch("app.services.canal_abonado.playbooks_as_pasos", return_value=PLAYBOOKS),
     ):
         token = _identificar_portal(client, persona.dni)
+        # BillTrack mock puede pisar servicio→móvil; reponer internet+mora de P30.
+        _asegurar_padron_persona(persona)
         turnos: list[TurnoLoop] = []
         last_bot = ""
         dijo_apertura = False
