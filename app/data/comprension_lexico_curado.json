@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "fuente": "botmaker_sessions_2025_2026",
+  "generado_at": "2026-09-02T14:06:21.156499+00:00",
+  "sessions_muestra": 76096,
+  "reemplazos_regex": [],
+  "frases_frecuentes_por_contexto": {
+    "otro": [
+      "hola",
+      "7",
+      "gracias",
+      "no",
+      "ok",
+      "si",
+      "1",
+      "2",
+      "buen día",
+      "excelente",
+      "sí, se resolvió",
+      "buen dia",
+      "buenas tardes",
+      ".",
+      "muchas gracias",
+      "hola buenas tardes",
+      "10",
+      "hola buen día",
+      "3",
+      "buena",
+      "menu",
+      "buenos días",
+      "buenas",
+      "bueno",
+      "?"
+    ],
+    "menu_servicio": [
+      "1",
+      "2",
+      "4",
+      "3",
+      "7",
+      "sí, lo sé",
+      "5",
+      "no",
+      "no, no lo sé",
+      "internet",
+      "hola"
+    ],
+    "menu_tipo_acceso": [
+      "1",
+      "2",
+      "5",
+      "6",
+      "3",
+      "4",
+      "no",
+      "7",
+      "hola"
+    ],
+    "confirmar_si_no": [
+      "no",
+      "si",
+      "5",
+      "7",
+      "4",
+      "2",
+      "1",
+      "hola",
+      "3",
+      "menu",
+      "6"
+    ],
+    "identificacion": [
+      "dni [dni]",
+      "1",
+      "4",
+      "si",
+      "no",
+      "5",
+      "hola",
+      "7",
+      "2"
+    ],
+    "aviso_deuda": [
+      "7",
+      "2",
+      "1",
+      "3",
+      "no",
+      "si",
+      "5",
+      "hola",
+      "4",
+      "6",
+      "internet",
+      "7)",
+      "gracias",
+      "buen día",
+      "no tengo internet",
+      "buenas tardes",
+      "8",
+      ".",
+      "menu",
+      "buen dia",
+      "ok",
+      "1)",
+      "buenas",
+      "tv sensa",
+      "excelente"
+    ]
+  },
+  "frases_tecnico_en_aviso_deuda": [
+    "internet",
+    "no tengo internet"
+  ],
+  "afirmaciones_cortas_extra": [
+    "si"
+  ],
+  "negaciones_cortas_extra": [
+    "no"
+  ],
+  "menu_numerico_frecuente": [
+    {
+      "frase": "1",
+      "count": 6654
+    },
+    {
+      "frase": "2",
+      "count": 3026
+    },
+    {
+      "frase": "4",
+      "count": 2792
+    },
+    {
+      "frase": "3",
+      "count": 1084
+    },
+    {
+      "frase": "7",
+      "count": 686
+    },
+    {
+      "frase": "sí, lo sé",
+      "count": 214
+    },
+    {
+      "frase": "5",
+      "count": 196
+    },
+    {
+      "frase": "no",
+      "count": 51
+    },
+    {
+      "frase": "no, no lo sé",
+      "count": 39
+    },
+    {
+      "frase": "internet",
+      "count": 39
+    },
+    {
+      "frase": "hola",
+      "count": 37
+    },
+    {
+      "frase": "¿nueva instalación?",
+      "count": 18
+    },
+    {
+      "frase": "si",
+      "count": 13
+    },
+    {
+      "frase": ".",
+      "count": 13
+    },
+    {
+      "frase": "no tengo internet",
+      "count": 13
+    },
+    {
+      "frase": "1",
+      "count": 3256
+    },
+    {
+      "frase": "2",
+      "count": 2022
+    },
+    {
+      "frase": "5",
+      "count": 1889
+    },
+    {
+      "frase": "6",
+      "count": 1065
+    },
+    {
+      "frase": "3",
+      "count": 403
+    },
+    {
+      "frase": "4",
+      "count": 278
+    },
+    {
+      "frase": "no",
+      "count": 86
+    },
+    {
+      "frase": "7",
+      "count": 32
+    },
+    {
+      "frase": "hola",
+      "count": 30
+    },
+    {
+      "frase": "elegir otra opción",
+      "count": 13
+    },
+    {
+      "frase": "sin internet",
+      "count": 9
+    },
+    {
+      "frase": "yo",
+      "count": 9
+    },
+    {
+      "frase": "no tengo internet",
+      "count": 8
+    },
+    {
+      "frase": "ninguna",
+      "count": 8
+    },
+    {
+      "frase": ".",
+      "count": 6
+    }
+  ],
+  "nota_menu_numerico": "Botmaker usaba menús numéricos (ej. '7' en aviso deuda). EKO no replica esos códigos; solo se versionan como estadística."
+}

@@ -2926,6 +2926,18 @@ def procesar_mensaje_entrante(
         )
 
     ctx = crepo.get_contexto(conv)
+    # Capa de comprensión contextual (aditiva; si falla, sigue el flujo legacy).
+    try:
+        from app.services.comprension_abonado import preparar_turno_comprension
+
+        texto, ctx = preparar_turno_comprension(
+            texto,
+            ctx,
+            historial=crepo.list_mensajes(db, conv.id),
+        )
+    except Exception:
+        logger.exception("comprension_abonado: turno sin enriquecer")
+
     abonado: Abonado | None = None
     if conv.abonado_id:
         abonado = db.get(Abonado, conv.abonado_id)
@@ -3651,7 +3663,9 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "intencion": "facturacion_informar_pago",
             }
-        eleccion = _elige_pago_o_tecnico(texto)
+        from app.services.comprension_abonado import eleccion_aviso_deuda_desde_ctx
+
+        eleccion = _elige_pago_o_tecnico(texto) or eleccion_aviso_deuda_desde_ctx(ctx)
         pendiente = str(ctx.get("intencion_tecnica_pendiente") or "internet")
         refinada_acceso = refinar_intencion_internet(texto)
         if refinada_acceso:

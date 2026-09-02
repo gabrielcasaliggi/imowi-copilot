@@ -1,0 +1,38 @@
+[
+  {
+    "id": "deuda_internet",
+    "ctx": {"intencion": "aviso_deuda"},
+    "bot": "Tenés saldo pendiente. ¿Pagás o seguimos con el diagnóstico?",
+    "user": "no tengo internet",
+    "expect_eleccion": "tecnico"
+  },
+  {
+    "id": "deuda_sin_internet",
+    "ctx": {"intencion": "aviso_deuda"},
+    "bot": "Saldo pendiente",
+    "user": "sin internet",
+    "expect_eleccion": "tecnico"
+  },
+  {
+    "id": "deuda_beibe",
+    "ctx": {"intencion": "aviso_deuda"},
+    "bot": "¿Preferís pagar?",
+    "user": "beibe",
+    "expect_eleccion": "tecnico",
+    "expect_tecnologia": "internet_radio"
+  },
+  {
+    "id": "tipo_anel",
+    "ctx": {"menu_paso": "tipo"},
+    "bot": "¿Fibra, antena o ADSL?",
+    "user": "la anel",
+    "expect_tecnologia": "internet_radio"
+  },
+  {
+    "id": "wifi_interf_no_hay",
+    "ctx": {"intencion": "wifi"},
+    "bot": "¿Hay objetos metálicos cerca del router WiFi?",
+    "user": "no hay nada",
+    "expect_interferencias_ok": true
+  }
+]

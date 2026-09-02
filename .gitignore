@@ -6,6 +6,8 @@ __pycache__/
 *.pyo
 .Python
 data/
+!app/data/
+!app/data/comprension_lexico_curado.json
 .tmp/
 # Dump RAG opcional (vive en data/ o KNOWLEDGE_FILE). No versionar.
 /base_conocimiento.md
