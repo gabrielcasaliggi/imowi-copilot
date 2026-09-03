@@ -127,6 +127,7 @@ issue_cert() {
     certbot --nginx \
       -d "$DOMAIN" \
       -d "$PORTAL_DOMAIN" \
+      --expand \
       --non-interactive \
       --agree-tos \
       --email "$EMAIL" \
