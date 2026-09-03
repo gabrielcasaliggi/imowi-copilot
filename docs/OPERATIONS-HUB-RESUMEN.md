@@ -208,11 +208,11 @@ La solucion se encuentra montada con arquitectura web moderna:
 
 | Capa | Tecnologia | Funcion |
 | --- | --- | --- |
-| Frontend | Next.js en Vercel | Consola web de operador y admin |
-| Backend | FastAPI en Render | API, agentes, motor conversacional y tickets |
+| Frontend | Next.js (systemd + Nginx) | Consola (ibot.ecolan.com) y portal abonado (soporte.ecolan.com) |
+| Backend | FastAPI (systemd + Nginx) | API, agentes, motor conversacional y tickets |
 | Base de datos | PostgreSQL | Casos, tickets, usuarios, KB, telemetria y auditoria |
 | IA | LLM compatible OpenAI | Respuestas asistidas cuando corresponde |
-| Deploy | GitHub + auto-deploy | Publicacion automatica desde rama principal |
+| Deploy | GitHub + CI + VPS | Scripts de deploy, HTTPS con Certbot, systemd |
 
 Flujo general:
 
@@ -279,14 +279,14 @@ La recomendacion es probarlo con escenarios reales, midiendo:
 
 ## Acceso de prueba
 
-**URL de la consola:**  
-https://imowi-copilot.vercel.app
+**Consola (agentes/admin):** https://ibot.ecolan.com  
+**Portal abonado:** https://soporte.ecolan.com
 
 | Usuario | Perfil |
 | --- | --- |
-| `batan` | Operador Cooperativa Batan |
+| `batan` | Operador Cooperativa Batán |
 | `viamonte` | Operador Cooperativa Viamonte |
-| `admin` | NOC / vista global |
+| `admin` | Administrador plataforma |
 
 ---
 

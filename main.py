@@ -41,6 +41,7 @@ from app.estate.seed import (
 from app.knowledge import cargar_base_conocimiento, estadisticas
 from app.observability import init_sentry, sentry_activo, sentry_risk_accepted
 from app.routers import auth_router, chat_router, tickets_router
+from app.version import PRODUCT_VERSION_SEMVER
 
 logging.basicConfig(
     level=logging.INFO,
@@ -140,7 +141,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=APP_TITLE,
     description="Plataforma Agentic AI multitenant — NOC autónomo OSS/BSS",
-    version="3.0.0",
+    version=PRODUCT_VERSION_SEMVER,
     lifespan=lifespan,
     docs_url="/docs" if ENABLE_API_DOCS else None,
     redoc_url="/redoc" if ENABLE_API_DOCS else None,
@@ -177,7 +178,7 @@ async def health():
         status = "degraded"
     return {
         "status": status,
-        "version": "3.0.0",
+        "version": PRODUCT_VERSION_SEMVER,
         "env": "production" if prod else "development",
         "estate": True,
         "estate_seeded": estate.get("seeded"),
@@ -222,7 +223,7 @@ async def root():
     kb = estadisticas()
     return {
         "app": APP_TITLE,
-        "version": "3.0.0",
+        "version": PRODUCT_VERSION_SEMVER,
         "docs": "/docs" if ENABLE_API_DOCS else None,
         "health": "/health",
         "knowledge": kb,

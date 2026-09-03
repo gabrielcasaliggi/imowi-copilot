@@ -122,7 +122,7 @@ def probar_conexion_database(
         elif "timeout" in low:
             out["hint"] = (
                 "Timeout de red: el API no alcanza ese host (hace falta VPN/WireGuard en la "
-                "máquina del backend). Un deploy en Render/cloud no llega a IPs internas."
+                "máquina del backend). Un deploy en cloud público no llega a IPs internas."
             )
         elif "password authentication failed" in low:
             out["hint"] = "Credenciales rechazadas: revisá usuario/contraseña."

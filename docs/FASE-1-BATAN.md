@@ -179,17 +179,19 @@ Ver `docs/FASE-C.md` § checklist WA.
 
 ## Definition of Done (Fase 1)
 
-- [ ] Backup cron instalado y dump reciente en `/var/backups/ops-hub`
-- [ ] Cron `/ready` instalado (`install-ready-alert-cron.sh`)
-- [ ] Canal de alerta activo (email SMTP / Telegram / webhook)
-- [ ] Drill restore en staging al menos 1 vez (`restore-estate.sh`)
-- [ ] `demo_reset_enabled: false` en health prod
-- [ ] `curl -fsS …/ready` → `ready: true`
-- [ ] `fase1-smoke-batan.sh` en verde **con** login (`/etc/operations-hub/smoke.env`)
-- [ ] SMTP_FROM entre comillas (sin error al backup)
-- [ ] Sentry DSN **o** `SENTRY_RISK_ACCEPTED=true`
-- [ ] WhatsApp: operativo **o** explícitamente “próximo sprint” con HMAC listo cuando haya token
-- [ ] `fase1-cerrar-checklist.sh` sin FAIL
-- [ ] 1 semana de operación estable con agentes Batán
+Verificado en `ibot.ecolan.com` el **2026-09-03** (`fase1-cerrar-checklist.sh`: 9 OK · 3 WARN · 0 FAIL).
 
-Cuando todo esté checked → abrir Fase 2 (white-label / 2º cliente).
+- [x] Backup cron instalado y dump reciente en `/var/backups/ops-hub` (último: 2026-09-03 16:34 UTC; dumps diarios desde el 1-sep)
+- [x] Cron `/ready` instalado (`install-ready-alert-cron.sh`)
+- [x] Canal de alerta activo (email SMTP / Telegram / webhook)
+- [ ] Drill restore en staging al menos 1 vez (`restore-estate.sh`) — WARN, no bloquea 1.0
+- [x] `demo_reset_enabled: false` en health prod
+- [x] `curl -fsS …/ready` → `ready: true`
+- [x] `fase1-smoke-batan.sh` en verde **con** login (`/etc/operations-hub/smoke.env`)
+- [ ] SMTP_FROM entre comillas (backup ya corre; falta entrecomillar en `.env`)
+- [x] Sentry DSN **o** `SENTRY_RISK_ACCEPTED=true` (riesgo aceptado)
+- [x] WhatsApp: próximo sprint; HMAC listo (webhook sin firma → 403)
+- [x] `fase1-cerrar-checklist.sh` sin FAIL
+- [ ] 1 semana de operación estable con agentes Batán (hay dumps 1–3 sep; completar al 8 sep)
+
+Cuando SMTP_FROM esté entrecomillado y haya 1 semana estable → declarar 1.0 Batán. Fase 2 (white-label / 2º cliente) sigue fuera de alcance.

@@ -114,7 +114,7 @@ def preflight_tcp(host: str, port: int | str = 5432, *, timeout: float = 5.0) ->
             out["hint"] = (
                 "El API no alcanza ese host:puerto. BillTrack suele estar solo en la red "
                 "interna/VPN (p. ej. WireGuard). Corré el backend en una máquina con VPN "
-                "conectada — un deploy en Render/cloud no puede llegar a esa IP."
+                "conectada — un deploy en cloud público no puede llegar a esa IP."
             )
     finally:
         sock.close()

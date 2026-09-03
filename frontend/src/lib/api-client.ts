@@ -40,7 +40,7 @@ export function apiBaseUrl(): string {
   return API_BASE;
 }
 
-/** Timeout de red: evita que "Ingresando…" quede colgado si Render está despertando. */
+/** Timeout de red: evita que "Ingresando…" quede colgado si el backend tarda en responder. */
 const REQUEST_TIMEOUT_MS = 45_000;
 
 export class ApiError extends Error {

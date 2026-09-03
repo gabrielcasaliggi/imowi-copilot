@@ -2,24 +2,20 @@
 
 Documento de diseño acordado para el modelo de acceso de la consola Operations Hub.
 
-**Estado:** implementación en curso (catálogo, JWT, guards, Admin Hub roles/permisos).  
-**Fecha:** 2026-07-30  
-**Alcance:** consola de agentes/admin (no portal abonado).
+**Estado:** ✅ implementado — catálogo, JWT con rol real, guards `puede()` en API, normalización legacy, tests.  
+**Fecha:** 2026-07-30 (diseño) · 2026-09-03 (cerrado)  
+**Alcance:** consola de agentes/admin (no portal abonado).  
+**Código:** `app/rbac.py` (catálogo + matriz), `app/auth.py` (JWT + dependency guards), `app/api/v1/deps.py` (TenantContext.puede).
 
 ---
 
 ## Contexto actual
 
-Hoy la consola es efectivamente **binaria**:
+La consola emite JWT con el **rol real** (admin, supervisor, ejecutivo, agente) desde `app/auth.py`. Roles legacy de DB (`admin_sistema`, `ingeniero_noc`, `admin_org`, `operador`, etc.) se normalizan a uno de los 4 roles efectivos vía `normalizar_rol_consola()` en `app/rbac.py`.
 
-| JWT efectivo | Quién |
-|--------------|--------|
-| `admin` | Plataforma / NOC Imowi |
-| `agente` | Operador de cooperativa |
+Guards `puede(codigo)` protegen los endpoints de la API. La navegación frontend filtra por rol.
 
-Roles más ricos viven en DB (`admin_sistema`, `ingeniero_noc`, `admin_org`, …) pero se **colapsan** a `admin`/`agente` al emitir el token (`app/auth.py`). El Admin Hub permite orgs, alta de usuarios y settings, pero **no** hay matriz de permisos ni edición de roles.
-
-Este documento define el modelo objetivo.
+> **Pendiente para una fase futura:** UI de edición de la matriz de permisos en Admin Hub (los 4 roles con sus permisos fijos alcanzan para 1.0).
 
 ---
 
@@ -192,16 +188,16 @@ La migración debe ser explícita y reversible (seed + script), no solo rename s
 
 ---
 
-## Plan de implementación (orden sugerido)
+## Estado de implementación
 
-1. Catálogo de roles y permisos en backend (constantes + tablas o seed).
-2. Dejar de colapsar roles en JWT; ampliar `TenantContext` + `puede()`.
-3. Guards en APIs de tickets, stats, admin, users.
-4. Campo activo/desactivado en usuarios; API supervisor `users.manage_agents`.
-5. UI Admin: Roles · Permisos · Usuarios.
-6. UI por rol: nav, cola, stats, disponibilidad, export.
-7. Tests de autorización por rol + tenant.
-8. Migración de usuarios/seed demo (`admin`, supervisor Batán, ejecutivo Batán, agentes).
+1. ✅ Catálogo de roles y permisos en backend (`app/rbac.py`: `ROLE_PERMISSIONS`, `PERMISSION_META`, `catalogo_roles()`, `catalogo_permisos()`).
+2. ✅ JWT con rol real (no colapsado): `normalizar_rol_consola()` en `app/rbac.py`, emitido en `app/auth.py`.
+3. ✅ Guards en APIs: `puede()` en tickets, stats, admin, users (`app/api/v1/tickets.py`, `app/api/v1/admin.py`).
+4. ✅ Campo activo/desactivado en usuarios; API supervisor `users.manage_agents`, `roles_alta_permitidos()`.
+5. 🔲 UI Admin: Roles · Permisos · Usuarios (edición de matriz — roadmap post-1.0).
+6. ✅ UI por rol: nav filtra por rol en frontend, cola, stats.
+7. ✅ Tests de autorización por rol + tenant (`tests/test_rbac.py`).
+8. ✅ Migración de usuarios legacy + seed demo con los 4 roles.
 
 ---
 

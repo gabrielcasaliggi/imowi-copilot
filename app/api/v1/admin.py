@@ -799,7 +799,7 @@ def test_billtrack_connection(
             "hint": tcp.get("hint")
             or (
                 "Activá la VPN (WireGuard) en la máquina donde corre el API, "
-                "o ejecutá el backend en local — no en Render/cloud."
+                "o ejecutá el backend en local — no en cloud público."
             ),
             "nota": (
                 "Postgres externo de solo lectura (padrón de clientes). "

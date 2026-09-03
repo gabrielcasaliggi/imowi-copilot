@@ -1,6 +1,6 @@
-# Integración post-piloto — Contratos mínimos
+# Integración JSC y sistemas externos — Contratos
 
-Documento de referencia para la conversación con el equipo **después** del piloto operativo controlado. Define qué datos reales se necesitan para pasar de demo a integración.
+Documento de referencia para las integraciones externas de la plataforma. Define qué datos se consumen, qué conectores existen, y qué se necesita para pasar de réplica local a integración live.
 
 ---
 

@@ -2270,8 +2270,13 @@ def test_baja_con_deuda_no_empuja_pago_ni_diagnostico():
                 linea_msisdn="2235560100",
             )
             db.add(abo)
-            db.commit()
-            db.refresh(abo)
+        else:
+            # Garantizar que la deuda está seteada independientemente de corridas previas
+            abo.deuda_monto = "254393.06"
+            abo.servicio = "ambos"
+            abo.estado = "activo"
+        db.commit()
+        db.refresh(abo)
         for c in db.scalars(
             select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
         ).all():

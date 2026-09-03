@@ -1,26 +1,36 @@
-# Producción con Supabase PostgreSQL (Data Estate completo)
+# Producción con PostgreSQL (Data Estate)
 
-En producción el **Data Estate** (organizaciones, usuarios, tickets, casos de conversación, KB, telemetría, eventos) persiste en **PostgreSQL de Supabase**, no en SQLite ni en disco de Render.
+En producción el **Data Estate** persiste en **PostgreSQL** (Supabase u otro proveedor), no en SQLite.
 
 ```
-┌─────────────────┐     HTTPS      ┌──────────────────┐     ┌─────────────────────┐
-│  Frontend       │ ─────────────► │  Render (API)    │ ──► │  Supabase Postgres  │
-│  Next.js/Vercel │                │  FastAPI         │     │  Data Estate        │
-└─────────────────┘                └──────────────────┘     └─────────────────────┘
+┌──────────────────┐     HTTPS      ┌──────────────────┐     ┌─────────────────────┐
+│  Nginx           │ ─────────────► │  FastAPI :8000   │ ──► │  PostgreSQL         │
+│  (reverse proxy) │                │  (systemd)       │     │  Data Estate        │
+└──────────────────┘                └──────────────────┘     └─────────────────────┘
+          │
+          ▼
+┌──────────────────┐
+│  Next.js :3000   │
+│  (systemd)       │
+└──────────────────┘
 ```
 
 Al arrancar la API, `aplicar_schema` crea tablas solo si el estate está vacío; si ya hay `tickets_estate` en production no corre `create_all`. El seed corre si la base está vacía.
 
 ---
 
-## 1. Crear proyecto Supabase
+## 1. Crear proyecto PostgreSQL
+
+Opciones: Supabase, un Postgres dedicado en el mismo VPS, u otro proveedor managed.
+
+### Con Supabase
 
 1. [supabase.com](https://supabase.com) → New project.
 2. Guardá la contraseña de la base (`postgres`).
 3. **Settings → Database → Connection string**:
    - Modo **URI**
-   - **Transaction pooler** (puerto `6543`) — recomendado para Render
-   - Copiá la URL; reemplazá `[YOUR-PASSWORD]` por la contraseña real (URL-encode si tiene caracteres especiales).
+   - **Transaction pooler** (puerto `6543`) — recomendado para conexiones desde el backend
+   - Copiá la URL; reemplazá `[YOUR-PASSWORD]`.
 
 Ejemplo:
 
@@ -29,46 +39,35 @@ DATABASE_URL=postgresql://postgres.abcdefgh:miClaveSegura@aws-0-sa-east-1.pooler
 DATABASE_SSLMODE=require
 ```
 
-> No hace falta ejecutar `supabase/schema.sql` manualmente: el esquema legacy de `tickets` era para el mirror REST. El estate usa tablas `tickets_estate`, `organizations`, etc., creadas al iniciar la API.
-
 ---
 
-## 2. Variables en Render
+## 2. Variables en el servidor
 
-En el Web Service de la API:
+En `.env` del backend (`/opt/operations-hub/.env`):
 
 | Variable | Obligatoria | Descripción |
 |----------|-------------|-------------|
 | `APP_ENV` | Sí | `production` |
-| `DATABASE_URL` | Sí | URI Postgres de Supabase (pooler 6543) |
+| `DATABASE_URL` | Sí | URI Postgres |
 | `DATABASE_SSLMODE` | Recomendado | `require` (default) |
 | `AUTH_SECRET` | Sí | `openssl rand -hex 32` |
-| `AI_BASE_URL` | Sí | p. ej. Groq |
+| `PORTAL_AUTH_SECRET` | Sí | `openssl rand -hex 32` (distinto de AUTH_SECRET) |
+| `AI_BASE_URL` | Sí | endpoint LLM |
 | `AI_API_KEY` | Sí | clave del proveedor LLM |
 | `AI_MODEL` | Sí | modelo |
-| `CORS_ORIGINS` | Sí | URL del frontend |
+| `CORS_ORIGINS` | Sí | `https://ibot.ecolan.com,https://soporte.ecolan.com` |
 | `ADMIN_PASSWORD` / `COOP_PASSWORD` | Sí | contraseñas fuertes para seed |
-| `SUPABASE_URL` | Opcional | solo si usás mirror REST legacy |
-| `SUPABASE_SERVICE_KEY` | Opcional | idem |
-
-[render.yaml](../render.yaml) ya incluye `DATABASE_URL` y `DATABASE_SSLMODE`.
-
-**No necesitás disco persistente en Render** si `DATABASE_URL` apunta a Supabase.
 
 ---
 
-## 3. Primer deploy
+## 3. Deploy
 
-1. Push a GitHub.
-2. Render → conectar repo → configurar env (sobre todo `DATABASE_URL`).
-3. Deploy. En logs deberías ver:
-   - `Data Estate [postgresql+psycopg://postgres.***@...]`
-   - `seeded: true` en la primera ejecución.
-4. Verificar:
+1. Push a GitHub → CI verde.
+2. En el servidor: `bash scripts/install-server.sh --domain ibot.ecolan.com --portal-domain soporte.ecolan.com`.
+3. Verificar:
 
 ```bash
-./scripts/verify-production.sh https://tu-api.onrender.com
-curl https://tu-api.onrender.com/health
+curl https://ibot.ecolan.com/api/health
 ```
 
 Respuesta esperada:
@@ -78,24 +77,25 @@ Respuesta esperada:
   "status": "ok",
   "database": "postgresql",
   "estate": true,
-  "estate_seeded": true,
-  ...
+  "estate_seeded": true
 }
 ```
 
-5. Login con el usuario admin del seed (`ADMIN_USER` / `ADMIN_PASSWORD`).
+4. Login con el usuario admin del seed.
 
 ---
 
 ## 4. Frontend
 
-En Vercel/Netlify/local:
+El frontend se configura con variables de entorno en `frontend/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_URL=https://tu-api.onrender.com
+NEXT_PUBLIC_API_URL=https://ibot.ecolan.com/api
+NEXT_PUBLIC_CONSOLE_HOST=ibot.ecolan.com
+NEXT_PUBLIC_PORTAL_HOST=soporte.ecolan.com
 ```
 
-`CORS_ORIGINS` en la API debe incluir la URL exacta del frontend.
+`CORS_ORIGINS` en la API debe incluir ambos dominios.
 
 ---
 
@@ -107,7 +107,7 @@ Por defecto sigue usando SQLite:
 DATABASE_URL=sqlite:///./data/estate.db
 ```
 
-Para probar contra Supabase desde tu máquina, pegá la misma `DATABASE_URL` del proyecto (pooler o direct `5432`).
+Para probar contra Postgres, pegá la misma `DATABASE_URL` del proyecto.
 
 ```bash
 pip install -r requirements.txt
@@ -122,7 +122,7 @@ Los tests usan SQLite en memoria y no requieren Postgres.
 
 Cambios de columnas nuevas se aplican en startup vía `app/estate/migrate.py` (compatible SQLite y PostgreSQL con `ADD COLUMN IF NOT EXISTS`).
 
-Para cambios de esquema mayores, preferí migraciones explícitas o Alembic en el futuro.
+Para cambios de esquema mayores, usar Alembic (`alembic upgrade head`).
 
 ---
 

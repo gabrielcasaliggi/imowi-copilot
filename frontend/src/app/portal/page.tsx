@@ -12,6 +12,7 @@ import { StarRatingInput } from "@/components/ui/StarRatingInput";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { EkoAvatar } from "@/components/ui/EkoAvatar";
 import { botEstadoLabel, getBranding, portalAssistantLine } from "@/lib/brand";
+import { PRODUCT_VERSION } from "@/lib/product-version";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 
 const PORTAL_KEY = "ops_hub_portal_session";
@@ -322,7 +323,7 @@ export default function PortalPage() {
               {getBranding().productDisplayName}
             </p>
             <p className="text-[10px] font-medium text-slate-500">
-              {portalAssistantLine()} · {getBranding().orgHint}
+              {portalAssistantLine()} · {getBranding().orgHint} · {PRODUCT_VERSION}
             </p>
           </div>
         </div>
@@ -349,7 +350,9 @@ export default function PortalPage() {
                 <p className="text-base font-semibold tracking-tight">
                   {getBranding().botDisplayName}
                 </p>
-                <p className="text-xs text-slate-400">{getBranding().assistantTagline}</p>
+                <p className="text-xs text-slate-400">
+                  {getBranding().assistantTagline} · {PRODUCT_VERSION}
+                </p>
               </div>
             </div>
             <h1 className="text-lg font-semibold">Ingresá al portal</h1>

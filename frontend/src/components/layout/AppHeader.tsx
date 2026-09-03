@@ -4,6 +4,7 @@ import { useApp } from "@/contexts/AppContext";
 import { PendingTasksBell } from "@/components/layout/PendingTasksBell";
 import { AvailabilityControl } from "@/components/layout/AvailabilityControl";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { PRODUCT_VERSION } from "@/lib/product-version";
 
 export function AppHeader() {
   const { user, isAdmin, orgs, tenantSlug, tenantContext, logout, setTenant } =
@@ -11,7 +12,7 @@ export function AppHeader() {
 
   const brandColor = tenantContext?.brand_color || "#2298A6";
   const logoLabel = tenantContext?.logo_label || "i";
-  const orgName = tenantContext?.organizacion_nombre || "Operations Hub";
+  const orgName = tenantContext?.organizacion_nombre || "Soporte";
   const rolLabel =
     user?.rol === "admin"
       ? "Administración"
@@ -35,7 +36,7 @@ export function AppHeader() {
         <div className="min-w-0">
           <h1 className="font-semibold text-slate-100 truncate tracking-tight">{orgName}</h1>
           <p className="text-[10px] font-medium text-slate-500 truncate uppercase tracking-wide">
-            {user?.rol || "agente"}
+            {user?.rol || "agente"} · {PRODUCT_VERSION}
           </p>
         </div>
       </div>

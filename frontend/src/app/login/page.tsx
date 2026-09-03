@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { EkoAvatar } from "@/components/ui/EkoAvatar";
 import { getBranding, portalAssistantLine } from "@/lib/brand";
 import { portalHref } from "@/lib/public-hosts";
+import { PRODUCT_VERSION } from "@/lib/product-version";
 
 export default function LoginPage() {
   const { login, ready, user } = useApp();
@@ -51,7 +52,7 @@ export default function LoginPage() {
           <div>
             <h1 className="text-xl font-semibold text-slate-50 tracking-tight">{productDisplayName}</h1>
             <p className="text-xs font-mono text-slate-500">
-              {portalAssistantLine()} · {orgHint}
+              {portalAssistantLine()} · {orgHint} · {PRODUCT_VERSION}
             </p>
           </div>
         </div>

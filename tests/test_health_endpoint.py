@@ -18,6 +18,7 @@ def test_health_sqlite_local():
     assert data["database_connected"] is True
     assert data["api_v1"] == "/api/v1"
     assert data["frontend_recomendado"] == "Next.js"
+    assert data["version"] == "1.0.0"
 
 
 def test_verificar_database_module():

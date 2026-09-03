@@ -13,7 +13,7 @@ def normalizar_database_url(url: str) -> str:
     if not u:
         return "sqlite:///./data/estate.db"
 
-    # Comillas o prefijo accidental al copiar desde Supabase/Prisma/Render
+    # Comillas o prefijo accidental al copiar desde Supabase/Prisma
     for _ in range(2):
         if len(u) >= 2 and u[0] == u[-1] and u[0] in ("'", '"'):
             u = u[1:-1].strip()
@@ -56,7 +56,7 @@ PORT = int(os.getenv("PORT", "8000"))
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
-# Auth JWT (stateless — ideal para Render/Fly sin disco persistente)
+# Auth JWT (stateless)
 AUTH_SECRET = os.getenv("AUTH_SECRET", "")
 AUTH_TOKEN_HOURS = int(os.getenv("AUTH_TOKEN_HOURS", "12"))
 CONSOLE_JWT_AUD = os.getenv("CONSOLE_JWT_AUD", "ops-hub-console")
