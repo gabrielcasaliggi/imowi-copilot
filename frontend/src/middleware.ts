@@ -14,9 +14,13 @@ export function middleware(request: NextRequest) {
   }
 
   if (decision.type === "rewrite") {
-    const url = request.nextUrl.clone();
-    url.pathname = decision.pathname;
-    return NextResponse.rewrite(url);
+    // Rewrite interno: usamos la URL interna de Next (puede ser http://localhost:3000
+    // detrás de nginx) para que el rewrite sea same-process y no cruce al exterior.
+    const internalUrl = new URL(
+      decision.pathname,
+      `http://localhost:${process.env.PORT || 3000}`,
+    );
+    return NextResponse.rewrite(internalUrl);
   }
 
   return NextResponse.next();
