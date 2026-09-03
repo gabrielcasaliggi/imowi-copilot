@@ -11,7 +11,7 @@ from playwright.sync_api import Page, sync_playwright
 from qa_bot.analyzer import AnalisisEscenario, analizar_escenario, analizar_turno
 from qa_bot.scenarios import ESCENARIOS, Escenario
 
-DEFAULT_PORTAL = "https://ibot.ecolan.com/portal"
+DEFAULT_PORTAL = "https://soporte.ecolan.com"
 ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 
 

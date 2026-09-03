@@ -10,8 +10,8 @@
 | Producto abonado | Soporte Batán |
 | Organización | Cooperativa Batán |
 | Consola ops | Operations Hub |
-| Dominio actual | `ibot.ecolan.com` (infra; no es nombre de producto) |
-| Dominio objetivo | `soporte.batan.coop` |
+| Dominio consola | `ibot.ecolan.com` (agentes / admin) |
+| Dominio portal | `soporte.ecolan.com` (abonado / Eko) |
 
 API técnica sin cambios: `autor="bot"`, `estado="bot"`.
 
@@ -70,5 +70,5 @@ API: `GET /api/v1/public/branding` → incluye `assistant_tagline` y `assistant_
 
 ## Dominio
 
-- **Hoy:** `https://ibot.ecolan.com` (solo infraestructura)
-- **Objetivo:** `https://soporte.batan.coop` — ver Fase 2 en plan de marca
+- **Consola:** `https://ibot.ecolan.com`
+- **Portal público:** `https://soporte.ecolan.com`

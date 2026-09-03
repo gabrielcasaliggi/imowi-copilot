@@ -2,8 +2,8 @@
 
 Consola de soporte para **Cooperativa Batán**: portal web del abonado (bot N1 → agente), bandeja de agentes, tickets N2, base de conocimiento e IA.
 
-- Abonados: [`/portal`](./docs/PORTAL-ABONADO.md) y app nativa [`mobile/`](./mobile/README.md)  
-- Agentes/admin: login consola  
+- Abonados: [`soporte.ecolan.com`](./docs/PORTAL-ABONADO.md) y app nativa [`mobile/`](./mobile/README.md)  
+- Agentes/admin: consola `ibot.ecolan.com`  
 - Roles y permisos (diseño): [`docs/RBAC-ROLES-PERMISOS.md`](./docs/RBAC-ROLES-PERMISOS.md)  
 - WhatsApp Meta: fase posterior  
 
@@ -12,9 +12,9 @@ Las APIs legacy de telemetría/JSC pueden existir en el backend pero **no forman
 ## Arquitectura (producción)
 
 ```
-Nginx (HTTPS)  ──►  Next.js :3000   (consola + portal)
-               ──►  FastAPI :8000   ──►  PostgreSQL (Supabase / local)
-                                    ──►  Groq / LLM compatible OpenAI
+Nginx (HTTPS)  ibot.ecolan.com      ──►  Next.js :3000  (consola)
+               soporte.ecolan.com   ──►  Next.js :3000  (portal Eko)
+               /api en ambos        ──►  FastAPI :8000  ──►  PostgreSQL
 App nativa (Expo) ──► FastAPI /api/v1/portal/*  (canal=app, mismo Eko)
 ```
 
@@ -26,7 +26,7 @@ App nativa (Expo) ──► FastAPI /api/v1/portal/*  (canal=app, mismo Eko)
 | **DB** | PostgreSQL (Supabase u host) | Data Estate completo (`DATABASE_URL`) |
 | **LLM** | Groq (u otro) | Respuestas del Copilot |
 
-Prod actual: `https://ibot.ecolan.com`. Guía: [DEPLOY.md](./DEPLOY.md) · [docs/FRONTEND-DEPLOY.md](./docs/FRONTEND-DEPLOY.md) · [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md)
+Prod: consola `https://ibot.ecolan.com` · portal `https://soporte.ecolan.com`. Guía: [DEPLOY.md](./DEPLOY.md) · [docs/FRONTEND-DEPLOY.md](./docs/FRONTEND-DEPLOY.md) · [docs/PRODUCCION-SUPABASE.md](./docs/PRODUCCION-SUPABASE.md)
 
 ---
 
@@ -114,7 +114,9 @@ Frontend (`frontend/.env.local`):
 
 | Variable | Descripción |
 |----------|-------------|
-| `NEXT_PUBLIC_API_URL` | URL pública de la API, ej. `https://ibot.ecolan.com` |
+| `NEXT_PUBLIC_API_URL` | Vacío en prod (same-origin `/api`). Local: `http://localhost:8000` o vacío + rewrite |
+| `NEXT_PUBLIC_CONSOLE_HOST` | `ibot.ecolan.com` (build) |
+| `NEXT_PUBLIC_PORTAL_HOST` | `soporte.ecolan.com` (build) |
 
 ---
 

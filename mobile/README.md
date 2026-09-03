@@ -91,7 +91,7 @@ Completá lo mínimo para que deje de estar en borrador:
 | Descripción completa | Ver más abajo |
 | Categoría | Herramientas / Comunicación |
 | Correo de contacto | `admin@ecolan.com` |
-| Política de privacidad | `https://ibot.ecolan.com/privacidad` |
+| Política de privacidad | `https://soporte.ecolan.com/privacidad` |
 | Eliminación de cuenta | En la app: **Eliminar datos**. Web: la misma URL, sección «Cómo borrar tus datos». |
 
 Descripción completa (podés pegarla):
@@ -136,7 +136,7 @@ Eso deja un **borrador** en pista interna. En Play Console lo revisás y lo pas�
 
 ### 6. Deploy de la política
 
-`/privacidad` vive en el frontend. Hay que desplegar el frontend a `ibot.ecolan.com` **antes** de mandar a revisión, si no Google marca el link como inválido.
+`/privacidad` vive en el portal público (`https://soporte.ecolan.com/privacidad`). Tiene que responder **antes** de mandar a revisión, si no Google marca el link como inválido.
 
 ## Variables
 

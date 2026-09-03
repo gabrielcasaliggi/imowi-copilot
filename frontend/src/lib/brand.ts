@@ -74,10 +74,8 @@ export function applyBranding(partial: {
 }
 
 export async function hydrateBranding(apiBase?: string): Promise<Branding> {
-  const base = (apiBase || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(
-    /\/$/,
-    "",
-  );
+  const fromEnv = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  const base = (apiBase ?? fromEnv).replace(/\/$/, "");
   try {
     const res = await fetch(`${base}/api/v1/public/branding`, {
       method: "GET",

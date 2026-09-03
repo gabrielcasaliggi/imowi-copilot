@@ -29,7 +29,7 @@ Nunca mezclar tokens. BillTrack es **solo lectura**.
 - Dual-path: si hay `Authorization: Bearer` se usa; si no, la cookie.
 - El FE **no** persiste JWT en `localStorage`/`sessionStorage` (login limpia legado). Compat Bearer solo para sesiones viejas hasta re-login.
 - En local: dejá `NEXT_PUBLIC_API_URL` vacío y usá rewrite Next (`API_PROXY_TARGET`) para same-origin.
-- `CORS_ORIGINS` debe ser explícito (ej. `https://ibot.ecolan.com`) si el API se llama cross-origin; en nginx same-origin con `/api` proxy es lo ideal.
+- `CORS_ORIGINS` explícito con ambos hosts: `https://ibot.ecolan.com,https://soporte.ecolan.com`. Cada host proxifica `/api` (same-origin); no uses `NEXT_PUBLIC_API_URL` apuntando a un solo dominio.
 
 ## Deploy seguro (producción)
 

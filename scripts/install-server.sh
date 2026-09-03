@@ -18,7 +18,8 @@
 #   sudo bash scripts/enable-https.sh --email admin@ecolan.com
 #
 # Opciones:
-#   --domain NAME        Dominio (default: ibot.ecolan.com)
+#   --domain NAME        Dominio consola (default: ibot.ecolan.com)
+#   --portal-domain NAME Dominio portal público (default: soporte.ecolan.com)
 #   --email EMAIL        Email Let's Encrypt (activa HTTPS al final)
 #   --public-url URL     Sobrescribe URL pública (default https://DOMINIO)
 #   --app-user USER      Usuario de servicios (default: SUDO_USER o opshub)
@@ -81,6 +82,7 @@ UNIT_FE_SRC="$ROOT/deploy/systemd/operations-hub-frontend.service"
 
 PUBLIC_URL=""
 DOMAIN="ibot.ecolan.com"
+PORTAL_DOMAIN="soporte.ecolan.com"
 LETSENCRYPT_EMAIL=""
 APP_USER=""
 DO_MIGRATE=0
@@ -98,6 +100,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --public-url) PUBLIC_URL="${2:?}"; shift 2 ;;
     --domain) DOMAIN="${2:?}"; shift 2 ;;
+    --portal-domain) PORTAL_DOMAIN="${2:?}"; shift 2 ;;
     --email) LETSENCRYPT_EMAIL="${2:?}"; shift 2 ;;
     --app-user) APP_USER="${2:?}"; shift 2 ;;
     --http-port) HTTP_PORT="${2:?}"; shift 2 ;;
@@ -262,8 +265,13 @@ ensure_env() {
   }
 
   set_env_key "DOMAIN" "$DOMAIN"
+  set_env_key "PORTAL_DOMAIN" "$PORTAL_DOMAIN"
   set_env_key "PUBLIC_URL" "$PUBLIC_URL"
-  set_env_key "CORS_ORIGINS" "$PUBLIC_URL"
+  local portal_origin="https://${PORTAL_DOMAIN}"
+  if [[ "$PUBLIC_URL" == http://* ]]; then
+    portal_origin="http://${PORTAL_DOMAIN}"
+  fi
+  set_env_key "CORS_ORIGINS" "${PUBLIC_URL},${portal_origin}"
   set_env_key "HTTP_PORT" "$HTTP_PORT"
   set_env_key "APP_ENV" "production"
   set_env_key "DATABASE_URL" "$db_url"
@@ -337,8 +345,13 @@ setup_frontend() {
   sudo -u "$APP_USER" bash -c "
     set -euo pipefail
     cd '$ROOT/frontend'
-    echo 'NEXT_PUBLIC_API_URL=$PUBLIC_URL' > .env.production
-    echo 'NEXT_PUBLIC_API_URL=$PUBLIC_URL' > .env.local
+    cat > .env.production <<EOF
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_CONSOLE_HOST=${DOMAIN}
+NEXT_PUBLIC_PORTAL_HOST=${PORTAL_DOMAIN}
+NEXT_PUBLIC_APP_ENV=production
+EOF
+    cp .env.production .env.local
     npm ci
     npm run build
   "
@@ -364,11 +377,11 @@ install_systemd_units() {
 }
 
 setup_nginx() {
-  log "Configurando Nginx (server_name ${DOMAIN})"
+  log "Configurando Nginx (server_name ${DOMAIN} ${PORTAL_DOMAIN})"
   [[ -f "$NGINX_SRC" ]] || die "Falta $NGINX_SRC"
 
   mkdir -p /var/www/html
-  sed "s/server_name .*/server_name ${DOMAIN};/" "$NGINX_SRC" \
+  sed "s/server_name .*/server_name ${DOMAIN} ${PORTAL_DOMAIN};/" "$NGINX_SRC" \
     > /etc/nginx/sites-available/operations-hub
   ln -sfn /etc/nginx/sites-available/operations-hub /etc/nginx/sites-enabled/operations-hub
 

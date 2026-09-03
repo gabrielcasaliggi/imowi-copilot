@@ -6,13 +6,13 @@
 |-----|------------|----------|
 | **Admin** | `admin` / `admin` | Todo: config, stats, reasignar hilos, ver colas |
 | **Agente** | `batan` / `batan` | Bandeja + tickets N2 + KB |
-| **Abonado** | `/portal` o app nativa (`mobile/`) | Chat con Eko; si escala, agente toma el hilo |
+| **Abonado** | `https://soporte.ecolan.com` o app nativa (`mobile/`) | Chat con Eko; si escala, agente toma el hilo |
 
 WhatsApp Meta queda como canal de aviso; el soporte turno a turno vive en portal/app (sin costo por mensaje).
 
 ## Portal web
 
-URL: `/portal`
+URL: `https://soporte.ecolan.com` (`/` = portal; `ibot.ecolan.com/portal` redirige acá)
 
 1. Identificación por DNI + OTP / PIN  
 2. Chat con bot N1 (`canal=web`)  

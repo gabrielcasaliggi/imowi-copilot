@@ -2,9 +2,16 @@
 
 Ver también: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) (auth dual, backup, rotación de secretos).
 
-## Producción nativa (ibot.ecolan.com)
+## Producción nativa (dos hosts)
 
-Marca abonado: **Soporte Batán** / asistente **Eko**. Dominio futuro recomendado: `soporte.batan.coop` (ver [docs/ECO-VOICE.md](docs/ECO-VOICE.md)); no migrar DNS en este paso.
+| Host | Audiencia | Raíz `/` |
+|------|-----------|----------|
+| `ibot.ecolan.com` | Agentes / admin | login consola |
+| `soporte.ecolan.com` | Abonado | portal Eko |
+
+Misma app (nginx → Next :3000 + FastAPI :8000). DNS: A/AAAA de ambos a la IP del server. Certificado: `sudo bash scripts/enable-https.sh --domain ibot.ecolan.com --portal-domain soporte.ecolan.com --email … --rebuild-frontend`.
+
+`NEXT_PUBLIC_API_URL` vacío en el build del frontend (same-origin `/api` en cada host). `CORS_ORIGINS=https://ibot.ecolan.com,https://soporte.ecolan.com`. `PUBLIC_URL` sigue siendo la consola (invites).
 
 **Fase 1 (Batán operable):** [docs/FASE-1-BATAN.md](docs/FASE-1-BATAN.md).
 

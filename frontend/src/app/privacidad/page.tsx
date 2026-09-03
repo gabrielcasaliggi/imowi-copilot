@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { portalHref } from "@/lib/public-hosts";
 
 export const metadata: Metadata = {
   title: "Política de privacidad — Soporte Batán",
@@ -29,7 +30,7 @@ export default function PrivacidadPage() {
               admin@ecolan.com
             </a>
             . Portal:{" "}
-            <a className="text-[#2298A6] underline" href="/portal">
+            <a className="text-[#2298A6] underline" href={portalHref("/")}>
               Soporte Batán (portal abonado)
             </a>
             .
@@ -109,7 +110,7 @@ export default function PrivacidadPage() {
       </div>
 
       <p className="mt-10 text-sm">
-        <Link href="/portal" className="text-[#2298A6] underline">
+        <Link href={portalHref("/")} className="text-[#2298A6] underline">
           Volver al portal
         </Link>
       </p>

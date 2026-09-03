@@ -18,7 +18,7 @@ from qa_bot.runner_api import run_matriz_api  # noqa: E402
 from qa_bot.runner_playwright import run_matriz_playwright  # noqa: E402
 
 ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
-PORTAL = "https://ibot.ecolan.com/portal"
+PORTAL = "https://soporte.ecolan.com"
 API_BASE = "https://ibot.ecolan.com"
 
 
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         metodo = "Portal API (`/api/v1/portal/session` + `/messages`) — mismo backend que UI"
     elif args.mode == "playwright":
         final = pw_results
-        metodo = "Playwright UI — login Invitado + chat en https://ibot.ecolan.com/portal"
+        metodo = "Playwright UI — login Invitado + chat en https://soporte.ecolan.com"
     else:
         final = _merge_prefer_api(api_results, pw_results)
         metodo = (

@@ -1,6 +1,9 @@
 # Frontend Next.js — despliegue productivo
 
-El frontend **Next.js** es la consola principal. Producción canónica: **servidor propio** (`ibot.ecolan.com`) con nginx + systemd.
+El frontend **Next.js** sirve consola y portal. Producción: **servidor propio** con nginx + systemd.
+
+- Consola: `ibot.ecolan.com`
+- Portal abonado: `soporte.ecolan.com`
 
 > **UX Batán:** la operación de red/NAS es [`/incidentes`](../frontend/src/app/(dashboard)/incidentes). La ruta `/red` (telemetría demo JSC) fue retirada; no forma parte de la UI operativa.
 
@@ -42,9 +45,11 @@ Variables en el unit / `.env` del host:
 
 | Variable | Valor |
 |----------|-------|
-| `NEXT_PUBLIC_API_URL` | `https://ibot.ecolan.com` (o URL pública de la API) |
+| `NEXT_PUBLIC_API_URL` | vacío (nginx proxifica `/api` en cada host) |
+| `NEXT_PUBLIC_CONSOLE_HOST` | `ibot.ecolan.com` |
+| `NEXT_PUBLIC_PORTAL_HOST` | `soporte.ecolan.com` |
 
-En la API: `CORS_ORIGINS` debe incluir el origen del frontend.
+En la API: `CORS_ORIGINS=https://ibot.ecolan.com,https://soporte.ecolan.com`.
 
 ---
 

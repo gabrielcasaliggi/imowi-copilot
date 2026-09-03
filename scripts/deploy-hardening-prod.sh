@@ -148,7 +148,8 @@ if ! grep -qE '^PORTAL_ALLOW_GUEST=' "$ENV_FILE"; then
   env_set "PORTAL_ALLOW_GUEST" "false"
 fi
 env_set "PUBLIC_URL" "https://ibot.ecolan.com"
-env_set "CORS_ORIGINS" "https://ibot.ecolan.com"
+env_set "PORTAL_DOMAIN" "soporte.ecolan.com"
+env_set "CORS_ORIGINS" "https://ibot.ecolan.com,https://soporte.ecolan.com"
 
 # PORTAL_AUTH_SECRET: generar solo si falta
 PORTAL_SEC="$(env_get PORTAL_AUTH_SECRET)"

@@ -6,6 +6,7 @@ import { inputCls } from "@/components/ui/forms";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { EkoAvatar } from "@/components/ui/EkoAvatar";
 import { getBranding, portalAssistantLine } from "@/lib/brand";
+import { portalHref } from "@/lib/public-hosts";
 
 export default function LoginPage() {
   const { login, ready, user } = useApp();
@@ -106,7 +107,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-xs text-slate-500">
           ¿Sos abonado?{" "}
-          <a href="/portal" className="text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200">
+          <a href={portalHref("/")} className="text-ecolan-brand hover:text-ecolan-brand-dark transition-colors duration-200">
             Ir al portal de soporte
           </a>
         </p>
