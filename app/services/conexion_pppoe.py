@@ -328,13 +328,13 @@ def mensaje_abonado_pppoe(
                 "(no figurás conectado en la red). "
                 "Con saldo pendiente a veces hay corte; también puede ser el equipo apagado. "
                 "¿Reiniciaste el router/ONT (desenchufar 30 segundos)? "
-                "¿Las luces de la cajita están prendidas?"
+                "¿Las luces de la ONT están prendidas?"
             )
         return (
             f"Revisé tu cuenta de {tipo}: en este momento no hay sesión activa "
             "(tu usuario no figura conectado en la red). "
             "¿Podés reiniciar el router/ONT (desenchufar 30 segundos) y avisarme "
-            "si vuelve a conectar? ¿Las luces de la cajita están prendidas?"
+            "si vuelve a conectar? ¿Las luces de la ONT están prendidas?"
         )
     return None
 

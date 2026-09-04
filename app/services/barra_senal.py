@@ -148,7 +148,7 @@ def bloque_potencia_onu(rx_dbm: float | None) -> str:
         color_fn=color_optica_didactica,
     )
     return (
-        f"📊 Potencia de tu cajita: {rx_dbm:.1f} dBm  {_circulo(color)} {etiqueta_zona_optica(rx_dbm)}\n"
+        f"📊 Potencia de tu ONT: {rx_dbm:.1f} dBm  {_circulo(color)} {etiqueta_zona_optica(rx_dbm)}\n"
         f"{barra}\n"
         "floja ←—— ideal ——→ fuerte"
     )

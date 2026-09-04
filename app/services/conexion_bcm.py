@@ -85,7 +85,7 @@ def mensaje_informe_potencia_onu(estado: EstadoOnuBcm) -> str:
     """Responde la potencia óptica RX de la ONU."""
     if not estado.encontrado or estado.rx_dbm is None:
         return (
-            "No pude leer la potencia de tu cajita de fibra en este momento. "
+            "No pude leer la potencia de tu ONT en este momento. "
             "¿El servicio no te anda en ningún dispositivo o solo por Wi‑Fi?"
         )
     dbm = estado.rx_dbm
@@ -94,7 +94,7 @@ def mensaje_informe_potencia_onu(estado: EstadoOnuBcm) -> str:
     from app.services.barra_senal import anexar_antes_de_preguntas, bloque_potencia_onu
 
     cuerpo = (
-        f"Tu cajita de fibra está recibiendo {dbm:.1f} dBm, potencia {txt}. "
+        f"Tu ONT está recibiendo {dbm:.1f} dBm, potencia {txt}. "
         f"Lo ideal es estar por encima de {RX_IDEAL_DBM:.0f} dBm "
         f"o al menos por encima de {RX_VISITA_DBM:.0f} dBm."
     )
@@ -105,7 +105,7 @@ def mensaje_visita_onu_por_optica(estado: EstadoOnuBcm) -> str:
     olt = f" en {estado.olt_nombre}" if estado.olt_nombre else ""
     if estado.online is False:
         return (
-            "Revisé tu cajita de fibra en la red y no está registrada en la central"
+            "Revisé tu ONT en la red y no está registrada en la central"
             f"{olt}. Con eso ya no alcanza seguir a distancia: te derivo con un agente "
             "para coordinar una visita y revisar la ONT y el cable de fibra."
         )
@@ -116,7 +116,7 @@ def mensaje_visita_onu_por_optica(estado: EstadoOnuBcm) -> str:
             f" ({estado.rx_dbm:.1f} dBm, potencia {_texto_calidad_optica(calidad, estado.rx_dbm)})"
         )
     return (
-        f"Revisé tu cajita de fibra: está en línea pero la potencia óptica está fuera de parámetro"
+        f"Revisé tu ONT: está en línea pero la potencia óptica está fuera de parámetro"
         f"{detalle}. Eso suele requerir revisión en el domicilio o en la red. "
         "Te derivo con un agente para coordinar una visita técnica."
     )
@@ -223,21 +223,21 @@ def mensaje_abonado_bcm(
     barra = bloque_potencia_onu(estado.rx_dbm)
     if rama == "onu_offline":
         msg = (
-            "Revisé tu cajita de fibra en la red: en este momento no está registrada en la central. "
-            "¿La cajita blanca tiene alguna lucecita prendida (PON o LOS)?"
+            "Revisé tu ONT en la red: en este momento no está registrada en la central. "
+            "¿El equipo tiene alguna lucecita prendida (PON o LOS)?"
         )
         return anexar_antes_de_preguntas(msg, barra)
     if rama == "potencia_mala":
         ver = veredicto_optica(estado.rx_dbm) or "está baja"
         msg = (
-            "Revisé tu cajita de fibra: está en línea con la central, pero la potencia óptica "
+            "Revisé tu ONT: está en línea con la central, pero la potencia óptica "
             f"{ver}. ¿El cablecito amarillo está firme, sin dobleces ni pisadas?"
         )
         return anexar_antes_de_preguntas(msg, barra)
     if rama == "enlace_ok":
         ver = veredicto_optica(estado.rx_dbm) or "se ve bien"
         msg = (
-            f"Revisé tu cajita de fibra: está en línea y la potencia óptica {ver}. "
+            f"Revisé tu ONT: está en línea y la potencia óptica {ver}. "
             "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
             "¿Probaste con cable al router?"
         )
@@ -505,8 +505,8 @@ def evaluar_turno_onu_bcm(
             return {
                 "accion": "ask",
                 "mensaje": (
-                    "Revisé tu cajita de fibra: no está registrada en la central. "
-                    "¿La cajita blanca tiene alguna lucecita prendida (PON o LOS)?"
+                    "Revisé tu ONT: no está registrada en la central. "
+                    "¿El equipo tiene alguna lucecita prendida (PON o LOS)?"
                 ),
                 "paso_cubierto": "bcm_onu_offline",
                 "motivo": "bcm_onu_offline",

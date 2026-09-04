@@ -95,7 +95,7 @@ def test_mensaje_bcm_enlace_ok_lleva_barra():
     )
     msg = mensaje_abonado_bcm(ok, es_ftth=True)
     assert msg
-    assert "Potencia de tu cajita" in msg
+    assert "Potencia de tu ONT" in msg
     assert "-18.0 dBm" in msg
     assert "se ve bien" in msg
     assert msg.index("Potencia") < msg.index("¿")
@@ -178,7 +178,7 @@ def test_canal_radius_ok_anexa_potencia_onu(monkeypatch):
     assert msg
     assert "181.41.252.68" in msg
     assert "activa" in msg.lower()
-    assert "Potencia de tu cajita" in msg
+    assert "Potencia de tu ONT" in msg
     assert "-18.0 dBm" in msg
     assert "zona verde" in msg
     assert msg.index("Potencia") < msg.index("¿")

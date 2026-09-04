@@ -309,7 +309,7 @@ def test_aplicar_bcm_a_ctx():
 def test_mensaje_n1_ftth():
     off = EstadoOnuBcm(numero_cliente="x", encontrado=True, online=False)
     msg = mensaje_abonado_bcm(off, es_ftth=True)
-    assert msg and "cajita" in msg.lower()
+    assert msg and "ont" in msg.lower()
     assert "triage=onu_ftth_offline" in triage_bcm_para_prompt(off)
 
     ok = EstadoOnuBcm(
@@ -317,7 +317,7 @@ def test_mensaje_n1_ftth():
     )
     msg_ok = mensaje_abonado_bcm(ok, es_ftth=True)
     assert msg_ok and "Wi‑Fi" in msg_ok
-    assert "Potencia de tu cajita" in msg_ok
+    assert "Potencia de tu ONT" in msg_ok
     assert "-18.0 dBm" in msg_ok
     assert mensaje_abonado_bcm(ok, es_ftth=False) is None
     assert mensaje_abonado_bcm(EstadoOnuBcm(numero_cliente="x", encontrado=False), es_ftth=True) is None

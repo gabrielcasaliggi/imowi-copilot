@@ -414,7 +414,7 @@ def _responder_consulta_potencia_onu(
     ctx: dict,
     intencion: str,
 ) -> dict | None:
-    """Consulta BCM en vivo y responde potencia de la cajita (fibra)."""
+    """Consulta BCM en vivo y responde potencia de la ONT (fibra)."""
     from app.bcm.contract import EstadoOnuBcm
     from app.domain.flujos_abonado import cliente_pregunta_potencia_onu
     from app.services.conexion_bcm import (
@@ -2880,7 +2880,7 @@ def _mensaje_cierre_escalamiento(
     ):
         return (
             f"Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra "
-            f"que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, "
+            f"que llega a la ONT. Chequeá que el cablecito amarillo no esté doblado, "
             f"pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la "
             f"luz verde, hace falta visita técnica. Generé el ticket {tid} y te derivo "
             f"con un agente.{nota} Te van a responder por este mismo chat."

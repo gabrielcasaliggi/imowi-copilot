@@ -1908,7 +1908,7 @@ def diagnosticar_turno(
         else:
             msg_optico = (
                 "Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra "
-                "que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, "
+                "que llega a la ONT. Chequeá que el cablecito amarillo no esté doblado, "
                 "pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la "
                 "luz verde, hace falta visita técnica — te derivo con un agente para "
                 "coordinarla."
@@ -2418,7 +2418,7 @@ def diagnosticar_turno(
                 motivo = opt2
                 mensaje = (
                     "Si la luz LOS está en rojo o parpadeando se interrumpió la señal de fibra "
-                    "que llega a la cajita. Chequeá que el cablecito amarillo no esté doblado, "
+                    "que llega a la ONT. Chequeá que el cablecito amarillo no esté doblado, "
                     "pisado o desenchufado (sin desconectarlo). Si está firme y no vuelve la "
                     "luz verde, hace falta visita técnica — te derivo con un agente para "
                     "coordinarla."

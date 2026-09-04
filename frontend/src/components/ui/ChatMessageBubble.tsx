@@ -113,7 +113,7 @@ function pctRadio(dbm: number): number {
 }
 
 function parseGaugeHeader(line: string): { kind: GaugeKind; dbm: number } | null {
-  const potencia = line.match(/^📊\s*Potencia de tu cajita:\s*(-?\d+(?:\.\d+)?)\s*dBm/i);
+  const potencia = line.match(/^📊\s*Potencia de tu (?:ONT|cajita):\s*(-?\d+(?:\.\d+)?)\s*dBm/i);
   if (potencia) return { kind: "optica", dbm: Number(potencia[1]) };
   const senal = line.match(/^📊\s*Señal de tu antena:\s*(-?\d+(?:\.\d+)?)\s*dBm/i);
   if (senal) return { kind: "radio", dbm: Number(senal[1]) };
@@ -148,7 +148,7 @@ function etiquetaGauge(kind: GaugeKind, dbm: number, tone: GaugeTone): string {
 function SignalGauge({ kind, dbm }: { kind: GaugeKind; dbm: number }) {
   const tone = kind === "optica" ? toneOptica(dbm) : toneRadio(dbm);
   const pct = kind === "optica" ? pctOptica(dbm) : pctRadio(dbm);
-  const titulo = kind === "optica" ? "Potencia de tu cajita" : "Señal de tu antena";
+  const titulo = kind === "optica" ? "Potencia de tu ONT" : "Señal de tu antena";
   const valor = kind === "optica" ? `${dbm.toFixed(1)} dBm` : `${Math.round(dbm)} dBm`;
   const track =
     kind === "optica"
