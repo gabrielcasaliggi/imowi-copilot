@@ -303,6 +303,63 @@ def consultar_onu_bcm(
         return EstadoOnuBcm(numero_cliente=nro, error=str(exc)[:160])
 
 
+def candidatos_numero_bcm(
+    abonado: Any | None,
+    *,
+    db: Session | None = None,
+    ctx: dict | None = None,
+    base_account_number: str = "",
+) -> list[str]:
+    """Números ERP a probar en BCM (client_number y cuenta del servicio)."""
+    seen: list[str] = []
+
+    def _add(raw: Any) -> None:
+        s = str(raw or "").strip()
+        if s and s not in seen:
+            seen.append(s)
+
+    if abonado is not None:
+        _add(getattr(abonado, "client_number", ""))
+    ctx = ctx or {}
+    _add(ctx.get("client_number"))
+    _add(base_account_number)
+    _add(ctx.get("pppoe_base_account"))
+    if abonado is not None:
+        _add(resolver_numero_cliente_bcm(abonado, db))
+        dni = str(getattr(abonado, "dni", "") or "").strip()
+        if dni:
+            try:
+                from app.services import billtrack as bt
+
+                servicios = bt.lookup_servicios_conectividad_por_dni(dni=dni, db=db)
+                for svc in servicios or []:
+                    _add(getattr(svc, "base_account_number", ""))
+            except Exception:
+                logger.exception("BCM: candidatos desde servicios BillTrack")
+    return seen
+
+
+def consultar_onu_bcm_mejor_esfuerzo(
+    abonado: Any | None,
+    *,
+    db: Session | None = None,
+    ctx: dict | None = None,
+    base_account_number: str = "",
+) -> EstadoOnuBcm:
+    """Prueba varios números hasta encontrar ONU con RX."""
+    last = EstadoOnuBcm(numero_cliente="", error="numero_cliente vacío")
+    for nro in candidatos_numero_bcm(
+        abonado, db=db, ctx=ctx, base_account_number=base_account_number
+    ):
+        onu = consultar_onu_bcm(nro, db=db)
+        last = onu
+        if onu.encontrado and onu.rx_dbm is not None:
+            return onu
+        if onu.encontrado:
+            last = onu
+    return last
+
+
 def contexto_bcm_para_abonado(
     abonado: Any | None,
     *,

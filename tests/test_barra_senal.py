@@ -301,6 +301,10 @@ def test_consulta_mi_senal_es_buena_responde_potencia_onu(monkeypatch):
         "app.services.conexion_bcm.consultar_onu_bcm",
         lambda *_a, **_k: onu,
     )
+    monkeypatch.setattr(
+        "app.services.billtrack.lookup_servicios_conectividad_por_dni",
+        lambda **_k: [],
+    )
 
     def _captura(_db, _org, _conv, resp, **_k):
         sent.append(resp)

@@ -133,27 +133,30 @@ def _talvez_mensaje_pppoe(
             try:
                 from app.services.conexion_bcm import (
                     aplicar_bcm_a_ctx,
-                    consultar_onu_bcm,
+                    consultar_onu_bcm_mejor_esfuerzo,
                     es_servicio_ftth,
                     mensaje_abonado_bcm,
                     resolve_bcm_client,
-                    resolver_numero_cliente_bcm,
                 )
 
                 if resolve_bcm_client(db) is not None:
                     if not es_ftth:
                         es_ftth = es_servicio_ftth(estado.servicio)
-                    nro = str(getattr(abonado, "client_number", "") or "").strip()
-                    if not nro and estado.servicio is not None:
-                        nro = str(getattr(estado.servicio, "base_account_number", "") or "").strip()
-                    if not nro:
-                        nro = resolver_numero_cliente_bcm(abonado, db)
-                    if nro:
-                        onu = consultar_onu_bcm(nro, db=db)
-                        aplicar_bcm_a_ctx(ctx, onu)
-                        msg_bcm = mensaje_abonado_bcm(
-                            onu, es_ftth=es_ftth or onu.encontrado
-                        )
+                    base = ""
+                    if estado.servicio is not None:
+                        base = str(
+                            getattr(estado.servicio, "base_account_number", "") or ""
+                        ).strip()
+                    onu = consultar_onu_bcm_mejor_esfuerzo(
+                        abonado,
+                        db=db,
+                        ctx=ctx,
+                        base_account_number=base,
+                    )
+                    aplicar_bcm_a_ctx(ctx, onu)
+                    msg_bcm = mensaje_abonado_bcm(
+                        onu, es_ftth=es_ftth or onu.encontrado
+                    )
             except Exception:
                 logger.exception("BCM check falló en canal")
 

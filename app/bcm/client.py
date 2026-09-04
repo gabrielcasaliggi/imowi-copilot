@@ -174,13 +174,29 @@ def clasificar_optica(rx_dbm: float | None) -> CalidadOptica:
 
 
 def unwrap_payload(payload: Any) -> dict[str, Any]:
-    """Desanida data/cliente/result típicos de BCM."""
+    """Desanida data/cliente/result típicos de BCM.
+
+    Si en este nivel ya hay ONU/ONT, no baja a `cliente` (la potencia suele
+    venir como hermano, no como hijo de la ficha).
+    """
     if isinstance(payload, list) and payload:
         return unwrap_payload(payload[0])
     if not isinstance(payload, dict):
         return {}
-    for key in ("data", "cliente", "result", "resultado", "payload", "response"):
-        nested = payload.get(key)
+    if any(str(k).casefold() in ("onu", "ont", "onus", "onts") for k in payload):
+        return payload
+    by_key = {str(k).casefold(): v for k, v in payload.items()}
+    for key in (
+        "data",
+        "datos",
+        "cliente",
+        "result",
+        "resultado",
+        "payload",
+        "response",
+        "objeto",
+    ):
+        nested = by_key.get(key)
         if isinstance(nested, dict):
             return unwrap_payload(nested)
         if isinstance(nested, list) and nested:
@@ -290,21 +306,72 @@ def describir_auth_fallida(payload: Any, *, status_code: int, content_type: str 
     return "BCM auth: la respuesta no trajo token (" + "; ".join(parts) + ")"
 
 
+def _get_ci(blob: dict[str, Any], *keys: str) -> Any:
+    by = {str(k).casefold(): v for k, v in blob.items()}
+    for key in keys:
+        if key.casefold() in by:
+            return by[key.casefold()]
+    return None
+
+
+def _buscar_rx_en_arbol(blob: Any, *, depth: int = 0) -> Any:
+    """Último recurso: RX en claves rx*/potencia* (no TX) hasta 5 niveles."""
+    if depth > 5 or blob is None:
+        return None
+    if isinstance(blob, dict):
+        by = {str(k).casefold(): v for k, v in blob.items()}
+        for key in (
+            "rx",
+            "rx_power",
+            "rxpower",
+            "rx_optical",
+            "rxopticalpower",
+            "opticalrxpower",
+            "potencia_rx",
+            "potenciarx",
+            "potenciaoptica",
+            "potencia_optica",
+        ):
+            if key in by:
+                n = normalizar_rx_dbm(by[key])
+                if n is not None:
+                    return by[key]
+        for k, v in blob.items():
+            kl = str(k).casefold()
+            if "tx" in kl or "catv" in kl:
+                continue
+            if "rx" in kl or "potencia" in kl:
+                n = normalizar_rx_dbm(v)
+                if n is not None and -40.0 <= n <= 5.0:
+                    return v
+        for v in blob.values():
+            found = _buscar_rx_en_arbol(v, depth=depth + 1)
+            if found is not None:
+                return found
+    if isinstance(blob, list):
+        for item in blob:
+            found = _buscar_rx_en_arbol(item, depth=depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
 def extraer_bloque_onu(cliente: dict[str, Any]) -> dict[str, Any]:
     """ONU/ONT puede venir anidada o aplanada en la ficha del cliente."""
+    by = {str(k).casefold(): v for k, v in cliente.items()}
     for key in ("onu", "ont", "onus", "dispositivo", "equipo", "onts"):
-        val = cliente.get(key)
+        val = by.get(key)
         if isinstance(val, list) and val and isinstance(val[0], dict):
             return val[0]
         if isinstance(val, dict) and val:
             return val
-    olt = cliente.get("olt")
+    olt = by.get("olt")
     if isinstance(olt, dict) and any(
-        cliente.get(k) for k in ("serial", "serial_onu", "sn", "estado_onu", "rx", "potencia_rx")
+        by.get(k) for k in ("serial", "serial_onu", "sn", "estado_onu", "rx", "potencia_rx")
     ):
         return cliente
     if any(
-        cliente.get(k)
+        by.get(k)
         for k in (
             "serial_onu",
             "serial_ont",
@@ -405,30 +472,30 @@ def parse_cliente(payload: Any, *, numero_cliente: str) -> EstadoOnuBcm:
 
     onu = extraer_bloque_onu(cliente)
     nro = _first_str(
-        cliente.get("numero"),
-        cliente.get("numero_cliente"),
-        cliente.get("nro_cliente"),
-        cliente.get("client_number"),
-        cliente.get("numeroCliente"),
+        _get_ci(cliente, "numero", "numero_cliente", "nro_cliente", "client_number", "numeroCliente"),
         numero_cliente,
     ) or numero_cliente
 
     rx = normalizar_rx_dbm(
-        _first_str(
-            onu.get("rx"),
-            onu.get("rx_power"),
-            onu.get("rxPower"),
-            onu.get("potencia_rx"),
-            onu.get("potenciaRx"),
-            onu.get("rxpower"),
-            cliente.get("rx"),
-            cliente.get("potencia_rx"),
+        _get_ci(
+            onu,
+            "rx",
+            "rx_power",
+            "rxPower",
+            "potencia_rx",
+            "potenciaRx",
+            "rxpower",
+            "rxOpticalPower",
+            "opticalRxPower",
         )
-        or onu.get("rx")
-        or cliente.get("rx")
+        or _get_ci(cliente, "rx", "potencia_rx", "potenciaRx", "rx_power")
     )
     if rx is None:
-        rx = normalizar_rx_dbm(onu.get("potencia") or cliente.get("potencia"))
+        rx = normalizar_rx_dbm(_get_ci(onu, "potencia") or _get_ci(cliente, "potencia"))
+    if rx is None:
+        rx = normalizar_rx_dbm(_buscar_rx_en_arbol(cliente) or _buscar_rx_en_arbol(onu))
+    if rx is None and payload is not cliente:
+        rx = normalizar_rx_dbm(_buscar_rx_en_arbol(payload))
     tx = normalizar_rx_dbm(
         onu.get("tx")
         or onu.get("tx_power")
@@ -444,13 +511,8 @@ def parse_cliente(payload: Any, *, numero_cliente: str) -> EstadoOnuBcm:
         nombre=_first_str(cliente.get("nombre"), cliente.get("name")),
         apellido=_first_str(cliente.get("apellido"), cliente.get("lastname")),
         serial=_first_str(
-            onu.get("serial"),
-            onu.get("serial_onu"),
-            onu.get("serial_ont"),
-            onu.get("sn"),
-            onu.get("numero_serie"),
-            cliente.get("serial_onu"),
-            cliente.get("serial"),
+            _get_ci(onu, "serial", "serial_onu", "serial_ont", "sn", "numero_serie"),
+            _get_ci(cliente, "serial_onu", "serial", "sn"),
         ),
         modelo=_first_str(
             onu.get("modelo"),

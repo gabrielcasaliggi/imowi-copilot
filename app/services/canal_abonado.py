@@ -419,21 +419,14 @@ def _responder_consulta_potencia_onu(
     from app.domain.flujos_abonado import cliente_pregunta_potencia_onu
     from app.services.conexion_bcm import (
         aplicar_bcm_a_ctx,
-        consultar_onu_bcm,
+        consultar_onu_bcm_mejor_esfuerzo,
         mensaje_informe_potencia_onu,
         resolve_bcm_client,
-        resolver_numero_cliente_bcm,
     )
 
     if not cliente_pregunta_potencia_onu(texto) or abonado is None:
         return None
     if _tecnologia_acceso_ctx(ctx, intencion) == "internet_radio":
-        return None
-
-    nro = str(getattr(abonado, "client_number", "") or "").strip()
-    if not nro:
-        nro = resolver_numero_cliente_bcm(abonado, db)
-    if not nro:
         return None
 
     if resolve_bcm_client(db) is None:
@@ -446,14 +439,27 @@ def _responder_consulta_potencia_onu(
             return None
         calidad = str(ctx.get("bcm_calidad_optica") or "")
         onu = EstadoOnuBcm(
-            numero_cliente=nro,
+            numero_cliente=str(getattr(abonado, "client_number", "") or ""),
             encontrado=True,
             online=True,
             rx_dbm=rx_val,
             calidad_optica=calidad if calidad in ("buena", "aceptable", "mala") else "",
         )
     else:
-        onu = consultar_onu_bcm(nro, db=db)
+        onu = consultar_onu_bcm_mejor_esfuerzo(abonado, db=db, ctx=ctx)
+        if (not onu.encontrado or onu.rx_dbm is None) and str(ctx.get("bcm_rx_dbm") or "").strip():
+            try:
+                rx_val = float(str(ctx.get("bcm_rx_dbm")))
+            except ValueError:
+                rx_val = None
+            if rx_val is not None:
+                onu = EstadoOnuBcm(
+                    numero_cliente=onu.numero_cliente or str(getattr(abonado, "client_number", "") or ""),
+                    encontrado=True,
+                    online=True,
+                    rx_dbm=rx_val,
+                    calidad_optica=str(ctx.get("bcm_calidad_optica") or ""),
+                )
     aplicar_bcm_a_ctx(ctx, onu)
     cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     if "consulta_potencia_onu" not in cub:

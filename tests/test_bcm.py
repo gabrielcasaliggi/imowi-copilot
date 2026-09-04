@@ -19,6 +19,7 @@ from app.bcm.contract import EstadoOnuBcm
 from app.services.conexion_bcm import (
     aplicar_bcm_a_ctx,
     clasificar_rama_bcm,
+    consultar_onu_bcm_mejor_esfuerzo,
     evaluar_turno_onu_bcm,
     mensaje_abonado_bcm,
     mensaje_informe_potencia_onu,
@@ -127,6 +128,28 @@ def test_parse_onu_aplanada_rx_positiva():
     assert onu.calidad_optica == "buena"
 
 
+def test_parse_onu_hermana_de_cliente_no_hija():
+    """BCM a veces manda ficha y ONU como hermanos bajo data."""
+    payload = {
+        "status": "ok",
+        "data": {
+            "cliente": {"nombre": "Margarita", "numero": 6138215},
+            "onu": {"estado": "online", "serial": "HWTC1", "rx": -17.4},
+        },
+    }
+    onu = parse_cliente(payload, numero_cliente="6138215")
+    assert onu.encontrado is True
+    assert onu.rx_dbm == -17.4
+    assert onu.serial == "HWTC1"
+
+
+def test_parse_onu_clave_mayuscula_y_rxpower():
+    payload = {"Datos": {"ONU": {"Estado": "Online", "RxPower": 18.6, "Serial": "AA"}}}
+    onu = parse_cliente(payload, numero_cliente="1")
+    assert onu.rx_dbm == -18.6
+    assert onu.serial == "AA"
+
+
 def test_parse_offline_y_potencia_mala():
     off = parse_cliente(SAMPLE_OFFLINE, numero_cliente="1")
     assert off.online is False
@@ -135,6 +158,36 @@ def test_parse_offline_y_potencia_mala():
     mala = parse_cliente(SAMPLE_MALA, numero_cliente="1")
     assert clasificar_rama_bcm(mala) == "potencia_mala"
     assert requiere_visita_por_optica(mala) is True
+
+
+def test_consultar_onu_prueba_segundo_numero(monkeypatch):
+    from app.services import conexion_bcm as cb
+
+    calls: list[str] = []
+
+    def _buscar(nro, db=None):
+        calls.append(nro)
+        if nro == "6138215":
+            return EstadoOnuBcm(numero_cliente=nro, encontrado=True, rx_dbm=None)
+        if nro == "200":
+            return EstadoOnuBcm(
+                numero_cliente=nro, encontrado=True, online=True, rx_dbm=-18.0
+            )
+        return EstadoOnuBcm(numero_cliente=nro, encontrado=False)
+
+    monkeypatch.setattr(cb, "consultar_onu_bcm", _buscar)
+    monkeypatch.setattr(cb, "resolver_numero_cliente_bcm", lambda *_a, **_k: "6138215")
+    monkeypatch.setattr(
+        "app.services.billtrack.lookup_servicios_conectividad_por_dni",
+        lambda **_k: [SimpleNamespace(base_account_number="200")],
+    )
+    onu = consultar_onu_bcm_mejor_esfuerzo(
+        SimpleNamespace(dni="30111222", client_number="6138215"),
+        db=None,
+        base_account_number="200",
+    )
+    assert onu.rx_dbm == -18.0
+    assert "6138215" in calls and "200" in calls
 
 
 def test_parse_no_encontrado():
