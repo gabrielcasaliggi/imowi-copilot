@@ -152,9 +152,13 @@ def test_informe_potencia_buena_vs_mala():
     txt_b = mensaje_informe_potencia_onu(buena)
     assert "-18.0" in txt_b
     assert "visita" not in txt_b.lower()
+    assert "📊" in txt_b
+    assert "🟢" in txt_b
     txt_m = mensaje_informe_potencia_onu(mala)
     assert "-29.0" in txt_m
     assert "baja" in txt_m
+    assert "📊" in txt_m
+    assert "🔴" in txt_m
 
 
 def test_parse_rx_desde_resumen():
@@ -247,6 +251,8 @@ def test_mensaje_n1_ftth():
     )
     msg_ok = mensaje_abonado_bcm(ok, es_ftth=True)
     assert msg_ok and "Wi‑Fi" in msg_ok
+    assert "Potencia de tu cajita" in msg_ok
+    assert "-18.0 dBm" in msg_ok
     assert mensaje_abonado_bcm(ok, es_ftth=False) is None
     assert mensaje_abonado_bcm(EstadoOnuBcm(numero_cliente="x", encontrado=False), es_ftth=True) is None
 

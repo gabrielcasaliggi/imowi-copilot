@@ -43,11 +43,14 @@ def _aplicar_diagnostico_ia(
     indica_resuelto = c.indica_resuelto
     _cliente_desiste_o_resuelto = c._cliente_desiste_o_resuelto
     _cerrar_consulta_resuelta = c._cerrar_consulta_resuelta
+    _cerrar_si_rechaza_derivacion = c._cerrar_si_rechaza_derivacion
     _primer_nombre_cliente = c._primer_nombre_cliente
     _enviar_respuesta = c._enviar_respuesta
     _enviar_externo = c._enviar_externo
     _cliente_indica_solo_wifi = c._cliente_indica_solo_wifi
     _cliente_cable_ok = c._cliente_cable_ok
+    _cliente_reporta_corte_total = c._cliente_reporta_corte_total
+    _linea_acceso_ok_ctx = c._linea_acceso_ok_ctx
     crepo = c.crepo
     _playbooks = c._playbooks
     _kb_fragmento = c._kb_fragmento
@@ -124,6 +127,12 @@ def _aplicar_diagnostico_ia(
             ),
         )
 
+    cierre_no = _cerrar_si_rechaza_derivacion(
+        db, org_id, conv, texto, canal=canal, abonado=abonado
+    )
+    if cierre_no is not None:
+        return cierre_no
+
     # Primer turno de internet: informar estado PPPoE real (no depender del LLM).
     pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion)
     if pppoe_msg:
@@ -145,11 +154,16 @@ def _aplicar_diagnostico_ia(
             "pppoe": True,
         }
 
-    # Línea PPPoE OK + "solo Wi‑Fi" → playbook wifi (sin preguntar ONT/PON).
+    # Línea de acceso OK (Radius y/o BCM) → seguir en casa (Wi‑Fi/cable/router).
+    # «no tengo internet» no es «solo Wi‑Fi», pero tampoco agota el playbook FTTH.
     if (
-        ctx.get("pppoe_rama") == "wifi_lan"
+        _linea_acceso_ok_ctx(ctx)
         and not ctx.get("wifi_rama_activada")
-        and (_cliente_indica_solo_wifi(texto) or _cliente_cable_ok(texto))
+        and (
+            _cliente_indica_solo_wifi(texto)
+            or _cliente_cable_ok(texto)
+            or _cliente_reporta_corte_total(texto)
+        )
     ):
         ctx["wifi_rama_activada"] = True
         ctx["enlace_optico_ok"] = True
@@ -162,6 +176,8 @@ def _aplicar_diagnostico_ia(
             "cable_fibra",
             "reinicio_ont",
             "enlace_optico",
+            "energia_ont",
+            "servicio_tras_optica",
         ):
             if pid not in cubiertos:
                 cubiertos.append(pid)
@@ -172,10 +188,16 @@ def _aplicar_diagnostico_ia(
             )
             if "otros_dispositivos_wifi" not in cubiertos:
                 cubiertos.append("zona_wifi")
-        else:
+        elif _cliente_indica_solo_wifi(texto):
             msg = (
                 "Dale, entonces el acceso anda y el tema es el Wi‑Fi. "
                 "¿Les pasa a todos los equipos Wi‑Fi o solo a uno?"
+            )
+        else:
+            msg = (
+                "Hasta la red la cuenta está activa; sigamos en tu casa. "
+                "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
+                "Si podés, conectá un cable al router y fijate si navega."
             )
         turnos = int(ctx.get("diag_turnos") or 0)
         ctx["pasos_cubiertos"] = cubiertos
@@ -198,7 +220,7 @@ def _aplicar_diagnostico_ia(
 
     # Ya en rama wifi post-PPPoE: mantener intención wifi aunque el ctx diga internet
     if ctx.get("wifi_rama_activada") or (
-        ctx.get("pppoe_rama") == "wifi_lan" and ctx.get("enlace_optico_ok")
+        _linea_acceso_ok_ctx(ctx) and ctx.get("enlace_optico_ok")
     ):
         if (intencion or "").startswith("internet"):
             intencion = "wifi"
@@ -302,6 +324,37 @@ def _aplicar_diagnostico_ia(
                 if pasos_i
                 else "¿Tenés fibra (cajita blanca), antena en el techo, o internet por teléfono (ADSL)?"
             )
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+
+    if (
+        accion == "escalate"
+        and intencion == "internet_ftth"
+        and _linea_acceso_ok_ctx(ctx)
+    ):
+        from app.services.diagnostico_n1 import _MOTIVOS_OPTICOS
+
+        motivo_e = str(result.get("motivo") or "")
+        if motivo_e not in _MOTIVOS_OPTICOS and not any(
+            x in motivo_e.lower() for x in ("agente", "humano", "pedido")
+        ):
+            intencion = "wifi"
+            ctx["intencion"] = "wifi"
+            ctx["wifi_rama_activada"] = True
+            accion = "ask"
+            result = dict(result)
+            result["accion"] = "ask"
+            cub_set = set(cubiertos)
+            mensaje = (
+                "Hasta la red la cuenta está activa; sigamos en tu casa. "
+                "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+            )
+            for p in _playbooks(db).get("wifi") or []:
+                pid = str(getattr(p, "id", "") or "")
+                preg = str(getattr(p, "pregunta", "") or "")
+                if pid and pid not in cub_set and preg:
+                    mensaje = preg
+                    break
             crepo.set_contexto(conv, ctx)
             db.commit()
 

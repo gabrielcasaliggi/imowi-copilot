@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from app.config import BOT_DISPLAY_NAME
-from app.domain.flujos_abonado import PasoPlaybook, intencion_es_facturacion
+from app.domain.flujos_abonado import PasoPlaybook, es_paso_derivacion, intencion_es_facturacion
 
 logger = logging.getLogger("operations_hub")
 
@@ -1179,6 +1179,7 @@ def _fallback_ask(
     mensaje_cliente: str,
     *,
     saltar_wifi: bool = False,
+    omitir_derivacion: bool = False,
     historial_mensajes=None,
 ) -> dict[str, str]:
     done = set(cubiertos or [])
@@ -1189,13 +1190,16 @@ def _fallback_ask(
     )
     for p in pasos or []:
         if isinstance(p, PasoPlaybook):
-            pid, preg = p.id, p.pregunta
+            paso_obj, pid, preg = p, p.id, p.pregunta
         elif isinstance(p, dict):
             pid = str(p.get("id") or "paso")
             preg = str(p.get("pregunta") or "")
+            paso_obj = PasoPlaybook(pid, preg)
         else:
             continue
         if pid in done or not preg:
+            continue
+        if omitir_derivacion and es_paso_derivacion(paso_obj):
             continue
         if pid == "so_dispositivo" and detectar_so_movil(mensaje_cliente):
             continue
@@ -2330,6 +2334,25 @@ def diagnosticar_turno(
         ):
             accion = "ask"
             motivo = "bloqueado_min_turnos"
+            fb = _fallback_ask(
+                checklist,
+                pasos_cubiertos,
+                mensaje_cliente,
+                omitir_derivacion=True,
+                historial_mensajes=historial_mensajes,
+            )
+            if fb.get("accion") == "ask" and (fb.get("mensaje") or "").strip():
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso
+            else:
+                from app.domain.flujos_abonado import texto_ofrece_derivacion
+
+                if texto_ofrece_derivacion(mensaje) or not (mensaje or "").strip():
+                    mensaje = (
+                        "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
+                        "¿Probaste con cable al router?"
+                    )
+                    paso = paso or "wifi_vs_cable_ftth"
 
         # «si tengo» / modelo solo / datos agotados: nunca ticket N2 prematuro en móvil
         if accion == "escalate" and es_movil:

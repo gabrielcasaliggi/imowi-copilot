@@ -131,9 +131,11 @@ def test_informe_senal_buena_vs_mala():
     assert "-33" in txt_b
     assert "excelente" in txt_b
     assert "visita" not in txt_b.lower()
+    assert "📊" in txt_b
     txt_m = mensaje_informe_senal_antena(mala)
     assert "-82" in txt_m
     assert "baja" in txt_m
+    assert "📊" in txt_m
     assert "visita" in mensaje_visita_antena_por_senal(mala).lower()
 
 
@@ -257,6 +259,8 @@ def test_mensaje_n1_radio():
     )
     msg_ok = mensaje_abonado_uisp(ok, es_radio=True)
     assert msg_ok and "Wi‑Fi" in msg_ok
+    assert "Señal de tu antena" in msg_ok
+    assert "-55 dBm" in msg_ok
     assert mensaje_abonado_uisp(ok, es_radio=False) is None
     assert mensaje_abonado_uisp(EstadoCpeUisp(login="x", encontrado=False), es_radio=True) is None
 

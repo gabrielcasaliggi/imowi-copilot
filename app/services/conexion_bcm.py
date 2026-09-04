@@ -91,11 +91,14 @@ def mensaje_informe_potencia_onu(estado: EstadoOnuBcm) -> str:
     dbm = estado.rx_dbm
     calidad = estado.calidad_optica or clasificar_optica(dbm)
     txt = _texto_calidad_optica(calidad, dbm)
-    return (
+    from app.services.barra_senal import anexar_antes_de_preguntas, bloque_potencia_onu
+
+    cuerpo = (
         f"Tu cajita de fibra está recibiendo {dbm:.1f} dBm, potencia {txt}. "
         f"Lo ideal es estar por encima de {RX_IDEAL_DBM:.0f} dBm "
         f"o al menos por encima de {RX_VISITA_DBM:.0f} dBm."
     )
+    return anexar_antes_de_preguntas(cuerpo, bloque_potencia_onu(dbm))
 
 
 def mensaje_visita_onu_por_optica(estado: EstadoOnuBcm) -> str:
@@ -211,22 +214,34 @@ def mensaje_abonado_bcm(
         return None
     rama = clasificar_rama_bcm(estado)
 
+    from app.services.barra_senal import (
+        anexar_antes_de_preguntas,
+        bloque_potencia_onu,
+        veredicto_optica,
+    )
+
+    barra = bloque_potencia_onu(estado.rx_dbm)
     if rama == "onu_offline":
-        return (
+        msg = (
             "Revisé tu cajita de fibra en la red: en este momento no está registrada en la central. "
             "¿La cajita blanca tiene alguna lucecita prendida (PON o LOS)?"
         )
+        return anexar_antes_de_preguntas(msg, barra)
     if rama == "potencia_mala":
-        return (
+        ver = veredicto_optica(estado.rx_dbm) or "está baja"
+        msg = (
             "Revisé tu cajita de fibra: está en línea con la central, pero la potencia óptica "
-            "está baja (fuera de lo ideal). ¿El cablecito amarillo está firme, sin dobleces ni pisadas?"
+            f"{ver}. ¿El cablecito amarillo está firme, sin dobleces ni pisadas?"
         )
+        return anexar_antes_de_preguntas(msg, barra)
     if rama == "enlace_ok":
-        return (
-            "Revisé tu cajita de fibra: está en línea y la potencia óptica se ve bien. "
+        ver = veredicto_optica(estado.rx_dbm) or "se ve bien"
+        msg = (
+            f"Revisé tu cajita de fibra: está en línea y la potencia óptica {ver}. "
             "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
             "¿Probaste con cable al router?"
         )
+        return anexar_antes_de_preguntas(msg, barra)
     return None
 
 

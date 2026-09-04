@@ -2554,6 +2554,56 @@ def acepta_derivacion_clara(texto: str) -> bool:
     return False
 
 
+def texto_ofrece_derivacion(texto: str) -> bool:
+    """True si el último mensaje del bot pidió confirmar handoff a un agente."""
+    t = (texto or "").strip()
+    if not t:
+        return False
+    return es_paso_derivacion(PasoPlaybook("oferta_derivacion", t))
+
+
+def rechaza_derivacion_clara(texto: str) -> bool:
+    """True si el abonado rechaza el handoff (no síntomas tipo «no tengo internet»)."""
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¡!.,¿?]+", " ", t)
+    t = " ".join(t.split())
+    if not t:
+        return False
+    if t in (
+        "no",
+        "nop",
+        "nope",
+        "nel",
+        "ahora no",
+        "mejor no",
+        "no quiero",
+        "no gracias",
+        "no grax",
+    ):
+        return True
+    if any(
+        k in t
+        for k in (
+            "no derive",
+            "no me derives",
+            "no te derivo",
+            "no quiero agente",
+            "no quiero un agente",
+            "no hace falta agente",
+            "sin agente",
+            "no ticket",
+            "no abras ticket",
+        )
+    ):
+        return True
+    # «no gracias» / «no, gracias» ya cubierto; «no quiero que me derives»
+    if t.startswith("no ") and len(t.split()) <= 5 and any(
+        k in t for k in ("gracias", "agente", "derive", "deriv", "ticket")
+    ):
+        return True
+    return False
+
+
 def _texto_blob_historial(historial) -> str:
     parts: list[str] = []
     for m in historial or []:

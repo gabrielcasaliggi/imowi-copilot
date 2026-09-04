@@ -37,6 +37,7 @@ from app.domain.flujos_abonado import (
     parece_consulta_nueva,
     pide_humano,
     pide_humano_en_flujo_activo,
+    rechaza_derivacion_clara,
     refinar_intencion_internet,
     refinar_playbook_internet,
     registrar_queja,
@@ -49,6 +50,7 @@ from app.domain.flujos_abonado import (
     tag_para_intencion,
     texto_menu_consulta,
     texto_menu_tipo_consulta,
+    texto_ofrece_derivacion,
     texto_sin_internet_contratado,
     tiene_internet_fijo,
     tiene_movil_contratado,
@@ -111,6 +113,46 @@ def _cliente_indica_solo_wifi(texto: str) -> bool:
         if any(k in t for k in ("solo", "nomas", "nomás", "unicamente", "únicamente")):
             return True
     return False
+
+
+def _cliente_reporta_corte_total(texto: str) -> bool:
+    """Sigue sin servicio en general (no acotó a «solo Wi‑Fi»)."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if _cliente_indica_solo_wifi(t):
+        return False
+    return any(
+        k in t
+        for k in (
+            "no tengo internet",
+            "no hay internet",
+            "sin internet",
+            "no me anda",
+            "no anda internet",
+            "no funciona internet",
+            "no me funciona",
+            "no navega",
+            "no carga nada",
+            "no me carga",
+            "no tengo señal",
+            "no tengo senal",
+            "no anda nada",
+            "no funciona nada",
+            "sigo sin",
+            "sigue sin",
+            "todo cortado",
+        )
+    )
+
+
+def _linea_acceso_ok_ctx(ctx: dict | None) -> bool:
+    """Radius/BCM ya vieron enlace de acceso OK: el resto es LAN/Wi‑Fi, no ONT."""
+    c = ctx or {}
+    if str(c.get("pppoe_rama") or "") in ("wifi_lan", "recien_conectado"):
+        return True
+    triage = str(c.get("bcm_triage") or "")
+    return "onu_ftth_enlace_ok" in triage
 
 
 def _cliente_cable_ok(texto: str) -> bool:
@@ -1580,6 +1622,57 @@ def _tema_desde_mensaje(texto: str) -> str | None:
     ):
         return "tecnico"
     return None
+
+
+def _ultimo_texto_bot(historial) -> str:
+    """Último mensaje saliente del bot (ignora el turno actual del cliente)."""
+    for m in reversed(list(historial or [])):
+        if isinstance(m, dict):
+            autor = str(m.get("autor") or "").lower()
+            direccion = str(m.get("direccion") or "").lower()
+            texto = str(m.get("texto") or m.get("contenido") or "")
+        else:
+            autor = str(getattr(m, "autor", "") or "").lower()
+            direccion = str(getattr(m, "direccion", "") or "").lower()
+            texto = str(getattr(m, "texto", "") or "")
+        if direccion == "in" or autor in ("cliente", "user", "abonado"):
+            continue
+        if direccion == "out" or autor in ("bot", "eko", "assistant"):
+            return texto.strip()
+    return ""
+
+
+def _cerrar_si_rechaza_derivacion(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    historial=None,
+    abonado: Abonado | None = None,
+) -> dict | None:
+    """Si el bot ofreció derivar y el abonado dice «no», cierra sin repetir la pregunta."""
+    hist = historial if historial is not None else crepo.list_mensajes(db, conv.id)
+    if not texto_ofrece_derivacion(_ultimo_texto_bot(hist)):
+        return None
+    if not rechaza_derivacion_clara(texto):
+        return None
+    return _cerrar_consulta_resuelta(
+        db,
+        org_id,
+        conv,
+        canal=canal,
+        nombre=_primer_nombre_cliente(abonado),
+        mensaje=(
+            "Dale, no te derivo. Si más adelante querés retomar, escribime. "
+            "¡Que tengas un lindo día!"
+        ),
+        nota_ticket=(
+            "[Abonado] Rechazó derivación a agente: "
+            f"{(texto or '').strip()[:200]}"
+        ),
+    )
 
 
 def _cliente_desiste_o_resuelto(texto: str) -> bool:
@@ -4781,6 +4874,12 @@ def procesar_mensaje_entrante(
             conv,
             canal=canal,
         )
+
+    cierre_no = _cerrar_si_rechaza_derivacion(
+        db, org_id, conv, texto, canal=canal, abonado=abonado
+    )
+    if cierre_no is not None:
+        return cierre_no
 
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
     if veredicto is True and es_paso_derivacion(paso_actual):

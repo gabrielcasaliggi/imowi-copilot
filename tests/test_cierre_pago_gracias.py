@@ -42,6 +42,17 @@ def test_desiste_no_cierra_tras_mover_router():
         )
         is False
     )
+    from app.domain.flujos_abonado import rechaza_derivacion_clara, texto_ofrece_derivacion
+
+    oferta = (
+        "Con lo que me contaste ya no lo resolvemos a distancia. "
+        "¿Querés que te derive con un agente?"
+    )
+    assert texto_ofrece_derivacion(oferta) is True
+    assert rechaza_derivacion_clara("no") is True
+    assert rechaza_derivacion_clara("no gracias") is True
+    assert rechaza_derivacion_clara("no tengo internet") is False
+    assert rechaza_derivacion_clara("no anda") is False
     from app.services.canal_abonado import _elige_pago_o_tecnico
 
     assert (
@@ -149,6 +160,59 @@ def test_cerrar_consulta_resuelta_helper(monkeypatch):
     assert out["modo"] == "cerrado"
     assert conv.estado == "cerrado"
     assert "De nada" in sent[0]
+
+
+def test_rechazar_derivacion_cierra_sin_repetir(monkeypatch):
+    from app.services.canal_abonado import _cerrar_si_rechaza_derivacion
+
+    conv = SimpleNamespace(
+        id="c3",
+        ticket_id="",
+        estado="bot",
+        canal="whatsapp",
+        telefono="5491",
+        wa_id="5491",
+        abonado_id="",
+    )
+    sent: list[str] = []
+    hist = [
+        SimpleNamespace(
+            autor="bot",
+            direccion="out",
+            texto=(
+                "Con lo que me contaste ya no lo resolvemos a distancia. "
+                "¿Querés que te derive con un agente?"
+            ),
+        ),
+        SimpleNamespace(autor="cliente", direccion="in", texto="no"),
+    ]
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda *_a, **_k: sent.append(_k.get("texto") or (_a[3] if len(_a) > 3 else "")),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.enviar_encuesta_cierre",
+        lambda *_a, **_k: None,
+    )
+    out = _cerrar_si_rechaza_derivacion(
+        MagicMock(),
+        "org",
+        conv,
+        "no",
+        canal="whatsapp",
+        historial=hist,
+    )
+    assert out is not None
+    assert out["modo"] == "cerrado"
+    assert "no te derivo" in sent[0].lower()
+    assert _cerrar_si_rechaza_derivacion(
+        MagicMock(),
+        "org",
+        conv,
+        "no tengo internet",
+        canal="whatsapp",
+        historial=hist,
+    ) is None
 
 
 def test_consulta_medios_pago_publico():

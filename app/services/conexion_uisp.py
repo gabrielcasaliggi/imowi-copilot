@@ -98,11 +98,14 @@ def mensaje_informe_senal_antena(estado: EstadoCpeUisp) -> str:
     dbm = estado.signal_dbm
     calidad = estado.calidad_senal or clasificar_senal(dbm)
     txt = _texto_calidad_senal(calidad, dbm)
-    return (
+    from app.services.barra_senal import anexar_antes_de_preguntas, bloque_senal_antena
+
+    cuerpo = (
         f"Tu antena está recibiendo {dbm:.0f} dBm, señal {txt}. "
         f"Lo ideal es estar por encima de {SENAL_RADIO_IDEAL_DBM} dBm "
         f"(excelente) o al menos por encima de {SENAL_RADIO_VISITA_DBM} dBm."
     )
+    return anexar_antes_de_preguntas(cuerpo, bloque_senal_antena(dbm))
 
 
 def mensaje_visita_antena_por_senal(estado: EstadoCpeUisp) -> str:
@@ -522,22 +525,34 @@ def mensaje_abonado_uisp(
         return None
     rama = clasificar_rama_uisp(estado)
 
+    from app.services.barra_senal import (
+        anexar_antes_de_preguntas,
+        bloque_senal_antena,
+        veredicto_radio,
+    )
+
+    barra = bloque_senal_antena(estado.signal_dbm)
     if rama == "cpe_offline":
-        return (
+        msg = (
             "Revisé tu antena en la red: en este momento no está en línea con la torre. "
             "¿La fuente PoE (el inyectocito de la antena) tiene la lucecita prendida?"
         )
+        return anexar_antes_de_preguntas(msg, barra)
     if rama == "senal_mala":
-        return (
-            "Revisé tu antena: está en línea con la torre, pero la señal está baja "
+        ver = veredicto_radio(estado.signal_dbm) or "está baja"
+        msg = (
+            f"Revisé tu antena: está en línea con la torre, pero la señal {ver} "
             "(fuera de lo ideal). ¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
         )
+        return anexar_antes_de_preguntas(msg, barra)
     if rama == "enlace_ok":
-        return (
-            "Revisé tu antena: está en línea y el enlace con la torre se ve bien. "
+        ver = veredicto_radio(estado.signal_dbm) or "se ve bien"
+        msg = (
+            f"Revisé tu antena: está en línea y el enlace con la torre {ver}. "
             "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
             "¿Probaste con cable al router?"
         )
+        return anexar_antes_de_preguntas(msg, barra)
     return None
 
 

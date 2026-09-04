@@ -101,6 +101,7 @@ def _talvez_mensaje_pppoe(
             ctx.get("tecnologia_acceso") == "internet_radio"
         )
         msg_uisp = None
+        cpe = None
         if login:
             try:
                 from app.services.conexion_uisp import (
@@ -121,6 +122,7 @@ def _talvez_mensaje_pppoe(
                 logger.exception("UISP check falló en canal")
 
         msg_bcm = None
+        onu = None
         es_ftth = (intencion or "").strip() == "internet_ftth" or (
             ctx.get("tecnologia_acceso") == "internet_ftth"
         )
@@ -155,30 +157,64 @@ def _talvez_mensaje_pppoe(
             except Exception:
                 logger.exception("BCM check falló en canal")
 
-        if msg_uisp:
-            if "cpe_radio_enlace_ok" in str(ctx.get("uisp_triage") or ""):
-                ctx["pppoe_rama"] = "wifi_lan"
-                _marcar_pasos_rama_pppoe(ctx)
+        bcm_ok = "onu_ftth_enlace_ok" in str(ctx.get("bcm_triage") or "")
+        uisp_ok = "cpe_radio_enlace_ok" in str(ctx.get("uisp_triage") or "")
+        uisp_alerta = bool(msg_uisp) and not uisp_ok
+        bcm_alerta = bool(msg_bcm) and not bcm_ok
+
+        if uisp_alerta:
+            ctx["pppoe_rama"] = str(ctx.get("pppoe_rama") or "")
             return msg_uisp
 
-        if msg_bcm:
-            if "onu_ftth_enlace_ok" in str(ctx.get("bcm_triage") or ""):
-                ctx["pppoe_rama"] = "wifi_lan"
-                _marcar_pasos_rama_pppoe(ctx)
+        if bcm_alerta:
             return msg_bcm
 
         msg = mensaje_abonado_pppoe(
             estado,
             deuda_positiva=_deuda_positiva(abonado),
         )
-        if not msg:
-            logger.info(
-                "PPPoE sin mensaje útil dni=***%s err=%s online=%s",
-                str(abonado.dni)[-3:],
-                (estado.error or "")[:80],
-                estado.online,
-            )
-        return msg
+        from app.services.barra_senal import (
+            anexar_antes_de_preguntas,
+            bloque_potencia_onu,
+            bloque_senal_antena,
+        )
+
+        barra = ""
+        if onu is not None and onu.encontrado and onu.rx_dbm is not None:
+            barra = bloque_potencia_onu(onu.rx_dbm)
+        elif cpe is not None and cpe.encontrado and cpe.signal_dbm is not None:
+            barra = bloque_senal_antena(cpe.signal_dbm)
+
+        if msg and barra:
+            if uisp_ok:
+                ctx["pppoe_rama"] = "wifi_lan"
+                _marcar_pasos_rama_pppoe(ctx)
+            if bcm_ok:
+                ctx["pppoe_rama"] = "wifi_lan"
+                _marcar_pasos_rama_pppoe(ctx)
+            return anexar_antes_de_preguntas(msg, barra)
+
+        if msg_uisp:
+            if uisp_ok:
+                ctx["pppoe_rama"] = "wifi_lan"
+                _marcar_pasos_rama_pppoe(ctx)
+            return msg_uisp
+
+        if msg_bcm:
+            if bcm_ok:
+                ctx["pppoe_rama"] = "wifi_lan"
+                _marcar_pasos_rama_pppoe(ctx)
+            return msg_bcm
+
+        if msg:
+            return msg
+        logger.info(
+            "PPPoE sin mensaje útil dni=***%s err=%s online=%s",
+            str(abonado.dni)[-3:],
+            (estado.error or "")[:80],
+            estado.online,
+        )
+        return None
     except Exception:
         logger.exception("PPPoE check falló en canal")
         return None
