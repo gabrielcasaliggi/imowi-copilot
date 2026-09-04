@@ -969,7 +969,7 @@ def test_bcm_connection(
             "connected": False,
             "scope": "bcm",
             "error": "Falta la URL de BCM",
-            "hint": "Ejemplo: https://la23.sopnet.com.ar:7117/api/v1",
+            "hint": "Ejemplo: https://bcm.batan.coop:7117/api/v1",
         }
     if not user or not app_pass:
         return {

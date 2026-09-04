@@ -21,7 +21,7 @@ from app.bcm.contract import CalidadOptica, EstadoOnuBcm
 
 logger = logging.getLogger("operations_hub")
 
-DEFAULT_BASE_URL = "https://la23.sopnet.com.ar:7117/api/v1"
+DEFAULT_BASE_URL = "https://bcm.batan.coop:7117/api/v1"
 _RE_JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 _TOKEN_KEYS = frozenset(
     {

@@ -223,8 +223,8 @@ except (TypeError, ValueError):
 # Sopnet BCM (FTTH OLT/ONU) — número de cliente ERP = BillTrack client_number
 # Aliases SOPNET_* para reutilizar el .env del cliente BCM.
 BCM_BASE_URL = (
-    os.getenv("BCM_API_URL") or os.getenv("SOPNET_API_URL") or "https://la23.sopnet.com.ar:7117/api/v1"
-).strip().rstrip("/") or "https://la23.sopnet.com.ar:7117/api/v1"
+    os.getenv("BCM_API_URL") or os.getenv("SOPNET_API_URL") or "https://bcm.batan.coop:7117/api/v1"
+).strip().rstrip("/") or "https://bcm.batan.coop:7117/api/v1"
 BCM_USER = (os.getenv("BCM_USER") or os.getenv("SOPNET_USER") or "").strip()
 BCM_APP_PASS = (os.getenv("BCM_APP_PASS") or os.getenv("SOPNET_APP_PASS") or "").strip()
 BCM_ENABLED = os.getenv("BCM_ENABLED", "false").strip().lower() in (

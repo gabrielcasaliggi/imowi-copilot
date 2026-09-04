@@ -64,7 +64,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
   } | null>(null);
   const [bcm, setBcm] = useState({
     enabled: false,
-    base_url: "https://la23.sopnet.com.ar:7117/api/v1",
+    base_url: "https://bcm.batan.coop:7117/api/v1",
     user: "",
     app_pass: "",
     timeout: "12",
@@ -123,7 +123,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     });
     setBcm({
       enabled: Boolean(s.bcm?.enabled ?? res.bcm_enabled),
-      base_url: s.bcm?.base_url || "https://la23.sopnet.com.ar:7117/api/v1",
+      base_url: s.bcm?.base_url || "https://bcm.batan.coop:7117/api/v1",
       user: s.bcm?.user || "",
       app_pass: s.bcm?.app_pass || "",
       timeout: String(s.bcm?.timeout ?? 12),
@@ -929,7 +929,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                   setBcm({ ...bcm, base_url: e.target.value });
                   setBcmTest(null);
                 }}
-                placeholder="https://la23.sopnet.com.ar:7117/api/v1"
+                placeholder="https://bcm.batan.coop:7117/api/v1"
               />
             </div>
             <div>
