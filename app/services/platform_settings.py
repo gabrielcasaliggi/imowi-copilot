@@ -12,6 +12,12 @@ from app.config import (
     AI_API_KEY,
     AI_BASE_URL,
     AI_MODEL,
+    BCM_APP_PASS,
+    BCM_BASE_URL,
+    BCM_ENABLED,
+    BCM_TIMEOUT,
+    BCM_USER,
+    BCM_VERIFY_SSL,
     BILLTRACK_DATABASE_URL,
     BILLTRACK_DBNAME,
     BILLTRACK_ENABLED,
@@ -60,6 +66,7 @@ _SECRET_KEYS = {
     ("radius", "api_key"),
     ("radius", "token"),
     ("uisp", "token"),
+    ("bcm", "app_pass"),
 }
 
 _URL_SECRET_KEYS = {
@@ -131,6 +138,19 @@ def _default_payload() -> dict[str, Any]:
                 "UISP NMS (uisp.ecolan.com): estado del CPE radio. "
                 "El nombre del dispositivo coincide con el username Radius. "
                 "Token de solo lectura: Settings → Users → API tokens."
+            ),
+        },
+        "bcm": {
+            "enabled": BCM_ENABLED,
+            "base_url": BCM_BASE_URL,
+            "user": BCM_USER,
+            "app_pass": BCM_APP_PASS,
+            "timeout": BCM_TIMEOUT,
+            "verify_ssl": BCM_VERIFY_SSL,
+            "nota": (
+                "Sopnet BCM (FTTH): OLT/ONU del abonado. Se busca por número de "
+                "cliente del ERP (BillTrack client_number). JWT con usuario + "
+                "password de aplicación. Solo lectura — N1 no edita clientes."
             ),
         },
         "knowledge": {
@@ -415,6 +435,41 @@ def resolve_uisp(db: Session | None = None) -> dict[str, Any]:
     }
 
 
+def resolve_bcm(db: Session | None = None) -> dict[str, Any]:
+    """Credenciales Sopnet BCM (solo lectura de ONU/OLT FTTH)."""
+    s = get_merged_settings(db).get("bcm") or {}
+    if not isinstance(s, dict):
+        s = {}
+    enabled = _as_bool(s.get("enabled"), BCM_ENABLED)
+    if BCM_ENABLED:
+        enabled = True
+
+    try:
+        timeout = float(s.get("timeout") if s.get("timeout") is not None else BCM_TIMEOUT)
+    except (TypeError, ValueError):
+        timeout = BCM_TIMEOUT
+
+    app_pass = str(s.get("app_pass") if s.get("app_pass") is not None else "").strip()
+    if not app_pass or "***" in app_pass:
+        app_pass = BCM_APP_PASS
+    user = str(s.get("user") or BCM_USER or "").strip()
+    if (not user) and BCM_USER:
+        user = BCM_USER
+
+    verify_ssl = _as_bool(s.get("verify_ssl"), BCM_VERIFY_SSL)
+    base_url = str(s.get("base_url") or BCM_BASE_URL or "").strip() or BCM_BASE_URL
+
+    return {
+        "enabled": enabled,
+        "base_url": base_url,
+        "user": user,
+        "app_pass": app_pass,
+        "timeout": timeout,
+        "verify_ssl": verify_ssl,
+        "nota": str(s.get("nota") or ""),
+    }
+
+
 def resolve_knowledge(db: Session | None = None) -> dict[str, float | int]:
     s = get_merged_settings(db)["knowledge"]
     return {
@@ -512,6 +567,7 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     bt = resolve_billtrack(db)
     radius = resolve_radius(db)
     uisp = resolve_uisp(db)
+    bcm = resolve_bcm(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
     bt_url = str(bt.get("url") or "")
     return {
@@ -529,6 +585,8 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
         "radius_enabled": bool(radius.get("enabled")),
         "uisp_configured": bool(uisp.get("base_url") and uisp.get("token")),
         "uisp_enabled": bool(uisp.get("enabled") and uisp.get("token")),
+        "bcm_configured": bool(bcm.get("base_url") and bcm.get("user") and bcm.get("app_pass")),
+        "bcm_enabled": bool(bcm.get("enabled") and bcm.get("user") and bcm.get("app_pass")),
         "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
         "updated_by": row.updated_by if row else "",
         "settings": s,

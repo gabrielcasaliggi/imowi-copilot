@@ -331,12 +331,13 @@ def enrich_contexto_desde_integraciones(
     *,
     org_id: str = "",
 ) -> dict[str, str]:
-    """Hook para ONT/OLT Huawei, pagos Fiserv, cortes de zona, PPPoE/Radius y UISP radio.
+    """Hook para ONT/OLT BCM, pagos Fiserv, cortes de zona, PPPoE/Radius y UISP radio.
 
     Claves:
       - nro_asociado, ont_estado, olt_huawei, pago_qr_reciente, cortes_zona
       - pppoe_estado, pppoe_login, pppoe_tipo, pppoe_ip, pppoe_uptime, pppoe_nas, pppoe_resumen
       - uisp_estado, uisp_login, uisp_sitio, uisp_senal, uisp_modelo, uisp_resumen, uisp_triage
+      - bcm_estado, bcm_serial, bcm_olt, bcm_rx, bcm_modelo, bcm_resumen, bcm_triage
     """
     _ = org_id
     out = {
@@ -362,6 +363,13 @@ def enrich_contexto_desde_integraciones(
         "uisp_modelo": "",
         "uisp_resumen": "",
         "uisp_triage": "",
+        "bcm_estado": "",
+        "bcm_serial": "",
+        "bcm_olt": "",
+        "bcm_rx": "",
+        "bcm_modelo": "",
+        "bcm_resumen": "",
+        "bcm_triage": "",
     }
     if abonado is None:
         return out
@@ -384,6 +392,15 @@ def enrich_contexto_desde_integraciones(
                 out[k] = str(v).strip()
     except Exception:
         pass
+    try:
+        from app.services.conexion_bcm import contexto_bcm_para_abonado
+
+        bcm = contexto_bcm_para_abonado(abonado)
+        for k, v in bcm.items():
+            if str(v or "").strip():
+                out[k] = str(v).strip()
+    except Exception:
+        pass
     return out
 
 
@@ -402,8 +419,10 @@ def build_contexto_abonado(
 
     pppoe_line = integ.get("pppoe_resumen") or "(sin dato — integrar Radius/NAS)"
     uisp_line = integ.get("uisp_resumen") or "(sin dato — integrar UISP)"
+    bcm_line = integ.get("bcm_resumen") or "(sin dato — integrar BCM)"
     triage = (integ.get("pppoe_triage") or "").strip()
     uisp_triage = (integ.get("uisp_triage") or "").strip()
+    bcm_triage = (integ.get("bcm_triage") or "").strip()
 
     if not abonado:
         lines = [
@@ -419,7 +438,8 @@ def build_contexto_abonado(
             f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
             f"- pppoe: {pppoe_line}",
             f"- uisp: {uisp_line}",
-            "- Regla: no inventes saldos, ONT/OLT, PPPoE, UISP ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
+            f"- bcm: {bcm_line}",
+            "- Regla: no inventes saldos, ONT/OLT, PPPoE, UISP, BCM ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
         ]
         return "\n".join(lines)
 
@@ -476,6 +496,9 @@ def build_contexto_abonado(
     lines.append(f"- uisp: {uisp_line}")
     if uisp_triage:
         lines.append(f"- uisp_triage: {uisp_triage}")
+    lines.append(f"- bcm: {bcm_line}")
+    if bcm_triage:
+        lines.append(f"- bcm_triage: {bcm_triage}")
     lines.extend(
         [
             "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
@@ -486,10 +509,14 @@ def build_contexto_abonado(
             "- Si no tiene internet fijo y dice 'no tengo internet', NO es un corte: "
             "no tiene ese producto contratado. No inicies diagnóstico de Wi‑Fi ni ONT.",
             "- Si pppoe indica conectado/desconectado, usá pppoe_triage: no contradigas "
-            "el dato real ni pidas reinicio de ONT si triage dice linea_ok.",
+            "el dato real ni pidas reinicio de ONT si triage dice linea_ok. "
+            "Si triage=sin_sesion_ppp, no pidas speedtest.",
             "- Si uisp indica CPE radio, usá uisp_triage: no contradigas el estado de la antena. "
             "CPE fuera de línea → PoE/energía; si sigue offline, visita. Señal mala (< -75 dBm) → "
             "visita para alinear/revisar antena. Enlace OK → Wi‑Fi/router.",
+            "- Si bcm indica ONU/ONT, usá bcm_triage: no contradigas el estado óptico. "
+            "ONU fuera de línea → luces PON/LOS; potencia mala (< -27 dBm) → cable amarillo y visita. "
+            "Enlace OK → Wi‑Fi/router; NO pidas reinicio de ONT como primer paso.",
             "- Si hay plan_mbps, esa es la velocidad CONTRATADA. Un test ≥70% de ese valor "
             "es NORMAL: no digas que está 'por debajo' ni derives a técnico. "
             "«10M»/«10Mb» ES un resultado de test; no vuelvas a preguntar cuánto dio.",
@@ -511,9 +538,22 @@ def system_prompt_eco_n1(
     ctx_block = f"\n{ctx}\n" if ctx else ""
     intent = (intencion or "").strip()
     optica = intent in ("internet_ftth", "internet")
-    linea_ok = "linea_ok" in ctx or "NO pedir reinicio de ONT" in ctx
+    linea_ok = (
+        "linea_ok" in ctx
+        or "NO pedir reinicio de ONT" in ctx
+        or "recien_reconecto" in ctx
+        or "onu_ftth_enlace_ok" in ctx
+    )
+    sin_sesion = "sin_sesion_ppp" in ctx
     reglas_optica = ""
-    if linea_ok or intent == "wifi":
+    if sin_sesion:
+        reglas_optica = (
+            "- No hay sesión PPP: NUNCA pidas speedtest, fast.com ni test de velocidad.\n"
+            "- accion=ask: reinicio ONT/router 30s y luces (PON/LOS o PoE). "
+            "No indagues Wi‑Fi ni cantidad de dispositivos mientras no haya sesión.\n"
+            "- Excepciones escalate YA: pide agente/técnico; LOS roja o fibra dañada.\n"
+        )
+    elif linea_ok or intent == "wifi":
         reglas_optica = (
             "- La línea de acceso/PPPoE ya está OK (o el caso es solo Wi‑Fi). "
             "NUNCA preguntes por luces ONT, PON, LOS, cajita blanca ni cable amarillo.\n"

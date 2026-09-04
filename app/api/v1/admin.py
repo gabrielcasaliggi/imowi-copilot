@@ -500,6 +500,7 @@ def update_platform_settings(
         "canal",
         "playbooks",
         "uisp",
+        "bcm",
     }
     clean = {k: v for k, v in patch.items() if k in allowed}
     save_settings(db, clean, actor=admin.usuario)
@@ -920,5 +921,114 @@ def test_uisp_connection(
         "cpe": cpe,
         "nota": (
             "API NMS de solo lectura. El CPE se busca por identification.name = username Radius."
+        ),
+    }
+
+
+@router.post("/admin/settings/test-bcm")
+def test_bcm_connection(
+    body: dict = Body(default={}),
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Prueba Sopnet BCM (JWT). Lookup opcional por número de cliente ERP."""
+    from app.bcm.client import BcmClient
+    from app.services.platform_settings import resolve_bcm
+
+    payload = body if isinstance(body, dict) else {}
+    cfg = resolve_bcm(db)
+
+    base_url = str(
+        payload.get("base_url") if payload.get("base_url") is not None else cfg.get("base_url") or ""
+    ).strip()
+    user = str(
+        payload.get("user") if payload.get("user") is not None else cfg.get("user") or ""
+    ).strip()
+    app_pass = str(
+        payload.get("app_pass") if payload.get("app_pass") is not None else cfg.get("app_pass") or ""
+    ).strip()
+    if "***" in app_pass:
+        app_pass = str(cfg.get("app_pass") or "")
+    verify_raw = payload.get("verify_ssl")
+    if verify_raw is None:
+        verify_ssl = bool(cfg.get("verify_ssl", True))
+    elif isinstance(verify_raw, str):
+        verify_ssl = verify_raw.strip().lower() in ("1", "true", "yes", "on", "si", "sí")
+    else:
+        verify_ssl = bool(verify_raw)
+    try:
+        timeout = float(
+            payload.get("timeout") if payload.get("timeout") is not None else cfg.get("timeout") or 12
+        )
+    except (TypeError, ValueError):
+        timeout = 12.0
+
+    if not base_url:
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "bcm",
+            "error": "Falta la URL de BCM",
+            "hint": "Ejemplo: https://la23.sopnet.com.ar:7117/api/v1",
+        }
+    if not user or not app_pass:
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "bcm",
+            "error": "Faltan usuario o password de aplicación BCM",
+            "hint": (
+                "En BCM: usuario + SOPNET_APP_PASS. Pegalo acá y guardá. "
+                "El valor enmascarado no alcanza si nunca se guardó."
+            ),
+        }
+
+    client = BcmClient(
+        base_url=base_url,
+        user=user,
+        app_pass=app_pass,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+    )
+    try:
+        ping = client.ping()
+    except Exception as exc:
+        err = str(exc)[:240]
+        hint = ""
+        low = err.lower()
+        if "401" in err or "403" in err or "password" in low or "usuario" in low:
+            hint = "Revisá usuario y password de aplicación BCM."
+        elif "ssl" in low or "certificate" in low:
+            hint = "Si el certificado es autofirmado, desmarcá «Verificar SSL»."
+        elif "timed out" in low or "timeout" in low:
+            hint = "BCM no respondió a tiempo. Revisá red/VPN y el puerto 7117."
+        elif "connect" in low or "name or service" in low:
+            hint = "No se alcanza el host BCM desde el servidor del API."
+        return {
+            "ok": False,
+            "connected": False,
+            "scope": "bcm",
+            "base_url": base_url,
+            "error": err,
+            "hint": hint,
+        }
+
+    numero_cliente = str(payload.get("numero_cliente") or payload.get("login") or "").strip()
+    onu = None
+    if numero_cliente:
+        estado = client.buscar_onu_por_cliente(numero_cliente)
+        onu = estado.to_dict()
+
+    return {
+        "ok": True,
+        "connected": True,
+        "scope": "bcm",
+        "base_url": client.base_url,
+        "authenticated": ping.get("authenticated"),
+        "latency_ms": ping.get("latency_ms"),
+        "onu": onu,
+        "nota": (
+            "API BCM de solo lectura. El cliente se busca por numero_cliente del ERP "
+            "(BillTrack client_number). OLT/ONU salen de la ficha del cliente."
         ),
     }

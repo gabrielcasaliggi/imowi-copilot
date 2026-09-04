@@ -220,6 +220,30 @@ try:
 except (TypeError, ValueError):
     UISP_TIMEOUT = 12.0
 
+# Sopnet BCM (FTTH OLT/ONU) — número de cliente ERP = BillTrack client_number
+# Aliases SOPNET_* para reutilizar el .env del cliente BCM.
+BCM_BASE_URL = (
+    os.getenv("BCM_API_URL") or os.getenv("SOPNET_API_URL") or "https://la23.sopnet.com.ar:7117/api/v1"
+).strip().rstrip("/") or "https://la23.sopnet.com.ar:7117/api/v1"
+BCM_USER = (os.getenv("BCM_USER") or os.getenv("SOPNET_USER") or "").strip()
+BCM_APP_PASS = (os.getenv("BCM_APP_PASS") or os.getenv("SOPNET_APP_PASS") or "").strip()
+BCM_ENABLED = os.getenv("BCM_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+BCM_VERIFY_SSL = os.getenv("BCM_VERIFY_SSL", "true").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+try:
+    BCM_TIMEOUT = float(os.getenv("BCM_TIMEOUT", "12") or "12")
+except (TypeError, ValueError):
+    BCM_TIMEOUT = 12.0
+
 KNOWLEDGE_MAX_FRAGMENT_CHARS = int(os.getenv("KNOWLEDGE_MAX_FRAGMENT_CHARS", "1800"))
 KNOWLEDGE_MAX_SYSTEM_TOKENS = int(os.getenv("KNOWLEDGE_MAX_SYSTEM_TOKENS", "4500"))
 

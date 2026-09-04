@@ -1248,6 +1248,42 @@ export const api = {
     });
   },
 
+  testAdminBcm(payload?: {
+    base_url?: string;
+    user?: string;
+    app_pass?: string;
+    verify_ssl?: boolean;
+    timeout?: number;
+    numero_cliente?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      connected?: boolean;
+      scope?: string;
+      base_url?: string;
+      authenticated?: boolean;
+      latency_ms?: number;
+      onu?: {
+        numero_cliente?: string;
+        encontrado?: boolean;
+        online?: boolean | null;
+        serial?: string;
+        modelo?: string;
+        olt_nombre?: string;
+        rx_dbm?: number | null;
+        calidad_optica?: string;
+        resumen?: string;
+        error?: string;
+      } | null;
+      nota?: string;
+      hint?: string;
+      error?: string;
+    }>("/api/v1/admin/settings/test-bcm", {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
   inboxConversations(
     params?: {
       estado?: string;

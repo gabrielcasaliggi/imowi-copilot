@@ -19,6 +19,51 @@ UPTIME_ESTABLE_SEG = 60 * 60  # ≥ 1 h → línea estable; indagar LAN/Wi‑Fi
 
 RamaPPPoE = Literal["wifi_lan", "recien_conectado", "sin_sesion", ""]
 
+# Pasos de playbook que el dato Radius vuelve innecesarios (no preguntar de nuevo).
+PASOS_WAN_OPTICA = frozenset({
+    "energia_ont",
+    "luces_los",
+    "reinicio_ont",
+    "cable_fibra",
+    "enlace_optico",
+    "servicio_tras_optica",
+    "tipo_acceso",
+    "confirmar_acceso",
+    "poe_antena",
+    "cable_wan_bai",
+    "reinicio_cpe",
+    "led_enlace",
+    "linea_vista",
+    "reinicio_modem_adsl",
+    "luces_adsl",
+    "tono_linea",
+    "filtro_splitter",
+    "cable_telefono",
+    "reinicio_lento",
+    "luces_durante_corte",
+    "reinicio_intermitente",
+})
+
+PASOS_LAN_WIFI_SPEEDTEST = frozenset({
+    "test_velocidad",
+    "cuantos_dispositivos",
+    "medio_prueba",
+    "horario_lento",
+    "repetidores_lento",
+    "windows_update_hint",
+    "wifi_vs_cable_ftth",
+    "zona_wifi",
+    "conexion_cableada",
+    "otros_dispositivos_wifi",
+    "repetidor_wifi",
+    "repetidor_ubicacion",
+    "repetidor_cable_ap",
+    "banda_wifi",
+    "canal_interferencia",
+    "alcance_cortes",
+    "medio_conexion",
+})
+
 
 def parse_uptime_seconds(uptime: str) -> int | None:
     """Parsea uptime estilo MikroTik: 4d4h44m58s, 1w2d, 2h31m, 45m, 10s."""
@@ -76,6 +121,43 @@ def clasificar_rama_pppoe(estado: EstadoConexionPPPoE) -> RamaPPPoE:
         return "wifi_lan"
     # Entre 15 min y 1 h: también LAN/Wi‑Fi
     return "wifi_lan"
+
+
+def rama_pppoe_desde_texto(texto: str) -> RamaPPPoE:
+    """Reconstruye la rama desde pppoe_triage / contexto del prompt."""
+    t = texto or ""
+    if "sin_sesion_ppp" in t:
+        return "sin_sesion"
+    if "recien_reconecto" in t:
+        return "recien_conectado"
+    if "linea_ok_indagar_wifi" in t or "NO pedir reinicio de ONT" in t:
+        return "wifi_lan"
+    return ""
+
+
+def pasos_omitidos_por_rama_pppoe(rama: str) -> frozenset[str]:
+    """Pasos del checklist que no hay que preguntar dada la sesión Radius."""
+    if rama in ("wifi_lan", "recien_conectado"):
+        return PASOS_WAN_OPTICA
+    if rama == "sin_sesion":
+        return PASOS_LAN_WIFI_SPEEDTEST
+    return frozenset()
+
+
+def enriquecer_pasos_por_pppoe(
+    pasos_cubiertos: list[str] | None,
+    contexto: str = "",
+    *,
+    rama: str = "",
+) -> list[str]:
+    """Marca cubiertos los pasos que Radius ya resolvió (WAN vs LAN/speedtest)."""
+    r = (rama or "").strip() or rama_pppoe_desde_texto(contexto)
+    omitir = pasos_omitidos_por_rama_pppoe(r)
+    out = [str(x) for x in (pasos_cubiertos or []) if str(x).strip()]
+    for pid in omitir:
+        if pid not in out:
+            out.append(pid)
+    return out
 
 
 def resolve_radius_client(db: Session | None = None) -> RadiusNasClient | None:
@@ -268,7 +350,10 @@ def triage_pppoe_para_prompt(estado: EstadoConexionPPPoE) -> str:
     if rama == "recien_conectado":
         return "triage=recien_reconecto; pedir prueba de navegación"
     if rama == "sin_sesion":
-        return "triage=sin_sesion_ppp; reinicio ONT/router y luces"
+        return (
+            "triage=sin_sesion_ppp; reinicio ONT/router y luces; "
+            "NO pedir speedtest ni fast.com"
+        )
     return ""
 
 

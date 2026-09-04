@@ -79,7 +79,9 @@ def test_contexto_incluye_pppoe_placeholder():
     txt = build_contexto_abonado(None)
     assert "pppoe" in txt.lower()
     assert "uisp" in txt.lower()
+    assert "bcm" in txt.lower()
     assert "integrar UISP" in txt
+    assert "integrar BCM" in txt
 
 
 def test_contexto_con_extras_pppoe():

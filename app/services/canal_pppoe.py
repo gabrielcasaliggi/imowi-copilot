@@ -10,6 +10,18 @@ from app.estate.models import Abonado
 
 logger = logging.getLogger("operations_hub")
 
+
+def _marcar_pasos_rama_pppoe(ctx: dict) -> None:
+    """La sesión Radius cubre pasos del playbook: no volver a preguntarlos."""
+    from app.services.conexion_pppoe import enriquecer_pasos_por_pppoe
+
+    ctx["pasos_cubiertos"] = enriquecer_pasos_por_pppoe(
+        list(ctx.get("pasos_cubiertos") or []),
+        str(ctx.get("pppoe_triage") or ""),
+        rama=str(ctx.get("pppoe_rama") or ""),
+    )
+
+
 _INTENCIONES_PPPOE = frozenset({
     "internet",
     "internet_ftth",
@@ -69,6 +81,7 @@ def _talvez_mensaje_pppoe(
         rama = clasificar_rama_pppoe(estado)
         ctx["pppoe_rama"] = rama
         ctx["pppoe_triage"] = triage_pppoe_para_prompt(estado)
+        _marcar_pasos_rama_pppoe(ctx)
         ctx["pppoe_resumen"] = estado.resumen_prompt()
         if estado.sesion:
             ctx["pppoe_ip"] = estado.sesion.public_ip or ""
@@ -107,10 +120,52 @@ def _talvez_mensaje_pppoe(
             except Exception:
                 logger.exception("UISP check falló en canal")
 
+        msg_bcm = None
+        es_ftth = (intencion or "").strip() == "internet_ftth" or (
+            ctx.get("tecnologia_acceso") == "internet_ftth"
+        )
+        es_adsl = (intencion or "").strip() == "internet_adsl" or (
+            ctx.get("tecnologia_acceso") == "internet_adsl"
+        )
+        if not es_radio and not es_adsl:
+            try:
+                from app.services.conexion_bcm import (
+                    aplicar_bcm_a_ctx,
+                    consultar_onu_bcm,
+                    es_servicio_ftth,
+                    mensaje_abonado_bcm,
+                    resolve_bcm_client,
+                    resolver_numero_cliente_bcm,
+                )
+
+                if resolve_bcm_client(db) is not None:
+                    if not es_ftth:
+                        es_ftth = es_servicio_ftth(estado.servicio)
+                    nro = str(getattr(abonado, "client_number", "") or "").strip()
+                    if not nro and estado.servicio is not None:
+                        nro = str(getattr(estado.servicio, "base_account_number", "") or "").strip()
+                    if not nro:
+                        nro = resolver_numero_cliente_bcm(abonado, db)
+                    if nro:
+                        onu = consultar_onu_bcm(nro, db=db)
+                        aplicar_bcm_a_ctx(ctx, onu)
+                        msg_bcm = mensaje_abonado_bcm(
+                            onu, es_ftth=es_ftth or onu.encontrado
+                        )
+            except Exception:
+                logger.exception("BCM check falló en canal")
+
         if msg_uisp:
             if "cpe_radio_enlace_ok" in str(ctx.get("uisp_triage") or ""):
                 ctx["pppoe_rama"] = "wifi_lan"
+                _marcar_pasos_rama_pppoe(ctx)
             return msg_uisp
+
+        if msg_bcm:
+            if "onu_ftth_enlace_ok" in str(ctx.get("bcm_triage") or ""):
+                ctx["pppoe_rama"] = "wifi_lan"
+                _marcar_pasos_rama_pppoe(ctx)
+            return msg_bcm
 
         msg = mensaje_abonado_pppoe(
             estado,

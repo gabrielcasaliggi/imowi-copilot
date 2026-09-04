@@ -13,7 +13,7 @@ import {
 
 const labelCls = "block text-xs text-slate-400 mb-1";
 
-type SettingsSection = "ai" | "whatsapp" | "telegram" | "database" | "billtrack" | "uisp" | "knowledge" | "playbooks";
+type SettingsSection = "ai" | "whatsapp" | "telegram" | "database" | "billtrack" | "uisp" | "bcm" | "knowledge" | "playbooks";
 
 export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string) => void }) {
   const botName = getBranding().botDisplayName;
@@ -59,6 +59,19 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
   });
   const [uispLogin, setUispLogin] = useState("");
   const [uispTest, setUispTest] = useState<{
+    ok: boolean;
+    detail: string;
+  } | null>(null);
+  const [bcm, setBcm] = useState({
+    enabled: false,
+    base_url: "https://la23.sopnet.com.ar:7117/api/v1",
+    user: "",
+    app_pass: "",
+    timeout: "12",
+    verify_ssl: true,
+  });
+  const [bcmCliente, setBcmCliente] = useState("");
+  const [bcmTest, setBcmTest] = useState<{
     ok: boolean;
     detail: string;
   } | null>(null);
@@ -108,6 +121,14 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       timeout: String(s.uisp?.timeout ?? 12),
       verify_ssl: s.uisp?.verify_ssl !== false,
     });
+    setBcm({
+      enabled: Boolean(s.bcm?.enabled ?? res.bcm_enabled),
+      base_url: s.bcm?.base_url || "https://la23.sopnet.com.ar:7117/api/v1",
+      user: s.bcm?.user || "",
+      app_pass: s.bcm?.app_pass || "",
+      timeout: String(s.bcm?.timeout ?? 12),
+      verify_ssl: s.bcm?.verify_ssl !== false,
+    });
     setKb({
       min_score: Number(s.knowledge?.min_score ?? 0.15),
       top_k: Number(s.knowledge?.top_k ?? 1),
@@ -148,6 +169,14 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
           token: uisp.token,
           timeout: Number(uisp.timeout) || 12,
           verify_ssl: uisp.verify_ssl,
+        },
+        bcm: {
+          enabled: bcm.enabled,
+          base_url: bcm.base_url,
+          user: bcm.user,
+          app_pass: bcm.app_pass,
+          timeout: Number(bcm.timeout) || 12,
+          verify_ssl: bcm.verify_ssl,
         },
         knowledge: kb,
         playbooks,
@@ -332,6 +361,44 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     }
   };
 
+  const testBcm = async () => {
+    setBusy(true);
+    try {
+      const r = await api.testAdminBcm({
+        base_url: bcm.base_url,
+        user: bcm.user,
+        app_pass: bcm.app_pass,
+        verify_ssl: bcm.verify_ssl,
+        timeout: Number(bcm.timeout) || 12,
+        numero_cliente: bcmCliente.trim() || undefined,
+      });
+      if (r.ok) {
+        const parts = [
+          r.authenticated ? "JWT ok" : null,
+          r.latency_ms != null ? `${r.latency_ms} ms` : null,
+        ].filter(Boolean);
+        let detail = parts.join(" · ");
+        if (r.onu) {
+          detail += r.onu.encontrado
+            ? ` · cliente ${r.onu.numero_cliente || bcmCliente.trim()}: ${r.onu.online ? "ONU en línea" : r.onu.online === false ? "ONU fuera de línea" : "ONU sin estado"}`
+            : ` · cliente «${bcmCliente.trim()}» no encontrado`;
+        }
+        setBcmTest({ ok: true, detail });
+        onMessage?.(`BCM OK · ${detail}`);
+      } else {
+        const detail = [r.error || "No se pudo conectar", r.hint].filter(Boolean).join(" — ");
+        setBcmTest({ ok: false, detail });
+        onMessage?.(`BCM falló: ${detail}`);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Error test BCM";
+      setBcmTest({ ok: false, detail });
+      onMessage?.(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <p className="text-slate-500 text-sm">Cargando configuración…</p>;
   }
@@ -342,6 +409,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     { id: "telegram", label: "Telegram" },
     { id: "billtrack", label: "Clientes (BillTrack)" },
     { id: "uisp", label: "Radio (UISP)" },
+    { id: "bcm", label: "Fibra (BCM)" },
     { id: "database", label: "Data Estate" },
     { id: "knowledge", label: "Conocimiento" },
     { id: "playbooks", label: "Playbooks" },
@@ -416,6 +484,28 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                     ? "available"
                     : "soon"
                   : data.uisp_enabled
+                    ? "available"
+                    : "neutral"
+              }
+            />
+            <StatusPill
+              label={
+                bcmTest
+                  ? bcmTest.ok
+                    ? "BCM OK"
+                    : "BCM falló"
+                  : data.bcm_enabled
+                    ? "BCM listo"
+                    : data.bcm_configured
+                      ? "BCM off"
+                      : "BCM pendiente"
+              }
+              tone={
+                bcmTest
+                  ? bcmTest.ok
+                    ? "available"
+                    : "soon"
+                  : data.bcm_enabled
                     ? "available"
                     : "neutral"
               }
@@ -805,6 +895,114 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                       : `Falló · ${uispTest.detail}`
                   }
                   tone={uispTest.ok ? "available" : "soon"}
+                />
+              )}
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {section === "bcm" && (
+        <GlassCard title="BCM — fibra FTTH (OLT / ONU)" accent="cyan" variant="secondary">
+          <div className="grid gap-3 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs text-slate-400">
+              Consulta de solo lectura a Sopnet BCM. El número de cliente del ERP es el mismo
+              que BillTrack (<code className="text-slate-300">client_number</code>), así {botName}{" "}
+              puede ver si la ONU está en línea, en qué OLT está y la potencia óptica. JWT con
+              usuario + password de aplicación. N1 no edita clientes en BCM.
+            </p>
+            <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={bcm.enabled}
+                onChange={(e) => setBcm({ ...bcm, enabled: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Habilitar consultas BCM para {botName}
+            </label>
+            <div className="md:col-span-2">
+              <label className={labelCls}>URL de BCM (sin barra final)</label>
+              <input
+                className={inputCls}
+                value={bcm.base_url}
+                onChange={(e) => {
+                  setBcm({ ...bcm, base_url: e.target.value });
+                  setBcmTest(null);
+                }}
+                placeholder="https://la23.sopnet.com.ar:7117/api/v1"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Usuario BCM</label>
+              <input
+                className={inputCls}
+                value={bcm.user}
+                onChange={(e) => {
+                  setBcm({ ...bcm, user: e.target.value });
+                  setBcmTest(null);
+                }}
+                placeholder="usuario de aplicación"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Password de aplicación (dejar enmascarado si no cambiás)</label>
+              <input
+                className={inputCls}
+                type="password"
+                value={bcm.app_pass}
+                onChange={(e) => {
+                  setBcm({ ...bcm, app_pass: e.target.value });
+                  setBcmTest(null);
+                }}
+                placeholder="SOPNET_APP_PASS"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Timeout (segundos)</label>
+              <input
+                className={inputCls}
+                value={bcm.timeout}
+                onChange={(e) => setBcm({ ...bcm, timeout: e.target.value })}
+                placeholder="12"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-200 mt-5">
+              <input
+                type="checkbox"
+                checked={bcm.verify_ssl}
+                onChange={(e) => setBcm({ ...bcm, verify_ssl: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Verificar certificado SSL
+            </label>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Probar cliente (opcional, número ERP / BillTrack)</label>
+              <input
+                className={inputCls}
+                value={bcmCliente}
+                onChange={(e) => setBcmCliente(e.target.value)}
+                placeholder="numero_cliente del ERP"
+              />
+            </div>
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void testBcm()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
+              >
+                Probar conexión BCM
+              </button>
+              {bcmTest && (
+                <StatusPill
+                  label={
+                    bcmTest.ok
+                      ? `Conectada · ${bcmTest.detail}`
+                      : `Falló · ${bcmTest.detail}`
+                  }
+                  tone={bcmTest.ok ? "available" : "soon"}
                 />
               )}
             </div>

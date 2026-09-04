@@ -200,6 +200,19 @@ def test_mensaje_abonado_conectado_y_offline():
     assert "reinici" in msg2.lower()
 
 
+def test_triage_sin_sesion_menciona_speedtest():
+    from app.services.conexion_pppoe import clasificar_rama_pppoe, triage_pppoe_para_prompt
+
+    offline = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(login="1", service_type_code="INTFO"),
+        sesion=SesionPPPoE(username="1", online=False),
+    )
+    assert clasificar_rama_pppoe(offline) == "sin_sesion"
+    t = triage_pppoe_para_prompt(offline)
+    assert "sin_sesion_ppp" in t
+    assert "speedtest" in t.lower()
+
+
 def test_mensaje_abonado_uptime_corto():
     from app.services.conexion_pppoe import mensaje_abonado_pppoe
 

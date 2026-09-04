@@ -793,6 +793,40 @@ def _parece_diagnostico_optica_fuera_de_lugar(mensaje: str) -> bool:
     )
 
 
+def _parece_reinicio_wan_ont(mensaje: str) -> bool:
+    """Reinicio de ONT/módem de fibra (no el router Wi‑Fi hogareño)."""
+    tl = (mensaje or "").lower()
+    if "reinici" not in tl and "desenchuf" not in tl:
+        return False
+    return any(
+        k in tl
+        for k in (
+            "ont",
+            "cajita",
+            "módem de fibra",
+            "modem de fibra",
+            "luz pon",
+            " luz los",
+        )
+    )
+
+
+def _parece_pedido_speedtest(mensaje: str) -> bool:
+    tl = (mensaje or "").lower()
+    return any(
+        k in tl
+        for k in (
+            "fast.com",
+            "speedtest",
+            "test de velocidad",
+            "test por cable",
+            "medidor de velocidad",
+            "cuánto da",
+            "cuanto da",
+        )
+    )
+
+
 def _motivo_es_optico(motivo: str) -> bool:
     m = (motivo or "").strip().lower()
     if not m:
@@ -1838,9 +1872,24 @@ def diagnosticar_turno(
         }
 
     motivo_optico = None
-    linea_ya_ok = "linea_ok" in (contexto_abonado or "") or "NO pedir reinicio de ONT" in (
-        contexto_abonado or ""
+    from app.services.conexion_pppoe import (
+        enriquecer_pasos_por_pppoe,
+        rama_pppoe_desde_texto,
     )
+
+    rama_pppoe = rama_pppoe_desde_texto(contexto_abonado or "")
+    pasos_cubiertos = enriquecer_pasos_por_pppoe(
+        list(pasos_cubiertos or []),
+        contexto_abonado or "",
+        rama=rama_pppoe,
+    )
+    linea_ya_ok = (
+        rama_pppoe in ("wifi_lan", "recien_conectado")
+        or "linea_ok" in (contexto_abonado or "")
+        or "NO pedir reinicio de ONT" in (contexto_abonado or "")
+        or "onu_ftth_enlace_ok" in (contexto_abonado or "")
+    )
+    sin_sesion_ppp = rama_pppoe == "sin_sesion"
     # Si PPPoE/triage ya dijo línea OK, no correr heurísticas ópticas ni preguntar PON.
     aplica_optica_turno = es_intencion_optica(intencion) and not linea_ya_ok
 
@@ -1882,11 +1931,23 @@ def diagnosticar_turno(
         }
 
     from app.domain.flujos_abonado import cliente_pregunta_senal_antena
+    from app.services.conexion_bcm import evaluar_turno_onu_bcm
     from app.services.conexion_uisp import (
         evaluar_turno_visita_antena_uisp,
         parse_uisp_desde_contexto,
     )
     from app.services.velocidad_plan import evaluar_speedtest_vs_plan
+
+    bcm_turno = evaluar_turno_onu_bcm(
+        contexto_abonado=contexto_abonado,
+        mensaje_cliente=mensaje_cliente,
+        historial_mensajes=historial_mensajes,
+        pasos_cubiertos=list(pasos_cubiertos or []),
+        turnos_diagnostico=int(turnos_diagnostico or 0),
+        intencion=intencion,
+    )
+    if bcm_turno:
+        return bcm_turno
 
     if cliente_pregunta_senal_antena(mensaje_cliente):
         uisp_turno = evaluar_turno_visita_antena_uisp(
@@ -2496,11 +2557,14 @@ def diagnosticar_turno(
                 paso = fb.get("paso_cubierto") or paso
                 accion = "ask"
 
-        # Línea/PPPoE OK: la IA no debe volver a preguntar ONT/PON/LOS
+        # Línea/PPPoE OK: la IA no debe volver a preguntar ONT/PON/LOS ni reinicio WAN
         if (
             linea_ya_ok
             and accion == "ask"
-            and _parece_diagnostico_optica_fuera_de_lugar(mensaje)
+            and (
+                _parece_diagnostico_optica_fuera_de_lugar(mensaje)
+                or _parece_reinicio_wan_ont(mensaje)
+            )
         ):
             accion = "ask"
             motivo = "bloqueado_ont_post_linea_ok"
@@ -2519,6 +2583,17 @@ def diagnosticar_turno(
                     "¿Les pasa a todos los equipos o solo a uno?"
                 )
                 paso = "otros_dispositivos_wifi"
+
+        if (
+            sin_sesion_ppp
+            and accion == "ask"
+            and _parece_pedido_speedtest(mensaje)
+        ):
+            fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+            accion = "ask"
+            motivo = "bloqueado_speedtest_sin_sesion"
+            mensaje = fb["mensaje"]
+            paso = fb.get("paso_cubierto") or paso
 
         if accion == "resolved":
             from app.domain.flujos_abonado import confirma_contacto_sin_servicio
