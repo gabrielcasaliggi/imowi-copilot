@@ -3191,6 +3191,57 @@ def cliente_pregunta_potencia_onu(texto: str) -> bool:
     return cliente_pregunta_calidad_enlace(texto)
 
 
+def cliente_pide_confirmar_lectura_enlace(texto: str) -> bool:
+    """Tras mostrar dBm, pregunta si ese valor es bueno (no pide agente)."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    t = t.replace("?", " ").replace("¿", " ")
+    t = " ".join(t.split())
+    if any(
+        n in t
+        for n in (
+            "no es bueno",
+            "no está bien",
+            "no esta bien",
+            "no es ideal",
+            "agente",
+            "ticket",
+            "tecnico",
+            "técnico",
+            "wifi",
+            "wi-fi",
+        )
+    ):
+        return False
+    return any(
+        k in t
+        for k in (
+            "eso es bueno",
+            "eso está bien",
+            "eso esta bien",
+            "está bien eso",
+            "esta bien eso",
+            "es bueno eso",
+            "es bueno",
+            "está ok",
+            "esta ok",
+            "eso es ideal",
+            "zona verde",
+            "significa que está",
+            "significa que esta",
+            "entonces está bien",
+            "entonces esta bien",
+            "la potencia está bien",
+            "la potencia esta bien",
+            "el valor está bien",
+            "el valor esta bien",
+            "andará bien",
+            "anda bien eso",
+        )
+    )
+
+
 def cliente_pregunta_senal_antena(texto: str) -> bool:
     """Abonado pregunta por la señal/potencia de su antena CPE radio."""
     t = (texto or "").lower().strip()

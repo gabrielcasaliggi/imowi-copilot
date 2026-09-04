@@ -483,6 +483,109 @@ def _responder_consulta_potencia_onu(
     }
 
 
+def _responder_confirmacion_lectura_acceso(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Si preguntan «¿eso es bueno?» después de mostrar dBm, explicar y seguir en casa."""
+    from app.domain.flujos_abonado import cliente_pide_confirmar_lectura_enlace
+    from app.services.barra_senal import (
+        etiqueta_zona_optica,
+        etiqueta_zona_radio,
+        veredicto_optica,
+        veredicto_radio,
+    )
+
+    if not cliente_pide_confirmar_lectura_enlace(texto):
+        return None
+
+    rx_raw = str(ctx.get("bcm_rx_dbm") or "").strip()
+    sig_raw = str(ctx.get("uisp_signal_dbm") or "").strip()
+    msg = ""
+    if rx_raw:
+        try:
+            dbm = float(rx_raw)
+        except ValueError:
+            dbm = None
+        if dbm is not None:
+            zona = etiqueta_zona_optica(dbm)
+            ver = veredicto_optica(dbm)
+            if ver == "se ve bien":
+                msg = (
+                    f"Sí: {dbm:.1f} dBm está en {zona}. "
+                    "El enlace de fibra hasta tu ONT está bien. "
+                    "Si no navega, el tema suele ser el Wi‑Fi o el router. "
+                    "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+                )
+            elif "regular" in ver:
+                msg = (
+                    f"Está regular, al límite ({dbm:.1f} dBm, {zona}). "
+                    "El acceso funciona, pero no sobra margen. "
+                    "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+                )
+            else:
+                msg = (
+                    f"No: {dbm:.1f} dBm está en {zona}. "
+                    "Eso no es un valor ideal de fibra. "
+                    "¿El cablecito amarillo está firme, sin dobleces ni pisadas?"
+                )
+    elif sig_raw:
+        try:
+            dbm = float(sig_raw)
+        except ValueError:
+            dbm = None
+        if dbm is not None:
+            zona = etiqueta_zona_radio(dbm)
+            ver = veredicto_radio(dbm)
+            if ver == "se ve bien":
+                msg = (
+                    f"Sí: {dbm:.0f} dBm está en {zona}. "
+                    "El enlace de la antena con la torre está bien. "
+                    "Si no navega, el tema suele ser el Wi‑Fi o el router. "
+                    "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+                )
+            elif "regular" in ver:
+                msg = (
+                    f"Está regular, al límite ({dbm:.0f} dBm, {zona}). "
+                    "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+                )
+            else:
+                msg = (
+                    f"No: {dbm:.0f} dBm está en {zona}. "
+                    "¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
+                )
+    if not msg:
+        return None
+
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    ctx["pasos_cubiertos"] = cub
+    ctx["ultima_diag_motivo"] = "confirmacion_lectura_acceso"
+    ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
+    try:
+        if rx_raw and veredicto_optica(float(rx_raw)) == "se ve bien":
+            ctx["wifi_rama_activada"] = True
+            ctx["enlace_optico_ok"] = True
+    except ValueError:
+        pass
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+    }
+
+
 def _responder_consulta_senal_antena(
     db: Session,
     org_id: str,
@@ -4355,6 +4458,12 @@ def procesar_mensaje_entrante(
     )
     if pot_onu is not None:
         return pot_onu
+
+    conf_lectura = _responder_confirmacion_lectura_acceso(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion or ""
+    )
+    if conf_lectura is not None:
+        return conf_lectura
 
     senal_ant = _responder_consulta_senal_antena(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""

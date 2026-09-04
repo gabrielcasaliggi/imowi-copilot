@@ -341,3 +341,40 @@ def test_consulta_mi_senal_es_buena_responde_potencia_onu(monkeypatch):
         intencion="internet",
     )
     assert wifi is None
+
+
+def test_confirmacion_eso_es_bueno_no_escala(monkeypatch):
+    from app.domain.flujos_abonado import cliente_pide_confirmar_lectura_enlace
+    from app.services.canal_abonado import _responder_confirmacion_lectura_acceso
+
+    assert cliente_pide_confirmar_lectura_enlace("bien eso es bueno?") is True
+    assert cliente_pide_confirmar_lectura_enlace("tengo todas las rayitas del wifi") is False
+
+    sent: list[str] = []
+    conv = SimpleNamespace(id="c1", estado="bot")
+    ctx = {"bcm_rx_dbm": "-21", "bcm_calidad_optica": "buena", "diag_turnos": 3}
+
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda *_a, **_k: sent.append(_a[3]),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.set_contexto",
+        lambda _c, new_ctx: ctx.update(new_ctx),
+    )
+    out = _responder_confirmacion_lectura_acceso(
+        MagicMock(),
+        "org",
+        conv,  # type: ignore[arg-type]
+        "bien eso es bueno?",
+        canal="whatsapp",
+        ctx=ctx,
+        intencion="internet_ftth",
+    )
+    assert out is not None
+    assert sent and "ticket" not in sent[0].lower()
+    assert "agente" not in sent[0].lower()
+    assert "Sí:" in sent[0]
+    assert "-21.0 dBm" in sent[0]
+    assert "zona verde" in sent[0]
+    assert "Wi‑Fi" in sent[0]

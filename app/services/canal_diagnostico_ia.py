@@ -39,6 +39,7 @@ def _aplicar_diagnostico_ia(
     _responder_seleccion_cuenta_internet = c._responder_seleccion_cuenta_internet
     _responder_consulta_senal_antena = c._responder_consulta_senal_antena
     _responder_consulta_potencia_onu = c._responder_consulta_potencia_onu
+    _responder_confirmacion_lectura_acceso = c._responder_confirmacion_lectura_acceso
     _responder_paso_diagnostico_wifi = c._responder_paso_diagnostico_wifi
     _responder_confirmacion_mejora_wifi = c._responder_confirmacion_mejora_wifi
     indica_resuelto = c.indica_resuelto
@@ -101,6 +102,12 @@ def _aplicar_diagnostico_ia(
     )
     if pot_onu is not None:
         return pot_onu
+
+    conf_lectura = _responder_confirmacion_lectura_acceso(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if conf_lectura is not None:
+        return conf_lectura
 
     senal_ant = _responder_consulta_senal_antena(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion
