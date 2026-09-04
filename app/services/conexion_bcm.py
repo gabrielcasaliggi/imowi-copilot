@@ -406,22 +406,9 @@ def evaluar_turno_onu_bcm(
             "sigue bajo",
         )
     )
-    pregunta_potencia = any(
-        k in t
-        for k in (
-            "qué potencia",
-            "que potencia",
-            "cuánta potencia",
-            "cuanta potencia",
-            "potencia óptica",
-            "potencia optica",
-            "rx de la",
-            "qué señal",
-            "que señal",
-            "que senal",
-            "qué senal",
-        )
-    ) and "antena" not in t
+    from app.domain.flujos_abonado import cliente_pregunta_potencia_onu
+
+    pregunta_potencia = cliente_pregunta_potencia_onu(mensaje_cliente)
 
     online = parsed.get("online")
     rx = parsed.get("rx_dbm")

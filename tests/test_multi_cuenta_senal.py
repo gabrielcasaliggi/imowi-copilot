@@ -68,9 +68,15 @@ def test_mensaje_seleccion_cuenta():
 
 
 def test_cliente_pregunta_senal_typo_y_antena():
+    from app.domain.flujos_abonado import cliente_pregunta_calidad_enlace
+
     assert cliente_pregunta_senal_antena("me podes de cir que señak tengo?") is True
     assert cliente_pregunta_senal_antena("pero que señal tengo en la antena?") is True
     assert cliente_pregunta_senal_antena("anda lento") is False
+    assert cliente_pregunta_calidad_enlace("mi señal es buena?") is True
+    assert cliente_pregunta_calidad_enlace("está bien la señal?") is True
+    assert cliente_pregunta_calidad_enlace("tengo todas las rayitas del wifi") is False
+    assert cliente_pregunta_calidad_enlace("la señal en la pieza es floja") is False
 
 
 def test_informe_senal_incluye_dbm():

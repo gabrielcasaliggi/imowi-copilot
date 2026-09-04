@@ -3119,6 +3119,78 @@ def cliente_indica_multi_cuenta_internet(texto: str) -> bool:
     )
 
 
+def cliente_pregunta_calidad_enlace(texto: str) -> bool:
+    """¿Está bien mi señal/potencia de acceso? No cubre Wi‑Fi de habitación."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    t = t.replace("señak", "señal").replace("senak", "senal")
+    t = t.replace("?", " ").replace("¿", " ")
+    if any(
+        w in t
+        for w in (
+            "wifi",
+            "wi-fi",
+            "wi fi",
+            "rayita",
+            "habitaci",
+            "pieza",
+            "cuarto",
+        )
+    ):
+        return False
+    if "antena" in t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "mi señal",
+            "mi senal",
+            "la señal",
+            "la senal",
+            "señal es buena",
+            "senal es buena",
+            "señal buena",
+            "senal buena",
+            "buena la señal",
+            "buena la senal",
+            "bien la señal",
+            "bien la senal",
+            "cómo está la señal",
+            "como esta la señal",
+            "como esta la senal",
+            "como está mi señal",
+            "cómo está mi señal",
+            "que señal",
+            "qué señal",
+            "que senal",
+            "qué senal",
+            "cuanta señal",
+            "cuánta señal",
+            "cuanta senal",
+            "cuánta senal",
+            "señal tengo",
+            "senal tengo",
+            "potencia óptica",
+            "potencia optica",
+            "qué potencia",
+            "que potencia",
+            "cuánta potencia",
+            "cuanta potencia",
+            "rx de la",
+            "dbm",
+        )
+    )
+
+
+def cliente_pregunta_potencia_onu(texto: str) -> bool:
+    """Fibra: pregunta por RX/potencia de la cajita (no antena)."""
+    t = (texto or "").lower()
+    if "antena" in t:
+        return False
+    return cliente_pregunta_calidad_enlace(texto)
+
+
 def cliente_pregunta_senal_antena(texto: str) -> bool:
     """Abonado pregunta por la señal/potencia de su antena CPE radio."""
     t = (texto or "").lower().strip()

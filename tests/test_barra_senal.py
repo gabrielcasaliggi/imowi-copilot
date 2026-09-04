@@ -276,3 +276,64 @@ def test_canal_radius_ok_anexa_senal_antena(monkeypatch):
     assert "Señal de tu antena" in msg
     assert "-55 dBm" in msg
     assert msg.index("Señal") < msg.index("¿")
+
+
+def test_consulta_mi_senal_es_buena_responde_potencia_onu(monkeypatch):
+    from app.services.canal_abonado import _responder_consulta_potencia_onu
+
+    onu = EstadoOnuBcm(
+        numero_cliente="12345",
+        encontrado=True,
+        online=True,
+        rx_dbm=-18.0,
+        calidad_optica="buena",
+    )
+    sent: list[str] = []
+    abo = SimpleNamespace(dni="30111222", client_number="12345")
+    conv = SimpleNamespace(id="c1", estado="bot")
+    ctx: dict = {"tecnologia_acceso": "internet_ftth", "diag_turnos": 1}
+
+    monkeypatch.setattr(
+        "app.services.conexion_bcm.resolve_bcm_client",
+        lambda _db=None: object(),
+    )
+    monkeypatch.setattr(
+        "app.services.conexion_bcm.consultar_onu_bcm",
+        lambda *_a, **_k: onu,
+    )
+
+    def _captura(_db, _org, _conv, resp, **_k):
+        sent.append(resp)
+
+    monkeypatch.setattr("app.services.canal_abonado._enviar_respuesta", _captura)
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.set_contexto",
+        lambda _c, new_ctx: ctx.update(new_ctx),
+    )
+
+    out = _responder_consulta_potencia_onu(
+        MagicMock(),
+        "org",
+        conv,  # type: ignore[arg-type]
+        abo,  # type: ignore[arg-type]
+        "mi señal es buena?",
+        canal="whatsapp",
+        ctx=ctx,
+        intencion="internet",
+    )
+    assert out is not None
+    assert sent
+    assert "📊" in sent[0]
+    assert "-18.0 dBm" in sent[0]
+    assert "zona verde" in sent[0]
+    wifi = _responder_consulta_potencia_onu(
+        MagicMock(),
+        "org",
+        conv,  # type: ignore[arg-type]
+        abo,  # type: ignore[arg-type]
+        "tengo todas las rayitas del wifi",
+        canal="whatsapp",
+        ctx=ctx,
+        intencion="internet",
+    )
+    assert wifi is None

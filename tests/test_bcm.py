@@ -205,6 +205,19 @@ def test_evaluar_turno_consulta_potencia():
     assert out["motivo"] == "bcm_consulta_potencia"
     assert "-18.2" in (out.get("mensaje") or "")
 
+    coloquial = evaluar_turno_onu_bcm(
+        contexto_abonado=ctx,
+        mensaje_cliente="mi señal es buena?",
+        historial_mensajes=[],
+        pasos_cubiertos=[],
+        turnos_diagnostico=1,
+        intencion="internet_ftth",
+    )
+    assert coloquial is not None
+    assert coloquial["motivo"] == "bcm_consulta_potencia"
+    assert "📊" in (coloquial.get("mensaje") or "")
+    assert "-18.2" in (coloquial.get("mensaje") or "")
+
 
 def test_evaluar_turno_no_aplica_radio():
     ctx = (

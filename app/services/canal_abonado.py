@@ -383,6 +383,100 @@ def _responder_seleccion_cuenta_internet(
     }
 
 
+def _tecnologia_acceso_ctx(ctx: dict, intencion: str) -> str:
+    tech = str((ctx or {}).get("tecnologia_acceso") or "").strip()
+    if tech:
+        return tech
+    intent = (intencion or "").strip()
+    if intent in ("internet_ftth", "internet_radio", "internet_adsl"):
+        return intent
+    blob = " ".join(
+        str((ctx or {}).get(k) or "")
+        for k in ("pppoe_producto", "pppoe_resumen", "bcm_triage", "uisp_triage")
+    ).lower()
+    if "intba" in blob or "inalambr" in blob:
+        return "internet_radio"
+    if "intfo" in blob or "fibra" in blob or "ftth" in blob or "onu_ftth" in blob:
+        return "internet_ftth"
+    if "intina" in blob or "adsl" in blob:
+        return "internet_adsl"
+    return intent
+
+
+def _responder_consulta_potencia_onu(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict | None:
+    """Consulta BCM en vivo y responde potencia de la cajita (fibra)."""
+    from app.bcm.contract import EstadoOnuBcm
+    from app.domain.flujos_abonado import cliente_pregunta_potencia_onu
+    from app.services.conexion_bcm import (
+        aplicar_bcm_a_ctx,
+        consultar_onu_bcm,
+        mensaje_informe_potencia_onu,
+        resolve_bcm_client,
+        resolver_numero_cliente_bcm,
+    )
+
+    if not cliente_pregunta_potencia_onu(texto) or abonado is None:
+        return None
+    if _tecnologia_acceso_ctx(ctx, intencion) == "internet_radio":
+        return None
+
+    nro = str(getattr(abonado, "client_number", "") or "").strip()
+    if not nro:
+        nro = resolver_numero_cliente_bcm(abonado, db)
+    if not nro:
+        return None
+
+    if resolve_bcm_client(db) is None:
+        rx_raw = str(ctx.get("bcm_rx_dbm") or "").strip()
+        if not rx_raw:
+            return None
+        try:
+            rx_val = float(rx_raw)
+        except ValueError:
+            return None
+        calidad = str(ctx.get("bcm_calidad_optica") or "")
+        onu = EstadoOnuBcm(
+            numero_cliente=nro,
+            encontrado=True,
+            online=True,
+            rx_dbm=rx_val,
+            calidad_optica=calidad if calidad in ("buena", "aceptable", "mala") else "",
+        )
+    else:
+        onu = consultar_onu_bcm(nro, db=db)
+    aplicar_bcm_a_ctx(ctx, onu)
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if "consulta_potencia_onu" not in cub:
+        cub.append("consulta_potencia_onu")
+    ctx["pasos_cubiertos"] = cub
+    ctx["ultima_diag_motivo"] = "consulta_potencia_onu_bcm"
+    ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+
+    msg = mensaje_informe_potencia_onu(onu)
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "consulta_potencia_onu": True,
+    }
+
+
 def _responder_consulta_senal_antena(
     db: Session,
     org_id: str,
@@ -395,7 +489,10 @@ def _responder_consulta_senal_antena(
     intencion: str,
 ) -> dict | None:
     """Consulta UISP en vivo y responde señal de antena (multi-cuenta)."""
-    from app.domain.flujos_abonado import cliente_pregunta_senal_antena
+    from app.domain.flujos_abonado import (
+        cliente_pregunta_calidad_enlace,
+        cliente_pregunta_senal_antena,
+    )
     from app.services import billtrack as bt
     from app.services.conexion_uisp import (
         mensaje_informe_senal_antena,
@@ -405,7 +502,11 @@ def _responder_consulta_senal_antena(
         sincronizar_servicio_login_en_ctx,
     )
 
-    if not cliente_pregunta_senal_antena(texto) or abonado is None:
+    pregunta = cliente_pregunta_senal_antena(texto) or (
+        cliente_pregunta_calidad_enlace(texto)
+        and _tecnologia_acceso_ctx(ctx, intencion) == "internet_radio"
+    )
+    if not pregunta or abonado is None:
         return None
 
     servicios = _servicios_conectividad_abonado(db, abonado)
@@ -4242,6 +4343,12 @@ def procesar_mensaje_entrante(
     )
     if multi_cta is not None:
         return multi_cta
+
+    pot_onu = _responder_consulta_potencia_onu(
+        db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""
+    )
+    if pot_onu is not None:
+        return pot_onu
 
     senal_ant = _responder_consulta_senal_antena(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""
