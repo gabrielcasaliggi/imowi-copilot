@@ -148,9 +148,9 @@ def _default_payload() -> dict[str, Any]:
             "timeout": BCM_TIMEOUT,
             "verify_ssl": BCM_VERIFY_SSL,
             "nota": (
-                "Sopnet BCM (FTTH): OLT/ONU del abonado. Se busca por número de "
-                "cliente del ERP (BillTrack client_number). JWT con usuario + "
-                "password de aplicación. Solo lectura — N1 no edita clientes."
+                "Sopnet BCM (FTTH): OLT/ONU del abonado. Al autenticarse, el DNI "
+                "resuelve BillTrack client_number y se usa como query `numero` en "
+                "BCM. JWT con usuario + password de aplicación. Solo lectura."
             ),
         },
         "knowledge": {

@@ -1,7 +1,7 @@
 """Cliente HTTP contra Sopnet BCM (OLT/ONU FTTH). Solo lectura.
 
 Auth: POST /auth/obtenerToken con usuario + password de aplicación (JWT en memoria).
-Lookup: GET /cliente/obtenerPorNumeroCliente (número de cliente del ERP / BillTrack).
+Lookup: GET /cliente/obtenerPorNumeroCliente?numero= (BillTrack client_number).
 
 No implementa editarPorNumeroCliente: N1 no escribe en BCM.
 Endpoints extra de OLT/ONU se agregan cuando el contrato esté confirmado;
@@ -405,6 +405,7 @@ def parse_cliente(payload: Any, *, numero_cliente: str) -> EstadoOnuBcm:
 
     onu = extraer_bloque_onu(cliente)
     nro = _first_str(
+        cliente.get("numero"),
         cliente.get("numero_cliente"),
         cliente.get("nro_cliente"),
         cliente.get("client_number"),
@@ -580,7 +581,7 @@ class BcmClient:
         if not self.configured():
             return EstadoOnuBcm(numero_cliente=nro, error="bcm no configurado")
         try:
-            params = {**self._get_auth_params(), "numero_cliente": nro}
+            params = {**self._get_auth_params(), "numero": nro}
             r = self._request_get("/cliente/obtenerPorNumeroCliente", params)
         except Exception as exc:
             logger.exception("BCM obtenerPorNumeroCliente falló")

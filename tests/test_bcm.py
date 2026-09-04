@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.bcm.client import (
+    BcmClient,
     clasificar_optica,
     extraer_token,
     normalizar_rx_dbm,
@@ -270,6 +271,32 @@ def test_contexto_bcm_conectado(monkeypatch):
     assert "onu_ftth_enlace_ok" in ctx["bcm_triage"]
     assert ctx["olt_huawei"] == "OLT-Batan-Centro"
     fake.buscar_onu_por_cliente.assert_called_once_with("12345")
+
+
+def test_buscar_onu_envia_query_numero():
+    """Swagger BCM: obtenerPorNumeroCliente usa `numero`, no `numero_cliente`."""
+    captured: dict[str, object] = {}
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return SAMPLE_CLIENTE
+
+    bcm = BcmClient(base_url="https://bcm.example/api/v1", user="u", app_pass="p")
+    bcm._token = "tok"
+
+    def _fake_get(path, params, retry=True):
+        captured["path"] = path
+        captured["params"] = params
+        return _Resp()
+
+    bcm._request_get = _fake_get  # type: ignore[method-assign]
+    onu = bcm.buscar_onu_por_cliente("200")
+    assert captured["path"] == "/cliente/obtenerPorNumeroCliente"
+    assert captured["params"]["numero"] == "200"
+    assert "numero_cliente" not in captured["params"]
+    assert onu.encontrado is True
 
 
 def test_test_bcm_sin_credenciales():

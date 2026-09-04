@@ -906,10 +906,11 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
         <GlassCard title="BCM — fibra FTTH (OLT / ONU)" accent="cyan" variant="secondary">
           <div className="grid gap-3 md:grid-cols-2">
             <p className="md:col-span-2 text-xs text-slate-400">
-              Consulta de solo lectura a Sopnet BCM. El número de cliente del ERP es el mismo
-              que BillTrack (<code className="text-slate-300">client_number</code>), así {botName}{" "}
-              puede ver si la ONU está en línea, en qué OLT está y la potencia óptica. JWT con
-              usuario + password de aplicación. N1 no edita clientes en BCM.
+              Consulta de solo lectura a Sopnet BCM. Al autenticarse, el DNI trae de
+              BillTrack el <code className="text-slate-300">client_number</code> (query{" "}
+              <code className="text-slate-300">numero</code> en BCM). {botName} usa esa
+              ficha para ONU, OLT y potencia. JWT con usuario + password de aplicación.
+              N1 no edita clientes en BCM.
             </p>
             <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
               <input
@@ -983,7 +984,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 className={inputCls}
                 value={bcmCliente}
                 onChange={(e) => setBcmCliente(e.target.value)}
-                placeholder="numero_cliente del ERP"
+                placeholder="numero BillTrack (client_number)"
               />
             </div>
             <div className="md:col-span-2 flex flex-wrap items-center gap-3">

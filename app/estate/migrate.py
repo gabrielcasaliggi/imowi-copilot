@@ -50,6 +50,10 @@ _CONVERSACION_CANAL_COLUMNS: dict[str, str] = {
     "agente_last_read_at": "DATETIME",
 }
 
+_ABONADO_COLUMNS: dict[str, str] = {
+    "client_number": "VARCHAR(40) DEFAULT ''",
+}
+
 _NETWORK_OUTAGE_COLUMNS: dict[str, str] = {
     "eta_validada": "VARCHAR(8) DEFAULT 'Sí'",
 }
@@ -154,6 +158,14 @@ def migrate_schema(engine: Engine) -> list[str]:
             logger.info("Migración: tabla creada %s", tabla)
 
     insp = inspect(engine)
+    if insp.has_table("abonados"):
+        existentes_abo = {c["name"] for c in insp.get_columns("abonados")}
+        for col, ddl in _ABONADO_COLUMNS.items():
+            if col not in existentes_abo:
+                _add_column(engine, "abonados", col, ddl)
+                cambios.append(f"abonados.{col}")
+                logger.info("Migración: columna agregada abonados.%s", col)
+
     if insp.has_table("conversaciones_canal"):
         existentes_conv = {c["name"] for c in insp.get_columns("conversaciones_canal")}
         for col, ddl in _CONVERSACION_CANAL_COLUMNS.items():

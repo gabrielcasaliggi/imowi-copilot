@@ -39,6 +39,7 @@ def test_contexto_abonado_identificado():
         estado="activo",
         deuda_monto="0",
         linea_msisdn="2235551234",
+        client_number="200",
     )
     txt = build_contexto_abonado(abo)
     assert "identificado" in txt
@@ -47,6 +48,7 @@ def test_contexto_abonado_identificado():
     assert "100Mb" in txt
     assert "servicios_contratados" in txt
     assert "internet fijo" in txt.lower()
+    assert "nro_asociado: 200" in txt
     # Placeholders listos para conectar APIs
     assert "ont_estado" in txt
     assert "pago_qr_reciente" in txt

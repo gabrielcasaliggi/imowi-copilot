@@ -437,6 +437,7 @@ def abonado_to_dict(a: Abonado | None) -> dict | None:
         "deuda_monto": a.deuda_monto,
         "plan": a.plan,
         "linea_msisdn": a.linea_msisdn,
+        "client_number": str(getattr(a, "client_number", "") or "").strip(),
     }
 
 

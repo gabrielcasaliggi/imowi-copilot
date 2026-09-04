@@ -1034,7 +1034,7 @@ def test_bcm_connection(
         "latency_ms": ping.get("latency_ms"),
         "onu": onu,
         "nota": (
-            "API BCM de solo lectura. El cliente se busca por numero_cliente del ERP "
-            "(BillTrack client_number). OLT/ONU salen de la ficha del cliente."
+            "API BCM de solo lectura. El cliente se busca por numero del ERP "
+            "(BillTrack client_number, query BCM `numero`). OLT/ONU salen de la ficha del cliente."
         ),
     }

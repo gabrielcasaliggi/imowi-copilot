@@ -262,6 +262,7 @@ def seed_abonados(db: Session) -> dict:
             deuda_monto="0",
             plan="Ecolan 50Mb + Móvil 5GB",
             linea_msisdn="2235551234",
+            client_number="200",
         ),
         Abonado(
             organizacion_id=batan.id,
@@ -273,6 +274,7 @@ def seed_abonados(db: Session) -> dict:
             deuda_monto="0",
             plan="Ecolan 100Mb",
             linea_msisdn="",
+            client_number="201",
         ),
         Abonado(
             organizacion_id=batan.id,

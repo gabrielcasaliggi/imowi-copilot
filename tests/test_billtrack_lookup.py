@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from app.services.billtrack import DEFAULT_LOOKUP_SQL, lookup_sql, map_lookup_row
 
 
@@ -78,6 +80,8 @@ def test_map_lookup_row_activo_y_aliases():
     assert hit["email"] == "maria@coop.test"
     assert hit["dni"] == "30111222"
     assert hit["fuente"] == "billtrack"
+    assert hit["client_number"] == "200"
+    assert hit["partner_number"] == "100"
 
 
 def test_map_lookup_row_inactivo():
@@ -95,6 +99,60 @@ def test_mock_lookup_dev_sin_billtrack():
     assert hit is not None
     assert hit["email"]
     assert hit.get("fuente") in ("mock", "mock_local", None) or hit["nombre"]
+    assert hit.get("client_number") == "200"
+
+
+def test_ensure_local_abonado_persiste_client_number():
+    """Al identificar, BillTrack client_number queda en la réplica local (BCM `numero`)."""
+    from app.estate.database import get_session_factory
+    from app.estate.repository import get_org_by_slug
+    from app.services.billtrack import ensure_local_abonado
+
+    Session = get_session_factory()
+    with Session() as db:
+        org = get_org_by_slug(db, "coop-batan")
+        assert org is not None
+        abo = ensure_local_abonado(
+            db,
+            org.id,
+            {
+                "dni": "30111222",
+                "nombre": "María González",
+                "telefono": "5492235551234",
+                "activo": True,
+                "deuda": "0",
+                "client_number": "200",
+                "fuente": "billtrack",
+            },
+        )
+        assert abo.client_number == "200"
+
+
+def test_resolver_bcm_usa_client_number_sin_reconsultar(monkeypatch):
+    from app.services import billtrack as bt
+    from app.services import conexion_bcm as cb
+
+    def _boom(*_a, **_k):
+        raise AssertionError("no debe reconsultar BillTrack si ya hay client_number")
+
+    monkeypatch.setattr(bt, "lookup_abonado_por_dni", _boom)
+    nro = cb.resolver_numero_cliente_bcm(
+        SimpleNamespace(dni="30111222", client_number="200"), db=None
+    )
+    assert nro == "200"
+
+
+def test_resolver_bcm_cae_a_billtrack_por_dni(monkeypatch):
+    from app.services import billtrack as bt
+    from app.services import conexion_bcm as cb
+
+    monkeypatch.setattr(
+        bt, "lookup_abonado_por_dni", lambda dni, db=None, **_k: {"client_number": "200"}
+    )
+    nro = cb.resolver_numero_cliente_bcm(
+        SimpleNamespace(dni="30111222", client_number=""), db=None
+    )
+    assert nro == "200"
 
 
 def test_clasificar_servicios_cuenta_internet_y_movil():

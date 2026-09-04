@@ -930,6 +930,7 @@ def ensure_local_abonado(
             deuda_monto=deuda,
             plan=str(hit.get("plan") or "").strip(),
             servicio=servicio,
+            client_number=str(hit.get("client_number") or "").strip(),
         )
         db.add(abo)
     else:
@@ -942,6 +943,9 @@ def ensure_local_abonado(
                 abo.linea_msisdn = digits[-10:]
         abo.estado = estado
         abo.deuda_monto = deuda
+        nro_bt = str(hit.get("client_number") or "").strip()
+        if nro_bt:
+            abo.client_number = nro_bt
         if servicio_padron:
             abo.servicio = servicio_padron
         elif servicio_padron == "":
@@ -961,6 +965,9 @@ def ensure_local_abonado(
             ).strip()
             if blob and (extraer_mbps_plan(blob) or not (abo.plan or "").strip()):
                 abo.plan = blob
+            nro_svc = str(getattr(svc, "base_account_number", "") or "").strip()
+            if nro_svc and not (abo.client_number or "").strip():
+                abo.client_number = nro_svc
     except Exception:
         logger.debug("No se pudo completar plan desde api_service", exc_info=True)
     db.commit()
@@ -985,6 +992,7 @@ def _mock_lookup(
                 "telefono": "5492235551234",
                 "nombre": "María González",
                 "activo": True,
+                "client_number": "200",
             },
             "28555666": {
                 "ref": "BT-28555666",
@@ -992,6 +1000,7 @@ def _mock_lookup(
                 "telefono": "5492235555678",
                 "nombre": "Carlos Pérez",
                 "activo": True,
+                "client_number": "201",
             },
             "32123456": {
                 "ref": "BT-32123456",
@@ -999,6 +1008,7 @@ def _mock_lookup(
                 "telefono": "5492235559012",
                 "nombre": "Ana Ruiz",
                 "activo": False,
+                "client_number": "202",
             },
             "29888777": {
                 "ref": "BT-29888777",
@@ -1006,6 +1016,7 @@ def _mock_lookup(
                 "telefono": "5492235560002",
                 "nombre": "Laura Díaz",
                 "activo": True,
+                "client_number": "203",
             },
             "26444555": {
                 "ref": "BT-26444555",
@@ -1013,6 +1024,7 @@ def _mock_lookup(
                 "telefono": "5492235560099",
                 "nombre": "Pedro Ecolan",
                 "activo": True,
+                "client_number": "204",
             },
         }
         hit = catalog.get(dni_n)
@@ -1047,4 +1059,5 @@ def _mock_lookup(
         "activo": (abo.estado or "").lower() in ("activo", "al dia", "al día", ""),
         "dni": dni_n,
         "fuente": "mock_local",
+        "client_number": str(getattr(abo, "client_number", "") or "").strip(),
     }

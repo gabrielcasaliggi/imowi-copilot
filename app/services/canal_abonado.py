@@ -2109,6 +2109,9 @@ def _vincular_abonado_a_conversacion(
     out = dict(ctx or {})
     out["identificado"] = True
     out["dni"] = abonado.dni
+    nro = str(getattr(abonado, "client_number", "") or "").strip()
+    if nro:
+        out["client_number"] = nro
     out.pop("invitado", None)
     out.pop("visitante", None)
     if desde_visitante:

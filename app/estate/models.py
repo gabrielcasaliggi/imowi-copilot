@@ -405,6 +405,7 @@ class Abonado(Base):
     deuda_monto: Mapped[str] = mapped_column(String(40), default="0")
     plan: Mapped[str] = mapped_column(String(80), default="")
     linea_msisdn: Mapped[str] = mapped_column(String(16), default="")
+    client_number: Mapped[str] = mapped_column(String(40), default="")  # BillTrack api_person.client_number = BCM numero
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped[Organization] = relationship(back_populates="abonados")

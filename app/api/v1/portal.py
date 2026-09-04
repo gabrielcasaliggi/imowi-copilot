@@ -276,6 +276,13 @@ def _abrir_conversacion_identificada(
     ctx["identificado"] = True
     ctx["dni"] = dni_n
     ctx["abonado_ref"] = abonado_ref
+    nro_bt = ""
+    if hit:
+        nro_bt = str(hit.get("client_number") or "").strip()
+    if not nro_bt and abo is not None:
+        nro_bt = str(getattr(abo, "client_number", "") or "").strip()
+    if nro_bt:
+        ctx["client_number"] = nro_bt
     if hit and hit.get("fuente"):
         ctx["padron_fuente"] = hit.get("fuente")
     ctx.pop("invitado", None)

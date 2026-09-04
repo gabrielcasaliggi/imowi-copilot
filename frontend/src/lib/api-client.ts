@@ -1474,6 +1474,7 @@ export interface InboxAbonado {
   deuda_monto: string;
   plan: string;
   linea_msisdn: string;
+  client_number?: string;
 }
 
 export interface InboxConversation {

@@ -373,6 +373,9 @@ def enrich_contexto_desde_integraciones(
     }
     if abonado is None:
         return out
+    nro = str(getattr(abonado, "client_number", "") or "").strip()
+    if nro:
+        out["nro_asociado"] = nro
     try:
         from app.services.conexion_pppoe import contexto_pppoe_para_abonado
 
