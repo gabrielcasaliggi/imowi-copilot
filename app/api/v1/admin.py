@@ -1004,6 +1004,12 @@ def test_bcm_connection(
             hint = "BCM no respondió a tiempo. Revisá red/VPN y el puerto 7117."
         elif "connect" in low or "name or service" in low:
             hint = "No se alcanza el host BCM desde el servidor del API."
+        elif "no trajo token" in low or "no trajo jwt" in low:
+            hint = (
+                "BCM respondió, pero el JSON no tenía un token en los campos conocidos. "
+                "Revisá usuario/password de aplicación y que la URL termine en /api/v1. "
+                "El detalle de claves/mensaje viene en el error."
+            )
         return {
             "ok": False,
             "connected": False,

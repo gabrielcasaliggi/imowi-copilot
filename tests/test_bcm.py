@@ -69,8 +69,27 @@ def _admin_headers() -> dict[str, str]:
 
 def test_unwrap_y_token():
     assert unwrap_payload({"data": {"nombre": "A"}})["nombre"] == "A"
-    assert extraer_token({"token": "jwt-abc"}) == "jwt-abc"
-    assert extraer_token({"data": {"jwt": "nested"}}) == "nested"
+    assert extraer_token({"token": "jwt-abc-token-16chars"}) == "jwt-abc-token-16chars"
+    assert extraer_token({"data": {"jwt": "nested-token-value1"}}) == "nested-token-value1"
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.aaaaaaaa"
+    assert extraer_token({"datos": {"Token": jwt}}) == jwt
+    assert extraer_token({"Data": jwt}) == jwt
+    assert extraer_token({"mensaje": "ok", "objeto": jwt}) == jwt
+    assert extraer_token("  " + jwt + "  ") == jwt
+    assert extraer_token({"status": False, "mensaje": "usuario inválido"}) == ""
+
+
+def test_describir_auth_incluye_claves_y_mensaje():
+    from app.bcm.client import describir_auth_fallida
+
+    err = describir_auth_fallida(
+        {"status": False, "mensaje": "usuario o password incorrectos"},
+        status_code=200,
+        content_type="application/json",
+    )
+    assert "claves=status,mensaje" in err
+    assert "usuario o password" in err
+    assert "HTTP 200" in err
 
 
 def test_normalizar_rx_positiva_como_dbm():

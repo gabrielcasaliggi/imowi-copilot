@@ -11,6 +11,7 @@ mientras tanto se parsean ONU/OLT anidados en la ficha del cliente.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 
@@ -21,6 +22,50 @@ from app.bcm.contract import CalidadOptica, EstadoOnuBcm
 logger = logging.getLogger("operations_hub")
 
 DEFAULT_BASE_URL = "https://la23.sopnet.com.ar:7117/api/v1"
+_RE_JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
+_TOKEN_KEYS = frozenset(
+    {
+        "token",
+        "jwt",
+        "access_token",
+        "accesstoken",
+        "access-token",
+        "tokenusuario",
+        "token_usuario",
+        "tokenacceso",
+        "token_acceso",
+        "bearertoken",
+        "bearer",
+        "sesion",
+        "session",
+        "id_token",
+        "idtoken",
+        "apitoken",
+        "api_token",
+        "auth_token",
+        "authtoken",
+        "tokensesion",
+        "token_sesion",
+    }
+)
+_NEST_KEYS = frozenset(
+    {
+        "data",
+        "result",
+        "resultado",
+        "datos",
+        "dato",
+        "objeto",
+        "valor",
+        "contenido",
+        "payload",
+        "response",
+        "body",
+        "item",
+        "respuesta",
+        "output",
+    }
+)
 
 # GPON: RX típica -8 a -27 dBm. Por debajo de -27 → visita; por encima de -8 → saturación.
 RX_BUENA_DBM = -24.0
@@ -145,21 +190,104 @@ def unwrap_payload(payload: Any) -> dict[str, Any]:
     return payload
 
 
+def _parece_token(val: str) -> bool:
+    s = (val or "").strip()
+    if len(s) < 16:
+        return False
+    if _RE_JWT.search(s):
+        return True
+    # Token opaco (no JWT): sin espacios, largo razonable.
+    if " " not in s and "\n" not in s and 16 <= len(s) <= 4096:
+        return True
+    return False
+
+
 def extraer_token(payload: Any) -> str:
-    if isinstance(payload, str) and payload.strip():
-        return payload.strip()
+    """Acepta JWT u opaco en varias envelopes típicas de PHP/BCM."""
+    if isinstance(payload, str):
+        s = payload.strip().strip('"')
+        if _parece_token(s):
+            m = _RE_JWT.search(s)
+            return m.group(0) if m else s
+        return ""
+    if isinstance(payload, list):
+        for item in payload:
+            found = extraer_token(item)
+            if found:
+                return found
+        return ""
     if not isinstance(payload, dict):
         return ""
-    for key in ("token", "jwt", "access_token", "accessToken"):
-        val = payload.get(key)
-        if isinstance(val, str) and val.strip():
-            return val.strip()
-    for nest in ("data", "result", "resultado"):
-        nested = payload.get(nest)
-        found = extraer_token(nested)
-        if found:
-            return found
+
+    by_key = {str(k).casefold(): v for k, v in payload.items()}
+    for key in _TOKEN_KEYS:
+        val = by_key.get(key)
+        if isinstance(val, str) and _parece_token(val):
+            m = _RE_JWT.search(val.strip())
+            return (m.group(0) if m else val.strip())
+        if val is not None and not isinstance(val, (dict, list, bool)):
+            s = str(val).strip()
+            if _parece_token(s):
+                m = _RE_JWT.search(s)
+                return m.group(0) if m else s
+
+    for key in _NEST_KEYS:
+        if key in by_key:
+            found = extraer_token(by_key[key])
+            if found:
+                return found
+
+    for val in payload.values():
+        if isinstance(val, (dict, list)):
+            found = extraer_token(val)
+            if found:
+                return found
+        elif isinstance(val, str):
+            m = _RE_JWT.search(val)
+            if m:
+                return m.group(0)
     return ""
+
+
+def _mensaje_api(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    by_key = {str(k).casefold(): v for k, v in payload.items()}
+    for key in ("mensaje", "message", "msg", "error", "detalle", "detail", "descripcion"):
+        val = by_key.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()[:180]
+        if isinstance(val, dict):
+            nested = _mensaje_api(val)
+            if nested:
+                return nested
+    for nest in ("data", "datos", "result", "resultado"):
+        nested = _mensaje_api(by_key.get(nest))
+        if nested:
+            return nested
+    return ""
+
+
+def _claves_payload(payload: Any, *, limite: int = 12) -> str:
+    if isinstance(payload, dict):
+        keys = [str(k) for k in payload.keys()][:limite]
+        return ",".join(keys) if keys else "(vacío)"
+    if isinstance(payload, list):
+        return f"lista[{len(payload)}]"
+    if payload is None:
+        return "(null)"
+    return type(payload).__name__
+
+
+def describir_auth_fallida(payload: Any, *, status_code: int, content_type: str = "") -> str:
+    """Error usable en admin: claves y mensaje de BCM, sin el cuerpo crudo."""
+    msg = _mensaje_api(payload)
+    claves = _claves_payload(payload)
+    ctype = (content_type or "").split(";")[0].strip() or "desconocido"
+    parts = [f"HTTP {status_code}", f"tipo={ctype}", f"claves={claves}"]
+    if msg:
+        parts.append(f"mensaje={msg}")
+    return "BCM auth: la respuesta no trajo token (" + "; ".join(parts) + ")"
 
 
 def extraer_bloque_onu(cliente: dict[str, Any]) -> dict[str, Any]:
@@ -377,26 +505,53 @@ class BcmClient:
         if not self.configured():
             raise RuntimeError("BCM no configurado")
         url = f"{self.base_url}/auth/obtenerToken"
+        creds = {"usuario": self.user, "contrasenaapp": self.app_pass}
+        last_fail = "BCM auth: sin respuesta"
         with self._client() as http:
-            r = http.post(
-                url,
-                params={"usuario": self.user, "contrasenaapp": self.app_pass},
-            )
-        if r.status_code in (401, 403):
-            raise RuntimeError("BCM 401/403: usuario o password de aplicación inválidos")
-        if r.status_code >= 400:
-            detail = (r.text or "")[:180]
-            logger.warning("BCM auth HTTP %s: %s", r.status_code, detail)
-            raise RuntimeError(f"BCM auth HTTP {r.status_code}")
-        try:
-            payload = r.json()
-        except Exception as exc:
-            raise RuntimeError("BCM auth: respuesta no JSON") from exc
-        token = extraer_token(payload)
-        if not token:
-            raise RuntimeError("BCM auth: la respuesta no trajo JWT")
-        self._token = token
-        return token
+            attempts: list[tuple[str, Any]] = [
+                ("post_query_form", {"params": creds, "data": creds}),
+                ("post_form", {"data": creds}),
+                ("post_json", {"json": creds}),
+                ("get_query", None),
+            ]
+            for name, kwargs in attempts:
+                if name == "get_query":
+                    r = http.get(url, params=creds)
+                else:
+                    r = http.post(url, **kwargs)
+                if r.status_code in (401, 403):
+                    raise RuntimeError("BCM 401/403: usuario o password de aplicación inválidos")
+                if r.status_code >= 400:
+                    last_fail = f"BCM auth HTTP {r.status_code} ({name})"
+                    logger.warning("BCM auth %s HTTP %s: %s", name, r.status_code, (r.text or "")[:180])
+                    continue
+                payload: Any
+                ctype = r.headers.get("content-type") or ""
+                try:
+                    payload = r.json()
+                except Exception:
+                    text = (r.text or "").strip()
+                    token = extraer_token(text)
+                    if token:
+                        self._token = token
+                        return token
+                    last_fail = describir_auth_fallida(
+                        {"raw": text[:80] or "(vacío)"},
+                        status_code=r.status_code,
+                        content_type=ctype,
+                    )
+                    continue
+                token = extraer_token(payload)
+                if token:
+                    self._token = token
+                    return token
+                last_fail = describir_auth_fallida(
+                    payload, status_code=r.status_code, content_type=ctype
+                )
+                msg = _mensaje_api(payload).lower()
+                if any(k in msg for k in ("usuario", "password", "contraseña", "contrasena", "inválid", "invalid", "deneg")):
+                    break
+        raise RuntimeError(last_fail)
 
     def _request_get(self, path: str, params: dict[str, str], *, retry: bool = True) -> httpx.Response:
         if not self.configured():
