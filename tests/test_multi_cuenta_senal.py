@@ -77,6 +77,7 @@ def test_cliente_pregunta_senal_typo_y_antena():
     assert cliente_pregunta_calidad_enlace("está bien la señal?") is True
     assert cliente_pregunta_calidad_enlace("tengo todas las rayitas del wifi") is False
     assert cliente_pregunta_calidad_enlace("la señal en la pieza es floja") is False
+    assert cliente_pregunta_calidad_enlace("pero me dijiste que la señal esta bien") is False
 
 
 def test_informe_senal_incluye_dbm():

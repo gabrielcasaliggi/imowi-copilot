@@ -811,6 +811,24 @@ def _parece_reinicio_wan_ont(mensaje: str) -> bool:
     )
 
 
+def _parece_reinicio_como_si_linea_mal(mensaje: str) -> bool:
+    """Reinicio presentado como si la señal de acceso de la casa estuviera mal."""
+    tl = (mensaje or "").lower()
+    if "reinici" not in tl and "desenchuf" not in tl:
+        return False
+    return any(
+        k in tl
+        for k in (
+            "señal de tu casa",
+            "senal de tu casa",
+            "problema de la señal",
+            "problema de la senal",
+            "descartar que sea un problema",
+            "descartar que sea",
+        )
+    )
+
+
 def _parece_pedido_speedtest(mensaje: str) -> bool:
     tl = (mensaje or "").lower()
     return any(
@@ -2036,9 +2054,11 @@ def diagnosticar_turno(
 
     from app.domain.flujos_abonado import (
         MSG_WIFI_SIN_CABLE_MOVIL,
+        MSG_WIFI_UN_DISPOSITIVO_MOVIL,
         contexto_diagnostico_wifi,
         dispositivo_sin_puerto_ethernet,
         indica_paso_diagnostico_completado,
+        interpreta_alcance_dispositivos,
         mensaje_confirmacion_mejora_senal_wifi,
         mensaje_confirmacion_paso_diagnostico_wifi,
         pregunta_confirmacion_mejora_senal_wifi,
@@ -2090,6 +2110,26 @@ def diagnosticar_turno(
                 "mensaje": MSG_WIFI_SIN_CABLE_MOVIL,
                 "paso_cubierto": "conexion_cableada",
                 "motivo": "bloqueado_cable_en_dispositivo_movil",
+            }
+
+    wifi_ctx = contexto_diagnostico_wifi(
+        historial_mensajes, intencion=intencion
+    ) or (intencion or "").strip() in ("wifi", "internet_lento")
+    if (
+        (wifi_ctx or linea_ya_ok)
+        and interpreta_alcance_dispositivos(mensaje_cliente) == "uno"
+        and dispositivo_sin_puerto_ethernet(mensaje_cliente)
+    ):
+        tcli = (mensaje_cliente or "").lower()
+        if not any(
+            k in tcli
+            for k in ("cable", "cómo conecto", "como conecto", "adaptador")
+        ):
+            return {
+                "accion": "ask",
+                "mensaje": MSG_WIFI_UN_DISPOSITIVO_MOVIL,
+                "paso_cubierto": "otros_dispositivos_wifi",
+                "motivo": "wifi_un_dispositivo_movil",
             }
 
     if es_movil:
@@ -2208,10 +2248,12 @@ def diagnosticar_turno(
     ):
         reglas_wifi = (
             "\nReglas EXTRA — Wi‑Fi (prioridad alta):\n"
-            "- Tablet, celular, iPhone o smartphone NO tienen puerto de red. "
+            "- Tablet, celular, iPhone, smartphone o teléfono NO tienen puerto de red. "
             "NUNCA pidas conectar esos equipos al router con cable ethernet.\n"
-            "- Si el problema es solo en tablet/celular: proponé reiniciar el router "
-            "o probar una notebook/PC por cable. No improvises adaptadores USB.\n"
+            "- Si el problema es SOLO un teléfono/tablet y la línea ya está OK: "
+            "olvidar la red Wi‑Fi, modo avión, ¿otros equipos navegan? "
+            "NO pidas notebook por cable ni reinicio de ONT. "
+            "Reinicio del router Wi‑Fi solo si falla en TODOS los equipos.\n"
         )
 
     reglas_movil = ""
@@ -2426,6 +2468,7 @@ def diagnosticar_turno(
 
         from app.domain.flujos_abonado import (
             MSG_WIFI_SIN_CABLE_MOVIL,
+            MSG_WIFI_UN_DISPOSITIVO_MOVIL,
             PLAYBOOKS,
             alcance_dispositivos_wifi_conocido,
             diagnostico_wifi_en_curso,
@@ -2551,8 +2594,17 @@ def diagnosticar_turno(
         ):
             accion = "ask"
             motivo = "bloqueado_cable_en_dispositivo_movil"
-            mensaje = MSG_WIFI_SIN_CABLE_MOVIL
-            paso = "conexion_cableada"
+            alcance_movil = alcance_dispositivos_wifi_conocido(
+                mensaje_cliente, historial_mensajes
+            )
+            if alcance_movil == "uno" or dispositivo_sin_puerto_ethernet(
+                mensaje_cliente
+            ):
+                mensaje = MSG_WIFI_UN_DISPOSITIVO_MOVIL
+                paso = "otros_dispositivos_wifi"
+            else:
+                mensaje = MSG_WIFI_SIN_CABLE_MOVIL
+                paso = "conexion_cableada"
 
         # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)
         if not aplica_optica and (
@@ -2587,6 +2639,7 @@ def diagnosticar_turno(
             and (
                 _parece_diagnostico_optica_fuera_de_lugar(mensaje)
                 or _parece_reinicio_wan_ont(mensaje)
+                or _parece_reinicio_como_si_linea_mal(mensaje)
             )
         ):
             accion = "ask"

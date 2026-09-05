@@ -112,6 +112,8 @@ def test_no_solo_en_ese_es_varios_dispositivos():
     assert interpreta_alcance_dispositivos("no solo en ese") == "todos"
     assert interpreta_alcance_dispositivos("solo en este dispositivo") == "uno"
     assert interpreta_alcance_dispositivos("en la table") == "uno"
+    assert interpreta_alcance_dispositivos("solo mi telefono no fuciona") == "uno"
+    assert interpreta_alcance_dispositivos("solo el celular") == "uno"
 
 
 def test_wifi_a_veces_zona_parcial():

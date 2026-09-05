@@ -16,11 +16,17 @@ def test_cliente_indica_solo_wifi():
     assert _cliente_indica_solo_wifi("solo falla el wifi")
     assert _cliente_indica_solo_wifi("Solo el Wi-Fi")
     assert _cliente_indica_solo_wifi("falla solo wifi")
+    assert _cliente_indica_solo_wifi("entonces porque no me anda el wifi")
+    assert _cliente_indica_solo_wifi("no me anda el wifi")
+    assert _cliente_indica_solo_wifi("el wifi no funciona")
     assert not _cliente_indica_solo_wifi("no me anda internet")
     assert not _cliente_indica_solo_wifi("")
     assert _cliente_reporta_corte_total("no tengo internet")
     assert _cliente_reporta_corte_total("no me anda")
+    assert _cliente_reporta_corte_total("Buen día internet dejo de funcionar")
+    assert _cliente_reporta_corte_total("Estamos sin servicio")
     assert not _cliente_reporta_corte_total("solo falla el wifi")
+    assert not _cliente_reporta_corte_total("entonces porque no me anda el wifi")
     assert _linea_acceso_ok_ctx({"pppoe_rama": "wifi_lan"})
     assert _linea_acceso_ok_ctx({"bcm_triage": "triage=onu_ftth_enlace_ok; indagar Wi‑Fi"})
     assert not _linea_acceso_ok_ctx({})
@@ -236,4 +242,74 @@ def test_ia_escalate_prematuro_pregunta_wifi_no_deriva(monkeypatch):
     low = (out.get("mensaje") or "").lower()
     assert "derive" not in low
     assert "wifi" in low or "cable" in low
+
+
+def test_solo_telefono_no_pide_cable_ni_pc(monkeypatch):
+    """Línea OK + solo el teléfono → guía del equipo, no ethernet ni PC."""
+    from app.domain.flujos_abonado import MSG_WIFI_UN_DISPOSITIVO_MOVIL, PLAYBOOKS
+
+    def _boom(*_a, **_k):
+        raise AssertionError("no debe llamar al LLM")
+
+    monkeypatch.setattr("app.llm.chat_completion", _boom)
+    out = diagnosticar_turno(
+        intencion="wifi",
+        checklist=[{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]],
+        historial_mensajes=[
+            {"autor": "bot", "texto": "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"},
+        ],
+        mensaje_cliente="solo mi telefono no fuciona",
+        turnos_diagnostico=3,
+        pasos_cubiertos=["wifi_vs_cable_ftth"],
+        contexto_abonado=(
+            "pppoe_triage: triage=linea_ok_indagar_wifi_vs_cable; "
+            "NO pedir reinicio de ONT como primer paso"
+        ),
+    )
+    assert out["motivo"] == "wifi_un_dispositivo_movil"
+    assert out["mensaje"] == MSG_WIFI_UN_DISPOSITIVO_MOVIL
+    low = (out.get("mensaje") or "").lower()
+    assert "cable de red" not in low
+    assert "modo avión" in low or "modo avion" in low
+
+
+def test_reinicio_por_senal_de_casa_se_bloquea_si_linea_ok(monkeypatch):
+    """No pedir reboot 'para descartar la señal de la casa' si la línea ya está OK."""
+    import json
+
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    def _fake(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Entiendo. Para descartar que sea un problema de la señal de tu casa, "
+                    "¿podrías intentar reiniciar el router? Solo tenés que desconectarlo "
+                    "de la corriente, esperar 30 segundos y volverlo a conectar."
+                ),
+                "paso_cubierto": "reinicio_router_wifi",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr("app.llm.chat_completion", _fake)
+    out = diagnosticar_turno(
+        intencion="internet_ftth",
+        checklist=[{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["internet_ftth"]],
+        historial_mensajes=[],
+        mensaje_cliente="no me anda internet",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["energia_ont", "luces_los", "reinicio_ont"],
+        contexto_abonado=(
+            "pppoe_triage: triage=linea_ok_indagar_wifi_vs_cable; "
+            "NO pedir reinicio de ONT como primer paso"
+        ),
+    )
+    assert out["motivo"] == "bloqueado_ont_post_linea_ok"
+    low = (out.get("mensaje") or "").lower()
+    assert "señal de tu casa" not in low
+    assert "senal de tu casa" not in low
+    assert "todos los equipos" in low or "solo a uno" in low
 

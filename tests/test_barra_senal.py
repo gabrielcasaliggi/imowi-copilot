@@ -349,6 +349,7 @@ def test_confirmacion_eso_es_bueno_no_escala(monkeypatch):
 
     assert cliente_pide_confirmar_lectura_enlace("bien eso es bueno?") is True
     assert cliente_pide_confirmar_lectura_enlace("tengo todas las rayitas del wifi") is False
+    assert cliente_pide_confirmar_lectura_enlace("pero me dijiste que la señal esta bien") is True
 
     sent: list[str] = []
     conv = SimpleNamespace(id="c1", estado="bot")
@@ -378,3 +379,37 @@ def test_confirmacion_eso_es_bueno_no_escala(monkeypatch):
     assert "-21.0 dBm" in sent[0]
     assert "zona verde" in sent[0]
     assert "Wi‑Fi" in sent[0]
+
+
+def test_confirmacion_me_dijiste_no_repite_barra(monkeypatch):
+    from app.services.canal_abonado import _responder_confirmacion_lectura_acceso
+
+    sent: list[str] = []
+    conv = SimpleNamespace(id="c1", estado="bot")
+    ctx = {"bcm_rx_dbm": "-21", "bcm_calidad_optica": "buena", "diag_turnos": 3}
+
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda *_a, **_k: sent.append(_a[3]),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.crepo.set_contexto",
+        lambda _c, new_ctx: ctx.update(new_ctx),
+    )
+    out = _responder_confirmacion_lectura_acceso(
+        MagicMock(),
+        "org",
+        conv,  # type: ignore[arg-type]
+        "pero me dijiste que la señal esta bien",
+        canal="whatsapp",
+        ctx=ctx,
+        intencion="internet_ftth",
+    )
+    assert out is not None
+    assert ctx.get("wifi_rama_activada") is True
+    assert sent
+    low = sent[0].lower()
+    assert "📊" not in sent[0]
+    assert "no hace falta tocar la ont" in low
+    assert "todos los equipos" in low
+    assert "ticket" not in low

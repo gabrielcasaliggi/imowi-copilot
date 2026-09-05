@@ -560,8 +560,10 @@ def system_prompt_eco_n1(
         reglas_optica = (
             "- La línea de acceso/PPPoE ya está OK (o el caso es solo Wi‑Fi). "
             "NUNCA preguntes por luces ONT, PON, LOS, cajita blanca ni cable amarillo.\n"
-            "- accion=ask: diagnóstico Wi‑Fi (zona, dispositivos, reinicio router Wi‑Fi, "
-            "banda 2.4/5, cable vs Wi‑Fi si aún no se aclaró).\n"
+            "- No presentes un reinicio de router como si la señal de la casa estuviera mal. "
+            "Primero acotá: ¿todos los equipos o solo uno? ¿solo Wi‑Fi?\n"
+            "- accion=ask: diagnóstico Wi‑Fi (zona, dispositivos, reinicio router Wi‑Fi "
+            "si falla en todos, banda 2.4/5, cable vs Wi‑Fi si aún no se aclaró).\n"
             "- Si por cable anda y Wi‑Fi no: enfocá radio/router inalámbrico; escalate si "
             "persiste tras 2–3 chequeos útiles.\n"
             "- Excepciones escalate YA: pide agente/técnico.\n"

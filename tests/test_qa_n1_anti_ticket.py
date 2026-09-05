@@ -1647,47 +1647,27 @@ def test_wifi_no_repite_pregunta_dispositivos():
 
 def test_wifi_no_pide_cable_ethernet_a_tablet():
     """Regresión: no pedir cable de red a una tablet (caso Gabriel 2026-09-02)."""
-    import json
-    from unittest.mock import patch
-
-    from app.domain.flujos_abonado import MSG_WIFI_SIN_CABLE_MOVIL, PLAYBOOKS
+    from app.domain.flujos_abonado import MSG_WIFI_UN_DISPOSITIVO_MOVIL, PLAYBOOKS
     from app.services.diagnostico_n1 import diagnosticar_turno
 
     hist = [
         {"autor": "bot", "texto": "¿Les pasa a todos los equipos o solo a uno?"},
         {"autor": "cliente", "texto": "en la tablet"},
     ]
-    msg = "en la tablet"
-
-    def _fake_cable_tablet(*_a, **_k):
-        return json.dumps(
-            {
-                "accion": "ask",
-                "mensaje": (
-                    "¿Podrías probar conectando la tablet directamente al router "
-                    "con un cable de red para ver si así funciona bien?"
-                ),
-                "paso_cubierto": "conexion_cableada",
-                "motivo": "ia",
-            },
-            ensure_ascii=False,
-        )
-
-    checklist = [{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]]
-    with patch("app.llm.chat_completion", side_effect=_fake_cable_tablet):
-        out = diagnosticar_turno(
-            intencion="wifi",
-            checklist=checklist,
-            historial_mensajes=hist,
-            mensaje_cliente=msg,
-            turnos_diagnostico=3,
-            pasos_cubiertos=["zona_wifi", "otros_dispositivos_wifi"],
-        )
-    assert out["motivo"] == "bloqueado_cable_en_dispositivo_movil"
-    assert out["mensaje"] == MSG_WIFI_SIN_CABLE_MOVIL
+    out = diagnosticar_turno(
+        intencion="wifi",
+        checklist=[{"id": p.id, "pregunta": p.pregunta} for p in PLAYBOOKS["wifi"]],
+        historial_mensajes=hist,
+        mensaje_cliente="en la tablet",
+        turnos_diagnostico=3,
+        pasos_cubiertos=["zona_wifi", "otros_dispositivos_wifi"],
+    )
+    assert out["motivo"] == "wifi_un_dispositivo_movil"
+    assert out["mensaje"] == MSG_WIFI_UN_DISPOSITIVO_MOVIL
     resp = (out.get("mensaje") or "").lower()
     assert "conectando la tablet" not in resp
     assert "adaptador" not in resp
+    assert "cable de red" not in resp
 
 
 def test_wifi_como_conecto_tablet_por_cable():
