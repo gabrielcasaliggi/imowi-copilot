@@ -3805,15 +3805,12 @@ def detecta_frustracion(texto: str, ctx: dict) -> bool:
     """True si reitera la misma queja *después* de avance N1 real (paso_idx ≥ 2).
 
     No abre ticket por repetir el síntoma al inicio del playbook (triaje).
+    Tampoco en playbooks de acceso (`internet*`, wifi): la reiteración la corta E1.
     Tampoco si el mensaje es una respuesta de diagnóstico (reinicio, luces, cable).
     """
     intent = str(ctx.get("intencion") or "")
-    if intent in (
-        "internet",
+    if intent.startswith("internet") or intent in (
         "wifi",
-        "internet_lento",
-        "internet_intermitente",
-        "internet_adsl",
         "cambio_clave_wifi",
         "ecolan_b2b",
         "facturacion",

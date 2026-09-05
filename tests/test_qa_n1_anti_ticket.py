@@ -194,6 +194,14 @@ def test_detecta_frustracion_requiere_progreso_n1():
     assert detecta_frustracion("No tengo internet", ctx0) is False
     ctx2 = {"ultima_queja": "no tengo internet", "paso_idx": 2, "reiteracion_queja": 1}
     assert detecta_frustracion("No tengo internet", ctx2) is True
+    # Triaje saltado deja paso_idx≥2 en FTTH: repetir «es fibra» no es N2.
+    ctx_ftth = {
+        "ultima_queja": "es fibraa la cajita blanca",
+        "paso_idx": 2,
+        "intencion": "internet_ftth",
+        "reiteracion_queja": 1,
+    }
+    assert detecta_frustracion("es fibraa la cajita blanca", ctx_ftth) is False
 
 
 def test_escape_agente_y_sintoma():
