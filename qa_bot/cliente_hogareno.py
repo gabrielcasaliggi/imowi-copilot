@@ -1188,7 +1188,8 @@ def _asegurar_padron_persona(persona: Persona) -> None:
         db.commit()
 
 
-def _identificar_portal(client: Any, dni: str = "30111222") -> str:
+def _sesion_portal(client: Any, dni: str = "30111222") -> tuple[str, str]:
+    """Identifica al abonado de demo. Devuelve (portal_token, conversacion_id)."""
     start = client.post(
         "/api/v1/portal/auth/start",
         json={"dni": dni, "org_slug": "coop-batan"},
@@ -1210,7 +1211,12 @@ def _identificar_portal(client: Any, dni: str = "30111222") -> str:
     data = verify.json()
     conv_id = data["conversacion"]["id"]
     _reset_hilo_n1(conv_id)
-    return data["portal_token"]
+    return data["portal_token"], conv_id
+
+
+def _identificar_portal(client: Any, dni: str = "30111222") -> str:
+    token, _conv_id = _sesion_portal(client, dni)
+    return token
 
 
 def _reset_hilo_n1(conv_id: str) -> None:
@@ -1249,6 +1255,9 @@ def _reset_hilo_n1(conv_id: str) -> None:
             "intencion_tecnica_pendiente",
             "aviso_sin_internet",
             "temas_pendientes",
+            "lectura_forzada_e1",
+            "lectura_forzada_e1_veredicto",
+            "e1_turnos_sin_resolucion",
         ):
             ctx.pop(k, None)
         ctx["identificado"] = True

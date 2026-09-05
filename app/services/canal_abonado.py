@@ -112,7 +112,39 @@ def _cliente_indica_solo_wifi(texto: str) -> bool:
     if "wifi" in t or "wi-fi" in t or "wi fi" in t:
         if any(k in t for k in ("solo", "nomas", "nomás", "unicamente", "únicamente")):
             return True
+        # «entonces porque no me anda el wifi» no es corte de línea
+        if re.search(r"\b(wi[\-\s]?fi|wifi)\b", t) and re.search(
+            r"(no\s+(me\s+)?(anda|funciona|fuciona)|porque\s+no|por\s+qu[eé]\s+no)",
+            t,
+        ):
+            if any(
+                k in t
+                for k in (
+                    "ni por cable",
+                    "ni el cable",
+                    "tampoco cable",
+                    "ni cable",
+                    "y el cable",
+                    "ningun dispositivo",
+                    "ningún dispositivo",
+                )
+            ):
+                return False
+            return True
     return False
+
+
+def _saltar_triaje_sintoma_internet(pasos: list) -> tuple[int, list[str]]:
+    """Si el playbook tiene triaje de síntoma/alcance, arrancar en tipo de acceso."""
+    skip = ("sintoma_internet", "alcance_internet")
+    cubiertos = [p.id for p in (pasos or []) if getattr(p, "id", "") in skip]
+    for i, p in enumerate(pasos or []):
+        if getattr(p, "id", "") == "tipo_acceso":
+            return i, cubiertos
+    if cubiertos:
+        last = max(i for i, p in enumerate(pasos) if getattr(p, "id", "") in skip)
+        return min(last + 1, max(len(pasos) - 1, 0)), cubiertos
+    return 0, []
 
 
 def _cliente_reporta_corte_total(texto: str) -> bool:
@@ -128,6 +160,7 @@ def _cliente_reporta_corte_total(texto: str) -> bool:
             "no tengo internet",
             "no hay internet",
             "sin internet",
+            "sin servicio",
             "no me anda",
             "no anda internet",
             "no funciona internet",
@@ -142,6 +175,12 @@ def _cliente_reporta_corte_total(texto: str) -> bool:
             "sigo sin",
             "sigue sin",
             "todo cortado",
+            "dejo de funcionar",
+            "dejó de funcionar",
+            "me dejo de funcionar",
+            "me dejó de funcionar",
+            "internet dejo de",
+            "internet dejó de",
         )
     )
 
@@ -494,7 +533,10 @@ def _responder_confirmacion_lectura_acceso(
     intencion: str,
 ) -> dict | None:
     """Si preguntan «¿eso es bueno?» después de mostrar dBm, explicar y seguir en casa."""
-    from app.domain.flujos_abonado import cliente_pide_confirmar_lectura_enlace
+    from app.domain.flujos_abonado import (
+        cliente_cita_lectura_enlace_ok,
+        cliente_pide_confirmar_lectura_enlace,
+    )
     from app.services.barra_senal import (
         etiqueta_zona_optica,
         etiqueta_zona_radio,
@@ -505,6 +547,7 @@ def _responder_confirmacion_lectura_acceso(
     if not cliente_pide_confirmar_lectura_enlace(texto):
         return None
 
+    citing = cliente_cita_lectura_enlace_ok(texto)
     rx_raw = str(ctx.get("bcm_rx_dbm") or "").strip()
     sig_raw = str(ctx.get("uisp_signal_dbm") or "").strip()
     msg = ""
@@ -517,12 +560,20 @@ def _responder_confirmacion_lectura_acceso(
             zona = etiqueta_zona_optica(dbm)
             ver = veredicto_optica(dbm)
             if ver == "se ve bien":
-                msg = (
-                    f"Sí: {dbm:.1f} dBm está en {zona}. "
-                    "El enlace de fibra hasta tu ONT está bien. "
-                    "Si no navega, el tema suele ser el Wi‑Fi o el router. "
-                    "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
-                )
+                if citing:
+                    msg = (
+                        "Sí, el enlace hasta tu casa está bien. "
+                        "Por eso no hace falta tocar la ONT. "
+                        "Si no navega, el tema es el Wi‑Fi o el equipo. "
+                        "¿Les pasa a todos los equipos o solo a uno?"
+                    )
+                else:
+                    msg = (
+                        f"Sí: {dbm:.1f} dBm está en {zona}. "
+                        "El enlace de fibra hasta tu ONT está bien. "
+                        "Si no navega, el tema suele ser el Wi‑Fi o el router. "
+                        "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+                    )
             elif "regular" in ver:
                 msg = (
                     f"Está regular, al límite ({dbm:.1f} dBm, {zona}). "
@@ -544,12 +595,19 @@ def _responder_confirmacion_lectura_acceso(
             zona = etiqueta_zona_radio(dbm)
             ver = veredicto_radio(dbm)
             if ver == "se ve bien":
-                msg = (
-                    f"Sí: {dbm:.0f} dBm está en {zona}. "
-                    "El enlace de la antena con la torre está bien. "
-                    "Si no navega, el tema suele ser el Wi‑Fi o el router. "
-                    "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
-                )
+                if citing:
+                    msg = (
+                        "Sí, el enlace de la antena está bien. "
+                        "Si no navega, el tema es el Wi‑Fi o el equipo. "
+                        "¿Les pasa a todos los equipos o solo a uno?"
+                    )
+                else:
+                    msg = (
+                        f"Sí: {dbm:.0f} dBm está en {zona}. "
+                        "El enlace de la antena con la torre está bien. "
+                        "Si no navega, el tema suele ser el Wi‑Fi o el router. "
+                        "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
+                    )
             elif "regular" in ver:
                 msg = (
                     f"Está regular, al límite ({dbm:.0f} dBm, {zona}). "
@@ -560,6 +618,12 @@ def _responder_confirmacion_lectura_acceso(
                     f"No: {dbm:.0f} dBm está en {zona}. "
                     "¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
                 )
+    if not msg and citing:
+        msg = (
+            "Sí, el acceso hasta tu casa está bien. "
+            "Si no navega, el tema es el Wi‑Fi o el equipo. "
+            "¿Les pasa a todos los equipos o solo a uno?"
+        )
     if not msg:
         return None
 
@@ -568,11 +632,13 @@ def _responder_confirmacion_lectura_acceso(
     ctx["ultima_diag_motivo"] = "confirmacion_lectura_acceso"
     ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
     try:
-        if rx_raw and veredicto_optica(float(rx_raw)) == "se ve bien":
+        if citing or (rx_raw and veredicto_optica(float(rx_raw)) == "se ve bien"):
             ctx["wifi_rama_activada"] = True
             ctx["enlace_optico_ok"] = True
     except ValueError:
-        pass
+        if citing:
+            ctx["wifi_rama_activada"] = True
+            ctx["enlace_optico_ok"] = True
     crepo.set_contexto(conv, ctx)
     db.commit()
     _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
@@ -3433,6 +3499,38 @@ def procesar_mensaje_entrante(
     if reiteracion_temprana:
         intent = str(ctx.get("intencion") or "")
         pb = _playbooks(db)
+        if (
+            intent == "internet"
+            and _cliente_reporta_corte_total(texto)
+            and intent in pb
+        ):
+            pasos_i = pb[intent]
+            idx_tipo, cubiertos_skip = _saltar_triaje_sintoma_internet(pasos_i)
+            if cubiertos_skip and idx_tipo < len(pasos_i):
+                cubiertos = [
+                    str(x)
+                    for x in (ctx.get("pasos_cubiertos") or [])
+                    if str(x).strip()
+                ]
+                for pid in ("sintoma_internet", "alcance_internet"):
+                    if pid not in cubiertos:
+                        cubiertos.append(pid)
+                ctx["pasos_cubiertos"] = cubiertos
+                ctx["paso_idx"] = idx_tipo
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                pregunta = pasos_i[idx_tipo].pregunta
+                _enviar_respuesta(
+                    db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal)
+                )
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": pregunta,
+                    "estado": conv.estado,
+                    "intencion": intent,
+                }
         if intent and intent in pb:
             pasos = pb[intent]
             idx = max(0, min(int(ctx.get("paso_idx") or 0), len(pasos) - 1))
@@ -4275,10 +4373,14 @@ def procesar_mensaje_entrante(
             k in texto.lower() for k in ("sin tono", "no tiene tono", "no hay tono")
         ):
             paso_inicial = 1
+        cubiertos_inicial: list[str] = []
+        if intencion == "internet" and _cliente_reporta_corte_total(texto):
+            pasos_i = (_playbooks(db).get("internet") or [])
+            paso_inicial, cubiertos_inicial = _saltar_triaje_sintoma_internet(pasos_i)
         ctx["intencion"] = intencion
         ctx["paso_idx"] = paso_inicial
         ctx["diag_turnos"] = 0
-        ctx["pasos_cubiertos"] = []
+        ctx["pasos_cubiertos"] = cubiertos_inicial
         conv.servicio_detectado = (
             intencion
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")

@@ -426,6 +426,9 @@ def test_menu_consulta_segun_padron():
 
     assert es_saludo_corto("hol") is True
     assert es_saludo_corto("hola") is True
+    assert es_saludo_corto("hola no me anda internet") is False
+    assert es_saludo_corto("Buen día!! Me dejó de funcionar internet") is False
+    assert es_saludo_corto("Hola !! Necesito internet !!!!!!!!") is False
     from app.domain.flujos_abonado import es_saludo_solo
 
     assert es_saludo_solo("hol") is True

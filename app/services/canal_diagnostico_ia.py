@@ -68,9 +68,126 @@ def _aplicar_diagnostico_ia(
     ORIGEN_BOT = c.ORIGEN_BOT
     _mensaje_cierre_calido = c._mensaje_cierre_calido
 
-    if not usar_llama or not resolve_canal_diagnostico_ia(db):
-        return None
     if not es_intencion_diagnostico(intencion):
+        return None
+
+    # Contador E1: a los 3 turnos sin resolución de acceso, leer OLT/WIS.
+    # Política de controlador (no depende del LLM).
+    from app.services.turno_e1 import (
+        debe_forzar_lectura_e1,
+        ejecutar_lectura_forzada_e1,
+    )
+
+    if debe_forzar_lectura_e1(ctx, intencion, texto):
+        lectura = ejecutar_lectura_forzada_e1(db, abonado, ctx, intencion)
+        ctx["lectura_forzada_e1"] = True
+        ctx["lectura_forzada_e1_veredicto"] = lectura.veredicto
+        ctx["ultima_diag_motivo"] = lectura.motivo
+        if lectura.accion in ("escalate", "ask"):
+            turnos_e1 = int(ctx.get("diag_turnos") or 0)
+            ctx["diag_turnos"] = turnos_e1 + 1
+            ctx["e1_turnos_sin_resolucion"] = ctx["diag_turnos"]
+            if lectura.tecnologia and lectura.accion == "ask":
+                intencion = str(ctx.get("intencion") or intencion)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            if lectura.accion == "escalate":
+                tid = _crear_ticket_n2(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    f"E1 agotado: lectura OLT/WIS ({lectura.motivo})",
+                    intencion=intencion,
+                    paso_idx=int(ctx.get("paso_idx") or ctx.get("diag_turnos") or 0),
+                    ctx=ctx,
+                )
+                mensaje = _mensaje_cierre_escalamiento(
+                    tid,
+                    motivo=lectura.motivo,
+                    mensaje_ia=lectura.mensaje,
+                    nota_temas=_nota_temas_pendientes(ctx),
+                    intencion=intencion,
+                )
+                _enviar_respuesta(
+                    db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal)
+                )
+                return {
+                    "ok": True,
+                    "modo": "espera_agente",
+                    "conversacion_id": conv.id,
+                    "respuesta": mensaje,
+                    "estado": conv.estado,
+                    "ticket_id": tid,
+                    "intencion": intencion,
+                    "lectura_forzada_e1": True,
+                    "lectura_forzada_e1_veredicto": lectura.veredicto,
+                }
+            _enviar_respuesta(
+                db,
+                org_id,
+                conv,
+                lectura.mensaje,
+                enviar_externo=_enviar_externo(canal),
+            )
+            return {
+                "ok": True,
+                "modo": "diagnostico",
+                "conversacion_id": conv.id,
+                "respuesta": lectura.mensaje,
+                "estado": conv.estado,
+                "intencion": intencion,
+                "lectura_forzada_e1": True,
+                "lectura_forzada_e1_veredicto": lectura.veredicto,
+            }
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+
+    from app.domain.flujos_abonado import (
+        MOTIVO_DANO_CAMPO,
+        MSG_DANO_CAMPO,
+        es_dano_campo_obvio,
+        intencion_es_internet,
+    )
+
+    if intencion_es_internet(intencion) and es_dano_campo_obvio(texto):
+        turnos_d = int(ctx.get("diag_turnos") or 0)
+        ctx["diag_turnos"] = turnos_d + 1
+        ctx["ultima_diag_motivo"] = MOTIVO_DANO_CAMPO
+        ctx["intencion"] = intencion
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            "N1: daño físico de campo (cable arrancado / equipo quemado)",
+            intencion=intencion,
+            paso_idx=int(ctx.get("paso_idx") or ctx.get("diag_turnos") or 0),
+            ctx=ctx,
+        )
+        mensaje = _mensaje_cierre_escalamiento(
+            tid,
+            motivo=MOTIVO_DANO_CAMPO,
+            mensaje_ia=MSG_DANO_CAMPO,
+            nota_temas=_nota_temas_pendientes(ctx),
+            intencion=intencion,
+        )
+        _enviar_respuesta(
+            db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal)
+        )
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": mensaje,
+            "estado": conv.estado,
+            "ticket_id": tid,
+            "intencion": intencion,
+        }
+
+    if not usar_llama or not resolve_canal_diagnostico_ia(db):
         return None
 
     from app.services.diagnostico_n1 import _cliente_pendiente_pago_o_corte
@@ -307,6 +424,7 @@ def _aplicar_diagnostico_ia(
                 cubiertos.append(pid)
     ctx["pasos_cubiertos"] = cubiertos
     ctx["diag_turnos"] = turnos + 1
+    ctx["e1_turnos_sin_resolucion"] = ctx["diag_turnos"]
     ctx["paso_idx"] = min(len(cubiertos), max(len(checklist) - 1, 0))
     ctx["ultima_diag_motivo"] = (result.get("motivo") or "")[:200]
     ctx["intencion"] = intencion
@@ -319,8 +437,10 @@ def _aplicar_diagnostico_ia(
         from app.services.diagnostico_n1 import _MOTIVOS_OPTICOS
 
         motivo_e = str(result.get("motivo") or "")
-        if motivo_e not in _MOTIVOS_OPTICOS and not any(
-            x in motivo_e.lower() for x in ("agente", "humano", "pedido")
+        if (
+            motivo_e not in _MOTIVOS_OPTICOS
+            and motivo_e != MOTIVO_DANO_CAMPO
+            and not any(x in motivo_e.lower() for x in ("agente", "humano", "pedido"))
         ):
             refinada = refinar_playbook_internet(texto)
             if refinada:

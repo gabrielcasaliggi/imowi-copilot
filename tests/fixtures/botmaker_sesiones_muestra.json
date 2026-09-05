@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "id": "sess-fibra-1",
+      "messages": [
+        {"from": "bot", "content": {"type": "text", "text": "Hola, ¿en qué te ayudo?"}},
+        {"from": "user", "content": {"type": "text", "text": "hola no tengo internet en casa"}},
+        {"from": "bot", "content": {"type": "text", "text": "¿Fibra, antena o ADSL?"}},
+        {"from": "user", "content": {"type": "text", "text": "fibra, la cajita blanca"}},
+        {"from": "bot", "content": {"type": "text", "text": "¿Luces PON y LOS?"}},
+        {"from": "user", "content": {"type": "text", "text": "la pon verde y la los apagada"}}
+      ]
+    },
+    {
+      "id": "sess-menu-7",
+      "messages": [
+        {"from": "bot", "content": {"type": "text", "text": "Ingresá una opción"}},
+        {"from": "user", "content": {"type": "text", "text": "7"}},
+        {"from": "user", "content": {"type": "text", "text": "2"}}
+      ]
+    },
+    {
+      "id": "sess-factura-1",
+      "messages": [
+        {"from": "user", "content": {"type": "text", "text": "quiero pagar la factura, dni 30111222"}},
+        {"from": "bot", "content": {"type": "text", "text": "Te paso el QR"}}
+      ]
+    },
+    {
+      "id": "sess-radio-1",
+      "messages": [
+        {"from": "user", "content": {"type": "text", "text": "se me corto la antena bai, telefono 5492235551111"}},
+        {"from": "bot", "content": {"type": "text", "text": "¿PoE prendido?"}},
+        {"from": "user", "content": {"type": "text", "text": "si tiene luz"}}
+      ]
+    }
+  ]
+}

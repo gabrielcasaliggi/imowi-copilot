@@ -2,7 +2,27 @@
 
 Proceso para bajar **tickets N2 evitables** sin tapar visitas ópticas ni handoffs B2B legítimos (SLA / sede caída).
 
-## Ciclo semanal
+## Ciclo tras cada ajuste de KB / playbook
+
+Dejá de validar con capturas sueltas. Extraé casos reales de Botmaker, pegales al endpoint y mirá el reporte:
+
+```bash
+# 1. Extraer corpus anonimizado (dump local, gitignored)
+.venv/bin/python -m qa_bot.eval_masivo --solo-extraer \
+  --input-dir ~/Descargas/sesiones-historicas-2025_2026-06
+
+# 2. Replay masivo contra API local (TestClient)
+.venv/bin/python -m qa_bot.eval_masivo --limit 200 --categoria internet
+
+# 3. Personas sintéticas (hechos ocultos, 0 N2 evitables)
+.venv/bin/python -m qa_bot.entrenamiento_exhaustivo
+```
+
+Artefactos: `data/eval-botmaker/corpus.json` (gitignored), `qa_bot/artifacts/eval_botmaker.md`.
+
+En diagnóstico de acceso (fibra/radio), si E1 intercambia **más de 3 turnos** sin resolver, el controlador fuerza lectura OLT (BCM) / WIS (UISP) y deriva a N2 si la planta está mala.
+
+## Ciclo semanal (personas + bandeja)
 
 1. Correr el entrenamiento automatizado (`python -m qa_bot.entrenamiento_exhaustivo`).
 2. Revisar 3–5 tickets N2 reales de bandeja (`canal_abonado_n2`) — ahí aparece el ruido del cliente.

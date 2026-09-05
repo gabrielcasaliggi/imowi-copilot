@@ -1804,12 +1804,22 @@ _DISPOSITIVOS_SIN_ETHERNET = (
     "celu",
     "smartphone",
     "iphone",
+    "telefono",
+    "teléfono",
+    "telefonos",
+    "teléfonos",
 )
 
 MSG_WIFI_SIN_CABLE_MOVIL = (
     "Las tablets y celulares no se conectan por cable de red. "
     "¿Tenés una notebook o PC para probar internet por cable al router, "
     "o preferís que reiniciemos el router 30 segundos?"
+)
+
+MSG_WIFI_UN_DISPOSITIVO_MOVIL = (
+    "Si es solo tu teléfono, el acceso de la red está bien: el tema es ese equipo en el Wi‑Fi. "
+    "Olvidá la red Wi‑Fi en el teléfono y volvé a conectarte (o modo avión 10 segundos). "
+    "¿Otros equipos (TV, notebook, otro celu) navegan bien en el mismo Wi‑Fi?"
 )
 
 
@@ -1932,9 +1942,19 @@ def interpreta_alcance_dispositivos(texto: str) -> str | None:
     ) or re.search(r"solo\s+(a|en)\s+(uno|un dispositivo|este dispositivo)", t):
         return "uno"
     if re.search(
-        r"\ben la (tablet|table)\b|\ben el (celular|celu|iphone)\b",
+        r"solo\s+(mi |el |la |a )?(telefono|teléfono|celu|celular|iphone|tablet|table)\b",
         t,
     ):
+        return "uno"
+    if re.search(
+        r"\ben la (tablet|table)\b|\ben el (celular|celu|iphone|telefono|teléfono)\b",
+        t,
+    ):
+        return "uno"
+    if re.search(
+        r"\b(mi |el )?(telefono|teléfono|celu|celular)\b",
+        t,
+    ) and re.search(r"\bno\s+(me\s+)?(funciona|fuciona|anda)\b", t):
         return "uno"
     return None
 
@@ -1971,15 +1991,16 @@ def mensaje_continuidad_wifi(
     """Próximo paso WiFi sin re-triar fibra/radio/ADSL ni repetir alcance."""
     cub = set(pasos_cubiertos or [])
     alcance = alcance_dispositivos_wifi_conocido(mensaje_cliente, historial)
+    if alcance is None:
+        return (
+            "El acceso a la red ya está OK; sigamos con el Wi‑Fi. "
+            "¿Les pasa a todos los equipos o solo a uno?"
+        )
+    if alcance == "uno" and dispositivo_sin_puerto_ethernet(
+        mensaje_cliente, historial
+    ):
+        return MSG_WIFI_UN_DISPOSITIVO_MOVIL
     if "reinicio_router_wifi" not in cub:
-        if alcance == "uno" and dispositivo_sin_puerto_ethernet(
-            mensaje_cliente, historial
-        ):
-            return (
-                "Si es solo ese equipo, no hace falta cable de red. "
-                "¿Reiniciaste el router 30 segundos (desenchufá y volvé a enchufar) "
-                "y la tablet sigue igual al lado del router?"
-            )
         if alcance == "todos":
             return (
                 "Si les pasa a varios equipos, el tema es el Wi‑Fi del router. "
@@ -2185,15 +2206,95 @@ def _token_en_texto(texto: str, token: str) -> bool:
 
 
 def es_saludo_corto(texto: str) -> bool:
+    """True solo si el mensaje ES un saludo (no «hola no tengo internet»)."""
     t = (texto or "").lower().strip()
     t = re.sub(r"[¡!.,¿?]+", "", t).strip()
-    if not t or len(t) > 40:
+    t = re.sub(r"\s+", " ", t)
+    if not t:
         return False
     saludos = (
-        "hola", "hola hola", "buenas", "buen dia", "buen día", "buenas tardes",
-        "buenas noches", "hey", "holis", "hol", "ola", "hi", "hello",
+        "hola",
+        "hola hola",
+        "buenas",
+        "buen dia",
+        "buen día",
+        "buenas tardes",
+        "buenas noches",
+        "hey",
+        "holis",
+        "hol",
+        "ola",
+        "hi",
+        "hello",
     )
-    return t in saludos or any(t == s or t.startswith(s + " ") for s in saludos)
+    if t in saludos:
+        return True
+    for s in sorted(saludos, key=len, reverse=True):
+        if t.startswith(s + " "):
+            resto = t[len(s) :].strip()
+            return (not resto) or resto in saludos
+    return False
+
+
+MOTIVO_DANO_CAMPO = "dano_fisico_campo"
+
+MSG_DANO_CAMPO = (
+    "Con un daño así (cable arrancado o equipo quemado) ya no lo resolvemos a distancia. "
+    "Te derivo con un agente para coordinar la visita."
+)
+
+
+def es_dano_campo_obvio(texto: str) -> bool:
+    """Daño físico evidente: no sigue el triaje Wi‑Fi / síntoma."""
+    t = (texto or "").lower()
+    if not t:
+        return False
+    camion = "camión" in t or "camion" in t
+    arranc = "arranc" in t
+    cable = "cable" in t
+    if (camion and (cable or arranc)) or (arranc and cable):
+        return True
+    quemo = any(
+        k in t
+        for k in (
+            "se quemó",
+            "se quemo",
+            "se me quemó",
+            "se me quemo",
+            "se quemaron",
+            "quemado",
+            "quemó el",
+            "quemo el",
+        )
+    )
+    equipo = any(
+        k in t
+        for k in (
+            "internet",
+            "módem",
+            "modem",
+            "router",
+            "ont",
+            "onu",
+            "equipo",
+            "aparato",
+            "fibra",
+        )
+    )
+    if quemo and equipo:
+        return True
+    return any(
+        k in t
+        for k in (
+            "cable cortado",
+            "cable roto",
+            "fibra cortada",
+            "fibra rota",
+            "fibra dañada",
+            "fibra danada",
+            "cable de fibra roto",
+        )
+    )
 
 
 def parece_consulta_nueva(texto: str) -> bool:
@@ -3119,6 +3220,37 @@ def cliente_indica_multi_cuenta_internet(texto: str) -> bool:
     )
 
 
+def cliente_cita_lectura_enlace_ok(texto: str) -> bool:
+    """«pero me dijiste que la señal está bien»: contradicción, no pide re-leer dBm."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    t = t.replace("?", " ").replace("¿", " ")
+    t = " ".join(t.split())
+    if not any(
+        k in t
+        for k in (
+            "me dijiste",
+            "me dijistes",
+            "dijiste que",
+            "me dijeron",
+        )
+    ):
+        return False
+    return any(
+        k in t
+        for k in (
+            "señal",
+            "senal",
+            "potencia",
+            "está bien",
+            "esta bien",
+            "es buena",
+            "zona verde",
+        )
+    )
+
+
 def cliente_pregunta_calidad_enlace(texto: str) -> bool:
     """¿Está bien mi señal/potencia de acceso? No cubre Wi‑Fi de habitación."""
     t = (texto or "").lower().strip()
@@ -3126,6 +3258,8 @@ def cliente_pregunta_calidad_enlace(texto: str) -> bool:
         return False
     t = t.replace("señak", "señal").replace("senak", "senal")
     t = t.replace("?", " ").replace("¿", " ")
+    if cliente_cita_lectura_enlace_ok(t):
+        return False
     if any(
         w in t
         for w in (
@@ -3198,6 +3332,8 @@ def cliente_pide_confirmar_lectura_enlace(texto: str) -> bool:
         return False
     t = t.replace("?", " ").replace("¿", " ")
     t = " ".join(t.split())
+    if cliente_cita_lectura_enlace_ok(t):
+        return True
     if any(
         n in t
         for n in (
