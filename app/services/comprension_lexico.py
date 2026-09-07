@@ -28,6 +28,12 @@ _REEMPLAZOS_BASE: tuple[tuple[str, str], ...] = (
     (r"\banel\b", "antena"),
     (r"\banntena\b", "antena"),
     (r"\bfibbra\b", "fibra"),
+    # Colores ONT (WhatsApp / typos frecuentes)
+    (r"\bverda\b", "verde"),
+    (r"\bverdre\b", "verde"),
+    (r"\bberde\b", "verde"),
+    (r"\broha\b", "roja"),
+    (r"\broia\b", "roja"),
     # Español: «table» es typo de tablet, no «mesa».
     (r"\btable\b", "tablet"),
     (r"\btavlet\b", "tablet"),

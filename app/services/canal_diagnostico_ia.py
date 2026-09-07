@@ -397,6 +397,13 @@ def _aplicar_diagnostico_ia(
         extras_ctx["pppoe_plan_mbps"] = str(ctx.get("pppoe_plan_mbps") or "")
     if ctx.get("pppoe_producto"):
         extras_ctx["pppoe_producto"] = str(ctx.get("pppoe_producto") or "")
+    # Persistido en el 1er turno PPPoE/BCM: no depender solo del re-fetch live.
+    if ctx.get("bcm_resumen"):
+        extras_ctx["bcm_resumen"] = str(ctx.get("bcm_resumen") or "")
+    if ctx.get("bcm_triage"):
+        extras_ctx["bcm_triage"] = str(ctx.get("bcm_triage") or "")
+    if ctx.get("tecnologia_acceso"):
+        extras_ctx["tecnologia_acceso"] = str(ctx.get("tecnologia_acceso") or "")
 
     result = diagnosticar_turno(
         intencion=intencion,

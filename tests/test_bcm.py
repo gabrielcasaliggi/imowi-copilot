@@ -361,6 +361,31 @@ def test_evaluar_turno_luz_vaga_pregunta_pon_o_los_no_ticket():
     assert los["motivo"] == "bcm_onu_offline_visita"
 
 
+def test_evaluar_turno_solo_una_verde_no_reinicia_triaje():
+    """«solo una verde/verda» con ONU offline → reinicio, no menú fibra/radio/ADSL."""
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- bcm: nro_cliente=17003; estado=fuera_de_linea; calidad=mala\n"
+        "- bcm_triage: triage=onu_ftth_offline; chequear luces PON/LOS\n"
+        "- tecnologia_acceso: internet_ftth\n"
+    )
+    out = evaluar_turno_onu_bcm(
+        contexto_abonado=ctx,
+        mensaje_cliente="solo una verde",
+        historial_mensajes=[],
+        pasos_cubiertos=["bcm_onu_offline", "bcm_cual_luz_ont"],
+        turnos_diagnostico=2,
+        intencion="internet",
+    )
+    assert out is not None
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "bcm_onu_offline_verde_reinicio"
+    low = (out.get("mensaje") or "").lower()
+    assert "tipo de conexión" not in low
+    assert "adsl" not in low
+    assert "desenchuf" in low
+
+
 def test_aplicar_bcm_a_ctx():
     ctx: dict = {}
     onu = EstadoOnuBcm(

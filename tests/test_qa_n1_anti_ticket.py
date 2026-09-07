@@ -1847,6 +1847,68 @@ def test_radio_por_aire_no_repite_triaje_fibra_adsl():
     assert "adsl" not in low
 
 
+def test_verda_mid_luces_ont_no_reinicia_tipo_acceso():
+    """Regresión WhatsApp: «solo una verda» no debe volver al menú fibra/radio/ADSL."""
+    import json
+    from unittest.mock import patch
+
+    from app.services.comprension_abonado import normalizar_lexico_abonado
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    bot = (
+        "¿La ONT (cajita de la fibra) tiene luces? Decime si ves la PON en verde "
+        "o alguna LOS en rojo/alarma. Si podés, desenchufala 30 segundos y avisame "
+        "si vuelve a conectar."
+    )
+    hist = [
+        {"autor": "cliente", "texto": "no tengo internet desde el sabado"},
+        {"autor": "bot", "texto": bot},
+    ]
+    msg = normalizar_lexico_abonado("solo una verda")
+    assert "verde" in msg
+
+    def _fake(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "ask",
+                "mensaje": (
+                    "Para ayudarte con internet, necesito saber qué tipo de conexión tenés: "
+                    "¿fibra óptica (cable amarillo a una cajita blanca), radio/antena en el techo, "
+                    "o ADSL por línea telefónica?"
+                ),
+                "paso_cubierto": "tipo_acceso",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    ctx_bcm = (
+        "CONTEXTO_ABONADO:\n"
+        "- bcm: nro_cliente=1; estado=fuera_de_linea; calidad=mala\n"
+        "- bcm_triage: triage=onu_ftth_offline\n"
+        "- tecnologia_acceso: internet_ftth\n"
+    )
+    with patch("app.llm.chat_completion", side_effect=_fake):
+        out = diagnosticar_turno(
+            intencion="internet",
+            checklist=[{"id": "tipo_acceso", "pregunta": "¿fibra o radio?"}],
+            historial_mensajes=hist,
+            mensaje_cliente=msg,
+            turnos_diagnostico=2,
+            pasos_cubiertos=["tipo_acceso", "bcm_onu_offline", "bcm_cual_luz_ont"],
+            contexto_abonado=ctx_bcm,
+        )
+    low = (out.get("mensaje") or "").lower()
+    assert "tipo de conexión" not in low
+    assert "adsl" not in low
+    assert out["motivo"] in (
+        "bcm_onu_offline_verde_reinicio",
+        "bcm_onu_offline_cual_luz",
+        "pon_verde_enlace_ok",
+        "bloqueado_triaje_tipo_acceso_repetido",
+    )
+
+
 def test_inbox_pide_agente_ya_no_ticket_en_primer_turno():
     """Regresión del comportamiento anterior: 1er pedido humano ≠ ticket."""
     from sqlalchemy import select

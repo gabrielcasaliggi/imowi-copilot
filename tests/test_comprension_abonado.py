@@ -58,6 +58,33 @@ def test_normalizar_lexico_typos_frecuentes():
     assert "internet" in normalizar_lexico_abonado("no tengo intenret")
     assert "wifi" in normalizar_lexico_abonado("el wfi no anda")
     assert "bai" in normalizar_lexico_abonado("es beibe")
+    assert "verde" in normalizar_lexico_abonado("solo una verda")
+    assert "roja" in normalizar_lexico_abonado("luz roha")
+
+
+def test_pregunta_luces_ont_no_es_menu_tipo_acceso():
+    """Regresión: «cajita de la fibra» + PON/LOS no debe reiniciar el triaje."""
+    bot = (
+        "¿La ONT (cajita de la fibra) tiene luces? Decime si ves la PON en verde "
+        "o alguna LOS en rojo/alarma. Si podés, desenchufala 30 segundos y avisame "
+        "si vuelve a conectar."
+    )
+    # «desenchuf» manda a confirmar paso; sin eso tampoco es menú tipo_acceso.
+    bot_sin_reinicio = (
+        "¿La ONT (cajita de la fibra) tiene luces? Decime si ves la PON en verde "
+        "o alguna LOS en rojo/alarma."
+    )
+    assert (
+        inferir_pregunta_pendiente_abonado(bot_sin_reinicio, {"intencion": "internet"})
+        == PreguntaPendienteAbonado.NINGUNA
+    )
+    texto, ctx = preparar_turno_comprension(
+        "solo una verda",
+        {"intencion": "internet", "tecnologia_acceso": "internet_ftth"},
+        historial=[{"autor": "bot", "texto": bot}],
+    )
+    assert "verde" in texto
+    assert ctx.get("tecnologia_acceso") == "internet_ftth"
 
 
 def test_inferir_pregunta_aviso_deuda_desde_ctx():

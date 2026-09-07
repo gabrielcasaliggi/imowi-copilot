@@ -1052,8 +1052,42 @@ def _cliente_confirma_pon_verde(texto: str) -> bool:
             "esta verde",
             "verde ok",
             "verde bien",
+            # Respuesta corta a «¿PON verde o LOS roja?»
+            "solo una verde",
+            "sólo una verde",
+            "una sola verde",
+            "solo verde",
+            "sólo verde",
+            "una verde",
         )
     )
+
+
+def _historial_pide_luces_ont(historial_mensajes: list[Any] | None) -> bool:
+    """True si el bot ya preguntó luces PON/LOS (diagnóstico FTTH en curso)."""
+    parts = [_autor_texto(m) for m in (historial_mensajes or [])]
+    for autor, txt in reversed(parts[-10:]):
+        if autor == "cliente":
+            continue
+        if _bot_pregunta_pon_los(txt) or (
+            "ont" in (txt or "").lower()
+            and any(k in (txt or "").lower() for k in ("luces", "pon", "los"))
+        ):
+            return True
+    return False
+
+
+def _tech_desde_contexto_abonado(contexto_abonado: str) -> str | None:
+    blob = (contexto_abonado or "").lower()
+    if "internet_ftth" in blob or "tecnologia_acceso: internet_ftth" in blob:
+        return "internet_ftth"
+    if "internet_radio" in blob or "tecnologia_acceso: internet_radio" in blob:
+        return "internet_radio"
+    if "internet_adsl" in blob or "tecnologia_acceso: internet_adsl" in blob:
+        return "internet_adsl"
+    if "bcm_triage" in blob or "onu_ftth" in blob:
+        return "internet_ftth"
+    return None
 
 
 def _afirmacion_corta_ok(texto: str) -> bool:
@@ -1968,20 +2002,7 @@ def diagnosticar_turno(
             "motivo": motivo_optico,
         }
 
-    # PON verde fijo = enlace óptico OK → no preguntar cable amarillo
-    if aplica_optica_turno and detectar_enlace_optico_ok(
-        mensaje_cliente, historial_mensajes
-    ):
-        return {
-            "accion": "ask",
-            "mensaje": (
-                "Perfecto: con la PON en verde fijo el enlace de fibra está bien. "
-                "¿Ya te anda internet o sigue sin servicio?"
-            ),
-            "paso_cubierto": "luces_los",
-            "motivo": "pon_verde_enlace_ok",
-        }
-
+    # BCM primero: telemetría gana sobre «una verde» verbal si la ONU figura offline.
     from app.domain.flujos_abonado import cliente_pregunta_senal_antena
     from app.services.conexion_bcm import evaluar_turno_onu_bcm
     from app.services.conexion_uisp import (
@@ -2000,6 +2021,20 @@ def diagnosticar_turno(
     )
     if bcm_turno:
         return bcm_turno
+
+    # PON verde fijo = enlace óptico OK → no preguntar cable amarillo
+    if aplica_optica_turno and detectar_enlace_optico_ok(
+        mensaje_cliente, historial_mensajes
+    ):
+        return {
+            "accion": "ask",
+            "mensaje": (
+                "Perfecto: con la PON en verde fijo el enlace de fibra está bien. "
+                "¿Ya te anda internet o sigue sin servicio?"
+            ),
+            "paso_cubierto": "luces_los",
+            "motivo": "pon_verde_enlace_ok",
+        }
 
     if cliente_pregunta_senal_antena(mensaje_cliente):
         uisp_turno = evaluar_turno_visita_antena_uisp(
@@ -2518,7 +2553,10 @@ def diagnosticar_turno(
             historial_mensajes,
             intencion=intencion,
             contexto_abonado=contexto_abonado,
-        )
+        ) or _tech_desde_contexto_abonado(contexto_abonado)
+        mid_luces_ont = _historial_pide_luces_ont(historial_mensajes)
+        if mid_luces_ont and not tech_confirmada:
+            tech_confirmada = "internet_ftth"
         wifi_en_curso = diagnostico_wifi_en_curso(
             historial_mensajes,
             intencion=intencion,

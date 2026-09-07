@@ -177,6 +177,22 @@ def inferir_pregunta_pendiente_abonado(ultimo_bot: str, ctx: dict | None) -> Pre
     if _bot_pregunta_si_no(ultimo_bot):
         return PreguntaPendienteAbonado.CONFIRMAR_SI_NO
 
+    # Pregunta de luces ONT (PON/LOS) menciona «fibra» pero NO es el menú fibra/radio/ADSL.
+    if any(
+        k in bot
+        for k in (
+            " luz pon",
+            "la pon",
+            "pon en verde",
+            "los en rojo",
+            "lucecita",
+            "qué luces",
+            "que luces",
+            "alguna los",
+        )
+    ) or (("pon" in bot or "los" in bot) and any(k in bot for k in ("luces", "verde", "roja", "alarma"))):
+        return PreguntaPendienteAbonado.NINGUNA
+
     if any(
         k in bot
         for k in (

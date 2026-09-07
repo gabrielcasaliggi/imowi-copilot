@@ -533,6 +533,9 @@ def build_contexto_abonado(
     lines.append(f"- bcm: {bcm_line}")
     if bcm_triage:
         lines.append(f"- bcm_triage: {bcm_triage}")
+    tech_acc = (integ.get("tecnologia_acceso") or "").strip()
+    if tech_acc:
+        lines.append(f"- tecnologia_acceso: {tech_acc}")
     lines.extend(
         [
             "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",

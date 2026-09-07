@@ -465,6 +465,18 @@ def _cliente_luz_ont_vaga(texto: str) -> bool:
     return t_norm in ("si", "sí", "sip", "sisi", "afirmativo", "claro")
 
 
+def _cliente_reporta_verde_ont(texto: str) -> bool:
+    """Menciona verde (posible PON) sin afirmar LOS en alarma."""
+    t = (texto or "").lower()
+    if not t or "verde" not in t:
+        return False
+    if _cliente_los_en_alarma(texto):
+        return False
+    if any(k in t for k in ("roja", "rojo")) and "verde" not in t:
+        return False
+    return True
+
+
 def _cliente_los_en_alarma(texto: str) -> bool:
     t = (texto or "").lower()
     if "los" not in t:
@@ -582,6 +594,18 @@ def evaluar_turno_onu_bcm(
                 ),
                 "paso_cubierto": "bcm_cual_luz_ont",
                 "motivo": "bcm_onu_offline_cual_luz",
+            }
+        # «solo una verde» / typo ya normalizado: color dicho, pero ONU offline en red.
+        if _cliente_reporta_verde_ont(mensaje_cliente) and "bcm_reinicio_ont_offline" not in pasos:
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "Ok, si ves una lucecita verde (PON) y la LOS no está en rojo, "
+                    "probemos un reinicio: desenchufá la ONT 30 segundos, volvé a "
+                    "enchufarla y avisame si cambia alguna luz o si vuelve internet."
+                ),
+                "paso_cubierto": "bcm_reinicio_ont_offline",
+                "motivo": "bcm_onu_offline_verde_reinicio",
             }
         if "bcm_onu_offline" not in pasos:
             return {
