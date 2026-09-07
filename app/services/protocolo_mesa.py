@@ -143,16 +143,28 @@ def _mensaje_sin_sesion_planta_ok(
     barra = ""
     if es_radio and cpe is not None and getattr(cpe, "encontrado", False):
         ver = veredicto_radio(getattr(cpe, "signal_dbm", None)) or "se ve bien"
+        dbm = getattr(cpe, "signal_dbm", None)
+        extra = f" ({int(round(dbm))} dBm)" if isinstance(dbm, (int, float)) else ""
         partes.append(
-            f"Revisé tu antena: está en línea y el enlace con la torre {ver}."
+            f"Revisé tu antena: está en línea y el enlace con la torre {ver}{extra}."
         )
         barra = bloque_senal_antena(getattr(cpe, "signal_dbm", None))
     elif es_ftth and onu is not None and getattr(onu, "encontrado", False):
-        ver = veredicto_optica(getattr(onu, "rx_dbm", None)) or "se ve bien"
-        partes.append(
-            f"Revisé tu ONT: está en línea y la potencia óptica {ver}."
-        )
-        barra = bloque_potencia_onu(getattr(onu, "rx_dbm", None))
+        from app.services.barra_senal import formatear_dbm_optica
+
+        rx = getattr(onu, "rx_dbm", None)
+        if isinstance(rx, (int, float)):
+            ver = veredicto_optica(rx) or "se ve bien"
+            partes.append(
+                f"Revisé tu ONT: está en línea y la potencia óptica {ver} "
+                f"({formatear_dbm_optica(rx)} dBm)."
+            )
+            barra = bloque_potencia_onu(rx)
+        else:
+            partes.append(
+                "Revisé tu ONT: figura en línea en la central, pero no pude leer "
+                "la potencia óptica en este momento."
+            )
     partes.append(
         "Igual, ahora mismo tu usuario no figura conectado en la red. "
         "Si podés, desenchufá el router/ONT 30 segundos y avisame si vuelve a conectar."
@@ -280,20 +292,48 @@ def _mensaje_acceso_ok(
     if es_radio and cpe is not None and getattr(cpe, "encontrado", False):
         if clasificar_rama_uisp(cpe) == "enlace_ok":
             ver = veredicto_radio(getattr(cpe, "signal_dbm", None)) or "se ve bien"
+            dbm = getattr(cpe, "signal_dbm", None)
+            extra = f" ({int(round(dbm))} dBm)" if isinstance(dbm, (int, float)) else ""
             partes.append(
-                f"Revisé tu antena: está en línea y el enlace con la torre {ver}."
+                f"Revisé tu antena: está en línea y el enlace con la torre {ver}{extra}."
             )
             barra = bloque_senal_antena(getattr(cpe, "signal_dbm", None))
     elif es_ftth and onu is not None and getattr(onu, "encontrado", False):
         if clasificar_rama_bcm(onu) == "enlace_ok":
-            ver = veredicto_optica(getattr(onu, "rx_dbm", None)) or "se ve bien"
+            from app.services.barra_senal import formatear_dbm_optica
+
+            rx = getattr(onu, "rx_dbm", None)
+            if isinstance(rx, (int, float)):
+                ver = veredicto_optica(rx) or "se ve bien"
+                partes.append(
+                    f"Revisé tu ONT: está en línea y la potencia óptica {ver} "
+                    f"({formatear_dbm_optica(rx)} dBm)."
+                )
+                barra = bloque_potencia_onu(rx)
+            else:
+                partes.append(
+                    "Revisé tu ONT: figura en línea, pero no pude leer la potencia "
+                    "óptica ahora. Si el problema sigue, pedime que la vuelva a chequear."
+                )
+        elif getattr(onu, "encontrado", False):
             partes.append(
-                f"Revisé tu ONT: está en línea y la potencia óptica {ver}."
+                "Tu sesión está activa, pero no confirmé la potencia de la ONT en la red."
             )
-            barra = bloque_potencia_onu(getattr(onu, "rx_dbm", None))
 
     if not partes:
         partes.append("El acceso hasta la red se ve bien.")
+
+    # FTTH con sesión OK pero sin lectura BCM: no fingir que la potencia está bien.
+    if (
+        es_ftth
+        and not barra
+        and estado.online is True
+        and (onu is None or not getattr(onu, "encontrado", False))
+    ):
+        partes.append(
+            "No pude leer la potencia de tu ONT en este momento; si querés, pedime "
+            "«qué potencia tiene» y la vuelvo a consultar."
+        )
 
     cuerpo = " ".join(partes)
     msg = f"{cuerpo} {_pregunta_wifi()}"

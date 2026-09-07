@@ -83,8 +83,8 @@ type GaugeKind = "optica" | "radio";
 type GaugeTone = "green" | "orange" | "red";
 
 /** Rangos alineados a app/services/barra_senal.py */
-const OPTICA_MIN = -33;
-const OPTICA_MAX = -8;
+const OPTICA_MIN = -30;
+const OPTICA_MAX = -12;
 const RADIO_MIN = -90;
 const RADIO_MAX = -40;
 
@@ -149,10 +149,10 @@ function SignalGauge({ kind, dbm }: { kind: GaugeKind; dbm: number }) {
   const tone = kind === "optica" ? toneOptica(dbm) : toneRadio(dbm);
   const pct = kind === "optica" ? pctOptica(dbm) : pctRadio(dbm);
   const titulo = kind === "optica" ? "Potencia de tu ONT" : "Señal de tu antena";
-  const valor = kind === "optica" ? `${dbm.toFixed(1)} dBm` : `${Math.round(dbm)} dBm`;
+  const valor = kind === "optica" ? `${Math.round(dbm)} dBm` : `${Math.round(dbm)} dBm`;
   const track =
     kind === "optica"
-      ? "linear-gradient(to right, #ef4444 0%, #ef4444 24%, #f59e0b 32%, #22c55e 40%, #22c55e 64%, #f59e0b 76%, #ef4444 84%, #ef4444 100%)"
+      ? "linear-gradient(to right, #ef4444 0%, #ef4444 18%, #f59e0b 28%, #22c55e 38%, #22c55e 68%, #f59e0b 78%, #ef4444 88%, #ef4444 100%)"
       : "linear-gradient(to right, #ef4444 0%, #ef4444 30%, #f59e0b 40%, #22c55e 54%, #22c55e 100%)";
 
   return (

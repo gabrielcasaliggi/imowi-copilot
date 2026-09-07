@@ -1,8 +1,7 @@
 """Barrita didáctica de potencia/señal para WhatsApp y chat N1.
 
-WhatsApp no pinta gráficos: cuadraditos = escala, círculo = dónde está el valor
-(verde ideal, naranja regular, rojo fuera de rango). El portal reemplaza este
-bloque por un medidor CSS si ve el prefijo 📊.
+WhatsApp no pinta gráficos: pocos cuadrados + un círculo marca el valor.
+El portal reemplaza este bloque por un medidor CSS si ve el prefijo 📊.
 """
 
 from __future__ import annotations
@@ -14,15 +13,16 @@ _RED_DOT = "🔴"
 _ORANGE_DOT = "🟠"
 _GREEN_DOT = "🟢"
 
-# GPON RX (dBm): histograma TR-069 Batán (verde ≈ -24…-16).
-_OPTICA_MIN = -33.0
-_OPTICA_MAX = -8.0
-_OPTICA_CELLS = 13
+# GPON RX (dBm): rango útil para abonado (floja → ideal → muy fuerte).
+# 9 celdas: más legible que 13 en WhatsApp.
+_OPTICA_MIN = -30.0
+_OPTICA_MAX = -12.0
+_OPTICA_CELLS = 9
 
 # Radio UISP RSSI (dBm).
 _RADIO_MIN = -90.0
 _RADIO_MAX = -40.0
-_RADIO_CELLS = 11
+_RADIO_CELLS = 9
 
 
 def _clamp(n: float, lo: float, hi: float) -> float:
@@ -34,6 +34,15 @@ def _idx(valor: float, vmin: float, vmax: float, n: int) -> int:
         return 0
     t = (_clamp(valor, vmin, vmax) - vmin) / (vmax - vmin)
     return int(round(t * (n - 1)))
+
+
+def formatear_dbm_optica(dbm: float) -> str:
+    """Entero como en la UI de BCM (−22), no −21.0."""
+    return f"{int(round(float(dbm)))}"
+
+
+def formatear_dbm_radio(dbm: float) -> str:
+    return f"{int(round(float(dbm)))}"
 
 
 def color_optica_didactica(dbm: float) -> str:
@@ -122,16 +131,25 @@ def _pintar_barra(
     n: int,
     color_fn,
 ) -> str:
+    """Escala fija por zona (no pinta cada celda con el color del valor medio).
+
+    Así WhatsApp no muestra un arcoíris confuso: rojo | naranja | verde | naranja | rojo
+    y un solo círculo marca dónde estás.
+    """
     here = _idx(valor, vmin, vmax, n)
-    step = (vmax - vmin) / n
     yo = color_fn(valor)
+    # Franjas fijas en proporción al rango (óptica y radio).
     cells: list[str] = []
     for i in range(n):
-        mid = vmin + step * (i + 0.5)
+        # 0..n-1 → umbral de color según posición (izquierda floja, centro ideal).
+        t = i / max(n - 1, 1)
+        # Mapear t al valor de esa celda para color de franja.
+        mid = vmin + t * (vmax - vmin)
+        franja = color_fn(mid)
         if i == here:
             cells.append(_circulo(yo))
         else:
-            cells.append(_cuadrado(color_fn(mid)))
+            cells.append(_cuadrado(franja))
     return "".join(cells)
 
 
@@ -140,6 +158,7 @@ def bloque_potencia_onu(rx_dbm: float | None) -> str:
     if rx_dbm is None:
         return ""
     color = color_optica_didactica(rx_dbm)
+    dbm_txt = formatear_dbm_optica(rx_dbm)
     barra = _pintar_barra(
         rx_dbm,
         vmin=_OPTICA_MIN,
@@ -148,9 +167,9 @@ def bloque_potencia_onu(rx_dbm: float | None) -> str:
         color_fn=color_optica_didactica,
     )
     return (
-        f"📊 Potencia de tu ONT: {rx_dbm:.1f} dBm  {_circulo(color)} {etiqueta_zona_optica(rx_dbm)}\n"
+        f"📊 Potencia de tu ONT: {dbm_txt} dBm  {_circulo(color)} {etiqueta_zona_optica(rx_dbm)}\n"
         f"{barra}\n"
-        "floja ←—— ideal ——→ fuerte"
+        "floja ←— ideal —→ fuerte"
     )
 
 
@@ -159,6 +178,7 @@ def bloque_senal_antena(signal_dbm: float | None) -> str:
     if signal_dbm is None:
         return ""
     color = color_radio_didactica(signal_dbm)
+    dbm_txt = formatear_dbm_radio(signal_dbm)
     barra = _pintar_barra(
         signal_dbm,
         vmin=_RADIO_MIN,
@@ -167,7 +187,7 @@ def bloque_senal_antena(signal_dbm: float | None) -> str:
         color_fn=color_radio_didactica,
     )
     return (
-        f"📊 Señal de tu antena: {signal_dbm:.0f} dBm  {_circulo(color)} {etiqueta_zona_radio(signal_dbm)}\n"
+        f"📊 Señal de tu antena: {dbm_txt} dBm  {_circulo(color)} {etiqueta_zona_radio(signal_dbm)}\n"
         f"{barra}\n"
         "floja ←——————→ buena"
     )

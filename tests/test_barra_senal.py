@@ -39,13 +39,16 @@ def test_colores_radio():
 def test_bloque_potencia_incluye_valor_y_barra():
     txt = bloque_potencia_onu(-18.0)
     assert "📊" in txt
-    assert "-18.0 dBm" in txt
+    assert "-18 dBm" in txt
     assert "zona verde" in txt
     assert "🟢" in txt
     assert "🟥" in txt and "🟩" in txt
     assert "floja" in txt.lower() and "fuerte" in txt.lower()
     assert "🔵" not in txt
     assert bloque_potencia_onu(None) == ""
+    # Entero como BCM UI (−22), no −21.0
+    assert "-22 dBm" in bloque_potencia_onu(-21.6)
+    assert "-21 dBm" in bloque_potencia_onu(-21.0)
 
 
 def test_bloque_potencia_regular_y_mala():
@@ -96,7 +99,7 @@ def test_mensaje_bcm_enlace_ok_lleva_barra():
     msg = mensaje_abonado_bcm(ok, es_ftth=True)
     assert msg
     assert "Potencia de tu ONT" in msg
-    assert "-18.0 dBm" in msg
+    assert "-18 dBm" in msg
     assert "se ve bien" in msg
     assert msg.index("Potencia") < msg.index("¿")
 
@@ -119,7 +122,7 @@ def test_mensaje_bcm_potencia_mala_lleva_barra():
     msg = mensaje_abonado_bcm(mala, es_ftth=True)
     assert msg
     assert "baja" in msg.lower()
-    assert "-29.0 dBm" in msg
+    assert "-29 dBm" in msg
     assert "zona roja" in msg
     assert "🔴" in msg
 
@@ -179,7 +182,7 @@ def test_canal_radius_ok_anexa_potencia_onu(monkeypatch):
     assert "181.41.252.68" in msg
     assert "activa" in msg.lower()
     assert "Potencia de tu ONT" in msg
-    assert "-18.0 dBm" in msg
+    assert "-18 dBm" in msg
     assert "zona verde" in msg
     assert msg.index("Potencia") < msg.index("¿")
     assert ctx.get("pppoe_rama") == "wifi_lan"
@@ -227,7 +230,7 @@ def test_canal_potencia_mala_gana_sobre_radius(monkeypatch):
     assert msg
     assert "potencia óptica" in msg.lower()
     assert "baja" in msg.lower()
-    assert "-29.0 dBm" in msg
+    assert "-29 dBm" in msg
     assert "1.2.3.4" not in msg
 
 
@@ -328,7 +331,7 @@ def test_consulta_mi_senal_es_buena_responde_potencia_onu(monkeypatch):
     assert out is not None
     assert sent
     assert "📊" in sent[0]
-    assert "-18.0 dBm" in sent[0]
+    assert "-18 dBm" in sent[0]
     assert "zona verde" in sent[0]
     wifi = _responder_consulta_potencia_onu(
         MagicMock(),
@@ -376,7 +379,7 @@ def test_confirmacion_eso_es_bueno_no_escala(monkeypatch):
     assert sent and "ticket" not in sent[0].lower()
     assert "agente" not in sent[0].lower()
     assert "Sí:" in sent[0]
-    assert "-21.0 dBm" in sent[0]
+    assert "-21 dBm" in sent[0]
     assert "zona verde" in sent[0]
     assert "Wi‑Fi" in sent[0]
 

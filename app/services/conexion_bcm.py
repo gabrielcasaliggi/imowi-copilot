@@ -96,10 +96,14 @@ def mensaje_informe_potencia_onu(estado: EstadoOnuBcm) -> str:
     dbm = estado.rx_dbm
     calidad = estado.calidad_optica or clasificar_optica(dbm)
     txt = _texto_calidad_optica(calidad, dbm)
-    from app.services.barra_senal import anexar_antes_de_preguntas, bloque_potencia_onu
+    from app.services.barra_senal import (
+        anexar_antes_de_preguntas,
+        bloque_potencia_onu,
+        formatear_dbm_optica,
+    )
 
     cuerpo = (
-        f"Tu ONT está recibiendo {dbm:.1f} dBm, potencia {txt}. "
+        f"Tu ONT está recibiendo {formatear_dbm_optica(dbm)} dBm, potencia {txt}. "
         f"Lo ideal es estar por encima de {RX_IDEAL_DBM:.0f} dBm "
         f"o al menos por encima de {RX_VISITA_DBM:.0f} dBm."
     )
@@ -247,9 +251,16 @@ def mensaje_abonado_bcm(
         )
         return anexar_antes_de_preguntas(msg, barra)
     if rama == "enlace_ok":
+        from app.services.barra_senal import formatear_dbm_optica
+
         ver = veredicto_optica(estado.rx_dbm) or "se ve bien"
+        dbm_txt = (
+            f" ({formatear_dbm_optica(estado.rx_dbm)} dBm)"
+            if estado.rx_dbm is not None
+            else ""
+        )
         msg = (
-            f"Revisé tu ONT: está en línea y la potencia óptica {ver}. "
+            f"Revisé tu ONT: está en línea y la potencia óptica {ver}{dbm_txt}. "
             "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
             "¿Probaste con cable al router?"
         )

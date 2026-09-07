@@ -540,6 +540,8 @@ def _responder_confirmacion_lectura_acceso(
     from app.services.barra_senal import (
         etiqueta_zona_optica,
         etiqueta_zona_radio,
+        formatear_dbm_optica,
+        formatear_dbm_radio,
         veredicto_optica,
         veredicto_radio,
     )
@@ -559,6 +561,7 @@ def _responder_confirmacion_lectura_acceso(
         if dbm is not None:
             zona = etiqueta_zona_optica(dbm)
             ver = veredicto_optica(dbm)
+            dbm_txt = formatear_dbm_optica(dbm)
             if ver == "se ve bien":
                 if citing:
                     msg = (
@@ -569,20 +572,20 @@ def _responder_confirmacion_lectura_acceso(
                     )
                 else:
                     msg = (
-                        f"Sí: {dbm:.1f} dBm está en {zona}. "
+                        f"Sí: {dbm_txt} dBm está en {zona}. "
                         "El enlace de fibra hasta tu ONT está bien. "
                         "Si no navega, el tema suele ser el Wi‑Fi o el router. "
                         "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
                     )
             elif "regular" in ver:
                 msg = (
-                    f"Está regular, al límite ({dbm:.1f} dBm, {zona}). "
+                    f"Está regular, al límite ({dbm_txt} dBm, {zona}). "
                     "El acceso funciona, pero no sobra margen. "
                     "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
                 )
             else:
                 msg = (
-                    f"No: {dbm:.1f} dBm está en {zona}. "
+                    f"No: {dbm_txt} dBm está en {zona}. "
                     "Eso no es un valor ideal de fibra. "
                     "¿El cablecito amarillo está firme, sin dobleces ni pisadas?"
                 )
@@ -594,6 +597,7 @@ def _responder_confirmacion_lectura_acceso(
         if dbm is not None:
             zona = etiqueta_zona_radio(dbm)
             ver = veredicto_radio(dbm)
+            dbm_txt = formatear_dbm_radio(dbm)
             if ver == "se ve bien":
                 if citing:
                     msg = (
@@ -603,19 +607,19 @@ def _responder_confirmacion_lectura_acceso(
                     )
                 else:
                     msg = (
-                        f"Sí: {dbm:.0f} dBm está en {zona}. "
+                        f"Sí: {dbm_txt} dBm está en {zona}. "
                         "El enlace de la antena con la torre está bien. "
                         "Si no navega, el tema suele ser el Wi‑Fi o el router. "
                         "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
                     )
             elif "regular" in ver:
                 msg = (
-                    f"Está regular, al límite ({dbm:.0f} dBm, {zona}). "
+                    f"Está regular, al límite ({dbm_txt} dBm, {zona}). "
                     "¿No te anda en ningún dispositivo o solo por Wi‑Fi?"
                 )
             else:
                 msg = (
-                    f"No: {dbm:.0f} dBm está en {zona}. "
+                    f"No: {dbm_txt} dBm está en {zona}. "
                     "¿Crecieron árboles, chapas o algo nuevo entre la antena y la torre?"
                 )
     if not msg and citing:
