@@ -293,7 +293,12 @@ def mensaje_abonado_pppoe(
     if not estado.servicio or not estado.servicio.login:
         return None
     if estado.sesion is None and estado.error:
-        return None
+        tipo = _tipo_servicio(estado)
+        return (
+            f"En el padrón figura tu internet ({tipo}), pero no pude ver si estás "
+            "conectado en la red ahora. ¿Las luces del equipo están prendidas? "
+            "Si podés, desenchufá 30 segundos y avisame si vuelve."
+        )
 
     tipo = _tipo_servicio(estado)
     rama = clasificar_rama_pppoe(estado)

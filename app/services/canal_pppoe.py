@@ -55,7 +55,6 @@ def _talvez_mensaje_pppoe(
         from app.services.conexion_pppoe import (
             clasificar_rama_pppoe,
             consultar_conexion_pppoe,
-            mensaje_abonado_pppoe,
             triage_pppoe_para_prompt,
         )
 
@@ -162,18 +161,16 @@ def _talvez_mensaje_pppoe(
 
         bcm_ok = "onu_ftth_enlace_ok" in str(ctx.get("bcm_triage") or "")
         uisp_ok = "cpe_radio_enlace_ok" in str(ctx.get("uisp_triage") or "")
-        uisp_alerta = bool(msg_uisp) and not uisp_ok
-        bcm_alerta = bool(msg_bcm) and not bcm_ok
 
-        if uisp_alerta:
-            ctx["pppoe_rama"] = str(ctx.get("pppoe_rama") or "")
-            return msg_uisp
+        from app.services.pre_triaje_acceso import mensaje_pre_triaje_acceso
 
-        if bcm_alerta:
-            return msg_bcm
-
-        msg = mensaje_abonado_pppoe(
+        msg = mensaje_pre_triaje_acceso(
             estado,
+            abonado=abonado,
+            onu=onu,
+            cpe=cpe,
+            es_ftth=es_ftth or (onu is not None and onu.encontrado),
+            es_radio=es_radio,
             deuda_positiva=_deuda_positiva(abonado),
         )
         from app.services.barra_senal import (
@@ -183,32 +180,20 @@ def _talvez_mensaje_pppoe(
         )
 
         barra = ""
-        if onu is not None and onu.encontrado and onu.rx_dbm is not None:
-            barra = bloque_potencia_onu(onu.rx_dbm)
-        elif cpe is not None and cpe.encontrado and cpe.signal_dbm is not None:
-            barra = bloque_senal_antena(cpe.signal_dbm)
+        # La alerta de planta ya trae la barra; no duplicar.
+        planta_alerta = (bool(msg_uisp) and not uisp_ok) or (bool(msg_bcm) and not bcm_ok)
+        if not planta_alerta:
+            if onu is not None and onu.encontrado and onu.rx_dbm is not None:
+                barra = bloque_potencia_onu(onu.rx_dbm)
+            elif cpe is not None and cpe.encontrado and cpe.signal_dbm is not None:
+                barra = bloque_senal_antena(cpe.signal_dbm)
 
-        if msg and barra:
-            if uisp_ok:
-                ctx["pppoe_rama"] = "wifi_lan"
-                _marcar_pasos_rama_pppoe(ctx)
-            if bcm_ok:
-                ctx["pppoe_rama"] = "wifi_lan"
-                _marcar_pasos_rama_pppoe(ctx)
+        if uisp_ok or bcm_ok:
+            ctx["pppoe_rama"] = "wifi_lan"
+            _marcar_pasos_rama_pppoe(ctx)
+
+        if msg and barra and "📊" not in msg:
             return anexar_antes_de_preguntas(msg, barra)
-
-        if msg_uisp:
-            if uisp_ok:
-                ctx["pppoe_rama"] = "wifi_lan"
-                _marcar_pasos_rama_pppoe(ctx)
-            return msg_uisp
-
-        if msg_bcm:
-            if bcm_ok:
-                ctx["pppoe_rama"] = "wifi_lan"
-                _marcar_pasos_rama_pppoe(ctx)
-            return msg_bcm
-
         if msg:
             return msg
         logger.info(
