@@ -1212,8 +1212,15 @@ def _respuesta_cambio_wifi_bcm(
     *,
     canal: str,
 ) -> dict | None:
-    """Gestión remota FTTH vía BCM; None si corresponde guía local."""
+    """Gestión remota FTTH vía BCM; None si corresponde guía local.
+
+    Requiere abonado identificado: el serial ONU se resuelve solo desde su
+    identidad (nunca desde un id arbitrario del chat).
+    """
     from app.services.wifi_bcm import turno_cambio_wifi_bcm
+
+    if abonado is None or not str(getattr(abonado, "id", "") or "").strip():
+        return None
 
     out_wifi = turno_cambio_wifi_bcm(
         db=db, abonado=abonado, ctx=ctx, texto=texto
@@ -1238,7 +1245,7 @@ def _respuesta_cambio_wifi_bcm(
         "conversacion_id": conv.id,
         "respuesta": resp,
         "estado": conv.estado,
-        "abonado": crepo.abonado_to_dict(abonado) if abonado else None,
+        "abonado": crepo.abonado_to_dict(abonado),
         "intencion": "cambio_clave_wifi",
     }
 

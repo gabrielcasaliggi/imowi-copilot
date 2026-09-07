@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from app.bcm.client import WIFI_BANDAS, BcmClient, redactar_params_sensibles
+from types import SimpleNamespace
+
+from app.bcm.client import (
+    WIFI_BANDAS,
+    BcmClient,
+    _error_en_cuerpo_tr_wifi,
+    redactar_params_sensibles,
+)
 from app.services import wifi_bcm as wb
 from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
 
@@ -17,6 +24,10 @@ class _Resp:
         return self._payload
 
 
+def _abo(aid: str = "abo-1") -> SimpleNamespace:
+    return SimpleNamespace(id=aid, dni="30111222", client_number="12345")
+
+
 def test_redactar_params_password():
     out = redactar_params_sensibles(
         {"usuario": "u", "token": "t", "password": "secreta123", "wifi": "2"}
@@ -24,6 +35,33 @@ def test_redactar_params_password():
     assert out["password"] == "***"
     assert out["usuario"] == "u"
     assert out["wifi"] == "2"
+
+
+def test_error_en_cuerpo_200_con_error_id():
+    assert _error_en_cuerpo_tr_wifi(
+        {"error_id": "201", "msg": "Datos Incorrectos"}, ""
+    )
+    assert not _error_en_cuerpo_tr_wifi({"ok": True}, "")
+    assert _error_en_cuerpo_tr_wifi(
+        None, '{"error_id":"201","msg":"ID NO ENCONTRADO"}'
+    )
+
+
+def test_modificar_password_200_con_error_body_no_ok(monkeypatch):
+    bcm = BcmClient(base_url="https://bcm.example/api/v1", user="u", app_pass="p")
+    bcm._token = "tok"
+
+    def _fake_post(path, params, retry=True):
+        return _Resp(
+            200,
+            {"error_id": "201", "msg": "Datos Incorrectos"},
+            text='{"error_id":"201"}',
+        )
+
+    monkeypatch.setattr(bcm, "_request_post", _fake_post)
+    r = bcm.modificar_wifi_password_por_serial("SN", "ClaveNueva1", "2")
+    assert r.ok is False
+    assert "201" in r.error or "Incorrectos" in r.error
 
 
 def test_modificar_password_ambas_bandas_query(monkeypatch):
@@ -78,11 +116,11 @@ def test_modificar_password_http_error(monkeypatch):
     r = bcm.modificar_wifi_password_por_serial("SN", "ClaveNueva1", "2")
     assert r.ok is False
     assert r.http_status == 201
-    assert "201" in r.error
+    assert "incorrectos" in r.error.lower() or "201" in r.error
 
 
 def test_validar_password_y_ssid():
-    assert wb.validar_password_wifi("corta") 
+    assert wb.validar_password_wifi("corta")
     assert not wb.validar_password_wifi("ClaveNueva1")
     assert wb.validar_ssid_wifi("")
     assert not wb.validar_ssid_wifi("EcoLAN-Casa")
@@ -95,8 +133,50 @@ def test_interpretar_que_cambiar():
     assert wb.interpretar_que_cambiar("hola") == ""
 
 
+def test_sin_abonado_no_abre_remoto():
+    ctx: dict = {"pasos_cubiertos": []}
+    r = wb.turno_cambio_wifi_bcm(db=None, abonado=None, ctx=ctx, texto="clave")
+    assert r is not None
+    assert r["motivo"] == "wifi_bcm_sin_abonado"
+    assert ctx.get("wifi_bcm") != "1"
+
+
+def test_serial_ajeno_en_ctx_no_se_usa(monkeypatch):
+    """Un serial cacheado de otro abonado no debe aplicarse."""
+    ctx: dict = {
+        "wifi_bcm": "1",
+        "wifi_bcm_serial": "SERIAL-AJENO",
+        "wifi_bcm_abonado_id": "otro-abonado",
+        "pasos_cubiertos": [],
+    }
+    monkeypatch.setattr(
+        wb, "resolver_serial_wifi_bcm", lambda *_a, **_k: ("SERIAL-MIO", "")
+    )
+    applied: list[str] = []
+
+    def _pass(db, serial, password):
+        applied.append(serial)
+        return True, ""
+
+    monkeypatch.setattr(wb, "_aplicar_password", _pass)
+
+    r1 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=_abo("abo-mio"), ctx=ctx, texto="clave"
+    )
+    assert r1 and ctx["wifi_bcm_serial"] == "SERIAL-MIO"
+    assert ctx["wifi_bcm_abonado_id"] == "abo-mio"
+
+    r2 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=_abo("abo-mio"), ctx=ctx, texto="ClaveNueva99"
+    )
+    assert r2 and r2.get("motivo") == "wifi_bcm_ok"
+    assert applied == ["SERIAL-MIO"]
+    assert "olvid" in (r2["mensaje"] or "").lower()
+
+
 def test_turno_remoto_pide_y_aplica_clave(monkeypatch):
-    ctx: dict = {"bcm_serial": "HWTC999", "wifi_bcm": "", "pasos_cubiertos": []}
+    ctx: dict = {"pasos_cubiertos": []}
+    abo = _abo()
 
     monkeypatch.setattr(
         wb,
@@ -111,45 +191,52 @@ def test_turno_remoto_pide_y_aplica_clave(monkeypatch):
 
     monkeypatch.setattr(wb, "_aplicar_password", _pass)
 
-    # 1) Intent con “clave” → pide password
-    r1 = wb.turno_cambio_wifi_bcm(db=None, abonado=None, ctx=ctx, texto="quiero la clave")
+    r1 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=abo, ctx=ctx, texto="quiero la clave"
+    )
     assert r1 is not None
     assert ctx["wifi_bcm"] == "1"
+    assert ctx["wifi_bcm_abonado_id"] == abo.id
     assert "clave" in (r1["mensaje"] or "").lower() or "8" in (r1["mensaje"] or "")
     assert ctx["wifi_bcm_fase"] == "pedir_clave"
 
-    # 2) Password válida → aplica ambas (mock) y confirma
     r2 = wb.turno_cambio_wifi_bcm(
-        db=None, abonado=None, ctx=ctx, texto="ClaveNueva99"
+        db=None, abonado=abo, ctx=ctx, texto="ClaveNueva99"
     )
     assert r2 is not None
     assert r2.get("motivo") == "wifi_bcm_ok"
     assert applied == [("HWTC999", "ClaveNueva99")]
-    assert "reconect" in (r2["mensaje"] or "").lower()
+    assert "olvid" in (r2["mensaje"] or "").lower()
 
 
 def test_turno_ambos_clave_luego_ssid(monkeypatch):
+    abo = _abo()
     ctx: dict = {
         "wifi_bcm": "1",
         "wifi_bcm_serial": "SN1",
-        "bcm_serial": "SN1",
+        "wifi_bcm_abonado_id": abo.id,
         "pasos_cubiertos": [],
     }
     monkeypatch.setattr(wb, "_aplicar_password", lambda *_a, **_k: (True, ""))
     monkeypatch.setattr(wb, "_aplicar_ssid", lambda *_a, **_k: (True, ""))
 
-    r0 = wb.turno_cambio_wifi_bcm(db=None, abonado=None, ctx=ctx, texto="ambas")
+    r0 = wb.turno_cambio_wifi_bcm(db=None, abonado=abo, ctx=ctx, texto="ambas")
     assert ctx["wifi_bcm_que"] == "ambos"
     assert ctx["wifi_bcm_fase"] == "pedir_clave"
     assert r0 and "clave" in (r0["mensaje"] or "").lower()
 
-    r1 = wb.turno_cambio_wifi_bcm(db=None, abonado=None, ctx=ctx, texto="ClaveNueva99")
+    r1 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=abo, ctx=ctx, texto="ClaveNueva99"
+    )
     assert ctx["wifi_bcm_fase"] == "pedir_ssid"
     assert r1 and "nombre" in (r1["mensaje"] or "").lower()
 
-    r2 = wb.turno_cambio_wifi_bcm(db=None, abonado=None, ctx=ctx, texto="RedNuevaFTTH")
+    r2 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=abo, ctx=ctx, texto="RedNuevaFTTH"
+    )
     assert r2 and r2.get("motivo") == "wifi_bcm_ok"
     assert ctx["wifi_bcm_fase"] == "hecho"
+    assert "olvid" in (r2["mensaje"] or "").lower()
 
 
 def test_turno_sin_serial_cae_a_local(monkeypatch):
@@ -157,7 +244,10 @@ def test_turno_sin_serial_cae_a_local(monkeypatch):
     monkeypatch.setattr(
         wb, "resolver_serial_wifi_bcm", lambda *_a, **_k: ("", "sin_serial")
     )
-    assert wb.turno_cambio_wifi_bcm(db=None, abonado=None, ctx=ctx, texto="clave") is None
+    assert (
+        wb.turno_cambio_wifi_bcm(db=None, abonado=_abo(), ctx=ctx, texto="clave")
+        is None
+    )
     assert ctx["wifi_bcm"] == "0"
 
 

@@ -432,6 +432,43 @@ def redactar_url_sensible(url: str) -> str:
         return "(url)"
 
 
+def _error_en_cuerpo_tr_wifi(payload: Any, text: str = "") -> str:
+    """BCM a veces responde HTTP 200 con error_id/mensaje de fallo en el body."""
+    blobs: list[str] = []
+    if isinstance(payload, dict):
+        eid = str(
+            payload.get("error_id")
+            or payload.get("errorId")
+            or payload.get("ErrorId")
+            or ""
+        ).strip()
+        msg = _mensaje_api(payload) or str(payload.get("msg") or payload.get("mensaje") or "")
+        if eid and eid not in ("0", "200", "ok", "OK"):
+            return f"error_id={eid} {msg}".strip()[:160]
+        if msg:
+            blobs.append(msg)
+    elif isinstance(payload, str) and payload.strip():
+        blobs.append(payload.strip())
+    if text and text.strip():
+        blobs.append(text.strip())
+    joined = " ".join(blobs).lower()
+    if not joined:
+        return ""
+    if any(
+        k in joined
+        for k in (
+            "datos incorrectos",
+            "id no encontrado",
+            "no encontrado",
+            "error_id\":\"201",
+            "error_id\": \"201",
+            '"error_id":"201"',
+        )
+    ):
+        return (blobs[0] if blobs else "error BCM")[:160]
+    return ""
+
+
 def _get_ci(blob: dict[str, Any], *keys: str) -> Any:
     by = {str(k).casefold(): v for k, v in blob.items()}
     for key in keys:
@@ -823,29 +860,42 @@ class BcmClient:
         banda: BandaWifiBcm,
         operacion: OperacionWifiBcm,
     ) -> ResultadoCambioWifi:
-        if r.status_code == 200:
+        detail = ""
+        payload: Any = None
+        try:
+            payload = r.json()
+            detail = _mensaje_api(payload) or (
+                payload if isinstance(payload, str) else _claves_payload(payload)
+            )
+        except Exception:
+            detail = (r.text or "")[:160]
+            payload = None
+        # Nunca devolver el password en el error (puede venir echo'd por la API).
+        detail_s = re.sub(
+            r"(password|contrase[nñ]a|pass)\s*[=:]\s*\S+",
+            r"\1=***",
+            str(detail or ""),
+            flags=re.IGNORECASE,
+        )[:160]
+        body_err = _error_en_cuerpo_tr_wifi(payload, r.text or "")
+        if r.status_code == 200 and not body_err:
             return ResultadoCambioWifi(
                 ok=True, banda=banda, operacion=operacion, http_status=200
             )
-        detail = ""
-        try:
-            payload = r.json()
-            detail = _mensaje_api(payload) or _claves_payload(payload)
-        except Exception:
-            detail = (r.text or "")[:120]
-        # Nunca devolver el password en el error (puede venir echo'd por la API).
-        detail = re.sub(
-            r"(password|contrase[nñ]a|pass)\s*[=:]\s*\S+",
-            r"\1=***",
-            detail or "",
-            flags=re.IGNORECASE,
-        )
+        if body_err:
+            return ResultadoCambioWifi(
+                ok=False,
+                banda=banda,
+                operacion=operacion,
+                http_status=r.status_code,
+                error=f"BCM: {body_err}"[:160],
+            )
         return ResultadoCambioWifi(
             ok=False,
             banda=banda,
             operacion=operacion,
             http_status=r.status_code,
-            error=f"BCM HTTP {r.status_code}: {detail}"[:160],
+            error=f"BCM HTTP {r.status_code}: {detail_s}"[:160],
         )
 
     def modificar_wifi_password_por_serial(
