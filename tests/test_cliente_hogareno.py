@@ -45,6 +45,25 @@ def test_refinar_playbook_internet_sale_del_triaje():
     )
 
 
+def test_clasificar_cambio_clave_antes_que_fibra_y_variantes():
+    from app.domain.flujos_abonado import clasificar_intencion, es_pedido_cambio_clave_wifi
+
+    assert (
+        clasificar_intencion("quiero cambiar la clave de mi wifi")
+        == "cambio_clave_wifi"
+    )
+    assert (
+        clasificar_intencion(
+            "no, la fibra esta bien, solo quiero cambiar la clave de mi wifi"
+        )
+        == "cambio_clave_wifi"
+    )
+    assert es_pedido_cambio_clave_wifi("quiero cambiar la clave", "wifi")
+    assert es_pedido_cambio_clave_wifi("quiero cambiar la clave", "internet_ftth")
+    assert not es_pedido_cambio_clave_wifi("quiero cambiar la clave", "movil")
+    assert not es_pedido_cambio_clave_wifi("hola", "wifi")
+
+
 def test_tipo_acceso_no_repite_tras_por_aire_o_pppoe():
     from app.domain.flujos_abonado import (
         mensaje_tras_tipo_acceso_confirmado,

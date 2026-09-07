@@ -146,6 +146,14 @@ def interpretar_que_cambiar(texto: str) -> QueWifi:
     return ""
 
 
+def mensaje_remoto_detalle() -> str:
+    return _MSG_DISPONIBLE
+
+
+def mensaje_remoto_pedir_clave() -> str:
+    return _MSG_PEDIR_CLAVE
+
+
 def gestion_remota_activa(ctx: dict | None) -> bool:
     return str((ctx or {}).get("wifi_bcm") or "") == "1"
 

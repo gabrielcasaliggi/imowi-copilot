@@ -1297,6 +1297,97 @@ def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
     return ajustar_intencion_a_padron(intent, servicio_abonado, texto)
 
 
+def _es_pedido_cambio_clave_ssid_wifi(t: str) -> bool:
+    """True si el texto pide cambiar clave/SSID Wi‑Fi (antes de fibra/wifi genérico)."""
+    if not t:
+        return False
+    if any(
+        k in t
+        for k in (
+            "cambiar clave wifi",
+            "cambiar la clave del wifi",
+            "cambiar la clave de mi wifi",
+            "cambiar la clave de wifi",
+            "cambiar clave de mi wifi",
+            "cambiar contraseña wifi",
+            "cambiar la contraseña del wifi",
+            "cambiar la contraseña de mi wifi",
+            "cambiar contraseña de wifi",
+            "cambiar contraseña de mi wifi",
+            "cambiar nombre wifi",
+            "cambiar el nombre del wifi",
+            "cambiar el nombre de mi wifi",
+            "cambiar el nombre de la red",
+            "cambiar nombre de la red",
+            "cambiar ssid",
+            "nueva clave wifi",
+            "nueva contraseña wifi",
+            "cambiar password wifi",
+            "quiero cambiar la clave del wifi",
+            "quiero cambiar la clave de mi wifi",
+            "quiero cambiar la contraseña del wifi",
+            "quiero cambiar la contraseña de mi wifi",
+            "solo quiero cambiar la clave",
+            "solo quiero cambiar la contraseña",
+        )
+    ):
+        return True
+    # Clave/contraseña + wifi/ssid en la misma frase
+    pide_cambio = any(
+        k in t
+        for k in (
+            "cambiar la clave",
+            "cambiar clave",
+            "cambiar la contraseña",
+            "cambiar contraseña",
+            "nueva clave",
+            "nueva contraseña",
+            "cambiar el nombre",
+            "cambiar nombre",
+        )
+    )
+    contexto_wifi = any(
+        k in t for k in ("wifi", "wi-fi", "wi fi", "ssid", "nombre de la red")
+    )
+    return pide_cambio and contexto_wifi
+
+
+def es_pedido_cambio_clave_wifi(texto: str, intencion_actual: str = "") -> bool:
+    """Pedido de gestión de clave/SSID, también mid-diagnóstico wifi/internet."""
+    t = (texto or "").lower()
+    if _es_pedido_cambio_clave_ssid_wifi(t):
+        return True
+    intent = (intencion_actual or "").strip()
+    if intent == "cambio_clave_wifi":
+        return True
+    # «quiero cambiar la clave» sin decir wifi, pero ya estamos en diag wifi/internet
+    pide_clave = any(
+        k in t
+        for k in (
+            "cambiar la clave",
+            "cambiar clave",
+            "cambiar la contraseña",
+            "cambiar contraseña",
+            "nueva clave",
+            "nueva contraseña",
+            "cambiar el ssid",
+            "cambiar el nombre de la red",
+        )
+    )
+    if not pide_clave:
+        return False
+    return intent in (
+        "wifi",
+        "cambio_clave_wifi",
+        "internet",
+        "internet_ftth",
+        "internet_adsl",
+        "internet_radio",
+        "internet_lento",
+        "internet_intermitente",
+    )
+
+
 def _clasificar_intencion_facturacion(t: str) -> str | None:
     """Parte facturación al estilo Botmaker; si hay varios motivos, queda el enrutador."""
     hits: list[str] = []
@@ -1612,6 +1703,10 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
         if not respuesta_negacion_adsl_en_fijo(texto):
             return "internet_adsl"
 
+    # Cambio clave/SSID antes de «fibra»/«wifi»: «la fibra está bien, quiero cambiar la clave…»
+    if _es_pedido_cambio_clave_ssid_wifi(t):
+        return "cambio_clave_wifi"
+
     if any(k in t for k in (
         "fibra", "ftth", "fibra optica", "fibra óptica", "ont",
         "cable amarillo", "pon", "gpon", "nap", "olt",
@@ -1629,14 +1724,6 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
         "baja velocidad", "muy lento", "anda lento",
     )):
         return "internet_lento"
-
-    if any(k in t for k in (
-        "cambiar clave wifi", "cambiar la clave del wifi", "cambiar contraseña wifi",
-        "cambiar la contraseña del wifi", "cambiar nombre wifi", "cambiar el nombre del wifi",
-        "cambiar ssid", "nueva clave wifi", "cambiar password wifi",
-        "cambiar la clave de wifi", "cambiar contraseña de wifi",
-    )):
-        return "cambio_clave_wifi"
 
     if any(k in t for k in (
         "wifi", "wi-fi", "señal wifi", "no llega wifi", "wifi no funciona",

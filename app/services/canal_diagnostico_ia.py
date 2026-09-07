@@ -71,6 +71,84 @@ def _aplicar_diagnostico_ia(
     if not es_intencion_diagnostico(intencion):
         return None
 
+    # Cambio clave/SSID: NUNCA LLM (inventa IP/router). Remoto BCM o guía fija.
+    from app.domain.flujos_abonado import es_pedido_cambio_clave_wifi
+    from app.services.diagnostico_n1 import mensaje_guia_cambio_clave_wifi
+
+    _respuesta_cambio_wifi_bcm = c._respuesta_cambio_wifi_bcm
+    intent_now = (intencion or "").strip()
+    pide_remoto = any(
+        k in (texto or "").lower()
+        for k in (
+            "lo tenes que hacer vos",
+            "lo tenés que hacer vos",
+            "tenes que hacerlo vos",
+            "tenés que hacerlo vos",
+            "hacelo vos",
+            "hacé lo vos",
+            "hace lo vos",
+            "cambiala vos",
+            "cambiá la vos",
+            "desde acá",
+            "desde aca",
+            "vos podes",
+            "vos podés",
+            "podes cambiarla",
+            "podés cambiarla",
+        )
+    )
+    if (
+        es_pedido_cambio_clave_wifi(texto, intent_now)
+        or intent_now == "cambio_clave_wifi"
+        or (
+            pide_remoto
+            and intent_now
+            in (
+                "wifi",
+                "cambio_clave_wifi",
+                "internet",
+                "internet_ftth",
+                "internet_adsl",
+                "internet_radio",
+                "internet_lento",
+                "internet_intermitente",
+            )
+        )
+    ):
+        # Si insiste «hacelo vos» con remoto previamente marcado no disponible, reintentar.
+        if pide_remoto and str(ctx.get("wifi_bcm") or "") == "0":
+            ctx.pop("wifi_bcm", None)
+            ctx.pop("wifi_bcm_serial", None)
+            ctx.pop("wifi_bcm_abonado_id", None)
+        ctx["intencion"] = "cambio_clave_wifi"
+        out_remota = _respuesta_cambio_wifi_bcm(
+            db, org_id, conv, abonado, ctx, texto, canal=canal
+        )
+        if out_remota is not None:
+            return out_remota
+        # Sin BCM/serial: guía fija de etiqueta (nunca diagnosticar_turno/LLM).
+        turnos = int(ctx.get("diag_turnos") or 0)
+        ctx["diag_turnos"] = turnos + 1
+        ctx["wifi_bcm"] = "0"
+        cub = list(ctx.get("pasos_cubiertos") or [])
+        if "clave_wifi_etiqueta" not in cub:
+            cub.append("clave_wifi_etiqueta")
+        ctx["pasos_cubiertos"] = cub
+        ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = mensaje_guia_cambio_clave_wifi()
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": "cambio_clave_wifi",
+            "diagnostico_ia": False,
+        }
+
     # Contador E1: a los 3 turnos sin resolución de acceso, leer OLT/WIS.
     # Política de controlador (no depende del LLM).
     from app.services.turno_e1 import (

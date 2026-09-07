@@ -611,7 +611,7 @@ def es_diagnostico_tecnico_sin_facturacion(intencion: str) -> bool:
     return es_intencion_diagnostico(intent) and not intencion_es_facturacion(intent)
 
 
-# Guía fija: N1 no recoge ni cambia la clave Wi‑Fi por chat (no hay API remota).
+# Guía fija local (sin BCM remoto).
 _MSG_CLAVE_WIFI_EQUIPO = (
     "La clave Wi‑Fi la cambiás vos en el módem/router: usá la etiqueta del equipo "
     "o el panel de administración. Desde acá no la pedimos ni la cambiamos por chat. "
@@ -619,9 +619,32 @@ _MSG_CLAVE_WIFI_EQUIPO = (
     "¿Tenés acceso al equipo para cambiarla?"
 )
 
+# Frases típicas del LLM que inventan admin del router / “no lo hacemos nosotros”.
+_RE_LLM_ROUTER_ADMIN = re.compile(
+    r"(configuraci[oó]n del router|direcci[oó]n ip|192\.168\.|"
+    r"entrar al (router|m[oó]dem)|acceder al (router|m[oó]dem)|"
+    r"panel (del |de )?(router|administraci)|"
+    r"por seguridad.{0,40}(no (lo |la )?podemos|no (lo |la )?hacemos|deben? hacerse|"
+    r"se deben? hacer)|"
+    r"por privacidad.{0,40}(no |deben?)|"
+    r"te gu[ií]o paso a paso|"
+    r"ten[eé]s a mano el manual|"
+    r"desde el equipo del cliente|"
+    r"directamente desde el equipo)",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def mensaje_guia_cambio_clave_wifi() -> str:
     return _MSG_CLAVE_WIFI_EQUIPO
+
+
+def llm_inventa_admin_router_wifi(mensaje: str) -> bool:
+    """True si el bot inventa IP/config del router o niega cambio remoto por ‘privacidad’."""
+    t = (mensaje or "").strip()
+    if not t:
+        return False
+    return bool(_RE_LLM_ROUTER_ADMIN.search(t))
 
 
 def pide_nueva_clave_wifi_en_chat(mensaje: str) -> bool:
@@ -734,7 +757,11 @@ def aplicar_guardrails_cambio_clave_wifi(
     accion: str = "ask",
     gestion_remota: bool = False,
 ) -> dict[str, str]:
-    """Evita pedir/aceptar la clave Wi‑Fi por chat salvo gestión remota BCM (FTTH)."""
+    """Evita pedir/aceptar la clave Wi‑Fi por chat salvo gestión remota BCM (FTTH).
+
+    También bloquea respuestas LLM que inventan IP/admin del router o niegan el
+    cambio remoto «por seguridad/privacidad».
+    """
     intent = (intencion or "").strip()
     en_flujo = intent == "cambio_clave_wifi"
     msg = mensaje or ""
@@ -742,11 +769,28 @@ def aplicar_guardrails_cambio_clave_wifi(
 
     # Con BCM TR disponible Eko sí pide y aplica la clave/SSID.
     if gestion_remota:
+        if llm_inventa_admin_router_wifi(msg):
+            from app.services.wifi_bcm import mensaje_remoto_pedir_clave
+
+            return {
+                "accion": "ask",
+                "mensaje": mensaje_remoto_pedir_clave(),
+                "paso_cubierto": "wifi_bcm_pedir_clave",
+                "motivo": "bloqueado_llm_niega_remoto_wifi",
+            }
         return {
             "accion": acc,
             "mensaje": msg,
             "paso_cubierto": "",
             "motivo": "",
+        }
+
+    if llm_inventa_admin_router_wifi(msg):
+        return {
+            "accion": "ask",
+            "mensaje": _MSG_CLAVE_WIFI_EQUIPO,
+            "paso_cubierto": "clave_wifi_etiqueta",
+            "motivo": "bloqueado_llm_admin_router_wifi",
         }
 
     if en_flujo and _parece_clave_wifi_enviada(mensaje_cliente):
@@ -757,7 +801,6 @@ def aplicar_guardrails_cambio_clave_wifi(
             "motivo": "bloqueado_clave_wifi_en_chat",
         }
 
-    # Pedir la clave en chat está mal siempre (playbook = cambio en el equipo).
     if pide_nueva_clave_wifi_en_chat(msg):
         return {
             "accion": "ask",

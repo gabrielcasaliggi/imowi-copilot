@@ -270,3 +270,39 @@ def test_guardrail_sigue_bloqueando_sin_remoto():
         gestion_remota=False,
     )
     assert g["motivo"] == "bloqueado_pedido_clave_wifi"
+
+
+def test_guardrail_bloquea_llm_router_ip_y_privacidad():
+    from app.services.diagnostico_n1 import llm_inventa_admin_router_wifi
+
+    assert llm_inventa_admin_router_wifi(
+        "Para cambiar el nombre y la clave, necesito que entres a la configuración "
+        "del router. ¿Tenés a mano el manual o sabés cómo acceder a la dirección IP?"
+    )
+    assert llm_inventa_admin_router_wifi(
+        "Por seguridad y privacidad, los cambios de contraseña se deben hacer "
+        "directamente desde el equipo. ¿Te guío paso a paso?"
+    )
+    g = aplicar_guardrails_cambio_clave_wifi(
+        mensaje=(
+            "Por seguridad y privacidad, los cambios se deben hacer desde el equipo. "
+            "¿Te guío paso a paso?"
+        ),
+        mensaje_cliente="pero lo tenes que hacer vos",
+        intencion="cambio_clave_wifi",
+        gestion_remota=False,
+    )
+    assert g["motivo"] == "bloqueado_llm_admin_router_wifi"
+    assert "etiqueta" in g["mensaje"].lower() or "módem" in g["mensaje"].lower()
+
+    g2 = aplicar_guardrails_cambio_clave_wifi(
+        mensaje=(
+            "Por seguridad no lo podemos cambiar nosotros. Entrá a la configuración "
+            "del router con la dirección IP."
+        ),
+        mensaje_cliente="ambas",
+        intencion="cambio_clave_wifi",
+        gestion_remota=True,
+    )
+    assert g2["motivo"] == "bloqueado_llm_niega_remoto_wifi"
+    assert "clave nueva" in g2["mensaje"].lower() or "8 caracteres" in g2["mensaje"].lower()
