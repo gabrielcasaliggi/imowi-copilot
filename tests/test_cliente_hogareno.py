@@ -38,6 +38,11 @@ def test_refinar_playbook_internet_sale_del_triaje():
     assert refinar_playbook_internet("se corta a cada rato") == "internet_intermitente"
     assert refinar_playbook_internet("cortes permanentes de señal") == "internet_intermitente"
     assert refinar_playbook_internet("no me carga nada") is None
+    # Menú post-ID: la palabra «wifi» elige internet, pero el texto pide cambio de clave
+    assert (
+        refinar_playbook_internet("quiero cambiar la clave del wifi")
+        == "cambio_clave_wifi"
+    )
 
 
 def test_tipo_acceso_no_repite_tras_por_aire_o_pppoe():
