@@ -2143,6 +2143,9 @@ def mensaje_tras_tipo_acceso_confirmado(
 
 def refinar_playbook_internet(texto: str) -> str | None:
     """Sale del triaje `internet` hacia tecnología o síntoma (wifi/lento/cortes)."""
+    # Clave/SSID antes que «wifi» genérico (menú post-ID).
+    if clasificar_intencion(texto) == "cambio_clave_wifi":
+        return "cambio_clave_wifi"
     tech = refinar_intencion_internet(texto)
     if tech:
         return tech

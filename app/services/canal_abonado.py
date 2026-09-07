@@ -2353,9 +2353,15 @@ def _arrancar_intencion_menu(
         if refinada in ("movil_datos", "movil_llamadas", "movil"):
             intencion = refinada
     if intencion == "internet":
-        refinada = refinar_playbook_internet(texto)
-        if refinada:
-            intencion = refinada
+        # «quiero cambiar la clave del wifi» matchea menú por «wifi» → internet;
+        # no abrir triaje ONT/PPPoE: ir al flujo de clave/SSID.
+        refinada_txt = clasificar_intencion(texto, servicio_abo)
+        if refinada_txt == "cambio_clave_wifi":
+            intencion = "cambio_clave_wifi"
+        else:
+            refinada = refinar_playbook_internet(texto)
+            if refinada:
+                intencion = refinada
     if intencion == "baja_servicio":
         return _iniciar_flujo_baja_servicio(
             db,
@@ -2401,6 +2407,12 @@ def _arrancar_intencion_menu(
             "estado": conv.estado,
             "intencion": "aviso_deuda",
         }
+    if abonado and intencion == "cambio_clave_wifi":
+        out_remota = _respuesta_cambio_wifi_bcm(
+            db, org_id, conv, abonado, ctx, texto, canal=canal
+        )
+        if out_remota is not None:
+            return out_remota
     crepo.set_contexto(conv, ctx)
     db.commit()
     # Respuesta corta de menú («técnico») → no diagnosticar aún; pedir el síntoma
@@ -3486,12 +3498,35 @@ def procesar_mensaje_entrante(
 
     # Menú post-ID ANTES de pide_humano: «Técnico» es opción de menú, no pedido de agente.
     # Escape *agente* / pedido explícito de humano siguen teniendo prioridad sobre el menú.
+    # Cambio de clave/SSID: no tratar «wifi» del menú como falla de internet/ONT.
     if (
         abonado
         and ctx.get("menu_paso")
         and not es_escape_agente(texto)
         and not (pide_humano(texto) and not contiene_sintoma_canal(texto))
     ):
+        from app.domain.flujos_abonado import clasificar_intencion as _clasif_menu
+
+        if _clasif_menu(texto, abonado.servicio if abonado else "") == "cambio_clave_wifi":
+            ctx.pop("menu_paso", None)
+            ctx.pop("menu_servicio", None)
+            out_clave = _respuesta_cambio_wifi_bcm(
+                db, org_id, conv, abonado, ctx, texto, canal=canal
+            )
+            if out_clave is not None:
+                return out_clave
+            return _arrancar_intencion_menu(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion="cambio_clave_wifi",
+                usar_llama=usar_llama,
+                servicio_abo=abonado.servicio if abonado else "",
+            )
         menu_out = _manejar_menu_consulta_n1(
             db,
             org_id,
