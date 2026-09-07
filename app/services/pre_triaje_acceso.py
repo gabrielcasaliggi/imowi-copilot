@@ -38,24 +38,28 @@ def nota_administrativa(
     abonado: Any | None,
     svc: ServicioConectividad | None,
 ) -> str:
-    """Corte/baja/apagado en padrón o api_service. Vacío si figura activo."""
+    """Corte/baja real del servicio vigente. Vacío si está Habilitado."""
+    from app.services.billtrack import servicio_habilitado
+
+    if svc is not None and servicio_habilitado(svc):
+        return ""
     if svc is not None and svc.service_on is False:
         st = (svc.state or "").strip()
         extra = f" ({st})" if st else ""
         return (
-            "En el padrón el servicio de internet figura apagado o dado de baja"
+            "En el sistema el servicio de internet figura apagado o dado de baja"
             f"{extra}. Eso es administrativo, no un fallo del Wi‑Fi."
         )
     st = (svc.state or "").strip().lower() if svc is not None else ""
-    if any(k in st for k in ("corte", "suspend", "baja", "inactiv", "mora")):
+    if st in ("baja", "cancelado", "cancelada", "inactivo", "inactiva", "suspendido", "corte"):
         return (
-            f"En el padrón el servicio figura «{svc.state}». "
+            f"En el sistema el servicio figura «{svc.state}». "
             "Puede ser un tema administrativo (corte o suspensión), no solo el equipo de casa."
         )
     est = str(getattr(abonado, "estado", "") or "").strip().lower() if abonado else ""
     if est in ("corte", "cortado", "suspendido", "suspendida", "baja"):
         return (
-            f"La cuenta figura «{est}» en el padrón. "
+            f"La cuenta figura «{est}» en el sistema. "
             "Antes de una visita conviene confirmar si el servicio está habilitado."
         )
     return ""
@@ -67,10 +71,10 @@ def linea_padron(estado: EstadoConexionPPPoE, abonado: Any | None = None) -> str
     prod = _producto(svc)
     plan = f" ({prod})" if prod else ""
     if svc and svc.login:
-        return f"En el padrón tenés internet por {tipo}{plan}."
+        return f"En el sistema figura internet por {tipo}{plan}."
     serv_abo = str(getattr(abonado, "servicio", "") or "").strip().lower() if abonado else ""
     if serv_abo in ("internet", "ambos"):
-        return "En el padrón interno figura internet fijo, pero no pude leer el detalle de facturación ahora."
+        return "En la base de datos figura internet fijo, pero no pude leer el detalle ahora."
     return ""
 
 
@@ -103,11 +107,23 @@ def linea_radius(estado: EstadoConexionPPPoE, *, con_detalle: bool = False) -> s
     return "No pude confirmar si la sesión en la red está activa."
 
 
+def mensaje_antena_no_enlazada() -> str:
+    return (
+        "El servicio de radio está habilitado, pero la antena no figura enlazada en la red. "
+        "Eso no es una baja. ¿La fuente PoE (el inyectocito de la antena) tiene la lucecita prendida?"
+    )
+
+
 def _planta_mala(onu: Any | None, cpe: Any | None, *, es_ftth: bool, es_radio: bool) -> str | None:
     from app.services.conexion_bcm import clasificar_rama_bcm, mensaje_abonado_bcm
     from app.services.conexion_uisp import clasificar_rama_uisp, mensaje_abonado_uisp
 
     if es_radio and cpe is not None:
+        err = str(getattr(cpe, "error", "") or "").lower()
+        if "no configurado" in err:
+            return None
+        if not getattr(cpe, "encontrado", False):
+            return mensaje_antena_no_enlazada()
         rama = clasificar_rama_uisp(cpe)
         if rama in ("cpe_offline", "senal_mala"):
             return mensaje_abonado_uisp(cpe, es_radio=True)
@@ -168,8 +184,10 @@ def mensaje_pre_triaje_acceso(
     if cpe is not None and getattr(cpe, "encontrado", False):
         uisp_ok = clasificar_rama_uisp(cpe) == "enlace_ok"
     planta_ok = True
-    if es_radio and cpe is not None and getattr(cpe, "encontrado", False):
-        planta_ok = uisp_ok
+    if es_radio and cpe is not None:
+        err = str(getattr(cpe, "error", "") or "").lower()
+        if "no configurado" not in err:
+            planta_ok = bool(getattr(cpe, "encontrado", False) and uisp_ok)
     elif (es_ftth or (onu is not None and getattr(onu, "encontrado", False))) and onu is not None:
         if getattr(onu, "encontrado", False):
             planta_ok = bcm_ok
@@ -180,7 +198,7 @@ def mensaje_pre_triaje_acceso(
 
     msg_ppp = mensaje_abonado_pppoe(estado, deuda_positiva=deuda_positiva)
     if msg_ppp and rama in ("wifi_lan", "recien_conectado") and planta_ok:
-        if padron and "en el padrón" not in msg_ppp.lower():
+        if padron and "en el sistema figura" not in msg_ppp.lower():
             msg_ppp = f"{padron} {msg_ppp}"
         if admin and admin not in msg_ppp:
             idx = msg_ppp.find("¿")

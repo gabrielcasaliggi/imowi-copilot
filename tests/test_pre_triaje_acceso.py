@@ -12,6 +12,7 @@ from app.services.pre_triaje_acceso import (
     mensaje_pre_triaje_acceso,
     nota_administrativa,
 )
+from app.uisp.contract import EstadoCpeUisp
 
 
 def _abo(**kw):
@@ -56,6 +57,18 @@ def test_admin_servicio_apagado():
     nota = nota_administrativa(_abo(), svc)
     assert "apagado" in nota.lower() or "baja" in nota.lower()
     assert "administrativ" in nota.lower()
+    assert "padrón" not in nota.lower() and "padron" not in nota.lower()
+
+
+def test_habilitado_no_acusa_baja():
+    svc = ServicioConectividad(
+        login="palaciosvaleBAI",
+        state="Habilitado",
+        product="Internet acceso Bai Hogar 15MB",
+        service_on=True,
+    )
+    assert nota_administrativa(_abo(), svc) == ""
+    assert nota_administrativa(_abo(estado="activo"), svc) == ""
 
 
 def test_todo_ok_demuestra_acceso_y_pregunta_cable():
@@ -74,7 +87,8 @@ def test_todo_ok_demuestra_acceso_y_pregunta_cable():
     )
     assert msg
     low = msg.lower()
-    assert "padrón" in low or "padron" in low
+    assert "padrón" not in low and "padron" not in low
+    assert "sistema" in low or "figura" in low
     assert "activa" in low
     assert "wifi" in low or "wi-fi" in low or "wi‑fi" in low
     assert "cable" in low
@@ -111,7 +125,8 @@ def test_radius_caido_igual_informa_padron():
     msg = mensaje_pre_triaje_acceso(estado, abonado=_abo(), es_ftth=True)
     assert msg
     low = msg.lower()
-    assert "padrón" in low or "padron" in low or "figura" in low
+    assert "padrón" not in low and "padron" not in low
+    assert "sistema" in low or "figura" in low
     assert "no pude" in low or "luces" in low
 
 
@@ -150,4 +165,32 @@ def test_canal_pre_triaje_sin_radius_no_devuelve_none(monkeypatch):
 
     msg = cp._talvez_mensaje_pppoe(MagicMock(), _abo(), {}, "internet")
     assert msg
-    assert "fibra" in msg.lower() or "padrón" in msg.lower() or "luces" in msg.lower()
+    assert "padrón" not in msg.lower() and "padron" not in msg.lower()
+    assert "fibra" in msg.lower() or "sistema" in msg.lower() or "luces" in msg.lower()
+
+
+def test_radio_sin_cpe_dice_antena_no_enlazada_no_reactivacion():
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="palaciosvaleBAI",
+            service_type_code="INTBA",
+            service_type_label="ACCESO INTERNET INALAMBRICO",
+            product="Internet acceso Bai Hogar 15MB",
+            state="Habilitado",
+            service_on=True,
+        ),
+        error="radius timeout",
+    )
+    cpe = EstadoCpeUisp(login="palaciosvaleBAI", encontrado=False)
+    msg = mensaje_pre_triaje_acceso(
+        estado, abonado=_abo(), cpe=cpe, es_radio=True
+    )
+    assert msg
+    low = msg.lower()
+    assert "padrón" not in low and "padron" not in low
+    assert "sistema" in low
+    assert "15MB" in msg or "15mb" in low
+    assert "enlazada" in low
+    assert "baja" not in low or "no es una baja" in low
+    assert "reactiv" not in low
+    assert "pago" not in low

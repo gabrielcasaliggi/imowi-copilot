@@ -370,6 +370,14 @@ WHERE regexp_replace(COALESCE(s.base_account_number, ''), '[^0-9A-Za-z]', '', 'g
   AND UPPER(TRIM(COALESCE(s.service_type_code, ''))) IN ('INTFO', 'INTBA', 'INTINA')
 ORDER BY
   CASE
+    WHEN LOWER(TRIM(COALESCE(s.state, ''))) IN ('habilitado', 'activo', 'activa', 'enabled')
+      THEN 0
+    WHEN LOWER(TRIM(COALESCE(s.state, ''))) IN (
+      'baja', 'cancelado', 'cancelada', 'inactivo', 'inactiva', 'suspendido', 'corte'
+    ) THEN 2
+    ELSE 1
+  END,
+  CASE
     WHEN LOWER(COALESCE(s.service_on::text, '')) IN ('1', 't', 'true', 'yes', 'on', 'si', 'sí')
       THEN 0
     ELSE 1
@@ -410,6 +418,14 @@ WHERE (
 )
   AND UPPER(TRIM(COALESCE(s.service_type_code, ''))) IN ('INTFO', 'INTBA', 'INTINA')
 ORDER BY
+  CASE
+    WHEN LOWER(TRIM(COALESCE(s.state, ''))) IN ('habilitado', 'activo', 'activa', 'enabled')
+      THEN 0
+    WHEN LOWER(TRIM(COALESCE(s.state, ''))) IN (
+      'baja', 'cancelado', 'cancelada', 'inactivo', 'inactiva', 'suspendido', 'corte'
+    ) THEN 2
+    ELSE 1
+  END,
   CASE
     WHEN LOWER(COALESCE(s.service_on::text, '')) IN ('1', 't', 'true', 'yes', 'on', 'si', 'sí')
       THEN 0
@@ -452,6 +468,14 @@ WHERE (
 )
 ORDER BY
   CASE
+    WHEN LOWER(TRIM(COALESCE(s.state, ''))) IN ('habilitado', 'activo', 'activa', 'enabled')
+      THEN 0
+    WHEN LOWER(TRIM(COALESCE(s.state, ''))) IN (
+      'baja', 'cancelado', 'cancelada', 'inactivo', 'inactiva', 'suspendido', 'corte'
+    ) THEN 2
+    ELSE 1
+  END,
+  CASE
     WHEN LOWER(COALESCE(s.service_on::text, '')) IN ('1', 't', 'true', 'yes', 'on', 'si', 'sí')
       THEN 0
     ELSE 1
@@ -469,6 +493,37 @@ def _truthy_service_on(raw: Any) -> bool:
     if val in ("0", "f", "false", "no", "off", "n"):
         return False
     return val in ("1", "t", "true", "yes", "on", "si", "sí", "y")
+
+
+_ESTADOS_SERVICIO_OK = frozenset(
+    {"habilitado", "activo", "activa", "enabled", "on", "ok"}
+)
+_ESTADOS_SERVICIO_CERRADO = frozenset(
+    {
+        "baja",
+        "cancelado",
+        "cancelada",
+        "inactivo",
+        "inactiva",
+        "suspendido",
+        "suspendida",
+        "corte",
+        "cortado",
+        "off",
+    }
+)
+
+
+def servicio_habilitado(svc: Any | None) -> bool:
+    """True si BillTrack muestra el servicio vigente (Habilitado), no un histórico Baja."""
+    if svc is None:
+        return False
+    st = str(getattr(svc, "state", "") or "").strip().lower()
+    if st in _ESTADOS_SERVICIO_OK or st.startswith("habilit"):
+        return True
+    if st in _ESTADOS_SERVICIO_CERRADO:
+        return False
+    return bool(getattr(svc, "service_on", True))
 
 
 def map_service_row(row: dict[str, Any]) -> Any:
@@ -528,12 +583,12 @@ def clasificar_servicios_cuenta(servicios: list[Any]) -> str:
 
 
 def elegir_servicio_principal(servicios: list[Any]) -> Any | None:
-    """Prioriza service_on + login no vacío."""
+    """Prioriza login + estado Habilitado; nunca un histórico Baja si hay vigente."""
     with_login = [s for s in servicios if getattr(s, "login", "")]
     if not with_login:
         return None
-    on = [s for s in with_login if getattr(s, "service_on", True)]
-    return (on or with_login)[0]
+    hab = [s for s in with_login if servicio_habilitado(s)]
+    return (hab or with_login)[0]
 
 
 _RE_LOGIN_RADIUS = re.compile(r"\b([a-z0-9]{3,}(?:BAI|bai))\b")

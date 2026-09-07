@@ -66,6 +66,28 @@ def test_map_service_row_y_principal():
     assert elegir_servicio_principal([ServicioConectividad(login="")]) is None
 
 
+def test_elige_habilitado_sobre_baja_historica():
+    baja = ServicioConectividad(
+        login="viejo10",
+        state="Baja",
+        product="10MB",
+        service_on=True,
+        service_type_code="INTBA",
+    )
+    vigente = ServicioConectividad(
+        login="palaciosvaleBAI",
+        state="Habilitado",
+        product="Internet acceso Bai Hogar 15MB",
+        service_on=True,
+        service_type_code="INTBA",
+    )
+    elegido = elegir_servicio_principal([baja, vigente])
+    assert elegido is not None
+    assert elegido.login == "palaciosvaleBAI"
+    assert elegido.product == "Internet acceso Bai Hogar 15MB"
+    assert elegir_servicio_principal([vigente, baja]).login == "palaciosvaleBAI"
+
+
 def test_resumen_prompt_conectado():
     estado = EstadoConexionPPPoE(
         servicio=ServicioConectividad(
