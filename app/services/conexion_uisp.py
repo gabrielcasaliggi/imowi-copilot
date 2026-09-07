@@ -531,13 +531,13 @@ def mensaje_abonado_uisp(
         veredicto_radio,
     )
 
-    barra = bloque_senal_antena(estado.signal_dbm)
+    barra = bloque_senal_antena(estado.signal_dbm) if rama != "cpe_offline" else ""
     if rama == "cpe_offline":
         msg = (
             "Revisé tu antena en la red: en este momento no está en línea con la torre. "
             "¿La fuente PoE (el inyectocito de la antena) tiene la lucecita prendida?"
         )
-        return anexar_antes_de_preguntas(msg, barra)
+        return msg
     if rama == "senal_mala":
         ver = veredicto_radio(estado.signal_dbm) or "está baja"
         msg = (

@@ -249,9 +249,10 @@ def test_extraer_lista_envuelta():
 
 
 def test_mensaje_n1_radio():
-    off = EstadoCpeUisp(login="x", encontrado=True, online=False)
+    off = EstadoCpeUisp(login="x", encontrado=True, online=False, signal_dbm=-55)
     msg = mensaje_abonado_uisp(off, es_radio=True)
     assert msg and "PoE" in msg
+    assert "Señal de tu antena" not in msg
     assert "triage=cpe_radio_offline" in triage_uisp_para_prompt(off)
 
     ok = EstadoCpeUisp(

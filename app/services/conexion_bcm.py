@@ -45,9 +45,14 @@ def clasificar_rama_bcm(estado: EstadoOnuBcm) -> RamaBcm:
         return ""
     if estado.online is False:
         return "onu_offline"
+    # «Fuera de rango» sin dBm: no afirmar enlace OK aunque online venga raro.
+    if estado.rx_dbm is None and estado.calidad_optica == "mala":
+        return "potencia_mala" if estado.online is True else "onu_offline"
     if estado.online is True and requiere_visita_por_optica(estado):
         return "potencia_mala"
     if estado.online is True:
+        if estado.rx_dbm is None:
+            return ""
         return "enlace_ok"
     if requiere_visita_por_optica(estado):
         return "potencia_mala"
@@ -55,7 +60,7 @@ def clasificar_rama_bcm(estado: EstadoOnuBcm) -> RamaBcm:
 
 
 def requiere_visita_por_optica(estado: EstadoOnuBcm) -> bool:
-    """True si RX está fuera de parámetro GPON (< -27 dBm o saturación)."""
+    """True si RX está fuera de parámetro GPON o BCM marcó potencia inválida."""
     if not estado.encontrado:
         return False
     if estado.calidad_optica == "mala":
@@ -220,14 +225,21 @@ def mensaje_abonado_bcm(
         veredicto_optica,
     )
 
-    barra = bloque_potencia_onu(estado.rx_dbm)
+    barra = bloque_potencia_onu(estado.rx_dbm) if rama != "onu_offline" else ""
     if rama == "onu_offline":
         msg = (
             "Revisé tu ONT en la red: en este momento no está registrada en la central. "
             "¿El equipo tiene alguna lucecita prendida (PON o LOS)?"
         )
-        return anexar_antes_de_preguntas(msg, barra)
+        return msg
     if rama == "potencia_mala":
+        if estado.rx_dbm is None:
+            msg = (
+                "Revisé tu ONT: la potencia óptica figura fuera de rango en la central "
+                "(sin señal usable). ¿El cablecito amarillo está firme, sin dobleces ni pisadas? "
+                "¿Hay alguna luz LOS prendida o parpadeando?"
+            )
+            return msg
         ver = veredicto_optica(estado.rx_dbm) or "está baja"
         msg = (
             "Revisé tu ONT: está en línea con la central, pero la potencia óptica "

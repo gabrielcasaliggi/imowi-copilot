@@ -112,7 +112,6 @@ def _talvez_mensaje_pppoe(
                 deuda_positiva=_deuda_positiva(abonado),
             )
 
-        msg_uisp = None
         cpe = None
         if login:
             try:
@@ -120,7 +119,6 @@ def _talvez_mensaje_pppoe(
                     aplicar_uisp_a_ctx,
                     consultar_cpe_uisp,
                     es_servicio_radio,
-                    mensaje_abonado_uisp,
                     resolve_uisp_client,
                 )
 
@@ -129,11 +127,9 @@ def _talvez_mensaje_pppoe(
                         es_radio = es_servicio_radio(estado.servicio)
                     cpe = consultar_cpe_uisp(login, db=db)
                     aplicar_uisp_a_ctx(ctx, cpe)
-                    msg_uisp = mensaje_abonado_uisp(cpe, es_radio=es_radio)
             except Exception:
                 logger.exception("UISP check falló en canal")
 
-        msg_bcm = None
         onu = None
         es_ftth = (intencion or "").strip() == "internet_ftth" or (
             ctx.get("tecnologia_acceso") == "internet_ftth"
@@ -147,7 +143,6 @@ def _talvez_mensaje_pppoe(
                     aplicar_bcm_a_ctx,
                     consultar_onu_bcm_mejor_esfuerzo,
                     es_servicio_ftth,
-                    mensaje_abonado_bcm,
                     resolve_bcm_client,
                 )
 
@@ -166,9 +161,6 @@ def _talvez_mensaje_pppoe(
                         base_account_number=base,
                     )
                     aplicar_bcm_a_ctx(ctx, onu)
-                    msg_bcm = mensaje_abonado_bcm(
-                        onu, es_ftth=es_ftth or onu.encontrado
-                    )
             except Exception:
                 logger.exception("BCM check falló en canal")
 
@@ -193,20 +185,33 @@ def _talvez_mensaje_pppoe(
         )
 
         barra = ""
-        # La alerta de planta ya trae la barra; no duplicar.
-        planta_alerta = (bool(msg_uisp) and not uisp_ok) or (bool(msg_bcm) and not bcm_ok)
-        if not planta_alerta:
-            if onu is not None and onu.encontrado and onu.rx_dbm is not None:
-                barra = bloque_potencia_onu(onu.rx_dbm)
-            elif cpe is not None and cpe.encontrado and cpe.signal_dbm is not None:
-                barra = bloque_senal_antena(cpe.signal_dbm)
+        # Solo demostrar potencia/señal cuando el enlace de planta está OK.
+        # Nunca pegar una barra "zona verde" sobre "¿las luces están prendidas?".
+        if bcm_ok and onu is not None and onu.encontrado and onu.rx_dbm is not None:
+            barra = bloque_potencia_onu(onu.rx_dbm)
+        elif uisp_ok and cpe is not None and cpe.encontrado and cpe.signal_dbm is not None:
+            barra = bloque_senal_antena(cpe.signal_dbm)
 
         if uisp_ok or bcm_ok:
             ctx["pppoe_rama"] = "wifi_lan"
             _marcar_pasos_rama_pppoe(ctx)
 
         if msg and barra and "📊" not in msg:
-            return anexar_antes_de_preguntas(msg, barra)
+            low = msg.lower()
+            pregunta_energia = any(
+                k in low
+                for k in (
+                    "luces",
+                    "lucecita",
+                    "prendida",
+                    "prendidas",
+                    "inyecto",
+                    "poe",
+                    "desenchuf",
+                )
+            )
+            if not pregunta_energia:
+                return anexar_antes_de_preguntas(msg, barra)
         if msg:
             return msg
         logger.info(

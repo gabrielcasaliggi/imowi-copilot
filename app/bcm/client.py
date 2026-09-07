@@ -102,6 +102,7 @@ _OFFLINE_STATUS = frozenset(
         "off",
         "down",
         "los",
+        "losi",
         "dying_gasp",
         "dyinggasp",
         "unregistered",
@@ -110,12 +111,28 @@ _OFFLINE_STATUS = frozenset(
         "fuera",
         "fuera_de_linea",
         "fuera de linea",
+        "fuera de rango",
+        "fuera_de_rango",
         "no registrado",
         "no_registrado",
         "0",
         "false",
         "no",
     }
+)
+
+# Textos de potencia en BCM UI/API: no son un dBm usable.
+_RX_INVALID_TEXT_MARKERS = (
+    "fuera de rango",
+    "fuera_de_rango",
+    "sin señal",
+    "sin senal",
+    "sin potencia",
+    "no disponible",
+    "n/a",
+    "na",
+    "--",
+    "---",
 )
 
 
@@ -129,10 +146,26 @@ def _first_str(*vals: Any) -> str:
     return ""
 
 
+def _texto_potencia_invalido(val: Any) -> bool:
+    """True si BCM manda etiqueta (p. ej. «Fuera de rango») en vez de dBm."""
+    if val is None or isinstance(val, bool):
+        return False
+    if isinstance(val, (int, float)):
+        return False
+    s = str(val).strip().casefold().replace("−", "-")
+    if not s:
+        return False
+    if s in ("null", "none", "undefined", "nan"):
+        return True
+    return any(m in s for m in _RX_INVALID_TEXT_MARKERS)
+
+
 def _as_float(val: Any) -> float | None:
     if val is None or val is False:
         return None
     if isinstance(val, bool):
+        return None
+    if _texto_potencia_invalido(val):
         return None
     if isinstance(val, (int, float)):
         n = float(val)
@@ -152,13 +185,68 @@ def _as_float(val: Any) -> float | None:
 
 
 def normalizar_rx_dbm(val: Any) -> float | None:
-    """BCM a veces entrega RX positiva (18.5 = -18.5 dBm)."""
+    """BCM a veces entrega RX positiva (18.5 = -18.5 dBm).
+
+    «Fuera de rango» y similares → None (no inventar dBm ni pintar zona verde).
+    """
+    if _texto_potencia_invalido(val):
+        return None
     n = _as_float(val)
     if n is None:
         return None
     if 8.0 <= n <= 40.0:
         return -n
     return n
+
+
+def _potencias_fuera_de_rango(*blobs: dict[str, Any]) -> bool:
+    """True si Rx/Tx/Catv vienen como texto «Fuera de rango» (UI BCM)."""
+    keys = (
+        "rx",
+        "rx_power",
+        "rxpower",
+        "potencia_rx",
+        "potenciarx",
+        "potencia",
+        "potencia_optica",
+        "potenciaoptica",
+        "tx",
+        "tx_power",
+        "potencia_tx",
+        "catv",
+        "potencia_catv",
+        "potenciacatv",
+        "rx_status",
+        "estado_rx",
+        "estado_potencia",
+    )
+    for blob in blobs:
+        if not isinstance(blob, dict):
+            continue
+        by = {str(k).casefold(): v for k, v in blob.items()}
+        for key in keys:
+            if key in by and _texto_potencia_invalido(by[key]):
+                return True
+        for k, v in blob.items():
+            kl = str(k).casefold()
+            if ("potencia" in kl or kl.startswith("rx") or "optica" in kl) and _texto_potencia_invalido(
+                v
+            ):
+                return True
+    return False
+
+
+def _uptime_cero(blob: dict[str, Any]) -> bool:
+    for key in ("uptime", "up_time", "tiempo_activo", "ont_uptime"):
+        raw = _get_ci(blob, key)
+        if raw is None:
+            continue
+        if isinstance(raw, (int, float)) and float(raw) == 0:
+            return True
+        s = str(raw).strip().casefold()
+        if s in ("0", "00:00:00", "0:00:00", "0s", "0 segundos"):
+            return True
+    return False
 
 
 def clasificar_optica(rx_dbm: float | None) -> CalidadOptica:
@@ -476,38 +564,51 @@ def parse_cliente(payload: Any, *, numero_cliente: str) -> EstadoOnuBcm:
         numero_cliente,
     ) or numero_cliente
 
-    rx = normalizar_rx_dbm(
-        _get_ci(
-            onu,
-            "rx",
-            "rx_power",
-            "rxPower",
-            "potencia_rx",
-            "potenciaRx",
-            "rxpower",
-            "rxOpticalPower",
-            "opticalRxPower",
+    potencia_invalida = _potencias_fuera_de_rango(onu, cliente)
+    rx = None
+    if not potencia_invalida:
+        rx = normalizar_rx_dbm(
+            _get_ci(
+                onu,
+                "rx",
+                "rx_power",
+                "rxPower",
+                "potencia_rx",
+                "potenciaRx",
+                "rxpower",
+                "rxOpticalPower",
+                "opticalRxPower",
+            )
+            or _get_ci(cliente, "rx", "potencia_rx", "potenciaRx", "rx_power")
         )
-        or _get_ci(cliente, "rx", "potencia_rx", "potenciaRx", "rx_power")
-    )
-    if rx is None:
-        rx = normalizar_rx_dbm(_get_ci(onu, "potencia") or _get_ci(cliente, "potencia"))
-    if rx is None:
-        rx = normalizar_rx_dbm(_buscar_rx_en_arbol(cliente) or _buscar_rx_en_arbol(onu))
-    if rx is None and payload is not cliente:
-        rx = normalizar_rx_dbm(_buscar_rx_en_arbol(payload))
-    tx = normalizar_rx_dbm(
-        onu.get("tx")
-        or onu.get("tx_power")
-        or onu.get("txPower")
-        or onu.get("potencia_tx")
-        or cliente.get("tx")
-    )
+        if rx is None:
+            rx = normalizar_rx_dbm(_get_ci(onu, "potencia") or _get_ci(cliente, "potencia"))
+        if rx is None:
+            rx = normalizar_rx_dbm(_buscar_rx_en_arbol(cliente) or _buscar_rx_en_arbol(onu))
+        if rx is None and payload is not cliente:
+            rx = normalizar_rx_dbm(_buscar_rx_en_arbol(payload))
+    tx = None
+    if not potencia_invalida:
+        tx = normalizar_rx_dbm(
+            onu.get("tx")
+            or onu.get("tx_power")
+            or onu.get("txPower")
+            or onu.get("potencia_tx")
+            or cliente.get("tx")
+        )
+
+    online = _status_online(onu) if _status_online(onu) is not None else _status_online(cliente)
+    # BCM UI: Rx «Fuera de rango» + uptime 00:00:00 / LOS → no hay enlace óptico usable.
+    if potencia_invalida or _uptime_cero(onu) or _uptime_cero(cliente):
+        if online is not False:
+            online = False
+
+    calidad: CalidadOptica = "mala" if potencia_invalida else clasificar_optica(rx)
 
     return EstadoOnuBcm(
         numero_cliente=nro,
         encontrado=True,
-        online=_status_online(onu) if _status_online(onu) is not None else _status_online(cliente),
+        online=online,
         nombre=_first_str(cliente.get("nombre"), cliente.get("name")),
         apellido=_first_str(cliente.get("apellido"), cliente.get("lastname")),
         serial=_first_str(
@@ -525,7 +626,7 @@ def parse_cliente(payload: Any, *, numero_cliente: str) -> EstadoOnuBcm:
         pon=_dig_pon(onu, cliente),
         rx_dbm=rx,
         tx_dbm=tx,
-        calidad_optica=clasificar_optica(rx),
+        calidad_optica=calidad,
         raw=cliente if isinstance(cliente, dict) else {},
     )
 

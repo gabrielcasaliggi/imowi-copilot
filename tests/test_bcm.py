@@ -150,6 +150,43 @@ def test_parse_onu_clave_mayuscula_y_rxpower():
     assert onu.serial == "AA"
 
 
+def test_fuera_de_rango_no_inventa_dbm_ni_zona_verde():
+    """BCM UI: Potencia Rx/Tx «Fuera de rango» + uptime 0 + posible RX stale."""
+    payload = {
+        "status": "ok",
+        "data": {
+            "numero_cliente": 17003,
+            "nombre": "Grupo Cal Agro",
+            "onu": {
+                "serial": "48575443025D81B5",
+                "estado": "online",
+                "uptime": "00:00:00",
+                "potencia_rx": "Fuera de rango",
+                "potencia_tx": "Fuera de rango",
+                "potencia_catv": "Fuera de rango",
+                # Número viejo que NO debe usarse si el texto dice fuera de rango.
+                "rx": -21.0,
+                "olt": "PARQUE-OLT-10",
+            },
+        },
+    }
+    onu = parse_cliente(payload, numero_cliente="17003")
+    assert onu.encontrado is True
+    assert onu.rx_dbm is None
+    assert onu.calidad_optica == "mala"
+    assert onu.online is False
+    assert clasificar_rama_bcm(onu) == "onu_offline"
+    assert normalizar_rx_dbm("Fuera de rango") is None
+    assert normalizar_rx_dbm("fuera_de_rango") is None
+
+    msg = mensaje_abonado_bcm(onu, es_ftth=True)
+    assert msg
+    assert "Potencia de tu ONT" not in msg
+    assert "-21" not in msg
+    assert "zona verde" not in msg.lower()
+    assert "luces" in msg.lower() or "los" in msg.lower() or "central" in msg.lower()
+
+
 def test_parse_offline_y_potencia_mala():
     off = parse_cliente(SAMPLE_OFFLINE, numero_cliente="1")
     assert off.online is False
@@ -307,9 +344,12 @@ def test_aplicar_bcm_a_ctx():
 
 
 def test_mensaje_n1_ftth():
-    off = EstadoOnuBcm(numero_cliente="x", encontrado=True, online=False)
+    off = EstadoOnuBcm(
+        numero_cliente="x", encontrado=True, online=False, rx_dbm=-21.0, calidad_optica="buena"
+    )
     msg = mensaje_abonado_bcm(off, es_ftth=True)
     assert msg and "ont" in msg.lower()
+    assert "Potencia de tu ONT" not in msg
     assert "triage=onu_ftth_offline" in triage_bcm_para_prompt(off)
 
     ok = EstadoOnuBcm(

@@ -151,6 +151,8 @@ def test_onu_offline_lo_dice_antes_del_cuestionario():
         numero_cliente="12345",
         encontrado=True,
         online=False,
+        rx_dbm=-21.0,
+        calidad_optica="buena",
     )
     msg = mensaje_pre_triaje_acceso(
         estado, abonado=_abo(), onu=onu, es_ftth=True
@@ -158,6 +160,76 @@ def test_onu_offline_lo_dice_antes_del_cuestionario():
     assert msg
     assert "no está registrada" in msg.lower() or "central" in msg.lower()
     assert "181.41.1.20" not in msg
+    # No contradecir con barra de potencia "zona verde" si la ONT está offline
+    assert "Potencia de tu ONT" not in msg
+    assert "-21" not in msg
+
+
+def test_sin_sesion_con_rx_stale_no_pega_barra_verde_sobre_luces(monkeypatch):
+    """Caso IBOT: sin sesión + RX en BCM no debe decir potencia buena y preguntar luces."""
+    from app.services import canal_pppoe as cp
+    from app.services import conexion_bcm as cb
+    from app.services import conexion_pppoe as cpp
+    from app.services import conexion_uisp as cu
+
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="4640854",
+            service_type_code="INTFO",
+            service_type_label="Fibra Optica",
+            state="Habilitado",
+            service_on=True,
+        ),
+        sesion=SesionPPPoE(username="4640854", online=False),
+    )
+    # RX presente pero ONU sin online claro → no enlace_ok
+    onu = EstadoOnuBcm(
+        numero_cliente="71514953",
+        encontrado=True,
+        online=None,
+        rx_dbm=-21.0,
+        calidad_optica="buena",
+    )
+    monkeypatch.setattr(cpp, "consultar_conexion_pppoe", lambda **kw: estado)
+    monkeypatch.setattr(cu, "resolve_uisp_client", lambda db=None: None)
+    monkeypatch.setattr(cb, "resolve_bcm_client", lambda db=None: object())
+    monkeypatch.setattr(cb, "consultar_onu_bcm", lambda *a, **k: onu)
+    monkeypatch.setattr(cb, "consultar_onu_bcm_mejor_esfuerzo", lambda *a, **k: onu)
+
+    msg = cp._talvez_mensaje_pppoe(MagicMock(), _abo(), {}, "internet")
+    assert msg
+    low = msg.lower()
+    assert "luces" in low or "desenchuf" in low
+    assert "Potencia de tu ONT" not in msg
+    assert "zona verde" not in low
+
+
+def test_sin_sesion_con_onu_ok_demuestra_potencia_no_pregunta_luces():
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="4640854",
+            service_type_code="INTFO",
+            service_type_label="Fibra Optica",
+            state="Habilitado",
+        ),
+        sesion=SesionPPPoE(username="4640854", online=False),
+    )
+    onu = EstadoOnuBcm(
+        numero_cliente="12345",
+        encontrado=True,
+        online=True,
+        rx_dbm=-21.0,
+        calidad_optica="buena",
+    )
+    msg = mensaje_pre_triaje_acceso(
+        estado, abonado=_abo(), onu=onu, es_ftth=True
+    )
+    assert msg
+    low = msg.lower()
+    assert "potencia" in low or "-21" in msg
+    assert "no figura conectado" in low or "no figurás conectado" in low or "conectado" in low
+    assert "¿las luces" not in low
+    assert "prendidas" not in low
     assert "toda la casa" not in msg.lower()
 
 

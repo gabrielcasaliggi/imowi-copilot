@@ -122,6 +122,64 @@ def _pregunta_wifi() -> str:
     )
 
 
+def _mensaje_sin_sesion_planta_ok(
+    onu: Any | None,
+    cpe: Any | None,
+    *,
+    es_ftth: bool,
+    es_radio: bool,
+) -> str:
+    """Planta OK pero sin sesión PPP: demostrar potencia/señal; no preguntar si está prendida."""
+    from app.services.barra_senal import (
+        anexar_antes_de_preguntas,
+        bloque_potencia_onu,
+        bloque_senal_antena,
+        veredicto_optica,
+        veredicto_radio,
+    )
+
+    partes: list[str] = []
+    barra = ""
+    if es_radio and cpe is not None and getattr(cpe, "encontrado", False):
+        ver = veredicto_radio(getattr(cpe, "signal_dbm", None)) or "se ve bien"
+        partes.append(
+            f"Revisé tu antena: está en línea y el enlace con la torre {ver}."
+        )
+        barra = bloque_senal_antena(getattr(cpe, "signal_dbm", None))
+    elif es_ftth and onu is not None and getattr(onu, "encontrado", False):
+        ver = veredicto_optica(getattr(onu, "rx_dbm", None)) or "se ve bien"
+        partes.append(
+            f"Revisé tu ONT: está en línea y la potencia óptica {ver}."
+        )
+        barra = bloque_potencia_onu(getattr(onu, "rx_dbm", None))
+    partes.append(
+        "Igual, ahora mismo tu usuario no figura conectado en la red. "
+        "Si podés, desenchufá el router/ONT 30 segundos y avisame si vuelve a conectar."
+    )
+    msg = " ".join(partes)
+    if barra:
+        return anexar_antes_de_preguntas(msg, barra)
+    return msg
+
+
+def _enlace_planta_demostrable(
+    onu: Any | None,
+    cpe: Any | None,
+    *,
+    es_ftth: bool,
+    es_radio: bool,
+) -> bool:
+    """True solo si BCM/UISP vieron el equipo en línea con enlace OK."""
+    from app.services.conexion_bcm import clasificar_rama_bcm
+    from app.services.conexion_uisp import clasificar_rama_uisp
+
+    if es_radio and cpe is not None and getattr(cpe, "encontrado", False):
+        return clasificar_rama_uisp(cpe) == "enlace_ok"
+    if es_ftth and onu is not None and getattr(onu, "encontrado", False):
+        return clasificar_rama_bcm(onu) == "enlace_ok"
+    return False
+
+
 def mensaje_antena_no_enlazada() -> str:
     return (
         "El servicio de radio está activo, pero la antena no figura enlazada en la red. "
@@ -283,6 +341,10 @@ def decidir_mensaje_mesa(
         return _pregunta_luces(es_radio=es_radio, es_ftth=es_ftth)
 
     if rama == "sin_sesion" or estado.online is False:
+        if _enlace_planta_demostrable(onu, cpe, es_ftth=es_ftth, es_radio=es_radio):
+            return _mensaje_sin_sesion_planta_ok(
+                onu, cpe, es_ftth=es_ftth, es_radio=es_radio
+            )
         extra = ""
         if deuda_positiva:
             extra = (
