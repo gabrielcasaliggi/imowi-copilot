@@ -326,6 +326,41 @@ def test_evaluar_turno_no_aplica_radio():
     assert out is None
 
 
+def test_evaluar_turno_luz_vaga_pregunta_pon_o_los_no_ticket():
+    """Caso IBOT: «si hay una encendida» no debe abrir N2 al toque."""
+    ctx = (
+        "CONTEXTO_ABONADO:\n"
+        "- bcm: nro_cliente=17003; estado=fuera_de_linea; calidad=mala\n"
+        "- bcm_triage: triage=onu_ftth_offline; chequear luces PON/LOS\n"
+    )
+    out = evaluar_turno_onu_bcm(
+        contexto_abonado=ctx,
+        mensaje_cliente="si hay una encendida",
+        historial_mensajes=[],
+        pasos_cubiertos=["bcm_onu_offline"],
+        turnos_diagnostico=2,
+        intencion="internet_ftth",
+    )
+    assert out is not None
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "bcm_onu_offline_cual_luz"
+    assert "pon" in (out.get("mensaje") or "").lower()
+    assert "los" in (out.get("mensaje") or "").lower()
+    assert "ticket" not in (out.get("mensaje") or "").lower()
+
+    los = evaluar_turno_onu_bcm(
+        contexto_abonado=ctx,
+        mensaje_cliente="la los esta roja",
+        historial_mensajes=[],
+        pasos_cubiertos=["bcm_onu_offline", "bcm_cual_luz_ont"],
+        turnos_diagnostico=3,
+        intencion="internet_ftth",
+    )
+    assert los is not None
+    assert los["accion"] == "escalate"
+    assert los["motivo"] == "bcm_onu_offline_visita"
+
+
 def test_aplicar_bcm_a_ctx():
     ctx: dict = {}
     onu = EstadoOnuBcm(

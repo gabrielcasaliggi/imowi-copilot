@@ -908,6 +908,36 @@ def _cliente_reporta_los_apagada_ok(texto: str) -> bool:
     return any(k in t for k in ("apagad", "sin alarma", "no hay luz roja"))
 
 
+def _cliente_responde_luz_ont_vaga(texto: str) -> bool:
+    """Afirma que hay luz(es) sin decir si es PON verde o LOS roja."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(k in t for k in ("roja", "rojo", "verde", "los", "pon", "alarma")):
+        return False
+    if any(
+        k in t
+        for k in (
+            "hay una",
+            "hay 1",
+            "una encendida",
+            "una prendida",
+            "tiene luz",
+            "tiene una",
+            "si hay",
+            "sí hay",
+            "algunas prend",
+            "una sola",
+            "solo una",
+            "sólo una",
+        )
+    ):
+        return True
+    # Respuesta corta al «¿están prendidas?» sin color.
+    t_norm = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    return t_norm in ("si", "sí", "sip", "sisi", "afirmativo", "claro")
+
+
 def _cliente_indica_los_en_alarma(texto: str) -> bool:
     """True solo si el cliente reporta LOS en rojo/alarma (no apagada = OK)."""
     if _cliente_reporta_los_apagada_ok(texto):

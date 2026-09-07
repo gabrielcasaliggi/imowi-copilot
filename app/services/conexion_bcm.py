@@ -436,6 +436,59 @@ def _aplica_ftth(intencion: str, contexto_abonado: str) -> bool:
     return "intfo" in low or "ftth" in low or "fibra" in low
 
 
+def _cliente_luz_ont_vaga(texto: str) -> bool:
+    """Afirma luces sin decir PON/LOS ni color."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if any(k in t for k in ("roja", "rojo", "verde", "los", "pon", "alarma")):
+        return False
+    if any(
+        k in t
+        for k in (
+            "hay una",
+            "hay 1",
+            "una encendida",
+            "una prendida",
+            "tiene luz",
+            "tiene una",
+            "si hay",
+            "sí hay",
+            "algunas prend",
+            "una sola",
+            "solo una",
+            "sólo una",
+        )
+    ):
+        return True
+    t_norm = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    return t_norm in ("si", "sí", "sip", "sisi", "afirmativo", "claro")
+
+
+def _cliente_los_en_alarma(texto: str) -> bool:
+    t = (texto or "").lower()
+    if "los" not in t:
+        return False
+    if any(k in t for k in ("apagad", "sin alarma", "no hay luz roja")):
+        return False
+    return any(
+        k in t
+        for k in (
+            "luz roja",
+            "los roja",
+            "los en rojo",
+            "los rojo",
+            "roja de los",
+            "rojo de los",
+            "luz los",
+            "los prendida",
+            "los encendida",
+            "alarma",
+            "parpade",
+        )
+    ) or (("roja" in t or "rojo" in t) and "los" in t)
+
+
 def evaluar_turno_onu_bcm(
     *,
     contexto_abonado: str,
@@ -506,25 +559,58 @@ def evaluar_turno_onu_bcm(
         }
 
     if rama == "onu_offline":
-        if persistencia or pide_humano(mensaje_cliente) or int(turnos_diagnostico or 0) >= 2:
+        if (
+            _cliente_los_en_alarma(mensaje_cliente)
+            or persistencia
+            or pide_humano(mensaje_cliente)
+        ):
             return {
                 "accion": "escalate",
                 "mensaje": mensaje_visita_onu_por_optica(estado),
                 "paso_cubierto": "",
                 "motivo": "bcm_onu_offline_visita",
             }
+        # «sí, hay una encendida» no alcanza: hay que saber si es PON o LOS.
+        if _cliente_luz_ont_vaga(mensaje_cliente) or (
+            "bcm_onu_offline" in pasos and "bcm_cual_luz_ont" not in pasos
+        ):
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "Dale. ¿Cuál lucecita ves prendida: la PON (suele ser verde) "
+                    "o la LOS (roja / alarma)? Si podés, decime el color."
+                ),
+                "paso_cubierto": "bcm_cual_luz_ont",
+                "motivo": "bcm_onu_offline_cual_luz",
+            }
         if "bcm_onu_offline" not in pasos:
             return {
                 "accion": "ask",
                 "mensaje": (
-                    "Revisé tu ONT: no está registrada en la central. "
+                    "Revisé tu ONT: no está registrada en la central "
+                    "(sin potencia usable en la red). "
                     "¿El equipo tiene alguna lucecita prendida (PON o LOS)?"
                 ),
                 "paso_cubierto": "bcm_onu_offline",
                 "motivo": "bcm_onu_offline",
             }
-        return None
-
+        # Tras aclarar luces sin LOS clara: un reinicio, no ticket ya.
+        if "bcm_reinicio_ont_offline" not in pasos:
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "Si podés, desenchufá la ONT 30 segundos, volvé a enchufarla "
+                    "y avisame si cambia alguna luz o si vuelve internet."
+                ),
+                "paso_cubierto": "bcm_reinicio_ont_offline",
+                "motivo": "bcm_onu_offline_reinicio",
+            }
+        return {
+            "accion": "escalate",
+            "mensaje": mensaje_visita_onu_por_optica(estado),
+            "paso_cubierto": "",
+            "motivo": "bcm_onu_offline_visita",
+        }
     if rama == "potencia_mala":
         if persistencia or pide_humano(mensaje_cliente) or "bcm_potencia_mala" in pasos:
             return {

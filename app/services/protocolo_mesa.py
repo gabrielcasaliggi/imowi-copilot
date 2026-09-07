@@ -106,8 +106,9 @@ def _pregunta_luces(*, es_radio: bool, es_ftth: bool) -> str:
         )
     if es_ftth:
         return (
-            "¿Las luces de la ONT (la cajita de la fibra) están prendidas? "
-            "Si podés, desenchufala 30 segundos y avisame si vuelve a conectar."
+            "¿La ONT (cajita de la fibra) tiene luces? Decime si ves la PON en verde "
+            "o alguna LOS en rojo/alarma. Si podés, desenchufala 30 segundos y avisame "
+            "si vuelve a conectar."
         )
     return (
         "¿Las luces del módem o router están prendidas? "
