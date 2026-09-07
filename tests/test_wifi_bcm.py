@@ -10,6 +10,7 @@ from app.bcm.client import (
     _error_en_cuerpo_tr_wifi,
     redactar_params_sensibles,
 )
+from app.radius.contract import ServicioConectividad
 from app.services import wifi_bcm as wb
 from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
 
@@ -26,6 +27,14 @@ class _Resp:
 
 def _abo(aid: str = "abo-1") -> SimpleNamespace:
     return SimpleNamespace(id=aid, dni="30111222", client_number="12345")
+
+
+def _dest_serial(sn: str) -> wb.DestinoWifiBcm:
+    return wb.DestinoWifiBcm("serial", sn)
+
+
+def _dest_radius(login: str) -> wb.DestinoWifiBcm:
+    return wb.DestinoWifiBcm("user_radius", login)
 
 
 def test_redactar_params_password():
@@ -89,6 +98,26 @@ def test_modificar_password_ambas_bandas_query(monkeypatch):
     )
 
 
+def test_modificar_password_por_user_radius(monkeypatch):
+    bcm = BcmClient(base_url="https://bcm.example/api/v1", user="u", app_pass="p")
+    bcm._token = "tok"
+    seen: list[dict] = []
+
+    def _fake_post(path, params, retry=True):
+        seen.append({"path": path, "params": dict(params)})
+        assert params["userRadius"] == "pruebasadsl22"
+        assert params["password"] == "ClaveNueva1"
+        return _Resp(200)
+
+    monkeypatch.setattr(bcm, "_request_post", _fake_post)
+    results = bcm.modificar_wifi_password_ambas_bandas_por_user_radius(
+        "pruebasadsl22", "ClaveNueva1"
+    )
+    assert all(r.ok for r in results)
+    assert [s["params"]["wifi"] for s in seen] == ["2", "5"]
+    assert all(s["path"] == "/tr/modificarWifiPasswordPorUserRadius" for s in seen)
+
+
 def test_modificar_ssid_ambas_bandas(monkeypatch):
     bcm = BcmClient(base_url="https://bcm.example/api/v1", user="u", app_pass="p")
     bcm._token = "tok"
@@ -149,13 +178,20 @@ def test_serial_ajeno_en_ctx_no_se_usa(monkeypatch):
         "wifi_bcm_abonado_id": "otro-abonado",
         "pasos_cubiertos": [],
     }
-    monkeypatch.setattr(
-        wb, "resolver_serial_wifi_bcm", lambda *_a, **_k: ("SERIAL-MIO", "")
-    )
+
+    def _dest(db, abo, ctx, texto=""):
+        d = _dest_serial("SERIAL-MIO")
+        ctx["wifi_bcm_abonado_id"] = "abo-mio"
+        ctx["wifi_bcm_serial"] = d.valor
+        ctx["wifi_bcm_destino_kind"] = d.kind
+        ctx["wifi_bcm_destino_valor"] = d.valor
+        return d, "", ""
+
+    monkeypatch.setattr(wb, "_destino_autorizado", _dest)
     applied: list[str] = []
 
-    def _pass(db, serial, password):
-        applied.append(serial)
+    def _pass(db, destino, password):
+        applied.append(destino.valor)
         return True, ""
 
     monkeypatch.setattr(wb, "_aplicar_password", _pass)
@@ -178,15 +214,19 @@ def test_turno_remoto_pide_y_aplica_clave(monkeypatch):
     ctx: dict = {"pasos_cubiertos": []}
     abo = _abo()
 
-    monkeypatch.setattr(
-        wb,
-        "resolver_serial_wifi_bcm",
-        lambda *_a, **_k: ("HWTC999", ""),
-    )
+    def _dest(db, abonado, ctx, texto=""):
+        d = _dest_serial("HWTC999")
+        ctx["wifi_bcm_abonado_id"] = abo.id
+        ctx["wifi_bcm_serial"] = d.valor
+        ctx["wifi_bcm_destino_kind"] = d.kind
+        ctx["wifi_bcm_destino_valor"] = d.valor
+        return d, "", ""
+
+    monkeypatch.setattr(wb, "_destino_autorizado", _dest)
     applied: list[tuple[str, str]] = []
 
-    def _pass(db, serial, password):
-        applied.append((serial, password))
+    def _pass(db, destino, password):
+        applied.append((destino.valor, password))
         return True, ""
 
     monkeypatch.setattr(wb, "_aplicar_password", _pass)
@@ -209,16 +249,72 @@ def test_turno_remoto_pide_y_aplica_clave(monkeypatch):
     assert "olvid" in (r2["mensaje"] or "").lower()
 
 
+def test_turno_aplica_por_user_radius(monkeypatch):
+    abo = _abo()
+    ctx: dict = {
+        "wifi_bcm": "1",
+        "wifi_bcm_abonado_id": abo.id,
+        "wifi_bcm_destino_kind": "user_radius",
+        "wifi_bcm_destino_valor": "pruebasadsl22",
+        "wifi_bcm_login": "pruebasadsl22",
+        "pasos_cubiertos": [],
+    }
+    applied: list[tuple[str, str]] = []
+
+    def _pass(db, destino, password):
+        applied.append((destino.kind, destino.valor))
+        assert destino.kind == "user_radius"
+        return True, ""
+
+    monkeypatch.setattr(wb, "_aplicar_password", _pass)
+    wb.turno_cambio_wifi_bcm(db=None, abonado=abo, ctx=ctx, texto="clave")
+    assert ctx["wifi_bcm_fase"] == "pedir_clave"
+    r2 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=abo, ctx=ctx, texto="ClaveNueva99"
+    )
+    assert r2 and r2.get("motivo") == "wifi_bcm_ok"
+    assert applied == [("user_radius", "pruebasadsl22")]
+
+
+def test_turno_multi_cuenta_pide_seleccion(monkeypatch):
+    abo = _abo()
+    ctx: dict = {"pasos_cubiertos": []}
+
+    def _dest(db, abonado, ctx, texto=""):
+        return (
+            None,
+            "necesita_seleccion",
+            "Veo que tenés 2 cuentas de internet:\n• casa1FTTH\n• casa2FTTH\n"
+            "¿En cuál querés cambiar el Wi‑Fi?",
+        )
+
+    monkeypatch.setattr(wb, "_destino_autorizado", _dest)
+    r = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=abo, ctx=ctx, texto="quiero cambiar la clave"
+    )
+    assert r is not None
+    assert r["motivo"] == "wifi_bcm_seleccion_cuenta"
+    assert "casa1FTTH" in (r["mensaje"] or "")
+    assert ctx.get("wifi_bcm") != "0"
+
+
 def test_turno_ambos_clave_luego_ssid(monkeypatch):
     abo = _abo()
     ctx: dict = {
         "wifi_bcm": "1",
         "wifi_bcm_serial": "SN1",
+        "wifi_bcm_destino_kind": "serial",
+        "wifi_bcm_destino_valor": "SN1",
         "wifi_bcm_abonado_id": abo.id,
         "pasos_cubiertos": [],
     }
     monkeypatch.setattr(wb, "_aplicar_password", lambda *_a, **_k: (True, ""))
     monkeypatch.setattr(wb, "_aplicar_ssid", lambda *_a, **_k: (True, ""))
+    monkeypatch.setattr(
+        wb,
+        "_servicios_abonado",
+        lambda *_a, **_k: [],
+    )
 
     r0 = wb.turno_cambio_wifi_bcm(db=None, abonado=abo, ctx=ctx, texto="ambas")
     assert ctx["wifi_bcm_que"] == "ambos"
@@ -239,16 +335,65 @@ def test_turno_ambos_clave_luego_ssid(monkeypatch):
     assert "olvid" in (r2["mensaje"] or "").lower()
 
 
-def test_turno_sin_serial_cae_a_local(monkeypatch):
+def test_turno_sin_destino_cae_a_local(monkeypatch):
     ctx: dict = {"pasos_cubiertos": []}
     monkeypatch.setattr(
-        wb, "resolver_serial_wifi_bcm", lambda *_a, **_k: ("", "sin_serial")
+        wb,
+        "_destino_autorizado",
+        lambda *_a, **_k: (None, "sin_serial_ni_login", ""),
     )
     assert (
         wb.turno_cambio_wifi_bcm(db=None, abonado=_abo(), ctx=ctx, texto="clave")
         is None
     )
     assert ctx["wifi_bcm"] == "0"
+
+
+def test_resolver_multi_ftth_necesita_seleccion(monkeypatch):
+    abo = _abo()
+    ctx: dict = {}
+    svcs = [
+        ServicioConectividad(
+            login="unoFTTH",
+            service_type_code="INTFO",
+            service_type_label="Fibra Optica",
+            product="Fibra 100",
+            service_on=True,
+            base_account_number="10",
+        ),
+        ServicioConectividad(
+            login="dosFTTH",
+            service_type_code="INTFO",
+            service_type_label="Fibra Optica",
+            product="Fibra 200",
+            service_on=True,
+            base_account_number="20",
+        ),
+    ]
+    monkeypatch.setattr(wb, "_servicios_abonado", lambda *_a, **_k: svcs)
+    monkeypatch.setattr(
+        "app.services.conexion_bcm.resolve_bcm_client", lambda db=None: object()
+    )
+    monkeypatch.setattr(
+        "app.services.conexion_bcm.es_servicio_ftth", lambda svc: True
+    )
+    monkeypatch.setattr(
+        "app.services.billtrack.servicio_habilitado", lambda svc: True
+    )
+    monkeypatch.setattr(wb, "_buscar_serial", lambda *_a, **_k: "")
+    dest, motivo, msg = wb.resolver_destino_wifi_bcm(None, abo, ctx, texto="clave")
+    assert dest is None
+    assert motivo == "necesita_seleccion"
+    assert "unoFTTH" in msg and "dosFTTH" in msg
+    assert ctx.get("wifi_bcm_pendiente_cuenta") == "1"
+
+    dest2, motivo2, _ = wb.resolver_destino_wifi_bcm(
+        None, abo, ctx, texto="unoFTTH"
+    )
+    assert motivo2 == ""
+    assert dest2 is not None
+    assert dest2.kind == "user_radius"
+    assert dest2.valor == "unoFTTH"
 
 
 def test_guardrail_permite_pedido_si_gestion_remota():

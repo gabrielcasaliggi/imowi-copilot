@@ -2,22 +2,25 @@
 
 Seguridad (no negociable):
 - Solo con abonado identificado (id de padrón).
-- El equipo destino se resuelve SOLO desde la identidad del abonado → BCM
-  (client_number / BillTrack). Nunca desde el texto del chat ni desde un
-  serial/radius arbitrario del contexto sin vínculo al abonado.
-- La contraseña/SSID del mensaje son el *valor* a aplicar, nunca el selector
-  del CPE.
+- El equipo destino se resuelve SOLO desde BillTrack/BCM del abonado
+  (serial ONU o login Radius del servicio). Nunca un serial/radius arbitrario
+  pegado en el chat.
+- Si hay varios servicios FTTH elegibles, se listan y el abonado elige
+  (mismo patrón que multi-cuenta internet).
+- La contraseña/SSID del mensaje son el *valor* a aplicar, nunca el selector.
 - No persistir la contraseña en el contexto de la conversación.
 
 Reglas de negocio (v1):
-- Solo fibra/FTTH con serial ONU en BCM.
+- Solo fibra/FTTH.
 - Misma clave (o SSID) en ambas bandas: wifi=2 (2.4) y wifi=5 (5 GHz).
+- Preferir serial; si no hay, userRadius (login BillTrack).
 """
 
 from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
@@ -28,6 +31,7 @@ logger = logging.getLogger("operations_hub")
 
 QueWifi = Literal["clave", "ssid", "ambos", ""]
 FaseWifi = Literal["", "detalle", "pedir_clave", "pedir_ssid", "hecho"]
+KindDestino = Literal["serial", "user_radius"]
 
 _MSG_DISPONIBLE = (
     "Puedo cambiarlo desde acá en tu equipo de fibra (2.4 y 5 GHz). "
@@ -82,6 +86,15 @@ _RE_SOLO_DETALLE = re.compile(
     r"ambas|los\s+dos|las\s+dos|las\s+dos\s+cosas)(\s+del?\s+wifi)?$",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class DestinoWifiBcm:
+    kind: KindDestino
+    valor: str
+
+    def clave_cache(self) -> str:
+        return f"{self.kind}:{self.valor}"
 
 
 def validar_password_wifi(password: str) -> str:
@@ -146,16 +159,16 @@ def interpretar_que_cambiar(texto: str) -> QueWifi:
     return ""
 
 
-def mensaje_remoto_detalle() -> str:
+def gestion_remota_activa(ctx: dict | None) -> bool:
+    return str((ctx or {}).get("wifi_bcm") or "") == "1"
+
+
+def mensaje_remoto_disponible() -> str:
     return _MSG_DISPONIBLE
 
 
 def mensaje_remoto_pedir_clave() -> str:
     return _MSG_PEDIR_CLAVE
-
-
-def gestion_remota_activa(ctx: dict | None) -> bool:
-    return str((ctx or {}).get("wifi_bcm") or "") == "1"
 
 
 def _abonado_id(abonado: Any | None) -> str:
@@ -178,12 +191,81 @@ def _resumen_resultados(resultados: list[ResultadoCambioWifi]) -> tuple[bool, st
     return False, "; ".join(errores)[:160]
 
 
-def _candidatos_numero_solo_abonado(
+def _servicios_abonado(db: Session | None, abonado: Any) -> list[Any]:
+    try:
+        from app.services import billtrack as bt
+
+        dni = str(getattr(abonado, "dni", "") or "").strip()
+        if not dni:
+            return []
+        return list(bt.lookup_servicios_conectividad_por_dni(dni=dni, db=db) or [])
+    except Exception:
+        logger.debug("wifi_bcm: BillTrack servicios falló", exc_info=True)
+        return []
+
+
+def _servicios_ftth_elegibles(servicios: list[Any]) -> list[Any]:
+    from app.services.billtrack import servicio_habilitado
+    from app.services.conexion_bcm import es_servicio_ftth
+
+    out: list[Any] = []
+    for svc in servicios or []:
+        if not es_servicio_ftth(svc):
+            continue
+        if not servicio_habilitado(svc):
+            continue
+        out.append(svc)
+    return out
+
+
+def _logins_ftth(servicios_ftth: list[Any]) -> list[str]:
+    seen: list[str] = []
+    for svc in servicios_ftth:
+        login = str(getattr(svc, "login", "") or "").strip()
+        if login and login not in seen:
+            seen.append(login)
+    return seen
+
+
+def _login_en_lista(login: str, logins: list[str]) -> str:
+    want = (login or "").strip().lower()
+    if not want:
+        return ""
+    for l in logins:
+        if l.lower() == want:
+            return l
+    return ""
+
+
+def _login_autorizado_desde_texto(
+    texto: str, servicios_ftth: list[Any]
+) -> str:
+    """Solo logins del padrón FTTH del abonado (no regex libre)."""
+    tl = (texto or "").lower()
+    if not tl:
+        return ""
+    for svc in servicios_ftth:
+        login = str(getattr(svc, "login", "") or "").strip()
+        if login and login.lower() in tl:
+            return login
+    # Domicilio / localidad como en BillTrack
+    try:
+        from app.services import billtrack as bt
+
+        login_dom = bt.extraer_login_por_domicilio(texto, servicios_ftth)
+        if login_dom and _login_en_lista(login_dom, _logins_ftth(servicios_ftth)):
+            return login_dom
+    except Exception:
+        pass
+    return ""
+
+
+def _candidatos_numero_para_svc(
     abonado: Any,
+    svc: Any | None,
     *,
     db: Session | None,
 ) -> list[str]:
-    """Números ERP del abonado identificado. No usa ctx (evita inyección)."""
     from app.services.conexion_bcm import resolver_numero_cliente_bcm
 
     seen: list[str] = []
@@ -193,171 +275,262 @@ def _candidatos_numero_solo_abonado(
         if s and s not in seen:
             seen.append(s)
 
+    if svc is not None:
+        _add(getattr(svc, "base_account_number", ""))
     _add(getattr(abonado, "client_number", ""))
     _add(resolver_numero_cliente_bcm(abonado, db))
-    dni = str(getattr(abonado, "dni", "") or "").strip()
-    if dni:
-        try:
-            from app.services import billtrack as bt
-
-            servicios = bt.lookup_servicios_conectividad_por_dni(dni=dni, db=db) or []
-            for svc in servicios:
-                _add(getattr(svc, "base_account_number", ""))
-        except Exception:
-            logger.debug("wifi_bcm: BillTrack candidatos falló", exc_info=True)
     return seen
 
 
-def resolver_serial_wifi_bcm(
+def _buscar_serial(
     db: Session | None,
-    abonado: Any | None,
+    abonado: Any,
     ctx: dict,
-) -> tuple[str, str]:
-    """
-    Resuelve serial ONU para TR Wi‑Fi atado al abonado.
-    Retorna (serial, motivo_si_no). Ignora seriales sueltos del ctx.
-    """
-    if abonado is None or not _abonado_id(abonado):
-        return "", "sin_abonado"
+    svc: Any | None,
+) -> str:
+    from app.services.conexion_bcm import aplicar_bcm_a_ctx, consultar_onu_bcm
 
-    from app.services.conexion_bcm import (
-        aplicar_bcm_a_ctx,
-        consultar_onu_bcm,
-        es_servicio_ftth,
-        resolve_bcm_client,
-    )
-
-    if resolve_bcm_client(db) is None:
-        return "", "bcm_no_configurado"
-
-    servicio = None
-    try:
-        from app.services import billtrack as bt
-
-        dni = str(getattr(abonado, "dni", "") or "").strip()
-        if dni:
-            servicios = bt.lookup_servicios_conectividad_por_dni(dni=dni, db=db) or []
-            servicio = bt.elegir_servicio_principal(servicios)
-    except Exception:
-        logger.debug("wifi_bcm: no se pudo leer servicios BillTrack", exc_info=True)
-
-    if servicio is not None and not es_servicio_ftth(servicio):
-        return "", "no_ftth"
-
-    candidatos = _candidatos_numero_solo_abonado(abonado, db=db)
-    if not candidatos:
-        return "", "sin_numero_cliente"
-
-    last = None
-    for nro in candidatos:
+    for nro in _candidatos_numero_para_svc(abonado, svc, db=db):
         onu = consultar_onu_bcm(nro, db=db)
-        last = onu
         if onu.encontrado and str(onu.serial or "").strip():
             aplicar_bcm_a_ctx(ctx, onu)
-            return str(onu.serial).strip(), ""
+            return str(onu.serial).strip()
         if onu.encontrado:
             aplicar_bcm_a_ctx(ctx, onu)
-
-    if last is not None and not last.encontrado:
-        return "", "onu_no_encontrada"
-    return "", "sin_serial"
+    return ""
 
 
-def _serial_autorizado(
+def mensaje_seleccion_servicio_wifi(servicios_ftth: list[Any]) -> str:
+    from app.services import billtrack as bt
+
+    return bt.mensaje_seleccion_cuenta_internet(
+        servicios_ftth,
+        repregunta=False,
+    ).replace(
+        "¿Con cuál tenés el problema?",
+        "¿En cuál querés cambiar el Wi‑Fi?",
+    ).replace(
+        "¿Cuál de estas cuentas tiene el problema?",
+        "¿En cuál de estas cuentas querés cambiar el Wi‑Fi?",
+    )
+
+
+def resolver_destino_wifi_bcm(
     db: Session | None,
     abonado: Any | None,
     ctx: dict,
     *,
-    forzar_resolver: bool = False,
-) -> tuple[str, str]:
-    """Serial cacheado solo si está vinculado al mismo abonado_id."""
+    texto: str = "",
+) -> tuple[DestinoWifiBcm | None, str, str]:
+    """
+    Resuelve destino TR Wi‑Fi atado al abonado.
+    Retorna (destino|None, motivo, mensaje_si_seleccion).
+    motivo especial: necesita_seleccion → mensaje listo para el abonado.
+    """
+    if abonado is None or not _abonado_id(abonado):
+        return None, "sin_abonado", ""
+
+    from app.services.conexion_bcm import resolve_bcm_client
+
+    if resolve_bcm_client(db) is None:
+        return None, "bcm_no_configurado", ""
+
+    servicios = _servicios_abonado(db, abonado)
+    ftth = _servicios_ftth_elegibles(servicios)
+    logins = _logins_ftth(ftth)
+
+    # Si hay servicios en padrón y ninguno es FTTH habilitado → no remoto.
+    if servicios and not ftth:
+        return None, "no_ftth", ""
+
+    login_txt = _login_autorizado_desde_texto(texto, ftth)
+    login_ctx = _login_en_lista(
+        str(ctx.get("wifi_bcm_login") or ctx.get("login_seleccionado") or ""),
+        logins,
+    )
+    login = login_txt or login_ctx
+
+    if len(logins) > 1 and not login:
+        msg = mensaje_seleccion_servicio_wifi(ftth)
+        ctx["wifi_bcm_pendiente_cuenta"] = "1"
+        return None, "necesita_seleccion", msg
+
+    if login_txt:
+        ctx["wifi_bcm_login"] = login_txt
+        ctx["login_seleccionado"] = login_txt
+        ctx.pop("wifi_bcm_pendiente_cuenta", None)
+
+    svc_sel = None
+    if login:
+        for svc in ftth:
+            if str(getattr(svc, "login", "") or "").strip() == login:
+                svc_sel = svc
+                break
+    elif len(ftth) == 1:
+        svc_sel = ftth[0]
+        login = str(getattr(svc_sel, "login", "") or "").strip()
+        if login:
+            ctx["wifi_bcm_login"] = login
+            ctx["login_seleccionado"] = login
+
+    serial = _buscar_serial(db, abonado, ctx, svc_sel)
+    if serial:
+        return DestinoWifiBcm("serial", serial), "", ""
+    if login:
+        return DestinoWifiBcm("user_radius", login), "", ""
+
+    # Sin FTTH en padrón pero tal vez ONU por client_number
+    if not ftth:
+        serial = _buscar_serial(db, abonado, ctx, None)
+        if serial:
+            return DestinoWifiBcm("serial", serial), "", ""
+        return None, "sin_destino", ""
+
+    return None, "sin_serial_ni_login", ""
+
+
+def _destino_autorizado(
+    db: Session | None,
+    abonado: Any | None,
+    ctx: dict,
+    *,
+    texto: str = "",
+) -> tuple[DestinoWifiBcm | None, str, str]:
     aid = _abonado_id(abonado)
     if not aid:
-        return "", "sin_abonado"
+        return None, "sin_abonado", ""
 
     bound = str(ctx.get("wifi_bcm_abonado_id") or "").strip()
-    cached = str(ctx.get("wifi_bcm_serial") or "").strip()
+    kind = str(ctx.get("wifi_bcm_destino_kind") or "").strip()
+    valor = str(ctx.get("wifi_bcm_destino_valor") or "").strip()
+    # Compat cache viejo solo-serial
+    if not valor:
+        valor = str(ctx.get("wifi_bcm_serial") or "").strip()
+        if valor:
+            kind = "serial"
+
+    pendiente = str(ctx.get("wifi_bcm_pendiente_cuenta") or "") == "1"
     if (
-        not forzar_resolver
+        not pendiente
         and bound
         and bound == aid
-        and cached
+        and kind in ("serial", "user_radius")
+        and valor
         and str(ctx.get("wifi_bcm") or "") == "1"
+        and not _login_autorizado_desde_texto(
+            texto, _servicios_ftth_elegibles(_servicios_abonado(db, abonado))
+        )
     ):
-        return cached, ""
+        return DestinoWifiBcm(kind, valor), "", ""  # type: ignore[arg-type]
 
-    # Abonado distinto o sin vínculo: invalidar cache y resolver de nuevo.
     if bound and bound != aid:
         logger.warning(
-            "wifi_bcm: abonado distinto al vinculado; se invalida serial cacheado"
+            "wifi_bcm: abonado distinto al vinculado; se invalida destino cacheado"
         )
-        ctx.pop("wifi_bcm_serial", None)
-        ctx.pop("wifi_bcm_abonado_id", None)
+        for k in (
+            "wifi_bcm_serial",
+            "wifi_bcm_destino_kind",
+            "wifi_bcm_destino_valor",
+            "wifi_bcm_abonado_id",
+            "wifi_bcm_login",
+            "wifi_bcm_pendiente_cuenta",
+        ):
+            ctx.pop(k, None)
         ctx["wifi_bcm"] = ""
 
-    serial, motivo = resolver_serial_wifi_bcm(db, abonado, ctx)
-    if not serial:
-        return "", motivo
+    dest, motivo, msg_sel = resolver_destino_wifi_bcm(
+        db, abonado, ctx, texto=texto
+    )
+    if motivo == "necesita_seleccion":
+        return None, motivo, msg_sel
+    if dest is None:
+        return None, motivo, ""
     ctx["wifi_bcm_abonado_id"] = aid
-    ctx["wifi_bcm_serial"] = serial
-    ctx["bcm_serial"] = serial
-    return serial, ""
+    ctx["wifi_bcm_destino_kind"] = dest.kind
+    ctx["wifi_bcm_destino_valor"] = dest.valor
+    if dest.kind == "serial":
+        ctx["wifi_bcm_serial"] = dest.valor
+        ctx["bcm_serial"] = dest.valor
+    else:
+        ctx["wifi_bcm_login"] = dest.valor
+        ctx["login_seleccionado"] = dest.valor
+    ctx.pop("wifi_bcm_pendiente_cuenta", None)
+    return dest, "", ""
 
 
 def _aplicar_password(
-    db: Session | None, serial: str, password: str
+    db: Session | None, destino: DestinoWifiBcm, password: str
 ) -> tuple[bool, str]:
     from app.services.conexion_bcm import resolve_bcm_client
 
     client = resolve_bcm_client(db)
     if client is None:
         return False, "bcm no configurado"
-    sn = (serial or "").strip()
-    if not sn:
-        return False, "serial vacío"
-    resultados = client.modificar_wifi_password_ambas_bandas(sn, password)
-    ok, err = _resumen_resultados(resultados)
-    if not ok:
-        logger.info(
-            "wifi_bcm password falló serial=%s bandas=%s err=%s",
-            sn[:24],
-            ",".join(r.banda for r in resultados),
-            err,
+    if not destino.valor:
+        return False, "destino vacío"
+    if destino.kind == "serial":
+        resultados = client.modificar_wifi_password_ambas_bandas(
+            destino.valor, password
         )
     else:
-        logger.info(
-            "wifi_bcm password ok serial=%s bandas=%s",
-            sn[:24],
-            ",".join(r.banda for r in resultados),
+        resultados = client.modificar_wifi_password_ambas_bandas_por_user_radius(
+            destino.valor, password
         )
+    ok, err = _resumen_resultados(resultados)
+    logger.info(
+        "wifi_bcm password %s kind=%s dest=%s bandas=%s err=%s",
+        "ok" if ok else "falló",
+        destino.kind,
+        destino.valor[:24],
+        ",".join(r.banda for r in resultados),
+        err,
+    )
     return ok, err
 
 
-def _aplicar_ssid(db: Session | None, serial: str, ssid: str) -> tuple[bool, str]:
+def _aplicar_ssid(
+    db: Session | None, destino: DestinoWifiBcm, ssid: str
+) -> tuple[bool, str]:
     from app.services.conexion_bcm import resolve_bcm_client
 
     client = resolve_bcm_client(db)
     if client is None:
         return False, "bcm no configurado"
-    sn = (serial or "").strip()
-    if not sn:
-        return False, "serial vacío"
-    resultados = client.modificar_wifi_ssid_ambas_bandas(sn, ssid)
-    ok, err = _resumen_resultados(resultados)
-    if not ok:
-        logger.info(
-            "wifi_bcm ssid falló serial=%s bandas=%s err=%s",
-            sn[:24],
-            ",".join(r.banda for r in resultados),
-            err,
-        )
+    if not destino.valor:
+        return False, "destino vacío"
+    if destino.kind == "serial":
+        resultados = client.modificar_wifi_ssid_ambas_bandas(destino.valor, ssid)
     else:
-        logger.info(
-            "wifi_bcm ssid ok serial=%s bandas=%s",
-            sn[:24],
-            ",".join(r.banda for r in resultados),
+        resultados = client.modificar_wifi_ssid_ambas_bandas_por_user_radius(
+            destino.valor, ssid
         )
+    ok, err = _resumen_resultados(resultados)
+    logger.info(
+        "wifi_bcm ssid %s kind=%s dest=%s bandas=%s err=%s",
+        "ok" if ok else "falló",
+        destino.kind,
+        destino.valor[:24],
+        ",".join(r.banda for r in resultados),
+        err,
+    )
     return ok, err
+
+
+# Compat tests / callers antiguos
+def resolver_serial_wifi_bcm(
+    db: Session | None,
+    abonado: Any | None,
+    ctx: dict,
+) -> tuple[str, str]:
+    dest, motivo, _msg = resolver_destino_wifi_bcm(db, abonado, ctx, texto="")
+    if dest and dest.kind == "serial":
+        return dest.valor, ""
+    if dest and dest.kind == "user_radius":
+        # Serial no disponible; destino OK vía radius — exponer vacío con motivo ok_radius
+        ctx["wifi_bcm_destino_kind"] = dest.kind
+        ctx["wifi_bcm_destino_valor"] = dest.valor
+        return "", "usar_user_radius"
+    return "", motivo or "sin_serial"
 
 
 def turno_cambio_wifi_bcm(
@@ -368,12 +541,11 @@ def turno_cambio_wifi_bcm(
     texto: str,
 ) -> dict[str, str] | None:
     """
-    Un turno del flujo remoto. None = usar guía local (no FTTH / sin serial).
+    Un turno del flujo remoto. None = usar guía local (no FTTH / sin destino).
 
     Retorno: mensaje, paso_cubierto, motivo (y opcionalmente listo=1).
     """
     if abonado is None or not _abonado_id(abonado):
-        # No abrir remoto anónimo: el canal debe identificar antes.
         return {
             "mensaje": _MSG_SIN_ABONADO,
             "paso_cubierto": "dato_reclamo",
@@ -384,10 +556,23 @@ def turno_cambio_wifi_bcm(
     if flag == "0":
         return None
 
-    serial, motivo = _serial_autorizado(db, abonado, ctx)
-    if not serial:
+    txt = (texto or "").strip()
+    dest, motivo, msg_sel = _destino_autorizado(db, abonado, ctx, texto=txt)
+    if motivo == "necesita_seleccion":
+        # Conservar intención (clave/ssid/ambos) del mensaje que disparó la lista.
+        if str(ctx.get("wifi_bcm_que") or "") not in ("clave", "ssid", "ambos"):
+            q0 = interpretar_que_cambiar(txt)
+            if q0:
+                ctx["wifi_bcm_que"] = q0
+        _marcar_paso(ctx, "seleccion_cuenta_wifi_bcm")
+        return {
+            "mensaje": msg_sel or "¿En cuál cuenta de fibra querés cambiar el Wi‑Fi?",
+            "paso_cubierto": "seleccion_cuenta_wifi_bcm",
+            "motivo": "wifi_bcm_seleccion_cuenta",
+        }
+    if dest is None:
         ctx["wifi_bcm"] = "0"
-        logger.info("wifi_bcm remoto no disponible: %s", motivo or "sin_serial")
+        logger.info("wifi_bcm remoto no disponible: %s", motivo or "sin_destino")
         return None
     ctx["wifi_bcm"] = "1"
 
@@ -398,10 +583,20 @@ def turno_cambio_wifi_bcm(
     if fase not in ("detalle", "pedir_clave", "pedir_ssid", "hecho"):
         fase = ""
 
-    txt = (texto or "").strip()
-
     # --- Detalle: qué cambiar ---
     if not que:
+        # Si el mensaje es solo la elección de cuenta, pedir detalle (no tomar login como clave).
+        login_only = _login_autorizado_desde_texto(
+            txt, _servicios_ftth_elegibles(_servicios_abonado(db, abonado))
+        )
+        if login_only and login_only.lower() == txt.lower().strip():
+            ctx["wifi_bcm_fase"] = "detalle"
+            _marcar_paso(ctx, "cambio_clave_wifi_detalle")
+            return {
+                "mensaje": _MSG_DISPONIBLE,
+                "paso_cubierto": "cambio_clave_wifi_detalle",
+                "motivo": "wifi_bcm_detalle",
+            }
         interpretado = interpretar_que_cambiar(txt)
         if interpretado:
             que = interpretado
@@ -456,16 +651,15 @@ def turno_cambio_wifi_bcm(
                 "paso_cubierto": "wifi_bcm_pedir_clave",
                 "motivo": "wifi_bcm_clave_invalida",
             }
-        # Revalidar vínculo abonado→serial justo antes de escribir.
-        serial_ok, _m = _serial_autorizado(db, abonado, ctx)
-        if not serial_ok:
+        dest_ok, _m, _s = _destino_autorizado(db, abonado, ctx, texto="")
+        if dest_ok is None:
             ctx["wifi_bcm_fase"] = "hecho"
             return {
                 "mensaje": _MSG_FALLO,
                 "paso_cubierto": "derivar_clave_wifi",
                 "motivo": "wifi_bcm_fallo",
             }
-        ok, _err = _aplicar_password(db, serial_ok, txt.strip())
+        ok, _err = _aplicar_password(db, dest_ok, txt.strip())
         if not ok:
             ctx["wifi_bcm_fase"] = "hecho"
             _marcar_paso(ctx, "derivar_clave_wifi")
@@ -503,15 +697,15 @@ def turno_cambio_wifi_bcm(
                 "paso_cubierto": "wifi_bcm_pedir_ssid",
                 "motivo": "wifi_bcm_ssid_invalido",
             }
-        serial_ok, _m = _serial_autorizado(db, abonado, ctx)
-        if not serial_ok:
+        dest_ok, _m, _s = _destino_autorizado(db, abonado, ctx, texto="")
+        if dest_ok is None:
             ctx["wifi_bcm_fase"] = "hecho"
             return {
                 "mensaje": _MSG_FALLO,
                 "paso_cubierto": "derivar_clave_wifi",
                 "motivo": "wifi_bcm_fallo",
             }
-        ok, _err = _aplicar_ssid(db, serial_ok, txt.strip())
+        ok, _err = _aplicar_ssid(db, dest_ok, txt.strip())
         if not ok:
             ctx["wifi_bcm_fase"] = "hecho"
             _marcar_paso(ctx, "derivar_clave_wifi")
@@ -531,5 +725,4 @@ def turno_cambio_wifi_bcm(
             "listo": "1",
         }
 
-    # Fase hecho: dejar que el playbook local valide / derive
     return None

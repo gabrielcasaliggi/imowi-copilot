@@ -1003,3 +1003,109 @@ class BcmClient:
             self.modificar_wifi_ssid_por_serial(serial, ssid, banda)
             for banda in WIFI_BANDAS
         ]
+
+    def modificar_wifi_password_por_user_radius(
+        self, user_radius: str, password: str, wifi: BandaWifiBcm
+    ) -> ResultadoCambioWifi:
+        login = (user_radius or "").strip()
+        pwd = password or ""
+        banda: BandaWifiBcm = "5" if str(wifi) == "5" else "2"
+        if not login:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="password", error="userRadius vacío"
+            )
+        if not pwd:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="password", error="password vacío"
+            )
+        params = {
+            **self._get_auth_params(),
+            "userRadius": login,
+            "password": pwd,
+            "wifi": banda,
+        }
+        try:
+            r = self._request_post("/tr/modificarWifiPasswordPorUserRadius", params)
+        except Exception as exc:
+            logger.warning(
+                "BCM modificarWifiPassword userRadius=%s wifi=%s: %s",
+                login[:24],
+                banda,
+                type(exc).__name__,
+            )
+            return ResultadoCambioWifi(
+                ok=False,
+                banda=banda,
+                operacion="password",
+                error=f"BCM error: {type(exc).__name__}"[:160],
+            )
+        if not (200 <= r.status_code < 300):
+            logger.info(
+                "BCM modificarWifiPassword userRadius=%s wifi=%s status=%s params=%s",
+                login[:24],
+                banda,
+                r.status_code,
+                redactar_params_sensibles(params),
+            )
+        return self._resultado_tr_wifi(r, banda=banda, operacion="password")
+
+    def modificar_wifi_ssid_por_user_radius(
+        self, user_radius: str, ssid: str, wifi: BandaWifiBcm
+    ) -> ResultadoCambioWifi:
+        login = (user_radius or "").strip()
+        nombre = (ssid or "").strip()
+        banda: BandaWifiBcm = "5" if str(wifi) == "5" else "2"
+        if not login:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="ssid", error="userRadius vacío"
+            )
+        if not nombre:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="ssid", error="ssid vacío"
+            )
+        params = {
+            **self._get_auth_params(),
+            "userRadius": login,
+            "ssid": nombre,
+            "wifi": banda,
+        }
+        try:
+            r = self._request_post("/tr/modificarWifiSSIDPorUserRadius", params)
+        except Exception as exc:
+            logger.warning(
+                "BCM modificarWifiSSID userRadius=%s wifi=%s: %s",
+                login[:24],
+                banda,
+                type(exc).__name__,
+            )
+            return ResultadoCambioWifi(
+                ok=False,
+                banda=banda,
+                operacion="ssid",
+                error=f"BCM error: {type(exc).__name__}"[:160],
+            )
+        if not (200 <= r.status_code < 300):
+            logger.info(
+                "BCM modificarWifiSSID userRadius=%s wifi=%s status=%s params=%s",
+                login[:24],
+                banda,
+                r.status_code,
+                redactar_params_sensibles(params),
+            )
+        return self._resultado_tr_wifi(r, banda=banda, operacion="ssid")
+
+    def modificar_wifi_password_ambas_bandas_por_user_radius(
+        self, user_radius: str, password: str
+    ) -> list[ResultadoCambioWifi]:
+        return [
+            self.modificar_wifi_password_por_user_radius(user_radius, password, banda)
+            for banda in WIFI_BANDAS
+        ]
+
+    def modificar_wifi_ssid_ambas_bandas_por_user_radius(
+        self, user_radius: str, ssid: str
+    ) -> list[ResultadoCambioWifi]:
+        return [
+            self.modificar_wifi_ssid_por_user_radius(user_radius, ssid, banda)
+            for banda in WIFI_BANDAS
+        ]
