@@ -1,4 +1,4 @@
-"""Pre-triaje: padrón → Radius → BCM/UISP antes del cuestionario hogareño."""
+"""Pre-triaje: protocolo de mesa (cuenta → sondas → diálogo)."""
 
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ def _ftth_online(**kw):
             service_type_label="Fibra Optica",
             service_type_code="INTFO",
             product="Ecolan 50Mb",
+            state="Habilitado",
             service_on=True,
         ),
         sesion=SesionPPPoE(
@@ -55,9 +56,10 @@ def test_padron_nombra_fibra():
 def test_admin_servicio_apagado():
     svc = ServicioConectividad(login="1", service_on=False, state="baja")
     nota = nota_administrativa(_abo(), svc)
-    assert "apagado" in nota.lower() or "baja" in nota.lower()
-    assert "administrativ" in nota.lower()
+    assert "baja" in nota.lower()
+    assert "pagar" in nota.lower() or "ov.batan" in nota.lower()
     assert "padrón" not in nota.lower() and "padron" not in nota.lower()
+    assert "wifi" not in nota.lower() and "wi‑fi" not in nota.lower()
 
 
 def test_habilitado_no_acusa_baja():
@@ -71,7 +73,7 @@ def test_habilitado_no_acusa_baja():
     assert nota_administrativa(_abo(estado="activo"), svc) == ""
 
 
-def test_todo_ok_demuestra_acceso_y_pregunta_cable():
+def test_todo_ok_demuestra_acceso_y_pregunta_wifi():
     onu = EstadoOnuBcm(
         numero_cliente="12345",
         encontrado=True,
@@ -88,37 +90,50 @@ def test_todo_ok_demuestra_acceso_y_pregunta_cable():
     assert msg
     low = msg.lower()
     assert "padrón" not in low and "padron" not in low
-    assert "sistema" in low or "figura" in low
+    assert "billtrack" not in low and "radius" not in low and "bcm" not in low
+    assert "181.41.1.20" in msg
     assert "activa" in low
+    assert "potencia" in low or "-18" in msg
     assert "wifi" in low or "wi-fi" in low or "wi‑fi" in low
     assert "cable" in low
     assert "toda la casa" not in low
     assert "lejos del router" not in low
 
 
-def test_sin_sesion_no_arranca_por_wifi():
+def test_radius_ok_sin_planta_muestra_sesion():
+    estado = _ftth_online()
+    msg = mensaje_pre_triaje_acceso(estado, abonado=_abo(), es_ftth=True)
+    assert msg
+    assert "181.41.1.20" in msg
+    assert "activa" in msg.lower()
+    assert "wifi" in msg.lower() or "wi‑fi" in msg.lower() or "wi-fi" in msg.lower()
+    assert "luces" not in msg.lower()
+
+def test_sin_sesion_pregunta_luces_no_wifi():
     estado = EstadoConexionPPPoE(
         servicio=ServicioConectividad(
             login="4640854",
             service_type_code="INTFO",
             service_type_label="Fibra Optica",
+            state="Habilitado",
         ),
         sesion=SesionPPPoE(username="4640854", online=False),
     )
     msg = mensaje_pre_triaje_acceso(estado, abonado=_abo(), es_ftth=True)
     assert msg
     low = msg.lower()
-    assert "no figura conectado" in low or "no hay sesión" in low
     assert "toda la casa" not in low
-    assert "luces" in low or "reinici" in low
+    assert "luces" in low or "ont" in low or "desenchuf" in low
+    assert "zona" not in low
 
 
-def test_radius_caido_igual_informa_padron():
+def test_radius_caido_pregunta_como_mesa():
     estado = EstadoConexionPPPoE(
         servicio=ServicioConectividad(
             login="4640854",
             service_type_code="INTFO",
             service_type_label="Fibra Optica",
+            state="Habilitado",
         ),
         error="radius api no configurada",
     )
@@ -126,8 +141,8 @@ def test_radius_caido_igual_informa_padron():
     assert msg
     low = msg.lower()
     assert "padrón" not in low and "padron" not in low
-    assert "sistema" in low or "figura" in low
-    assert "no pude" in low or "luces" in low
+    assert "radius" not in low
+    assert "luces" in low or "ont" in low or "desenchuf" in low
 
 
 def test_onu_offline_lo_dice_antes_del_cuestionario():
@@ -143,6 +158,7 @@ def test_onu_offline_lo_dice_antes_del_cuestionario():
     assert msg
     assert "no está registrada" in msg.lower() or "central" in msg.lower()
     assert "181.41.1.20" not in msg
+    assert "toda la casa" not in msg.lower()
 
 
 def test_canal_pre_triaje_sin_radius_no_devuelve_none(monkeypatch):
@@ -156,6 +172,7 @@ def test_canal_pre_triaje_sin_radius_no_devuelve_none(monkeypatch):
             login="4640854",
             service_type_code="INTFO",
             service_type_label="Fibra Optica",
+            state="Habilitado",
         ),
         error="radius api no configurada",
     )
@@ -166,7 +183,7 @@ def test_canal_pre_triaje_sin_radius_no_devuelve_none(monkeypatch):
     msg = cp._talvez_mensaje_pppoe(MagicMock(), _abo(), {}, "internet")
     assert msg
     assert "padrón" not in msg.lower() and "padron" not in msg.lower()
-    assert "fibra" in msg.lower() or "sistema" in msg.lower() or "luces" in msg.lower()
+    assert "luces" in msg.lower() or "ont" in msg.lower() or "wifi" in msg.lower()
 
 
 def test_radio_sin_cpe_dice_antena_no_enlazada_no_reactivacion():
@@ -188,9 +205,59 @@ def test_radio_sin_cpe_dice_antena_no_enlazada_no_reactivacion():
     assert msg
     low = msg.lower()
     assert "padrón" not in low and "padron" not in low
-    assert "sistema" in low
-    assert "15MB" in msg or "15mb" in low
+    assert "billtrack" not in low and "uisp" not in low
     assert "enlazada" in low
+    assert "poe" in low or "inyecto" in low
     assert "baja" not in low or "no es una baja" in low
     assert "reactiv" not in low
     assert "pago" not in low
+    assert "15mb" not in low
+
+
+def test_baja_real_es_comercial_no_wifi():
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="viejo",
+            state="Baja",
+            product="10MB",
+            service_on=False,
+        ),
+        sesion=None,
+    )
+    msg = mensaje_pre_triaje_acceso(estado, abonado=_abo(estado="baja"))
+    assert msg
+    low = msg.lower()
+    assert "baja" in low
+    assert "ov.batan" in low or "pagar" in low
+    assert "poe" not in low
+    assert "wifi" not in low
+
+
+def test_baja_no_consulta_uisp_ni_bcm(monkeypatch):
+    from app.services import canal_pppoe as cp
+    from app.services import conexion_bcm as cb
+    from app.services import conexion_pppoe as cpp
+    from app.services import conexion_uisp as cu
+
+    estado = EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="viejo",
+            state="Baja",
+            service_on=False,
+            service_type_code="INTBA",
+        )
+    )
+    monkeypatch.setattr(cpp, "consultar_conexion_pppoe", lambda **kw: estado)
+
+    def no_uisp(*_a, **_k):
+        raise AssertionError("baja: no abrir UISP")
+
+    def no_bcm(*_a, **_k):
+        raise AssertionError("baja: no abrir BCM")
+
+    monkeypatch.setattr(cu, "resolve_uisp_client", no_uisp)
+    monkeypatch.setattr(cb, "resolve_bcm_client", no_bcm)
+    msg = cp._talvez_mensaje_pppoe(MagicMock(), _abo(estado="baja"), {}, "internet")
+    assert msg
+    assert "baja" in msg.lower()
+    assert "ov.batan" in msg.lower() or "pagar" in msg.lower()

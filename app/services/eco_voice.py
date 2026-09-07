@@ -170,7 +170,7 @@ def mensaje_informar_pago_n1(
     if cortado and medio in ("externo", "desconocido"):
         cuerpo += (
             "\n\nComo tu cuenta figura con restricción por deuda, el aviso en la oficina virtual "
-            "permite la reactivación mientras se acredita en el padrón."
+            "permite la reactivación mientras se acredita en el sistema."
         )
 
     resp = f"{intro} {cuerpo}"
@@ -247,6 +247,37 @@ def sanitizar_montos_respuesta_cliente(texto: str) -> str:
     t = _RE_FRASE_MONEDA_LEAK.sub("", t)
     t = re.sub(r"\s{2,}", " ", t)
     return t.replace(" pesos pesos", " pesos").strip()
+
+
+# Jerga de sistemas: el técnico la mira, el abonado no la oye.
+_JERGA_ABONADO: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bBillTrack\b", re.I), "el sistema"),
+    (re.compile(r"\bUISP\b"), "la red"),
+    (re.compile(r"\bWISP\b"), "la red"),
+    (re.compile(r"\bBCM\b"), "la red"),
+    (re.compile(r"\bRadius\b", re.I), "la red"),
+    (re.compile(r"en el padr[oó]n interno", re.I), "en la base de datos"),
+    (re.compile(r"en el padr[oó]n", re.I), "en el sistema"),
+    (re.compile(r"del padr[oó]n", re.I), "del sistema"),
+    (re.compile(r"al padr[oó]n", re.I), "al sistema"),
+    (re.compile(r"padr[oó]n", re.I), "sistema"),
+)
+
+
+def sanitizar_voz_abonado(texto: str) -> str:
+    """Último kilómetro: el abonado nunca ve jerga de NOC ni «padrón»."""
+    t = texto or ""
+    if not t:
+        return t
+    for patron, repl in _JERGA_ABONADO:
+        t = patron.sub(repl, t)
+    t = re.sub(r"\s{2,}", " ", t)
+    return t.strip()
+
+
+def sanitizar_respuesta_cliente(texto: str) -> str:
+    """Montos + voz de mesa, listo para WhatsApp."""
+    return sanitizar_voz_abonado(sanitizar_montos_respuesta_cliente(texto))
 
 
 def formatear_monto_ars(valor: float) -> str:
@@ -613,7 +644,17 @@ def system_prompt_eco_n1(
         "- Evitá menús rígidos, listas largas, viñetas y tonos de contestador automático.\n"
         "- No inventes datos (OLT, ONT, potencias, UISP, saldos, pagos, CBU, adjuntos QR, turnos, cortes de zona).\n"
         "- Montos de deuda/factura: siempre pesos argentinos (ARS). Nunca dólares/USD.\n"
-        "- No uses jerga interna del NOC.\n\n"
+        "- No uses jerga interna del NOC. Nunca digas «padrón», BillTrack, UISP, BCM ni Radius. "
+        "Decí «sistema», «cuenta» o «la red».\n"
+        "Protocolo de mesa (obligatorio):\n"
+        "- Si la cuenta está de baja o cortada por pago: informalo y cómo proceder. "
+        "NO diagnostiques planta ni Wi‑Fi.\n"
+        "- Si está activa: consultá la red. Si el acceso está sano, **demostralo** "
+        "(sesión activa con IP/tiempo, potencia de ONT o señal de antena) y recién "
+        "preguntá Wi‑Fi/cable. No nombres BillTrack, Radius, BCM ni UISP.\n"
+        "- Acceso mal (sin sesión, antena/ONT caída, señal o potencia mala): luces/PoE/cable. "
+        "No arranques por Wi‑Fi.\n"
+        "- Acceso bien: ¿todos los equipos o solo Wi‑Fi? Cable al router.\n\n"
         "Respondé SOLO JSON válido:\n"
         '{"accion":"ask"|"resolved"|"escalate","mensaje":"...","paso_cubierto":"id_o_vacio","motivo":"..."}\n\n'
         "Triaje N1 (sin tickets prematuros):\n"
@@ -649,6 +690,7 @@ def system_prompt_eco_rewrite() -> str:
         "- Sin listas, viñetas ni menús.\n"
         "- No inventes datos (OLT, ONT, saldos, turnos, potencias).\n"
         "- Montos de deuda/factura: siempre pesos argentinos (ARS). Nunca dólares/USD.\n"
+        "- Nunca digas «padrón», BillTrack, UISP, BCM ni Radius al abonado.\n"
         "- Conservá la intención del borrador; no agregues pasos extra.\n"
         "- Si el borrador menciona QR Fiserv / Mercado Pago / MODO, conservalo.\n"
         "- No digas que quedó resuelto si el cliente aún tiene el problema.\n"

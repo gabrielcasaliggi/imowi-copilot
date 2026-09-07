@@ -84,7 +84,7 @@ class EstadoConexionPPPoE:
         if self.error and not self.servicio:
             return f"error consulta: {self.error[:80]}"
         if not self.servicio:
-            return "sin servicio de conectividad en padrón"
+            return "sin servicio de conectividad en la cuenta"
         tipo = (
             self.servicio.service_type_label
             or self.servicio.product

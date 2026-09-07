@@ -99,6 +99,19 @@ def _talvez_mensaje_pppoe(
         es_radio = (intencion or "").strip() == "internet_radio" or (
             ctx.get("tecnologia_acceso") == "internet_radio"
         )
+        from app.services.protocolo_mesa import rama_comercial
+
+        if rama_comercial(abonado, estado.servicio):
+            from app.services.pre_triaje_acceso import mensaje_pre_triaje_acceso
+
+            return mensaje_pre_triaje_acceso(
+                estado,
+                abonado=abonado,
+                es_ftth=False,
+                es_radio=es_radio,
+                deuda_positiva=_deuda_positiva(abonado),
+            )
+
         msg_uisp = None
         cpe = None
         if login:

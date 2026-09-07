@@ -190,7 +190,7 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "identificar_cuenta",
-            "Pasame DNI o N.º de socio y te digo lo que figura en el padrón, sin inventar montos.",
+            "Pasame DNI o N.º de socio y te digo lo que figura en el sistema, sin inventar montos.",
         ),
         PasoPlaybook(
             "validacion_estado",
@@ -1072,13 +1072,13 @@ def texto_sin_internet_contratado(servicio_abonado: str, *, insistencia: int = 1
     if insistencia == 2:
         if movil:
             return (
-                "Te lo aclaro de otra forma: en el padrón no hay internet de casa "
+                "Te lo aclaro de otra forma: en el sistema no hay internet de casa "
                 "(fibra/radio). Si no te anda «internet» en el celular, es el servicio "
                 "móvil (datos IMOWI): escribí *móvil*. Si es un tema de factura, "
                 "*factura*. Si igual querés una persona, escribí *agente*."
             )
         return (
-            "Te lo aclaro de otra forma: en el padrón no figura internet fijo. "
+            "Te lo aclaro de otra forma: en el sistema no figura internet fijo. "
             "¿Es por factura/deuda u otra consulta? Si preferís una persona, "
             "escribí *agente*."
         )

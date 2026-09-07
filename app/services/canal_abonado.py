@@ -1231,7 +1231,7 @@ def _responder_consulta_saldo(
     """Saldo/deuda del padrón — sin empujar QR si no hay deuda."""
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
     nota_baja = (
-        "La cuenta figura «de baja» en el padrón."
+        "La cuenta figura «de baja» en el sistema."
         if (abonado.estado or "").lower() == "baja"
         else ""
     )
@@ -1270,7 +1270,7 @@ def _responder_pendiente_pago_o_corte(
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
     estado = (abonado.estado or "").lower()
     nota_baja = (
-        "La cuenta figura «de baja» en el padrón."
+        "La cuenta figura «de baja» en el sistema."
         if estado == "baja"
         else ""
     )
@@ -1614,7 +1614,7 @@ def _responder_sin_internet_fijo(
             ctx=ctx,
         )
         resp = (
-            f"Dale, te derivo con un agente (en el padrón no figura internet fijo; "
+            f"Dale, te derivo con un agente (en el sistema no figura internet fijo; "
             f"le dejo el contexto). Ticket {tid}. Quedate en este chat."
         )
         _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
@@ -2528,7 +2528,7 @@ def _intentar_identificar_en_espera_agente(
         crepo.set_contexto(conv, ctx)
         db.commit()
         aviso = (
-            f"No encontré el DNI {dni} en el padrón. "
+            f"No encontré el DNI {dni} en el sistema. "
             "Seguís en cola con un agente; te van a ayudar a ubicar la cuenta."
         )
         _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=_enviar_externo(canal))
@@ -2780,9 +2780,9 @@ def _enviar_respuesta(
     *,
     enviar_externo: bool = True,
 ) -> str:
-    from app.services.eco_voice import sanitizar_montos_respuesta_cliente
+    from app.services.eco_voice import sanitizar_respuesta_cliente
 
-    texto = sanitizar_montos_respuesta_cliente(texto)
+    texto = sanitizar_respuesta_cliente(texto)
     crepo.add_mensaje(db, org_id, conv.id, direccion="out", autor="bot", texto=texto)
     if enviar_externo and _es_canal_externo(conv.canal):
         prefer_audio = False
@@ -2812,7 +2812,7 @@ def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
     motivo_l = (motivo or "").lower()
     if "dni" in motivo_l:
         return (
-            "No te encuentro como abonado en el padrón con ese dato. "
+            "No te encuentro como abonado en el sistema con ese dato. "
             "Puede ser otro DNI, o que todavía no seas cliente de la Cooperativa Batán. "
             "Igual te derivo con un agente para ayudarte. "
             "Te van a responder por este mismo chat. "
@@ -3163,7 +3163,7 @@ def _identificar_por_dni_si_aplica(
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
     if pedi_saldo:
         baja_nota = (
-            "La cuenta figura «de baja» en el padrón."
+            "La cuenta figura «de baja» en el sistema."
             if estado == "baja"
             else ""
         )
@@ -3177,7 +3177,7 @@ def _identificar_por_dni_si_aplica(
         db.commit()
     elif estado == "baja":
         resp = (
-            f"Te ubiqué, {nombre}: la cuenta figura «de baja» en el padrón. "
+            f"Te ubiqué, {nombre}: la cuenta figura «de baja» en el sistema. "
             "Igual puedo ayudarte (reactivación, factura, o un trámite). "
             "¿Qué necesitás?"
         )
@@ -3359,7 +3359,7 @@ def procesar_mensaje_entrante(
         aviso = texto_ov_aviso_pago(cortado=cortado)
         if dni_abo and dni_msg and dni_abo != dni_msg:
             resp = (
-                f"{nombre}, esa cuenta ya está identificada con otro DNI del padrón. "
+                f"{nombre}, esa cuenta ya está identificada con otro DNI del sistema. "
                 "Si es otra titularidad, pedime un agente. "
                 f"Saldo que figura ahora: {texto_monto_ars(deuda)}.\n{aviso}"
             )
@@ -3890,7 +3890,7 @@ def procesar_mensaje_entrante(
 
         deuda = str(abonado.deuda_monto or "0").strip() or "0"
         nota_baja = (
-            "La cuenta figura «de baja» en el padrón."
+            "La cuenta figura «de baja» en el sistema."
             if (abonado.estado or "").lower() == "baja"
             else ""
         )
