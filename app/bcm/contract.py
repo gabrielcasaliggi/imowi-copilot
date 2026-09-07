@@ -7,6 +7,28 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 CalidadOptica = Literal["buena", "aceptable", "mala", ""]
 RamaBcm = Literal["onu_offline", "potencia_mala", "enlace_ok", ""]
+BandaWifiBcm = Literal["2", "5"]
+OperacionWifiBcm = Literal["password", "ssid"]
+
+
+@dataclass
+class ResultadoCambioWifi:
+    """Resultado de un POST TR Wi‑Fi (una banda). Nunca incluir la clave en logs."""
+
+    ok: bool
+    banda: BandaWifiBcm
+    operacion: OperacionWifiBcm
+    http_status: int | None = None
+    error: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "banda": self.banda,
+            "operacion": self.operacion,
+            "http_status": self.http_status,
+            "error": self.error,
+        }
 
 
 @dataclass
@@ -87,3 +109,11 @@ class BcmProvider(Protocol):
     def ping(self) -> dict[str, Any]: ...
 
     def buscar_onu_por_cliente(self, numero_cliente: str) -> EstadoOnuBcm: ...
+
+    def modificar_wifi_password_por_serial(
+        self, serial: str, password: str, wifi: BandaWifiBcm
+    ) -> ResultadoCambioWifi: ...
+
+    def modificar_wifi_ssid_por_serial(
+        self, serial: str, ssid: str, wifi: BandaWifiBcm
+    ) -> ResultadoCambioWifi: ...

@@ -732,12 +732,22 @@ def aplicar_guardrails_cambio_clave_wifi(
     mensaje_cliente: str = "",
     intencion: str = "",
     accion: str = "ask",
+    gestion_remota: bool = False,
 ) -> dict[str, str]:
-    """Evita pedir/aceptar la clave Wi‑Fi por chat; redirige a cambio en el equipo."""
+    """Evita pedir/aceptar la clave Wi‑Fi por chat salvo gestión remota BCM (FTTH)."""
     intent = (intencion or "").strip()
     en_flujo = intent == "cambio_clave_wifi"
     msg = mensaje or ""
     acc = accion or "ask"
+
+    # Con BCM TR disponible Eko sí pide y aplica la clave/SSID.
+    if gestion_remota:
+        return {
+            "accion": acc,
+            "mensaje": msg,
+            "paso_cubierto": "",
+            "motivo": "",
+        }
 
     if en_flujo and _parece_clave_wifi_enviada(mensaje_cliente):
         return {

@@ -602,12 +602,14 @@ def _aplicar_diagnostico_ia(
 
         mensaje = sanitizar_apn_en_texto(mensaje)
     from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
+    from app.services.wifi_bcm import gestion_remota_activa
 
     g_wifi = aplicar_guardrails_cambio_clave_wifi(
         mensaje=mensaje,
         mensaje_cliente=texto,
         intencion=intencion,
         accion=accion,
+        gestion_remota=gestion_remota_activa(ctx),
     )
     if g_wifi.get("motivo"):
         mensaje = g_wifi["mensaje"] or mensaje

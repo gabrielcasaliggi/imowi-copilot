@@ -1,11 +1,11 @@
-"""Cliente HTTP contra Sopnet BCM (OLT/ONU FTTH). Solo lectura.
+"""Cliente HTTP contra Sopnet BCM (OLT/ONU FTTH).
 
 Auth: POST /auth/obtenerToken con usuario + password de aplicación (JWT en memoria).
 Lookup: GET /cliente/obtenerPorNumeroCliente?numero= (BillTrack client_number).
 
-No implementa editarPorNumeroCliente: N1 no escribe en BCM.
-Endpoints extra de OLT/ONU se agregan cuando el contrato esté confirmado;
-mientras tanto se parsean ONU/OLT anidados en la ficha del cliente.
+Escritura Wi‑Fi (TR-069), ambas bandas cuando aplica:
+  POST /tr/modificarWifiPasswordPorSerialNumber (wifi=2 → 2.4 GHz, wifi=5 → 5 GHz)
+  POST /tr/modificarWifiSSIDPorSerialNumber
 """
 
 from __future__ import annotations
@@ -14,14 +14,24 @@ import logging
 import re
 import time
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
-from app.bcm.contract import CalidadOptica, EstadoOnuBcm
+from app.bcm.contract import (
+    BandaWifiBcm,
+    CalidadOptica,
+    EstadoOnuBcm,
+    OperacionWifiBcm,
+    ResultadoCambioWifi,
+)
 
 logger = logging.getLogger("operations_hub")
 
 DEFAULT_BASE_URL = "https://bcm.batan.coop:7117/api/v1"
+# wifi=2 → 2.4 GHz; wifi=5 → 5 GHz (contrato TR BCM).
+WIFI_BANDAS: tuple[BandaWifiBcm, BandaWifiBcm] = ("2", "5")
+_SENSITIVE_QUERY_KEYS = frozenset({"password", "contrasena", "contraseña", "pass", "pwd"})
 _RE_JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 _TOKEN_KEYS = frozenset(
     {
@@ -394,6 +404,34 @@ def describir_auth_fallida(payload: Any, *, status_code: int, content_type: str 
     return "BCM auth: la respuesta no trajo token (" + "; ".join(parts) + ")"
 
 
+def redactar_params_sensibles(params: dict[str, str]) -> dict[str, str]:
+    """Copia de query params sin secretos (para logs)."""
+    out: dict[str, str] = {}
+    for k, v in (params or {}).items():
+        if str(k).lower() in _SENSITIVE_QUERY_KEYS:
+            out[str(k)] = "***"
+        else:
+            out[str(k)] = str(v)
+    return out
+
+
+def redactar_url_sensible(url: str) -> str:
+    """Quita password/contraseña del query string de una URL."""
+    try:
+        parts = urlsplit(url or "")
+        q = []
+        for k, v in parse_qsl(parts.query, keep_blank_values=True):
+            if k.lower() in _SENSITIVE_QUERY_KEYS:
+                q.append((k, "***"))
+            else:
+                q.append((k, v))
+        return urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment)
+        )
+    except Exception:
+        return "(url)"
+
+
 def _get_ci(blob: dict[str, Any], *keys: str) -> Any:
     by = {str(k).casefold(): v for k, v in blob.items()}
     for key in keys:
@@ -762,3 +800,156 @@ class BcmClient:
         except Exception as exc:
             return EstadoOnuBcm(numero_cliente=nro, error=f"respuesta no JSON: {exc}"[:160])
         return parse_cliente(payload, numero_cliente=nro)
+
+    def _request_post(
+        self, path: str, params: dict[str, str], *, retry: bool = True
+    ) -> httpx.Response:
+        if not self.configured():
+            raise RuntimeError("BCM no configurado")
+        url = f"{self.base_url}{path if path.startswith('/') else '/' + path}"
+        with self._client() as http:
+            r = http.post(url, params=params)
+        if r.status_code in (401, 403) and retry:
+            self._token = ""
+            self.authenticate()
+            params = {**params, "usuario": self.user, "token": self._token}
+            return self._request_post(path, params, retry=False)
+        return r
+
+    def _resultado_tr_wifi(
+        self,
+        r: httpx.Response,
+        *,
+        banda: BandaWifiBcm,
+        operacion: OperacionWifiBcm,
+    ) -> ResultadoCambioWifi:
+        if r.status_code == 200:
+            return ResultadoCambioWifi(
+                ok=True, banda=banda, operacion=operacion, http_status=200
+            )
+        detail = ""
+        try:
+            payload = r.json()
+            detail = _mensaje_api(payload) or _claves_payload(payload)
+        except Exception:
+            detail = (r.text or "")[:120]
+        # Nunca devolver el password en el error (puede venir echo'd por la API).
+        detail = re.sub(
+            r"(password|contrase[nñ]a|pass)\s*[=:]\s*\S+",
+            r"\1=***",
+            detail or "",
+            flags=re.IGNORECASE,
+        )
+        return ResultadoCambioWifi(
+            ok=False,
+            banda=banda,
+            operacion=operacion,
+            http_status=r.status_code,
+            error=f"BCM HTTP {r.status_code}: {detail}"[:160],
+        )
+
+    def modificar_wifi_password_por_serial(
+        self, serial: str, password: str, wifi: BandaWifiBcm
+    ) -> ResultadoCambioWifi:
+        sn = (serial or "").strip()
+        pwd = password or ""
+        banda: BandaWifiBcm = "5" if str(wifi) == "5" else "2"
+        if not sn:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="password", error="serial vacío"
+            )
+        if not pwd:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="password", error="password vacío"
+            )
+        params = {
+            **self._get_auth_params(),
+            "serialNumber": sn,
+            "password": pwd,
+            "wifi": banda,
+        }
+        try:
+            r = self._request_post("/tr/modificarWifiPasswordPorSerialNumber", params)
+        except Exception as exc:
+            logger.warning(
+                "BCM modificarWifiPassword falló serial=%s wifi=%s: %s",
+                sn[:24],
+                banda,
+                type(exc).__name__,
+            )
+            return ResultadoCambioWifi(
+                ok=False,
+                banda=banda,
+                operacion="password",
+                error=f"BCM error: {type(exc).__name__}"[:160],
+            )
+        if not (200 <= r.status_code < 300):
+            logger.info(
+                "BCM modificarWifiPassword serial=%s wifi=%s status=%s params=%s",
+                sn[:24],
+                banda,
+                r.status_code,
+                redactar_params_sensibles(params),
+            )
+        return self._resultado_tr_wifi(r, banda=banda, operacion="password")
+
+    def modificar_wifi_ssid_por_serial(
+        self, serial: str, ssid: str, wifi: BandaWifiBcm
+    ) -> ResultadoCambioWifi:
+        sn = (serial or "").strip()
+        nombre = (ssid or "").strip()
+        banda: BandaWifiBcm = "5" if str(wifi) == "5" else "2"
+        if not sn:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="ssid", error="serial vacío"
+            )
+        if not nombre:
+            return ResultadoCambioWifi(
+                ok=False, banda=banda, operacion="ssid", error="ssid vacío"
+            )
+        params = {
+            **self._get_auth_params(),
+            "serialNumber": sn,
+            "ssid": nombre,
+            "wifi": banda,
+        }
+        try:
+            r = self._request_post("/tr/modificarWifiSSIDPorSerialNumber", params)
+        except Exception as exc:
+            logger.warning(
+                "BCM modificarWifiSSID falló serial=%s wifi=%s: %s",
+                sn[:24],
+                banda,
+                type(exc).__name__,
+            )
+            return ResultadoCambioWifi(
+                ok=False,
+                banda=banda,
+                operacion="ssid",
+                error=f"BCM error: {type(exc).__name__}"[:160],
+            )
+        if not (200 <= r.status_code < 300):
+            logger.info(
+                "BCM modificarWifiSSID serial=%s wifi=%s status=%s params=%s",
+                sn[:24],
+                banda,
+                r.status_code,
+                redactar_params_sensibles(params),
+            )
+        return self._resultado_tr_wifi(r, banda=banda, operacion="ssid")
+
+    def modificar_wifi_password_ambas_bandas(
+        self, serial: str, password: str
+    ) -> list[ResultadoCambioWifi]:
+        return [
+            self.modificar_wifi_password_por_serial(serial, password, banda)
+            for banda in WIFI_BANDAS
+        ]
+
+    def modificar_wifi_ssid_ambas_bandas(
+        self, serial: str, ssid: str
+    ) -> list[ResultadoCambioWifi]:
+        return [
+            self.modificar_wifi_ssid_por_serial(serial, ssid, banda)
+            for banda in WIFI_BANDAS
+        ]

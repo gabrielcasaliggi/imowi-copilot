@@ -1202,6 +1202,47 @@ def _abonado_conectado_radius(
         return None
 
 
+def _respuesta_cambio_wifi_bcm(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    ctx: dict,
+    texto: str,
+    *,
+    canal: str,
+) -> dict | None:
+    """Gestión remota FTTH vía BCM; None si corresponde guía local."""
+    from app.services.wifi_bcm import turno_cambio_wifi_bcm
+
+    out_wifi = turno_cambio_wifi_bcm(
+        db=db, abonado=abonado, ctx=ctx, texto=texto
+    )
+    if out_wifi is None:
+        return None
+    resp = out_wifi.get("mensaje") or ""
+    paso = out_wifi.get("paso_cubierto") or ""
+    cub = list(ctx.get("pasos_cubiertos") or [])
+    if paso and paso not in cub:
+        cub.append(paso)
+    ctx["pasos_cubiertos"] = cub
+    if paso:
+        ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
+    ctx["intencion"] = "cambio_clave_wifi"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "abonado": crepo.abonado_to_dict(abonado) if abonado else None,
+        "intencion": "cambio_clave_wifi",
+    }
+
+
 def _mensaje_informar_pago_n1(
     texto: str = "",
     *,
@@ -1739,12 +1780,14 @@ def _redactar_con_llama(
         if len(texto) > 320 or texto.count("?") > 1:
             texto = borrador.strip()
         from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
+        from app.services.wifi_bcm import gestion_remota_activa
 
         g = aplicar_guardrails_cambio_clave_wifi(
             mensaje=texto,
             mensaje_cliente=consulta or "",
             intencion="",
             accion="ask",
+            gestion_remota=gestion_remota_activa({}),
         )
         if g.get("motivo"):
             return g["mensaje"] or texto
@@ -3388,33 +3431,43 @@ def procesar_mensaje_entrante(
             "intencion": "facturacion",
         }
 
-    # Cambio clave Wi‑Fi: número/clave en chat → guía auto-servicio (no DNI, no cambio remoto).
-    if (
-        abonado
-        and _intent_ahora == "cambio_clave_wifi"
-        and not _dni_explicito
-        and _es_solo_dni(texto)
-    ):
-        from app.services.diagnostico_n1 import mensaje_guia_cambio_clave_wifi
+    # Cambio clave/SSID Wi‑Fi: si hay ONU FTTH en BCM, gestión remota (ambas bandas).
+    if abonado and _intent_ahora == "cambio_clave_wifi":
+        from app.services.wifi_bcm import gestion_remota_activa
 
-        resp = mensaje_guia_cambio_clave_wifi()
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "clave_wifi_etiqueta" not in cub:
-            cub.append("clave_wifi_etiqueta")
-        ctx["pasos_cubiertos"] = cub
-        ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
-        crepo.set_contexto(conv, ctx)
-        db.commit()
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-        return {
-            "ok": True,
-            "modo": "bot",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-            "abonado": crepo.abonado_to_dict(abonado),
-            "intencion": "cambio_clave_wifi",
-        }
+        out_remota = _respuesta_cambio_wifi_bcm(
+            db, org_id, conv, abonado, ctx, texto, canal=canal
+        )
+        if out_remota is not None:
+            return out_remota
+        # Sin remoto: número/clave en chat → guía auto-servicio (no DNI).
+        if (
+            not gestion_remota_activa(ctx)
+            and not _dni_explicito
+            and _es_solo_dni(texto)
+        ):
+            from app.services.diagnostico_n1 import mensaje_guia_cambio_clave_wifi
+
+            resp = mensaje_guia_cambio_clave_wifi()
+            cub = list(ctx.get("pasos_cubiertos") or [])
+            if "clave_wifi_etiqueta" not in cub:
+                cub.append("clave_wifi_etiqueta")
+            ctx["pasos_cubiertos"] = cub
+            ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(
+                db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+            )
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "abonado": crepo.abonado_to_dict(abonado),
+                "intencion": "cambio_clave_wifi",
+            }
 
     # Incidente masivo por NAS (antes de frustración/ticket/LLM)
     if abonado:
@@ -4413,6 +4466,12 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "intencion": "aviso_deuda",
             }
+        if abonado and intencion == "cambio_clave_wifi":
+            out_remota = _respuesta_cambio_wifi_bcm(
+                db, org_id, conv, abonado, ctx, texto, canal=canal
+            )
+            if out_remota is not None:
+                return out_remota
         crepo.set_contexto(conv, ctx)
         db.commit()
         pb = _playbooks(db)
@@ -5049,12 +5108,14 @@ def procesar_mensaje_entrante(
 
             pregunta = sanitizar_apn_en_texto(pregunta)
         from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
+        from app.services.wifi_bcm import gestion_remota_activa
 
         g_wifi = aplicar_guardrails_cambio_clave_wifi(
             mensaje=pregunta,
             mensaje_cliente=texto,
             intencion=intencion,
             accion="ask",
+            gestion_remota=gestion_remota_activa(ctx),
         )
         if g_wifi.get("motivo"):
             pregunta = g_wifi["mensaje"] or pregunta
