@@ -348,6 +348,115 @@ def test_facturacion_si_tras_oferta_pago_incluye_ov():
     assert "https://ov.batan.coop/#/pagar" in (out.get("mensaje") or "")
 
 
+def test_facturacion_enviarmela_no_abre_ticket():
+    """Regresión: tras saldo, «enviármela» (factura) → OV + mail, no ticket N2."""
+    import json
+    from unittest.mock import patch
+
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "cliente",
+            "texto": "Quería saber si debo alguna boleta de Internet",
+        },
+        {
+            "autor": "bot",
+            "texto": (
+                "Tenés un saldo pendiente de $37.774,85 pesos. "
+                "¿Te gustaría que te explique cómo podés abonarlo?"
+            ),
+        },
+    ]
+    ctx = (
+        "CONTEXTO_ABONADO:\n- modo: identificado\n"
+        "- deuda_monto: 37774.85\n"
+    )
+
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=hist,
+        mensaje_cliente="Y si es asi podrían enviarmela",
+        turnos_diagnostico=2,
+        pasos_cubiertos=["informar_saldo"],
+        contexto_abonado=ctx,
+    )
+    assert out["accion"] == "ask"
+    assert out["motivo"] == "facturacion_envio_factura_ov"
+    msg = out.get("mensaje") or ""
+    low = msg.lower()
+    assert "ticket" not in low
+    assert "hace falta un agente" not in low
+    assert "https://ov.batan.coop" in msg
+    assert "correo" in low or "mail" in low
+    assert "registrado" in low
+
+    # Si el LLM igual escala ante «enviármela», el guardrail lo corta.
+    def _fake_escalate(*_a, **_k):
+        return json.dumps(
+            {
+                "accion": "escalate",
+                "mensaje": "Con lo que me contaste ya hace falta un agente.",
+                "paso_cubierto": "",
+                "motivo": "ia",
+            },
+            ensure_ascii=False,
+        )
+
+    with patch(
+        "app.services.diagnostico_n1._facturacion_deterministica",
+        return_value=None,
+    ), patch("app.llm.chat_completion", side_effect=_fake_escalate):
+        out2 = diagnosticar_turno(
+            intencion="facturacion",
+            checklist=[{"id": "derivar_factura", "pregunta": "¿Te derivo?"}],
+            historial_mensajes=hist,
+            mensaje_cliente="Y si es asi podrían enviarmela",
+            turnos_diagnostico=2,
+            pasos_cubiertos=["informar_saldo"],
+            contexto_abonado=ctx,
+        )
+    assert out2["accion"] == "ask"
+    assert out2["motivo"] == "bloqueado_escalate_facturacion_factura"
+    assert "https://ov.batan.coop" in (out2.get("mensaje") or "")
+    assert "correo" in (out2.get("mensaje") or "").lower()
+
+
+def test_facturacion_sin_mail_registrado_deriva_agente():
+    from app.services.diagnostico_n1 import diagnosticar_turno
+
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Las facturas suelen llegar por correo electrónico al mail que tenés "
+                "registrado para eso.\n"
+                "También las podés ver y descargar en la oficina virtual:\n"
+                "https://ov.batan.coop\n"
+                "Entrá autenticándote con ese mismo correo (el registrado para recibir "
+                "las facturas). Por este chat no te adjunto el PDF.\n"
+                "¿Pudiste entrar con ese mail? Si no tenés ningún correo registrado, "
+                "avisame y te derivo con un agente para dejarlo cargado en el sistema."
+            ),
+        },
+    ]
+    out = diagnosticar_turno(
+        intencion="facturacion",
+        checklist=[],
+        historial_mensajes=hist,
+        mensaje_cliente="no tengo mail registrado",
+        turnos_diagnostico=3,
+        pasos_cubiertos=["guia_factura_ov_mail"],
+        contexto_abonado=(
+            "CONTEXTO_ABONADO:\n- modo: identificado\n- deuda_monto: 1000\n"
+        ),
+    )
+    assert out["accion"] == "escalate"
+    assert out["motivo"] == "facturacion_sin_mail_agente"
+    assert "correo" in (out.get("mensaje") or "").lower()
+
+
 def test_facturacion_si_tras_algo_mas_saldo_cero_no_repite_pago():
     from app.services.diagnostico_n1 import _facturacion_deterministica, _saldo_desde_contexto
 

@@ -1553,6 +1553,18 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
 def _parece_invento_pago(mensaje: str) -> bool:
     """Respuestas que inventan CBU, adjuntos o pasos web inexistentes."""
     t = (mensaje or "").lower()
+    # «no te adjunto» / «no puedo adjuntar» es la plantilla honesta, no un invento.
+    if any(
+        k in t
+        for k in (
+            "no te adjunto",
+            "no te puedo adjuntar",
+            "no puedo adjuntar",
+            "no te paso cbu",
+            "no te puedo pasar cbu",
+        )
+    ):
+        return False
     return any(
         k in t
         for k in (
@@ -1641,15 +1653,165 @@ def _bot_ofrecio_guia_pago(historial_mensajes: list | None) -> bool:
             "como podes realizar el pago",
             "querés que te explique",
             "quieres que te explique",
+            "te gustaría que te explique",
+            "te gustaria que te explique",
             "te explico cómo",
             "te explico como",
             "explicarte cómo pagar",
             "explicarte como pagar",
+            "cómo podés abonar",
+            "como podes abonar",
+            "cómo podes abonar",
+            "como podés abonar",
+            "podés abonarlo",
+            "podes abonarlo",
+            "necesitás abonar",
+            "necesitas abonar",
             "pudiste pagar o necesitás que te ubique",
             "podés abonar acá",
             "podes abonar aca",
         )
     )
+
+
+def _cliente_pide_envio_boleta_o_factura(texto: str) -> bool:
+    """Pide que le manden la boleta/factura (o «enviármela» tras el saldo)."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    t = (
+        t.replace("enviármela", "enviarmela")
+        .replace("envíenmela", "enviarmela")
+        .replace("envienmela", "enviarmela")
+        .replace("envíamela", "enviarmela")
+        .replace("enviamela", "enviarmela")
+        .replace("mandámela", "mandamela")
+        .replace("pásamela", "pasamela")
+    )
+    return any(
+        k in t
+        for k in (
+            "enviarmela",
+            "mandamela",
+            "pasamela",
+            "enviarme la",
+            "enviarme el",
+            "mandarme la",
+            "mandarme el",
+            "pasarme la",
+            "pasarme el",
+            "podrían enviar",
+            "podrian enviar",
+            "pueden enviar",
+            "pueden mandar",
+            "me la envían",
+            "me la envian",
+            "me la mandan",
+            "me la pasan",
+            "enviar la boleta",
+            "enviar la factura",
+            "mandame la boleta",
+            "mandame la factura",
+            "enviame la boleta",
+            "enviame la factura",
+            "envíame la boleta",
+            "envíame la factura",
+            "copia de la boleta",
+            "copia de boleta",
+            "pdf de la factura",
+            "pdf de la boleta",
+            "que me la envien",
+            "que me la envíen",
+            "que me manden la factura",
+            "que me manden la boleta",
+        )
+    )
+
+
+def _cliente_sin_mail_facturacion(texto: str) -> bool:
+    """Declara que no tiene correo registrado para facturas."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    niega = any(
+        k in t
+        for k in (
+            "no tengo",
+            "no hay",
+            "no figura",
+            "no está",
+            "no esta",
+            "nunca regist",
+            "sin mail",
+            "sin correo",
+            "ningun mail",
+            "ningún mail",
+            "ningun correo",
+            "ningún correo",
+            "no regist",
+            "no me llega",
+            "nunca me llego",
+            "nunca me llegó",
+        )
+    )
+    habla_mail = any(
+        k in t
+        for k in (
+            "mail",
+            "correo",
+            "email",
+            "e-mail",
+            "gmail",
+            "hotmail",
+            "@",
+        )
+    )
+    return niega and habla_mail
+
+
+def _bot_ofrecio_factura_ov(historial_mensajes: list | None) -> bool:
+    h = _historial_bot_texto(historial_mensajes)
+    return any(
+        k in h
+        for k in (
+            "correo electrónico registrado",
+            "correo electronico registrado",
+            "mail registrado",
+            "email registrado",
+            "recibir las facturas",
+            "oficina virtual podés ver",
+            "oficina virtual podes ver",
+        )
+    )
+
+
+def _mensaje_envio_factura_ov(*, saldo: str | None) -> str:
+    """Guía N1: factura por mail + OV; sin adjunto PDF por chat."""
+    from app.services.eco_voice import OV_BATAN_URL, mensaje_saldo_padron
+
+    pref = ""
+    if saldo is not None:
+        pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+    return (
+        f"{pref}"
+        "Las facturas suelen llegar por correo electrónico al mail que tenés "
+        "registrado para eso.\n"
+        "También las podés ver y descargar en la oficina virtual:\n"
+        f"{OV_BATAN_URL}\n"
+        "Entrá autenticándote con ese mismo correo (el registrado para recibir "
+        "las facturas). Por este chat no te adjunto el PDF.\n"
+        "¿Pudiste entrar con ese mail? Si no tenés ningún correo registrado, "
+        "avisame y te derivo con un agente para dejarlo cargado en el sistema."
+    )
+
+
+def _mensaje_guia_pago_ov(*, saldo: str | None) -> str:
+    from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
+
+    pref = ""
+    if saldo is not None:
+        pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+    return f"{pref}{PLANTILLA_PAGO_QR}"
 
 
 def _facturacion_deterministica(
@@ -1834,16 +1996,98 @@ def _facturacion_deterministica(
             "motivo": "facturacion_sin_invento_cbu",
         }
 
+    # «enviármela» / mandame la factura: OV + mail registrado (sin ticket).
+    if identificado and _cliente_pide_envio_boleta_o_factura(mensaje_cliente):
+        return {
+            "accion": "ask",
+            "mensaje": _mensaje_envio_factura_ov(saldo=saldo),
+            "paso_cubierto": "guia_factura_ov_mail",
+            "motivo": "facturacion_envio_factura_ov",
+        }
+
+    # Tras guía de factura: sin mail registrado → agente (alta de correo).
+    if identificado and _bot_ofrecio_factura_ov(historial_mensajes):
+        t_corto = re.sub(r"[¡!.,¿?]+", "", t).strip()
+        niega_corto = t_corto in (
+            "no",
+            "no tengo",
+            "ninguno",
+            "ningún",
+            "ninguna",
+            "no tengo ninguno",
+        )
+        if _cliente_sin_mail_facturacion(mensaje_cliente) or niega_corto:
+            return {
+                "accion": "escalate",
+                "mensaje": (
+                    "Dale: para cargar o actualizar el correo de facturación en el "
+                    "sistema hace falta un agente. Te derivo y te van a responder "
+                    "por este mismo chat."
+                ),
+                "paso_cubierto": "derivar_mail_facturacion",
+                "motivo": "facturacion_sin_mail_agente",
+            }
+        if t_corto in (
+            "si",
+            "sí",
+            "dale",
+            "ok",
+            "listo",
+            "pude",
+            "ya entre",
+            "ya entré",
+            "entre",
+            "entré",
+            "ya esta",
+            "ya está",
+        ) or any(
+            k in t
+            for k in (
+                "pude entrar",
+                "ya entré",
+                "ya entre",
+                "ya la vi",
+                "ya la tengo",
+                "la descargué",
+                "la descargue",
+            )
+        ):
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "Perfecto. ¿Necesitás abonar el saldo o te ayudo con algo más?"
+                ),
+                "paso_cubierto": "factura_ov_ok",
+                "motivo": "facturacion_factura_ov_ok",
+            }
+
     if identificado and (
         _cliente_pide_pagar(mensaje_cliente)
         or (t in ("ambas", "si", "sí", "dale", "ok", "dale si") and oferta_pago_previa)
+        or (
+            oferta_pago_previa
+            and any(
+                k in t
+                for k in (
+                    "si es asi",
+                    "si es así",
+                    "sí es asi",
+                    "sí es así",
+                    "y si es",
+                    "entonces si",
+                    "entonces sí",
+                    "dale envia",
+                    "dale enviá",
+                    "si por favor",
+                    "sí por favor",
+                )
+            )
+            and not _cliente_pide_envio_boleta_o_factura(mensaje_cliente)
+        )
     ):
-        pref = ""
-        if saldo is not None:
-            pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
         return {
             "accion": "ask",
-            "mensaje": f"{pref}{PLANTILLA_PAGO_QR}",
+            "mensaje": _mensaje_guia_pago_ov(saldo=saldo),
             "paso_cubierto": "guia_pago_fiserv",
             "motivo": "facturacion_pago_plantilla",
         }
@@ -2423,6 +2667,28 @@ def diagnosticar_turno(
                 "La luz LOS en rojo indica un problema de fibra/señal óptica; "
                 "no se arregla mirando el WiFi. Te derivo para coordinar una visita técnica."
             )
+
+        # Deuda/boleta: no ticket si pidió guía de pago o que le envíen la factura.
+        if (
+            accion == "escalate"
+            and es_facturacion
+            and not forzar_agente
+            and "modo: identificado" in (contexto_abonado or "")
+            and (
+                _cliente_pide_envio_boleta_o_factura(mensaje_cliente)
+                or _cliente_pide_pagar(mensaje_cliente)
+            )
+        ):
+            saldo_f = _saldo_desde_contexto(contexto_abonado)
+            accion = "ask"
+            if _cliente_pide_envio_boleta_o_factura(mensaje_cliente):
+                motivo = "bloqueado_escalate_facturacion_factura"
+                mensaje = _mensaje_envio_factura_ov(saldo=saldo_f)
+                paso = "guia_factura_ov_mail"
+            else:
+                motivo = "bloqueado_escalate_facturacion_pago"
+                mensaje = _mensaje_guia_pago_ov(saldo=saldo_f)
+                paso = "guia_pago_fiserv"
 
         # Guardrails
         if (

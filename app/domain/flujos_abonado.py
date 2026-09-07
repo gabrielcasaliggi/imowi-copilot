@@ -168,11 +168,13 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     "facturacion_factura": [
         PasoPlaybook(
             "solicitud_factura_detalle",
-            "¿Qué período necesitás y cómo la querés: PDF en Mi Cuenta o que te la manden?",
+            "Las facturas llegan por mail al correo registrado. También están en "
+            "ov.batan.coop: entrá con ese mismo mail. ¿Pudiste entrar o no tenés correo registrado?",
         ),
         PasoPlaybook(
             "ov_factura",
-            "La factura está en ov.batan.coop. ¿Pudiste descargarla o preferís que te la envíen?",
+            "Entrá a https://ov.batan.coop con el correo registrado para recibir facturas. "
+            "¿Pudiste descargarla?",
         ),
         PasoPlaybook(
             "identificar_factura",
@@ -180,7 +182,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "derivar_solicitud_factura",
-            "Si no aparece o hay que corregir datos fiscales, ¿te derivo?",
+            "Si no tenés mail registrado o hay que corregir datos fiscales, ¿te derivo "
+            "con un agente para cargarlo?",
         ),
     ],
     "facturacion_estado_cuenta": [
@@ -1415,7 +1418,12 @@ def _clasificar_intencion_facturacion(t: str) -> str | None:
             "mandame la factura",
             "enviame la factura",
             "envíame la factura",
+            "enviarmela",
+            "enviármela",
+            "mandamela",
+            "mandámela",
             "enviar factura",
+            "enviar la boleta",
             "factura por mail",
             "factura por correo",
             "necesito la factura",
