@@ -126,7 +126,13 @@ def _aplicar_diagnostico_ia(
         )
         if out_remota is not None:
             return out_remota
-        # Sin BCM/serial: guía fija de etiqueta (nunca diagnosticar_turno/LLM).
+        # Solo caer a guía local si el remoto quedó marcado no disponible.
+        # Si aún hay destino BCM (p.ej. fase hecho sin pedido nuevo), no pisar.
+        from app.services.wifi_bcm import gestion_remota_activa
+
+        if gestion_remota_activa(ctx) or str(ctx.get("wifi_bcm_destino_valor") or "").strip():
+            return None
+        # Sin BCM/serial/radius: guía fija de etiqueta (nunca diagnosticar_turno/LLM).
         turnos = int(ctx.get("diag_turnos") or 0)
         ctx["diag_turnos"] = turnos + 1
         ctx["wifi_bcm"] = "0"

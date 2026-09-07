@@ -335,6 +335,51 @@ def test_turno_ambos_clave_luego_ssid(monkeypatch):
     assert "olvid" in (r2["mensaje"] or "").lower()
 
 
+def test_tras_clave_ok_pide_nombre_reabre_ssid(monkeypatch):
+    """Regresión: tras cambio de clave, pedir el nombre no debe caer a guía local."""
+    abo = _abo()
+    ctx: dict = {
+        "wifi_bcm": "1",
+        "wifi_bcm_fase": "hecho",
+        "wifi_bcm_que": "clave",
+        "wifi_bcm_destino_kind": "user_radius",
+        "wifi_bcm_destino_valor": "pruebasADSL22",
+        "wifi_bcm_login": "pruebasADSL22",
+        "wifi_bcm_abonado_id": abo.id,
+        "pasos_cubiertos": ["wifi_bcm_clave_ok", "aviso_reconexion"],
+    }
+    monkeypatch.setattr(
+        wb,
+        "_servicios_abonado",
+        lambda *_a, **_k: [],
+    )
+    applied: list[str] = []
+
+    def _ssid(db, destino, ssid):
+        applied.append(ssid)
+        return True, ""
+
+    monkeypatch.setattr(wb, "_aplicar_ssid", _ssid)
+
+    r1 = wb.turno_cambio_wifi_bcm(
+        db=None,
+        abonado=abo,
+        ctx=ctx,
+        texto="excelente, hay posibilidad de cambiar el nombre de la red tambien?",
+    )
+    assert r1 is not None
+    assert r1.get("motivo") == "wifi_bcm_pedir_ssid"
+    assert ctx["wifi_bcm_fase"] == "pedir_ssid"
+    assert "nombre" in (r1["mensaje"] or "").lower()
+
+    r2 = wb.turno_cambio_wifi_bcm(
+        db=None, abonado=abo, ctx=ctx, texto="RedNuevaEko"
+    )
+    assert r2 and r2.get("motivo") == "wifi_bcm_ok"
+    assert applied == ["RedNuevaEko"]
+    assert "olvid" in (r2["mensaje"] or "").lower()
+
+
 def test_turno_sin_destino_cae_a_local(monkeypatch):
     ctx: dict = {"pasos_cubiertos": []}
     monkeypatch.setattr(

@@ -147,6 +147,10 @@ def interpretar_que_cambiar(texto: str) -> QueWifi:
             "nombre wifi",
             "solo el nombre",
             "el nombre",
+            "cambiar el nombre",
+            "cambiar nombre",
+            "nombre también",
+            "nombre tambien",
         )
     ) and not any(k in t for k in ("clave", "contraseña", "password")):
         return "ssid"
@@ -155,6 +159,26 @@ def interpretar_que_cambiar(texto: str) -> QueWifi:
     if any(k in t for k in ("clave", "contraseña", "password", "pass")):
         return "clave"
     if t in ("la clave", "la contraseña"):
+        return "clave"
+    return ""
+
+
+def _reabrir_tras_hecho(texto: str) -> QueWifi:
+    """Tras un cambio OK, si piden nombre/clave otra vez, reabrir el flujo remoto."""
+    q = interpretar_que_cambiar(texto)
+    if q:
+        return q
+    t = (texto or "").lower()
+    if any(
+        k in t
+        for k in (
+            "nombre",
+            "ssid",
+            "la red",
+        )
+    ) and any(k in t for k in ("cambiar", "cambio", "posibilidad", "también", "tambien", "podes", "podés")):
+        return "ssid"
+    if any(k in t for k in ("otra clave", "cambiar la clave", "nueva clave", "otra contraseña")):
         return "clave"
     return ""
 
@@ -724,5 +748,25 @@ def turno_cambio_wifi_bcm(
             "motivo": "wifi_bcm_ok",
             "listo": "1",
         }
+
+    # Tras un cambio OK: si piden nombre o otra clave, reabrir con el mismo destino.
+    if fase == "hecho":
+        reabrir = _reabrir_tras_hecho(txt)
+        if reabrir == "ssid" or reabrir == "ambos":
+            ctx["wifi_bcm_que"] = "ssid"
+            ctx["wifi_bcm_fase"] = "pedir_ssid"
+            return {
+                "mensaje": _MSG_PEDIR_SSID,
+                "paso_cubierto": "wifi_bcm_pedir_ssid",
+                "motivo": "wifi_bcm_pedir_ssid",
+            }
+        if reabrir == "clave":
+            ctx["wifi_bcm_que"] = "clave"
+            ctx["wifi_bcm_fase"] = "pedir_clave"
+            return {
+                "mensaje": _MSG_PEDIR_CLAVE,
+                "paso_cubierto": "wifi_bcm_pedir_clave",
+                "motivo": "wifi_bcm_pedir_clave",
+            }
 
     return None
