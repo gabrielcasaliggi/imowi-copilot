@@ -92,11 +92,24 @@ def test_resolver_celular_app_igual_portal():
     assert resolver_celular_ov(abo, canal="app") == "5492235402690"
 
 
-def test_resolver_celular_portal_usa_hilo():
-    """Tras login portal el hilo tiene el celular BillTrack (no guest)."""
+def test_candidatos_rechaza_portal_dni_sintetico():
+    """portal{dni} no debe mandarse a /ov/link (quedaba el DNI como «celular»)."""
     from app.services.ov_batan import candidatos_celular_ov
 
-    abo = SimpleNamespace(telefono_e164="", linea_msisdn="")
+    abo = SimpleNamespace(telefono_e164="", linea_msisdn="", id="", dni="24914867")
+    assert (
+        candidatos_celular_ov(
+            abo, canal="app", wa_id="portal24914867", telefono_hilo="portal24914867"
+        )
+        == []
+    )
+
+
+def test_resolver_celular_portal_usa_hilo_real():
+    """Tras login portal el hilo con MSISDN BillTrack sí cuenta."""
+    from app.services.ov_batan import candidatos_celular_ov
+
+    abo = SimpleNamespace(telefono_e164="", linea_msisdn="", id="", dni="")
     assert candidatos_celular_ov(
         abo, canal="web", wa_id="", telefono_hilo="5492235551234"
     ) == ["5492235551234"]
@@ -106,6 +119,29 @@ def test_resolver_celular_portal_usa_hilo():
     assert candidatos_celular_ov(
         abo, canal="app", wa_id="", telefono_hilo="5492235551234"
     ) == ["5492235551234"]
+
+
+def test_candidatos_app_usa_wa_hermano(monkeypatch):
+    """Sin tel en padrón: reusa MSISDN del hilo WhatsApp del mismo abonado."""
+    from app.services import ov_batan as ov
+    from app.services.ov_batan import candidatos_celular_ov
+
+    abo = SimpleNamespace(
+        telefono_e164="",
+        linea_msisdn="",
+        id="abo-1",
+        dni="24914867",
+        organizacion_id="org-1",
+    )
+    monkeypatch.setattr(
+        ov,
+        "_celulares_wa_mismo_abonado",
+        lambda _db, _id: ["5492235402690"],
+    )
+    cels = candidatos_celular_ov(
+        abo, canal="app", telefono_hilo="portal24914867", db=object()
+    )
+    assert cels == ["5492235402690"]
 
 
 def test_urls_ov_desde_contexto_no_pide_cinco_paths(monkeypatch):

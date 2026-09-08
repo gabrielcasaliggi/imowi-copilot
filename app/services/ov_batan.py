@@ -198,27 +198,73 @@ def _link_ov_usable(link: str, *, celular_pedido: str = "") -> bool:
     return True
 
 
+def _es_identidad_sintetica_portal(raw: str) -> bool:
+    """guest… / portal{dni} no son MSISDN (OV los rechaza o autentican mal)."""
+    s = (raw or "").strip().lower()
+    return bool(s) and (
+        s.startswith("guest")
+        or s.startswith("portal")
+        or s.startswith("tg:")
+        or s.startswith("sim")
+    )
+
+
+def _celulares_wa_mismo_abonado(db: Session, abo_id: str) -> list[str]:
+    """MSISDN de hilos WhatsApp ya vinculados al mismo abonado (portal/app)."""
+    from sqlalchemy import select
+
+    from app.estate.canal_repo import normalizar_telefono
+    from app.estate.models import ConversacionCanal
+
+    out: list[str] = []
+    abo_id = (abo_id or "").strip()
+    if db is None or not abo_id:
+        return out
+    for row in db.scalars(
+        select(ConversacionCanal)
+        .where(
+            ConversacionCanal.abonado_id == abo_id,
+            ConversacionCanal.canal == "whatsapp",
+        )
+        .limit(5)
+    ).all():
+        for raw in (getattr(row, "wa_id", None), getattr(row, "telefono", None)):
+            s = str(raw or "").strip()
+            if not s or _es_identidad_sintetica_portal(s):
+                continue
+            n = normalizar_telefono(s)
+            if n and len(n) >= 10 and n.isdigit() and n not in out:
+                out.append(n)
+        if out:
+            break
+    return out
+
+
 def candidatos_celular_ov(
     abonado: Any | None = None,
     *,
     canal: str = "",
     wa_id: str = "",
     telefono_hilo: str = "",
+    db: Session | None = None,
 ) -> list[str]:
     """Celulares a probar en /ov/link (orden = prioridad).
 
     WhatsApp: MSISDN del hilo primero (Botmaker / PLATFORM_CONTACT_ID), luego padrón.
-    Portal: padrón + celular del hilo post-login.
+    Portal/app: padrón; si falta, hilo real; si sigue vacío, WA del mismo abonado
+    o teléfono BillTrack por DNI (el hilo ``portal{dni}`` no sirve para OV).
     """
     from app.estate.canal_repo import normalizar_telefono
 
     out: list[str] = []
 
     def _add(raw: Any) -> None:
-        n = normalizar_telefono(str(raw or ""))
-        if n and len(n) >= 8 and n not in out:
-            if n.startswith("guest") or not n.isdigit():
-                return
+        s = str(raw or "").strip()
+        if not s or _es_identidad_sintetica_portal(s):
+            return
+        n = normalizar_telefono(s)
+        # MSISDN usable: ≥10 dígitos (evita DNI 7–8 tras strip de portal{dni})
+        if n and len(n) >= 10 and n.isdigit() and n not in out:
             out.append(n)
 
     canal_l = (canal or "").strip().lower()
@@ -230,10 +276,46 @@ def candidatos_celular_ov(
         _add(getattr(abonado, "telefono_e164", None))
         _add(getattr(abonado, "linea_msisdn", None))
     if canal_l in ("web", "app", "simulate"):
-        hilo = str(telefono_hilo or wa_id or "").strip()
-        if hilo and not hilo.lower().startswith("guest"):
-            _add(hilo)
-            _add(wa_id)
+        _add(telefono_hilo)
+        _add(wa_id)
+
+    if out:
+        return out
+
+    abo_id = str(getattr(abonado, "id", "") or "").strip() if abonado is not None else ""
+    if db is not None and abo_id and canal_l in ("web", "app", "simulate", ""):
+        try:
+            for cel in _celulares_wa_mismo_abonado(db, abo_id):
+                _add(cel)
+        except Exception:
+            logger.debug("OV candidatos: sin hilo WA hermano", exc_info=True)
+
+    if out:
+        return out
+
+    dni = str(getattr(abonado, "dni", "") or "").strip() if abonado is not None else ""
+    if db is not None and dni and canal_l in ("web", "app", "simulate", ""):
+        try:
+            from app.services.billtrack import ensure_local_abonado, lookup_abonado_por_dni
+
+            hit = lookup_abonado_por_dni(dni, db=db)
+            tel = str((hit or {}).get("telefono") or "").strip()
+            if tel:
+                _add(tel)
+                if out and abonado is not None:
+                    try:
+                        ensure_local_abonado(
+                            db,
+                            str(getattr(abonado, "organizacion_id", "") or ""),
+                            {**(hit or {}), "dni": dni},
+                        )
+                    except Exception:
+                        logger.debug(
+                            "OV candidatos: no persistió tel BillTrack", exc_info=True
+                        )
+        except Exception:
+            logger.debug("OV candidatos: BillTrack sin teléfono", exc_info=True)
+
     return out
 
 
@@ -243,10 +325,15 @@ def resolver_celular_ov(
     canal: str = "",
     wa_id: str = "",
     telefono_hilo: str = "",
+    db: Session | None = None,
 ) -> str:
     """Primer celular candidato para /ov/link (compat)."""
     cands = candidatos_celular_ov(
-        abonado, canal=canal, wa_id=wa_id, telefono_hilo=telefono_hilo
+        abonado,
+        canal=canal,
+        wa_id=wa_id,
+        telefono_hilo=telefono_hilo,
+        db=db,
     )
     return cands[0] if cands else ""
 

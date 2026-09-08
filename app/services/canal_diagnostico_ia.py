@@ -499,6 +499,7 @@ def _aplicar_diagnostico_ia(
         canal=canal,
         wa_id=getattr(conv, "wa_id", "") or "",
         telefono_hilo=getattr(conv, "telefono", "") or "",
+        db=db,
     )
     if cels_ov:
         extras_ctx["celular_ov"] = cels_ov[0]

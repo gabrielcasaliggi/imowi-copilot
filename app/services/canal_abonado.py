@@ -96,6 +96,7 @@ def _plantilla_pago_ov(
             canal=canal,
             wa_id=getattr(conv, "wa_id", "") or "",
             telefono_hilo=getattr(conv, "telefono", "") or "",
+            db=db,
         )
         # Un path autenticado (pagar) + my aparte — mismo criterio WA/portal/app.
         pagar = url_ov_para_key("pagar", cels[0] if cels else "", db=db, celulares=cels)
@@ -1321,6 +1322,7 @@ def _responder_consulta_saldo(
         canal=canal,
         wa_id=getattr(conv, "wa_id", "") or "",
         telefono_hilo=getattr(conv, "telefono", "") or "",
+        db=db,
     )
     cel0 = cels[0] if cels else ""
     pagar = url_ov_para_key("pagar", cel0, db=db, celulares=cels)
