@@ -1954,17 +1954,28 @@ def _urls_ov_desde_contexto(
 ) -> dict[str, str]:
     """Deep-links OV por celular del padrón/WA o hash público.
 
-    ``solo_key``: un solo path (pagar/my/…) como Botmaker — evita varios
-    /ov/link seguidos que reusan el mismo tsid y dejan al usuario sin cliente.
+    ``solo_key``: un solo path (pagar/my/…) como Botmaker.
+    Sin ``solo_key``: solo ``pagar`` + ``my`` (dos pedidos), nunca pack/talón/
+    portabilidad de más — varios /ov/link seguidos reusaban tsid huérfano.
     """
-    from app.services.ov_batan import url_ov_para_key, urls_ov_gestiones
+    from app.services.ov_batan import public_url, url_ov_para_key
 
     cels = _celulares_ov_desde_contexto(contexto_abonado)
     cel0 = cels[0] if cels else ""
+    home = "https://ov.batan.coop"
     if solo_key:
         link = url_ov_para_key(solo_key, cel0, celulares=cels)
-        return {solo_key: link, "home": "https://ov.batan.coop"}
-    return urls_ov_gestiones(cel0, celulares=cels)
+        return {solo_key: link, "home": home}
+    pagar = url_ov_para_key("pagar", cel0, celulares=cels)
+    my = url_ov_para_key("my", cel0, celulares=cels)
+    return {
+        "pagar": pagar,
+        "my": my,
+        "talon": public_url("talon-de-pago?useCustomer=true"),
+        "pack": public_url("comprar-pack?userCustomer=true"),
+        "portabilidad": public_url("portabilidad?useCustomer=true"),
+        "home": home,
+    }
 
 
 def _plantilla_pago_ctx(contexto_abonado: str) -> str:
@@ -1978,7 +1989,7 @@ def _mensaje_envio_factura_ov(*, saldo: str | None, contexto_abonado: str = "") 
     """Guía N1: factura por mail + OV (deep-link por celular si hay API)."""
     from app.services.eco_voice import mensaje_saldo_padron
 
-    urls = _urls_ov_desde_contexto(contexto_abonado)
+    urls = _urls_ov_desde_contexto(contexto_abonado, solo_key="my")
     ov_link = urls.get("my") or urls.get("home") or "https://ov.batan.coop"
     pref = ""
     if saldo is not None:
@@ -2033,8 +2044,15 @@ def _facturacion_deterministica(
     identificado = "modo: identificado" in (contexto_abonado or "")
     saldo = _saldo_desde_contexto(contexto_abonado) if identificado else None
     cortado = servicio_cortado_desde_contexto(contexto_abonado) if identificado else False
-    plantilla_pago = _plantilla_pago_ctx(contexto_abonado)
+    # No pedir /ov/link acá: si hay gesto (pagar/factura) se pide un solo path abajo.
+    plantilla_pago: str | None = None
     t = (mensaje_cliente or "").lower().strip()
+
+    def _plantilla() -> str:
+        nonlocal plantilla_pago
+        if plantilla_pago is None:
+            plantilla_pago = _plantilla_pago_ctx(contexto_abonado)
+        return plantilla_pago
 
     # Invitado: sin cuenta no hay saldo; pedir DNI (no llamar al LLM).
     if not identificado and (
@@ -2116,7 +2134,7 @@ def _facturacion_deterministica(
 
         # Deep-link abrió pero OV pidió login → reenviar con cel de la cuenta.
         if not gesto and _cliente_dice_link_ov_pide_login(mensaje_cliente):
-            urls = _urls_ov_desde_contexto(contexto_abonado)
+            urls = _urls_ov_desde_contexto(contexto_abonado, solo_key="my")
             link = (urls.get("my") or urls.get("home") or "https://ov.batan.coop").strip()
             pref = ""
             if saldo is not None:
@@ -2214,7 +2232,7 @@ def _facturacion_deterministica(
             "accion": "ask",
             "mensaje": (
                 f"{pref}Sí: la oficina virtual está acá.\n"
-                f"{plantilla_pago}"
+                f"{_plantilla()}"
             ),
             "paso_cubierto": "guia_oficina_virtual",
             "motivo": "facturacion_oficina_virtual",
@@ -2241,14 +2259,19 @@ def _facturacion_deterministica(
             return {
                 "accion": "ask",
                 "mensaje": (
-                    f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n{plantilla_pago}"
+                    f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n{_plantilla()}"
                 ),
                 "paso_cubierto": "informar_saldo_y_pago",
                 "motivo": "facturacion_saldo_y_web_pago",
             }
+        urls_saldo = _urls_ov_desde_contexto(contexto_abonado)
         return {
             "accion": "ask",
-            "mensaje": mensaje_saldo_padron(saldo),
+            "mensaje": mensaje_saldo_padron(
+                saldo,
+                pagar_url=urls_saldo.get("pagar") or "",
+                ov_url=urls_saldo.get("my") or "",
+            ),
             "paso_cubierto": "informar_saldo",
             "motivo": "facturacion_saldo_real",
         }
@@ -2288,7 +2311,7 @@ def _facturacion_deterministica(
             "accion": "ask",
             "mensaje": (
                 f"{extra}Por este chat no te puedo pasar CBU ni adjuntar un QR.\n"
-                f"{plantilla_pago}"
+                f"{_plantilla()}"
             ),
             "paso_cubierto": "guia_pago_fiserv",
             "motivo": "facturacion_sin_invento_cbu",

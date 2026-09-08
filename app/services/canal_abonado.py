@@ -88,7 +88,7 @@ def _plantilla_pago_ov(
 ) -> str:
     """Plantilla de pago con deep-link OV por celular del padrón (todo canal)."""
     from app.services.eco_voice import PLANTILLA_PAGO_QR, plantilla_pago_qr
-    from app.services.ov_batan import candidatos_celular_ov, urls_ov_gestiones
+    from app.services.ov_batan import candidatos_celular_ov, url_ov_para_key
 
     try:
         cels = candidatos_celular_ov(
@@ -97,10 +97,10 @@ def _plantilla_pago_ov(
             wa_id=getattr(conv, "wa_id", "") or "",
             telefono_hilo=getattr(conv, "telefono", "") or "",
         )
-        urls = urls_ov_gestiones(
-            cels[0] if cels else "", db=db, celulares=cels
-        )
-        return plantilla_pago_qr(pagar_url=urls["pagar"], ov_url=urls["my"])
+        # Un path autenticado (pagar) + my aparte — mismo criterio WA/portal/app.
+        pagar = url_ov_para_key("pagar", cels[0] if cels else "", db=db, celulares=cels)
+        my = url_ov_para_key("my", cels[0] if cels else "", db=db, celulares=cels)
+        return plantilla_pago_qr(pagar_url=pagar, ov_url=my)
     except Exception:
         logger.debug("plantilla_pago_ov: fallback público", exc_info=True)
         return PLANTILLA_PAGO_QR
@@ -1308,7 +1308,7 @@ def _responder_consulta_saldo(
     canal: str,
 ) -> dict:
     """Saldo/deuda del padrón — sin empujar QR si no hay deuda."""
-    from app.services.ov_batan import candidatos_celular_ov, urls_ov_gestiones
+    from app.services.ov_batan import candidatos_celular_ov, url_ov_para_key
 
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
     nota_baja = (
@@ -1322,12 +1322,14 @@ def _responder_consulta_saldo(
         wa_id=getattr(conv, "wa_id", "") or "",
         telefono_hilo=getattr(conv, "telefono", "") or "",
     )
-    urls = urls_ov_gestiones(cels[0] if cels else "", db=db, celulares=cels)
+    cel0 = cels[0] if cels else ""
+    pagar = url_ov_para_key("pagar", cel0, db=db, celulares=cels)
+    my = url_ov_para_key("my", cel0, db=db, celulares=cels)
     resp = mensaje_saldo_padron(
         deuda,
         nota_extra=nota_baja,
-        pagar_url=urls.get("pagar") or "",
-        ov_url=urls.get("my") or "",
+        pagar_url=pagar,
+        ov_url=my,
     )
     ctx["intencion"] = "facturacion"
     ctx["saludo"] = True

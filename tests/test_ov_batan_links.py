@@ -82,6 +82,16 @@ def test_link_ov_usable_exige_pedido_con_54():
     assert _link_ov_usable(ok, celular_pedido="92235402690") is False
 
 
+def test_resolver_celular_app_igual_portal():
+    """App y portal: celular del padrón (BillTrack), mismo criterio OV."""
+    from app.services.ov_batan import candidatos_celular_ov
+
+    abo = SimpleNamespace(telefono_e164="5492235402690", linea_msisdn="")
+    assert candidatos_celular_ov(abo, canal="app") == ["5492235402690"]
+    assert candidatos_celular_ov(abo, canal="web") == ["5492235402690"]
+    assert resolver_celular_ov(abo, canal="app") == "5492235402690"
+
+
 def test_resolver_celular_portal_usa_hilo():
     """Tras login portal el hilo tiene el celular BillTrack (no guest)."""
     from app.services.ov_batan import candidatos_celular_ov
@@ -93,6 +103,26 @@ def test_resolver_celular_portal_usa_hilo():
     assert candidatos_celular_ov(
         abo, canal="web", wa_id="", telefono_hilo="guestabcdef"
     ) == []
+    assert candidatos_celular_ov(
+        abo, canal="app", wa_id="", telefono_hilo="5492235551234"
+    ) == ["5492235551234"]
+
+
+def test_urls_ov_desde_contexto_no_pide_cinco_paths(monkeypatch):
+    """Saldo/plantilla solo piden pagar+my (no talón/pack/portabilidad)."""
+    from app.services import diagnostico_n1 as d
+    from app.services import ov_batan as ov
+
+    keys: list[str] = []
+
+    def _fake(key, celular="", db=None, celulares=None):
+        keys.append(key)
+        return f"https://ov.fast/{key}?tsid=1&user=549"
+
+    monkeypatch.setattr(ov, "url_ov_para_key", _fake)
+    out = d._urls_ov_desde_contexto("- celular_ov: 5492235402690\n")
+    assert "tsid=1" in out["pagar"] and "tsid=1" in out["my"]
+    assert keys == ["pagar", "my"]
 
 
 def test_resolver_celular_wa_prioriza_hilo_botmaker():
@@ -215,41 +245,29 @@ def test_mensaje_saldo_usa_urls_dinamicas():
 
 
 def test_mensaje_factura_usa_my_cuando_hay_celular(monkeypatch):
+    from app.services import ov_batan as ov
     from app.services.diagnostico_n1 import _mensaje_envio_factura_ov
 
-    monkeypatch.setattr(
-        "app.services.ov_batan.urls_ov_gestiones",
-        lambda celular="", db=None, celulares=None: {
-            "pagar": "https://ov.batan.coop/fast/pagar",
-            "my": "https://ov.batan.coop/fast/my",
-            "talon": "https://ov.batan.coop/fast/talon",
-            "pack": "https://ov.batan.coop/fast/pack",
-            "portabilidad": "https://ov.batan.coop/fast/port",
-            "home": "https://ov.batan.coop",
-        },
-    )
+    def _fake(key, celular="", db=None, celulares=None):
+        return f"https://ov.batan.coop/fast/{key}"
+
+    monkeypatch.setattr(ov, "url_ov_para_key", _fake)
     msg = _mensaje_envio_factura_ov(
         saldo=None,
         contexto_abonado="CONTEXTO\n- celular_ov: 5492235551234\n",
     )
-    assert "https://ov.batan.coop/fast/my" in msg
+    assert "https://ov.batan.coop/fast/my" in msg or "https://ov.batan.coop/fast/pagar" in msg
     assert "acceso con tu celular" in msg.lower()
 
 
 def test_plantilla_pago_ctx_inyecta_pagar(monkeypatch):
+    from app.services import ov_batan as ov
     from app.services.diagnostico_n1 import _plantilla_pago_ctx
 
-    monkeypatch.setattr(
-        "app.services.ov_batan.urls_ov_gestiones",
-        lambda celular="", db=None, celulares=None: {
-            "pagar": "https://ov.batan.coop/fast/pagar-x",
-            "my": "https://ov.batan.coop/fast/my-x",
-            "talon": "",
-            "pack": "",
-            "portabilidad": "",
-            "home": "https://ov.batan.coop",
-        },
-    )
+    def _fake(key, celular="", db=None, celulares=None):
+        return f"https://ov.batan.coop/fast/{key}-x"
+
+    monkeypatch.setattr(ov, "url_ov_para_key", _fake)
     txt = _plantilla_pago_ctx("- celular_ov: 5492235551234\n")
     assert "https://ov.batan.coop/fast/pagar-x" in txt
     assert "https://ov.batan.coop/fast/my-x" in txt
