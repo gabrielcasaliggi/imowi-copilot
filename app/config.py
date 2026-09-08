@@ -148,6 +148,7 @@ AUTH_LOCKOUT_MINUTES = int(os.getenv("AUTH_LOCKOUT_MINUTES", "30") or "30")
 
 # BillTrack lookup (SQL parametrizado, solo SELECT)
 BILLTRACK_LOOKUP_SQL = os.getenv("BILLTRACK_LOOKUP_SQL", "").strip()
+BILLTRACK_LOOKUP_BY_PHONE_SQL = os.getenv("BILLTRACK_LOOKUP_BY_PHONE_SQL", "").strip()
 BILLTRACK_LOOKUP_READY = os.getenv("BILLTRACK_LOOKUP_READY", "").strip().lower() in (
     "1",
     "true",

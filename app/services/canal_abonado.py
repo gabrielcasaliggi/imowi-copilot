@@ -2549,10 +2549,270 @@ def _vincular_abonado_a_conversacion(
         out["client_number"] = nro
     out.pop("invitado", None)
     out.pop("visitante", None)
+    out.pop("phone_candidates", None)
+    out.pop("phone_auth_asked", None)
     if desde_visitante:
         out["cola_prioridad"] = "alta"
         out["identificado_en_cola"] = True
     return out
+
+
+_PHONE_CANDIDATES_MAX = 5
+
+
+def _enmascarar_dni(dni: str) -> str:
+    d = re.sub(r"\D", "", dni or "")
+    if len(d) < 3:
+        return "***"
+    return ("*" * max(0, len(d) - 3)) + d[-3:]
+
+
+def _opcion_cuenta_label(hit: dict) -> str:
+    nombre = str(hit.get("nombre") or "").strip() or "Cuenta"
+    dni_m = _enmascarar_dni(str(hit.get("dni") or ""))
+    nro = str(hit.get("client_number") or "").strip()
+    parts = [nombre, f"DNI {dni_m}"]
+    if nro:
+        parts.append(f"nro {nro}")
+    return " — ".join(parts)
+
+
+def _mensaje_desambiguar_cuentas(hits: list[dict]) -> str:
+    lineas = [
+        f"{frase_soy_eko()}. Encontré más de una cuenta con este WhatsApp. "
+        "¿Para cuál aplica? Respondé con el número:"
+    ]
+    for i, hit in enumerate(hits[:_PHONE_CANDIDATES_MAX], start=1):
+        lineas.append(f"{i}) {_opcion_cuenta_label(hit)}")
+    lineas.append(
+        "Si no es ninguna, enviame tu DNI o número de socio."
+    )
+    return "\n".join(lineas)
+
+
+def _parse_eleccion_cuenta_telefono(texto: str, n_opciones: int) -> int | None:
+    """Índice 0-based si eligió 1..N; None si no es una elección clara."""
+    t = (texto or "").strip().lower()
+    if not t or n_opciones < 1:
+        return None
+    t = re.sub(r"[¡!.,¿?]+", "", t).strip()
+    if t in ("ninguna", "ninguno", "ningún", "ningun", "otra", "no"):
+        return None
+    m = re.fullmatch(r"(\d{1,2})", t)
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= n_opciones:
+            return n - 1
+        return None
+    m = re.fullmatch(r"(?:la\s+)?(?:opcion|opción|cuenta)\s*(\d{1,2})", t)
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= n_opciones:
+            return n - 1
+    return None
+
+
+def _hit_candidato_serializable(hit: dict) -> dict:
+    """Sin email/deuda en contexto (no exponer en desambiguación)."""
+    return {
+        "dni": str(hit.get("dni") or "").strip(),
+        "nombre": str(hit.get("nombre") or "").strip(),
+        "client_number": str(hit.get("client_number") or "").strip(),
+        "telefono": str(hit.get("telefono") or "").strip(),
+        "activo": bool(hit.get("activo", True)),
+        "estado_padron": str(hit.get("estado_padron") or "").strip(),
+        "deuda": str(hit.get("deuda") or "0").strip() or "0",
+        "ref": str(hit.get("ref") or "").strip(),
+        "fuente": str(hit.get("fuente") or "").strip(),
+    }
+
+
+def _respuesta_tras_identificar_por_telefono(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado,
+    ctx: dict,
+    *,
+    canal: str,
+) -> dict:
+    """Respuesta corta al vincular por MSISDN (misma línea que DNI temprano)."""
+    nombre = (abonado.nombre or "").split()[0].title() or "ahí"
+    estado = (abonado.estado or "").lower()
+    pedi_saldo = _mensaje_pedi_saldo_reciente(db, conv.id)
+    deuda = str(abonado.deuda_monto or "0").strip() or "0"
+    if pedi_saldo:
+        baja_nota = (
+            "La cuenta figura «de baja» en el sistema."
+            if estado == "baja"
+            else ""
+        )
+        resp = (
+            f"Te ubiqué por este WhatsApp, {nombre}.\n"
+            + mensaje_saldo_padron(deuda, nota_extra=baja_nota)
+        )
+        ctx["intencion"] = "facturacion"
+        ctx["saludo"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+    elif estado == "baja":
+        resp = (
+            f"Te ubiqué por este WhatsApp, {nombre}: la cuenta figura «de baja». "
+            "Igual puedo ayudarte. ¿Qué necesitás?"
+        )
+    elif estado in ("corte", "suspendido"):
+        from app.services.eco_voice import texto_monto_ars
+
+        resp = (
+            f"Te ubiqué por este WhatsApp, {nombre}: la cuenta figura «{abonado.estado}». "
+            f"Saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
+            "¿Es por reactivar, pagar, o por otra consulta?"
+        )
+    else:
+        resp = (
+            f"Te ubiqué por este WhatsApp, {nombre}. "
+            "¿En qué te ayudo: internet, móvil IMOWI o factura/pago?"
+        )
+        ctx["saludo"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "identificado_por": "whatsapp_msisdn",
+    }
+
+
+def _resolver_eleccion_cuenta_telefono(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    ctx: dict,
+    texto: str,
+    *,
+    canal: str,
+) -> dict | None:
+    """Si hay phone_candidates pendientes, interpreta la elección. None = seguir."""
+    cands = ctx.get("phone_candidates")
+    if not isinstance(cands, list) or not cands:
+        return None
+
+    from app.services.billtrack import ensure_local_abonado
+
+    if _es_solo_dni(texto) or _extraer_dni(texto):
+        ctx.pop("phone_candidates", None)
+        ctx.pop("phone_auth_asked", None)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return None
+
+    idx = _parse_eleccion_cuenta_telefono(texto, len(cands))
+    t_low = re.sub(r"[¡!.,¿?]+", "", (texto or "").strip().lower())
+    if t_low in ("ninguna", "ninguno", "ningún", "ningun", "otra", "no"):
+        ctx.pop("phone_candidates", None)
+        ctx.pop("phone_auth_asked", None)
+        ctx["pidio_dni"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = (
+            "Dale. Enviame tu DNI o número de socio para ubicar la cuenta. "
+            "Si preferís, escribí *agente*."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+        }
+
+    if idx is None:
+        resp = _mensaje_desambiguar_cuentas(cands)
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+        }
+
+    hit = cands[idx]
+    if not isinstance(hit, dict) or not hit.get("dni"):
+        ctx.pop("phone_candidates", None)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return None
+
+    abonado = ensure_local_abonado(db, org_id, hit)
+    ctx = _vincular_abonado_a_conversacion(conv, ctx, abonado)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    return _respuesta_tras_identificar_por_telefono(
+        db, org_id, conv, abonado, ctx, canal=canal
+    )
+
+
+def _intentar_auth_whatsapp_por_telefono(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    ctx: dict,
+    *,
+    canal: str,
+) -> tuple[Abonado | None, dict, dict | None]:
+    """BillTrack por MSISDN de WA. Retorna (abonado|None, ctx, early_response|None)."""
+    from app.estate import repository as org_repo
+    from app.services.billtrack import ensure_local_abonado, lookup_abonados_por_telefono
+
+    if (canal or "") != "whatsapp":
+        return None, ctx, None
+    if conv.abonado_id or ctx.get("phone_candidates"):
+        return None, ctx, None
+
+    msisdn = (conv.wa_id or conv.telefono or "").strip()
+    if not msisdn:
+        return None, ctx, None
+
+    org = org_repo.get_org_by_id(db, org_id)
+    slug = org.slug if org else ""
+    try:
+        hits = lookup_abonados_por_telefono(msisdn, org_slug=slug, db=db)
+    except Exception:
+        logger.debug("BillTrack lookup por teléfono WA falló", exc_info=True)
+        hits = []
+
+    if not hits:
+        return None, ctx, None
+
+    if len(hits) == 1:
+        abo = ensure_local_abonado(db, org_id, hits[0])
+        ctx = _vincular_abonado_a_conversacion(conv, ctx, abo)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return abo, ctx, None
+
+    cands = [_hit_candidato_serializable(h) for h in hits[:_PHONE_CANDIDATES_MAX]]
+    ctx["phone_candidates"] = cands
+    ctx["phone_auth_asked"] = True
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    resp = _mensaje_desambiguar_cuentas(cands)
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    early = {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "phone_disambiguation": True,
+    }
+    return None, ctx, early
 
 
 def _mensaje_identificado_en_cola(nombre: str, abonado: Abonado) -> str:
@@ -3379,6 +3639,23 @@ def procesar_mensaje_entrante(
     abonado: Abonado | None = None
     if conv.abonado_id:
         abonado = db.get(Abonado, conv.abonado_id)
+
+    # WhatsApp: auth por MSISDN (BillTrack) antes del soft-match local / DNI.
+    if (canal or "") == "whatsapp" and not abonado:
+        eleccion = _resolver_eleccion_cuenta_telefono(
+            db, org_id, conv, ctx, texto, canal=canal
+        )
+        if eleccion is not None:
+            return eleccion
+        ctx = crepo.get_contexto(conv)
+        abo_phone, ctx, early_phone = _intentar_auth_whatsapp_por_telefono(
+            db, org_id, conv, ctx, canal=canal
+        )
+        if early_phone is not None:
+            return early_phone
+        if abo_phone is not None:
+            abonado = abo_phone
+
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
 

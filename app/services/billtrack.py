@@ -170,6 +170,43 @@ WHERE (
 LIMIT 1
 """.strip()
 
+# Reverse-lookup por celular de contacto (auth WhatsApp). Una fila por persona;
+# puede devolver varias personas si el mismo MSISDN está en más de una cuenta.
+DEFAULT_LOOKUP_BY_PHONE_SQL = """
+SELECT DISTINCT ON (p.id)
+  p.id::text AS ref,
+  TRIM(BOTH FROM CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, ''))) AS nombre,
+  e.email AS email,
+  ph.phone AS telefono,
+  COALESCE(NULLIF(TRIM(p.client_state), ''), NULLIF(TRIM(p.billing_state), ''), '') AS activo,
+  COALESCE(p.billing_balance::text, '0') AS deuda,
+  p.doc_cuit AS doc_cuit,
+  COALESCE(p.partner_number::text, '') AS partner_number,
+  COALESCE(p.client_number::text, '') AS client_number
+FROM public.api_person p
+INNER JOIN public.api_person_phone ph
+  ON ph.person_id = p.id AND NULLIF(TRIM(ph.phone), '') IS NOT NULL
+LEFT JOIN LATERAL (
+  SELECT email
+  FROM public.api_person_email
+  WHERE person_id = p.id AND NULLIF(TRIM(email), '') IS NOT NULL
+  ORDER BY id ASC
+  LIMIT 1
+) e ON TRUE
+WHERE (
+  regexp_replace(COALESCE(ph.phone, ''), '[^0-9]', '', 'g') = :phone
+  OR (
+    length(regexp_replace(COALESCE(ph.phone, ''), '[^0-9]', '', 'g')) >= 10
+    AND right(
+      regexp_replace(COALESCE(ph.phone, ''), '[^0-9]', '', 'g'),
+      10
+    ) = :phone_suf10
+  )
+)
+ORDER BY p.id, ph.id ASC
+LIMIT 10
+""".strip()
+
 _ACTIVE_STATES = frozenset(
     {
         "1",
@@ -254,6 +291,35 @@ def map_lookup_row(row: dict[str, Any], *, dni_n: str) -> dict[str, Any]:
     }
 
 
+def dni_desde_doc_cuit(doc_cuit: str) -> str:
+    """Extrae DNI AR (7–8 dígitos) desde doc_cuit o DNI plano."""
+    from app.estate.security import normalizar_dni, valid_dni_ar
+
+    d = normalizar_dni(doc_cuit)
+    if len(d) == 11:
+        d = d[2:10].lstrip("0") or d[2:10]
+    if valid_dni_ar(d):
+        return d
+    return ""
+
+
+def lookup_phone_sql() -> str:
+    from app.config import BILLTRACK_LOOKUP_BY_PHONE_SQL
+
+    return (BILLTRACK_LOOKUP_BY_PHONE_SQL or DEFAULT_LOOKUP_BY_PHONE_SQL).strip()
+
+
+def _normalizar_phone_lookup(raw: str) -> tuple[str, str]:
+    """Retorna (phone_digits, sufijo_10) o ('','') si no usable."""
+    from app.estate.canal_repo import normalizar_telefono
+
+    phone = normalizar_telefono(raw or "")
+    if not phone or len(phone) < 8:
+        return "", ""
+    suf = phone[-10:] if len(phone) >= 10 else phone
+    return phone, suf
+
+
 def lookup_abonado_por_dni(
     dni: str,
     *,
@@ -312,6 +378,81 @@ def lookup_abonado_por_dni(
         if es_produccion():
             return None
         return _mock_lookup(dni_n, org_slug=org_slug, linea=linea, db=db)
+    finally:
+        engine.dispose()
+
+
+def lookup_abonados_por_telefono(
+    telefono: str,
+    *,
+    org_slug: str = "",
+    db: Session | None = None,
+) -> list[dict[str, Any]]:
+    """Consulta padrón BillTrack (RO) por celular de contacto. 0..N hits.
+
+    SQL: BILLTRACK_LOOKUP_BY_PHONE_SQL o DEFAULT_LOOKUP_BY_PHONE_SQL.
+    Placeholders: :phone (E.164 dígitos), :phone_suf10 (últimos 10).
+    """
+    from app.config import BILLTRACK_ENABLED, es_produccion
+
+    phone, suf10 = _normalizar_phone_lookup(telefono)
+    if not phone:
+        return []
+
+    params = resolve_connection(db)
+    enabled = bool(params.get("enabled")) or BILLTRACK_ENABLED
+    url = str(params.get("url") or "").strip()
+    sql = lookup_phone_sql()
+    use_real = enabled and bool(url) and bool(sql) and not _lookup_forced_off()
+
+    if not use_real:
+        if es_produccion():
+            return []
+        return _mock_lookup_por_telefono(phone, suf10, org_slug=org_slug, db=db)
+
+    from sqlalchemy import create_engine, text
+
+    sslmode = str(params.get("sslmode") or "disable")
+    connect_args: dict[str, Any] = {"connect_timeout": 8, "sslmode": sslmode}
+
+    engine = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+    try:
+        with engine.connect() as conn:
+            cleaned = sql.strip().rstrip(";")
+            if not cleaned.lower().startswith("select") and not cleaned.lower().startswith(
+                "with"
+            ):
+                raise ValueError(
+                    "BILLTRACK_LOOKUP_BY_PHONE_SQL debe ser un SELECT (o WITH … SELECT)"
+                )
+            rows = (
+                conn.execute(
+                    text(cleaned),
+                    {"phone": phone, "phone_suf10": suf10, "org_slug": org_slug or ""},
+                )
+                .mappings()
+                .all()
+            )
+            out: list[dict[str, Any]] = []
+            seen_dni: set[str] = set()
+            for row in rows:
+                raw = dict(row)
+                dni_n = dni_desde_doc_cuit(str(raw.get("doc_cuit") or ""))
+                if not dni_n or dni_n in seen_dni:
+                    continue
+                seen_dni.add(dni_n)
+                hit = map_lookup_row(raw, dni_n=dni_n)
+                hit["fuente"] = "billtrack"
+                out.append(hit)
+            return out
+    except Exception:
+        logger.exception(
+            "BillTrack lookup por teléfono falló (tel=***%s)",
+            phone[-4:] if phone else "",
+        )
+        if es_produccion():
+            return []
+        return _mock_lookup_por_telefono(phone, suf10, org_slug=org_slug, db=db)
     finally:
         engine.dispose()
 
@@ -1030,6 +1171,69 @@ def ensure_local_abonado(
     return abo
 
 
+def _mock_catalog_fijo() -> dict[str, dict[str, Any]]:
+    """Catálogo fijo para tests/dev sin BillTrack real."""
+    return {
+        "30111222": {
+            "ref": "BT-30111222",
+            "email": "maria.gonzalez@example.com",
+            "telefono": "5492235551234",
+            "nombre": "María González",
+            "activo": True,
+            "client_number": "200",
+        },
+        "28555666": {
+            "ref": "BT-28555666",
+            "email": "carlos.perez@example.com",
+            "telefono": "5492235555678",
+            "nombre": "Carlos Pérez",
+            "activo": True,
+            "client_number": "201",
+        },
+        "32123456": {
+            "ref": "BT-32123456",
+            "email": "ana.ruiz@example.com",
+            "telefono": "5492235559012",
+            "nombre": "Ana Ruiz",
+            "activo": False,
+            "client_number": "202",
+        },
+        "29888777": {
+            "ref": "BT-29888777",
+            "email": "laura.diaz@example.com",
+            "telefono": "5492235560002",
+            "nombre": "Laura Díaz",
+            "activo": True,
+            "client_number": "203",
+        },
+        "26444555": {
+            "ref": "BT-26444555",
+            "email": "pedro.ecolan@example.com",
+            "telefono": "5492235560099",
+            "nombre": "Pedro Ecolan",
+            "activo": True,
+            "client_number": "204",
+        },
+        # Misma línea compartida — tests de desambiguación N matches
+        "31111001": {
+            "ref": "BT-31111001",
+            "email": "cuenta.a@example.com",
+            "telefono": "5492235577777",
+            "nombre": "Cuenta Alfa",
+            "activo": True,
+            "client_number": "301",
+        },
+        "31111002": {
+            "ref": "BT-31111002",
+            "email": "cuenta.b@example.com",
+            "telefono": "5492235577777",
+            "nombre": "Cuenta Beta",
+            "activo": True,
+            "client_number": "302",
+        },
+    }
+
+
 def _mock_lookup(
     dni_n: str,
     *,
@@ -1039,49 +1243,7 @@ def _mock_lookup(
 ) -> dict[str, Any] | None:
     """Fallback desarrollo: padrón local abonados (NO es auth; solo simula BillTrack)."""
     if db is None:
-        # Catálogo fijo para tests sin DB
-        catalog = {
-            "30111222": {
-                "ref": "BT-30111222",
-                "email": "maria.gonzalez@example.com",
-                "telefono": "5492235551234",
-                "nombre": "María González",
-                "activo": True,
-                "client_number": "200",
-            },
-            "28555666": {
-                "ref": "BT-28555666",
-                "email": "carlos.perez@example.com",
-                "telefono": "5492235555678",
-                "nombre": "Carlos Pérez",
-                "activo": True,
-                "client_number": "201",
-            },
-            "32123456": {
-                "ref": "BT-32123456",
-                "email": "ana.ruiz@example.com",
-                "telefono": "5492235559012",
-                "nombre": "Ana Ruiz",
-                "activo": False,
-                "client_number": "202",
-            },
-            "29888777": {
-                "ref": "BT-29888777",
-                "email": "laura.diaz@example.com",
-                "telefono": "5492235560002",
-                "nombre": "Laura Díaz",
-                "activo": True,
-                "client_number": "203",
-            },
-            "26444555": {
-                "ref": "BT-26444555",
-                "email": "pedro.ecolan@example.com",
-                "telefono": "5492235560099",
-                "nombre": "Pedro Ecolan",
-                "activo": True,
-                "client_number": "204",
-            },
-        }
+        catalog = _mock_catalog_fijo()
         hit = catalog.get(dni_n)
         if not hit:
             return None
@@ -1116,3 +1278,72 @@ def _mock_lookup(
         "fuente": "mock_local",
         "client_number": str(getattr(abo, "client_number", "") or "").strip(),
     }
+
+
+def _phone_digits_match(stored: str, phone: str, suf10: str) -> bool:
+    dig = re.sub(r"\D", "", stored or "")
+    if not dig:
+        return False
+    if dig == phone:
+        return True
+    if len(dig) >= 10 and dig[-10:] == suf10:
+        return True
+    return False
+
+
+def _mock_lookup_por_telefono(
+    phone: str,
+    suf10: str,
+    *,
+    org_slug: str = "",
+    db: Session | None = None,
+) -> list[dict[str, Any]]:
+    """Mock reverse-lookup: catálogo fijo (+ réplica local si hay db)."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for dni_n, hit in _mock_catalog_fijo().items():
+        if not _phone_digits_match(str(hit.get("telefono") or ""), phone, suf10):
+            continue
+        if dni_n in seen:
+            continue
+        seen.add(dni_n)
+        out.append({**hit, "dni": dni_n, "fuente": "mock"})
+
+    if db is not None:
+        from sqlalchemy import select
+
+        from app.estate import repository as repo
+        from app.estate.models import Abonado
+
+        slug = org_slug or "coop-batan"
+        org = repo.get_org_by_slug(db, slug)
+        if org:
+            for abo in db.scalars(
+                select(Abonado).where(Abonado.organizacion_id == org.id)
+            ).all():
+                dni_n = str(abo.dni or "").strip()
+                if not dni_n or dni_n in seen:
+                    continue
+                if not (
+                    _phone_digits_match(abo.telefono_e164 or "", phone, suf10)
+                    or _phone_digits_match(abo.linea_msisdn or "", phone, suf10)
+                ):
+                    continue
+                seen.add(dni_n)
+                out.append(
+                    {
+                        "ref": abo.id,
+                        "email": "",
+                        "telefono": abo.telefono_e164 or "",
+                        "nombre": abo.nombre or "",
+                        "activo": (abo.estado or "").lower()
+                        in ("activo", "al dia", "al día", ""),
+                        "dni": dni_n,
+                        "fuente": "mock_local",
+                        "client_number": str(
+                            getattr(abo, "client_number", "") or ""
+                        ).strip(),
+                        "deuda": str(abo.deuda_monto or "0"),
+                    }
+                )
+    return out[:10]
