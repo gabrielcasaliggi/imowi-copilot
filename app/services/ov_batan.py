@@ -192,7 +192,7 @@ def candidatos_celular_ov(
     """Celulares a probar en /ov/link (orden = prioridad).
 
     WhatsApp (patrón Botmaker/jsat): MSISDN del hilo primero, luego padrón.
-    Otros canales: solo padrón BillTrack de la cuenta identificada.
+    Portal web/app: padrón + celular del hilo post-login (no guest*).
     """
     from app.estate.canal_repo import normalizar_telefono
 
@@ -201,6 +201,9 @@ def candidatos_celular_ov(
     def _add(raw: Any) -> None:
         n = normalizar_telefono(str(raw or ""))
         if n and len(n) >= 8 and n not in out:
+            # IDs sintéticos del portal — no sirven para OV
+            if n.startswith("guest") or not n.isdigit():
+                return
             out.append(n)
 
     canal_l = (canal or "").strip().lower()
@@ -210,6 +213,12 @@ def candidatos_celular_ov(
     if abonado is not None:
         _add(getattr(abonado, "telefono_e164", None))
         _add(getattr(abonado, "linea_msisdn", None))
+    # Portal/app: tras OTP el hilo guarda el teléfono BillTrack
+    if canal_l in ("web", "app", "simulate"):
+        hilo = str(telefono_hilo or wa_id or "").strip()
+        if hilo and not hilo.lower().startswith("guest"):
+            _add(hilo)
+            _add(wa_id)
     return out
 
 

@@ -20,6 +20,7 @@ def test_gesto_ver_factura():
     assert clasificar_gesto_ov("quiero descargar la factura") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("quiero mi factura") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("Quiero mi factura") == GESTO_VER_FACTURA
+    assert clasificar_gesto_ov("quiero que me des la factura") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("Podes dármela vos?") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("ver mis facturas") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("pdf de la boleta") == GESTO_VER_FACTURA
@@ -29,6 +30,7 @@ def test_gesto_pagar():
     assert clasificar_gesto_ov("quiero pagar") == GESTO_PAGAR
     assert clasificar_gesto_ov("dónde pago la factura") == GESTO_PAGAR
     assert clasificar_gesto_ov("link para pagar") == GESTO_PAGAR
+    assert clasificar_gesto_ov("no me podes pasar el link de pago") == GESTO_PAGAR
 
 
 def test_gesto_talon_antes_que_pagar_generico():
@@ -44,6 +46,7 @@ def test_gesto_pack_y_portabilidad():
 def test_gesto_aclarar_sin_menu_fijo():
     assert clasificar_gesto_ov("oficina virtual") == GESTO_ACLARAR
     assert clasificar_gesto_ov("factura") == GESTO_ACLARAR
+    assert clasificar_gesto_ov("por factura") == GESTO_ACLARAR
     assert (
         clasificar_gesto_ov("Que opciones tengo para la parte de facturación")
         == GESTO_ACLARAR

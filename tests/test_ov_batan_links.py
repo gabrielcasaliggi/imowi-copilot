@@ -54,6 +54,19 @@ def test_variantes_celular_ov_prioriza_sin_54():
     assert vars_.index("92236964611") < vars_.index("5492236964611")
 
 
+def test_resolver_celular_portal_usa_hilo():
+    """Tras login portal el hilo tiene el celular BillTrack (no guest)."""
+    from app.services.ov_batan import candidatos_celular_ov
+
+    abo = SimpleNamespace(telefono_e164="", linea_msisdn="")
+    assert candidatos_celular_ov(
+        abo, canal="web", wa_id="", telefono_hilo="5492235551234"
+    ) == ["5492235551234"]
+    assert candidatos_celular_ov(
+        abo, canal="web", wa_id="", telefono_hilo="guestabcdef"
+    ) == []
+
+
 def test_resolver_celular_wa_prioriza_hilo():
     """Botmaker/jsat: en WhatsApp el MSISDN del chat va primero."""
     from app.services.ov_batan import candidatos_celular_ov

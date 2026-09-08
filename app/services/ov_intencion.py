@@ -86,6 +86,15 @@ def clasificar_gesto_ov(texto: str) -> str | None:
             "dame mi factura",
             "dame la factura",
             "dame la boleta",
+            "me des la factura",
+            "me des la boleta",
+            "quiero que me des",
+            "quiero que me pases",
+            "quiero que me mandes",
+            "pasame el link de la factura",
+            "pasame el link de factura",
+            "link de la factura",
+            "link de mi factura",
             "darmela",
             "pasamela",
             "enviamela",
@@ -201,8 +210,14 @@ def clasificar_gesto_ov(texto: str) -> str | None:
                 "dame mi",
                 "darme la",
                 "darme mi",
+                "me des",
+                "me pases",
+                "me mandes",
                 "podes darme",
                 "puedes darme",
+                "pasame el link",
+                "mandame el link",
+                "el link",
             )
         )
     ):
@@ -249,6 +264,11 @@ def clasificar_gesto_ov(texto: str) -> str | None:
             "ir a pagar",
             "link de pago",
             "link para pagar",
+            "link de pagar",
+            "pasame el link de pago",
+            "pasame link de pago",
+            "mandame el link de pago",
+            "el link de pago",
             "web para abonar",
             "web para pagar",
         )
@@ -272,7 +292,7 @@ def clasificar_gesto_ov(texto: str) -> str | None:
     ) and not any(k in t for k in ("aviso de pago", "ya pague", "ya pagué")):
         return GESTO_ACLARAR
 
-    # «¿Qué opciones tengo de facturación?»
+    # «¿Qué opciones tengo de facturación?» / entrada vaga
     if any(
         k in t
         for k in (
@@ -282,6 +302,15 @@ def clasificar_gesto_ov(texto: str) -> str | None:
             "que gestiones",
             "menu de factur",
             "parte de factur",
+            "por factura",
+            "por la factura",
+            "tema factura",
+            "tema de factura",
+            "consulta factura",
+            "sobre la factura",
+            "sobre factura",
+            "de factura",
+            "de la factura",
         )
     ) and any(
         k in t
