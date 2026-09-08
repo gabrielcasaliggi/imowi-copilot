@@ -1,35 +1,35 @@
 # Brief: integración OV + auth WhatsApp (facturas)
 
-Documento de diseño. **No implica implementación** en esta etapa.
-Alcance: autenticación de abonado por MSISDN de origen en WhatsApp contra padrón BillTrack / Oficina Virtual (OV), y contrato para entregar facturas por chat cuando existan los endpoints OV.
+**Cómo se ofrece al abonado (sin menú estático):** Eko clasifica el gesto en lenguaje natural (`app/services/ov_intencion.py`): ver/descargar factura, pagar, talón/QR, pack, portabilidad. Si pide “oficina virtual” o “factura” sin detalle, hace **una** pregunta de aclaración (no lista 1) 2) 3)).
 
 Relacionado: [`PORTAL-ABONADO.md`](PORTAL-ABONADO.md), [`CONFIG-PLATAFORMA.md`](CONFIG-PLATAFORMA.md), blueprints facturación en [`rag-botmaker-2026-08-14/collections/02_facturacion_pagos/`](rag-botmaker-2026-08-14/collections/02_facturacion_pagos/).
 
 ---
 
-## 1. Contexto y gap actual
+## 1. Contexto
 
-### Qué hace Eko hoy
+### Identidad por canal (actual)
 
 | Canal | Identidad del hilo | Identidad de cuenta | Facturas |
 |---|---|---|---|
 | Portal web / app | sesión JWT | DNI + OTP email (o PIN) | Guía a mail registrado + OV |
-| WhatsApp | MSISDN Meta (`msg.from`) | DNI declarado en el chat → BillTrack RO | Igual: sin PDF adjunto |
+| WhatsApp | MSISDN Meta (`msg.from`) | **BillTrack por celular** (`lookup_abonados_por_telefono`); 1 match → vínculo; N → desambiguar; 0 → DNI | Guía mail + OV (sin PDF adjunto; F2) |
 | Telegram | `chat_id` (no es celular) | DNI declarado en el chat | Igual |
 
 Piezas relevantes:
 
-- Lookup BillTrack **solo por DNI**: `lookup_abonado_por_dni` en [`app/services/billtrack.py`](../app/services/billtrack.py). El SQL (`DEFAULT_LOOKUP_SQL`) ya lee `api_person_phone`, pero el `WHERE` es por documento.
-- Soft-match local por teléfono en réplica estate: `find_abonado_por_telefono` en [`app/estate/canal_repo.py`](../app/estate/canal_repo.py) — no consulta BillTrack y no se trata como login verificado.
-- Pedido de factura en N1: `_mensaje_envio_factura_ov` en [`app/services/diagnostico_n1.py`](../app/services/diagnostico_n1.py) — mail + `https://ov.batan.coop`; texto explícito: *«Por este chat no te adjunto el PDF»*.
-- Blueprint histórico `facturacion_factura` / `facturacion_descarga`: `rag_ready: false`; pide «consulta autenticada de facturas» y «entrega segura de documentos».
+- Lookup BillTrack por DNI: `lookup_abonado_por_dni` en [`app/services/billtrack.py`](../app/services/billtrack.py).
+- Lookup BillTrack por teléfono (F1): `lookup_abonados_por_telefono` + SQL `DEFAULT_LOOKUP_BY_PHONE_SQL` / `BILLTRACK_LOOKUP_BY_PHONE_SQL`.
+- Enganche WA: `_intentar_auth_whatsapp_por_telefono` / desambiguación en [`canal_abonado.py`](../app/services/canal_abonado.py).
+- Soft-match local: `find_abonado_por_telefono` en [`canal_repo.py`](../app/estate/canal_repo.py) — fallback tras 0 hits BillTrack.
+- Pedido de factura en N1: `_mensaje_envio_factura_ov` — mail + OV; *«Por este chat no te adjunto el PDF»* hasta F2.
+- Tests: [`tests/test_auth_wa_telefono.py`](../tests/test_auth_wa_telefono.py).
 
-### Qué no existe hoy
+### Pendiente (no F1)
 
-- `lookup_abonado_por_telefono` contra BillTrack.
 - Cliente HTTP de la API OV (`ov.batan.coop/api`).
-- Envío de documento PDF por WhatsApp (hay `subir_media` / audio en [`app/services/whatsapp_client.py`](../app/services/whatsapp_client.py); no hay `send_document`).
-- Auth cruzada OV ↔ Eko.
+- Envío de documento PDF por WhatsApp (`send_document`).
+- Auth cruzada OV ↔ Eko / deep-link servicio.
 
 ---
 
@@ -57,7 +57,7 @@ Paths de menú usados hoy (parámetro `params.path`):
 
 ---
 
-## 3. Modelo de identidad propuesto (fase WhatsApp)
+## 3. Modelo de identidad WhatsApp (F1 — hecho)
 
 ### Decisión cerrada
 
@@ -107,71 +107,57 @@ sequenceDiagram
 
 ---
 
-## 4. Contrato OV — plantilla a completar
+## 4. Contrato OV — deep-links por celular (F2)
 
-Completar cuando existan specs reales. **No pegar secretos** en este doc ni en el chat; indicar solo nombres de variables de entorno / settings.
+La API OV **resuelve al abonado solo por número telefónico** (`celular`). No usa DNI ni `client_number` en `/ov/link`. Por eso Eko, en **cualquier canal** (web, app, WhatsApp, Telegram), arma el link con el celular del padrón BillTrack de la cuenta identificada; en WhatsApp, si falta en padrón, usa el MSISDN del hilo.
+
+**No pegar secretos** en este doc; solo nombres de env / settings.
 
 ### 4.1 Datos comunes
 
-| Campo | Valor / nota |
+| Campo | Valor |
 |---|---|
-| Base URL | p.ej. `https://ov.batan.coop/api` — _completar_ |
-| Ambiente | prod / staging — _completar_ |
-| Auth de servicio | login+sid / API key / OAuth — _completar_ |
-| Dónde vive el secreto | settings plataforma / env — _nombre de key, no el valor_ |
-| Identificador del abonado hacia OV | `celular` (MSISDN) / `client_number` / ambos — _completar_ |
-| Normalización esperada del celular | ¿`549…` sin `+`? ¿con `15`? — _completar_ |
-| Timeout recomendado | p.ej. 20s (JSAT usa 20s) |
-| Rate limit | _completar_ |
-| Idempotencia | _completar_ |
+| Base URL API | `https://ov.batan.coop/api` (`OV_BATAN_API_URL`) |
+| URL pública | `https://ov.batan.coop` (`OV_BATAN_PUBLIC_URL`) |
+| Auth de servicio | `POST /session/login?user=&password=` → `sid`; `GET /session/check` header `sid` |
+| Secreto | `OV_BATAN_API_USER` / `OV_BATAN_API_PASSWORD` o settings `ov_batan` |
+| Identificador abonado | **solo `celular`** (MSISDN normalizado) |
+| Timeout | `OV_BATAN_TIMEOUT` (default 20s) |
+| Enable | `OV_BATAN_ENABLED=true` |
 
-### 4.2 Checklist por endpoint
+### 4.2 Client Action `jsat-get-link-ov` — paths
 
-Para **cada** endpoint de facturación/descarga, completar una fila o una subsección:
+| Path | Uso N1 |
+|---|---|
+| `my?useCustomer=true` | Ver servicios / facturas en OV |
+| `talon-de-pago?useCustomer=true` | QR / talón de pago |
+| `pagar?useCustomer=true` | Abonar factura |
+| `comprar-pack?userCustomer=true` | Pack datos imowi (typo histórico `userCustomer`) |
+| `portabilidad?useCustomer=true` | Estado portabilidad imowi |
 
-#### Endpoint A — _nombre / path_
+#### Deep-link
 
 | Ítem | Detalle |
 |---|---|
-| Método + path | GET/POST `…` |
-| Auth | header `sid` / Bearer / … |
-| Query/body | params |
-| Identidad abonado | `celular=` / `client_number=` |
-| Respuesta OK | shape JSON; ¿PDF binario, `application/pdf`, o URL firmada? |
-| TTL del link (si aplica) | |
-| Errores | no match, varios match, sin factura, sesión inválida, 4xx/5xx |
-| Uso en Eko | listar períodos / última factura / talón |
+| Método + path | `GET /ov/link` |
+| Auth | header `sid` (sesión servicio) |
+| Query | `celular`, `path` (tabla arriba) |
+| Respuesta OK | `status=OK` + `result` = URL firmada/rápida |
+| Fallback Eko | hash público `https://ov.batan.coop/#/{hash}` |
+| Alcance canal | **todos** (web/app/WA/TG) si hay `celular` de padrón o WA |
 
-#### Endpoint B — _nombre / path_
+### 4.3 Preferencia de entrega
 
-_(misma tabla)_
+1. Deep-link `/ov/link` con celular del padrón (esta F2).
+2. Hash público si API off / falla / sin celular en cuenta.
+3. PDF adjunto por chat: **fuera de esta F2** (si aparece endpoint de bytes, otra iteración).
 
-#### Endpoint C — deep-link (precedente conocido)
+### 4.4 Open items
 
-| Ítem | Detalle |
-|---|---|
-| Método + path | `GET /ov/link` (precedente Botmaker) |
-| Auth | header `sid` de sesión servicio |
-| Query | `celular`, `path` |
-| Respuesta OK | `status=OK` + `result` = URL |
-| Fallback Eko | hash público OV si falla |
-| Paths soportados | ver §2 |
-
-### 4.3 Preferencia de entrega en WhatsApp (decisión de producto F2)
-
-Orden preferido cuando exista la API:
-
-1. **URL firmada de un solo uso** (TTL corto) — menos peso en Cloud API, auditable.
-2. **PDF bytes** → `subir_media` + mensaje tipo `document` en WhatsApp.
-3. Si OV no puede entregar archivo ni URL firmada → deep-link `/ov/link` (patrón JSAT) o guía mail+OV actual.
-
-### 4.4 Open items (dueño: producto / OV)
-
-- [ ] Pegar specs o OpenAPI de listado + descarga de facturas (sin secretos).
-- [ ] Confirmar si la API autentica al abonado solo por celular de padrón o también exige `client_number`.
-- [ ] Confirmar si un celular puede mapear a más de una persona en BillTrack/OV.
-- [ ] Rotar credencial de servicio OV que haya circulado fuera de vault.
-- [ ] Definir períodos entregables (última factura vs histórico) y tope N1.
+- [x] Paths jsat documentados.
+- [x] Cliente `app/services/ov_batan.py` + settings.
+- [ ] Cargar `OV_BATAN_*` en el server (sin pegar secretos en chat).
+- [ ] Endpoint PDF binario (si existe) — no incluido en estos paths.
 
 ---
 
@@ -190,18 +176,17 @@ Orden preferido cuando exista la API:
 
 ---
 
-## 6. Mapa a Eko (implementación futura — no esta sesión)
+## 6. Mapa a Eko
 
-| Fase código | Enganche | Notas |
+| Fase código | Enganche | Estado |
 |---|---|---|
-| F1 Auth WA | Nuevo `lookup_abonado_por_telefono` en `billtrack.py` (SQL RO sobre `api_person_phone`) | Reusar `map_lookup_row` / `ensure_local_abonado` |
-| F1 Auth WA | `procesar_mensaje_entrante` en [`canal_abonado.py`](../app/services/canal_abonado.py) | Antes o junto al soft-match local; solo `canal=whatsapp` |
-| F1 Auth WA | Tests: normalización, match único, 0 hits → DNI, N hits → desambiguación, no aplicar en telegram | Sensores: `pytest` + `ruff` |
-| F2 Facturas | Cliente HTTP OV (módulo nuevo bajo `app/services/`) | Auth servicio según §4; sin hardcode |
-| F2 Facturas | Sustituir gradualmente `_mensaje_envio_factura_ov` | Si hay PDF/URL firmada y abonado identificado por WA/DNI |
-| F2 Facturas | Extender `whatsapp_client` con envío `document` | Reusar `subir_media` |
-| F2 Facturas | Intenciones `facturacion_factura` / `facturacion_descarga` | Alinear con blueprints cuando `rag_ready` |
-| F3 Telegram | Contacto compartido o OTP email | Fuera de v1 |
+| F1 Auth WA | `lookup_abonados_por_telefono` en `billtrack.py` | **Hecho** |
+| F1 Auth WA | `_intentar_auth_whatsapp_por_telefono` + desambiguación en `canal_abonado.py` | **Hecho** |
+| F1 Auth WA | Tests en `tests/test_auth_wa_telefono.py` | **Hecho** |
+| F2 Facturas | Cliente HTTP OV `ov_batan.py` + deep-links por celular | **Hecho** (multi-canal) |
+| F2 Facturas | Plantillas pago/factura con `/ov/link` | **Hecho** |
+| F2 Facturas | PDF `document` por chat | Pendiente (no está en paths jsat) |
+| F3 Telegram | Auth por contacto/OTP | Pendiente |
 
 **No** asumir Redis/SID idéntico al script Botmaker hasta ver el auth real de la API en F2.
 
@@ -209,20 +194,25 @@ Orden preferido cuando exista la API:
 
 ## 7. Fases
 
-| Fase | Qué | Criterio de cierre |
-|---|---|---|
-| **F0** (esta sesión) | Este brief | Doc revisable; contrato OV en plantilla; WA vs TG cerrados |
-| **F1** | Auth WA por teléfono (sin PDF) | Match único vincula; N matches desambigua cuenta; 0 matches → DNI; tests verdes — **hecho** (`lookup_abonados_por_telefono`, canal WA) |
-| **F2** | Endpoints OV + entrega factura | Specs completadas en §4; envío PDF o link firmado en WA |
-| **F3** | Telegram (si se prioriza) | Contacto u OTP; sin fingir MSISDN de origen |
+| Fase | Qué | Criterio de cierre | Estado |
+|---|---|---|---|
+| **F0** | Este brief | Doc revisable; contrato OV; WA vs TG | **Hecho** |
+| **F1** | Auth WA por teléfono (sin PDF) | Match único / N desambigua / 0 → DNI; tests; en `main` (`8d77114`) | **Hecho** |
+| **F2** | Deep-links OV por celular (todos los canales) | Paths jsat; `/ov/link`; fallback público; credenciales en env | **Hecho** (activar `OV_BATAN_*` en server) |
+| **F3** | Telegram auth | Contacto u OTP | Pendiente |
 
 ---
 
-## 8. Criterio de cierre F0
+## 8. Criterio de cierre
 
-- [x] Gap documentado respecto a Eko actual.
-- [x] Precedente JSAT descrito sin secretos.
-- [x] Modelo WA (match único / N → desambiguar cuenta / 0 → DNI) y exclusión Telegram v1.
+### F0 / F1
+
+- [x] Gap y precedente JSAT documentados (sin secretos).
+- [x] Modelo WA (match único / N → desambiguar / 0 → DNI) y exclusión Telegram v1.
+- [x] Auth WA implementada y testeada (`lookup_abonados_por_telefono` + canal).
 - [x] Plantilla/checklist de endpoints OV lista para completar.
-- [x] Seguridad y fases F1–F3.
-- [ ] Specs OV reales pegadas en §4 (pendiente de dueño OV/producto).
+
+### F2 (pendiente)
+
+- [ ] Specs OV reales pegadas en §4 (dueño OV/producto).
+- [ ] Cliente + entrega factura por chat.

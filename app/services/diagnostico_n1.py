@@ -1838,19 +1838,51 @@ def _bot_ofrecio_factura_ov(historial_mensajes: list | None) -> bool:
     )
 
 
-def _mensaje_envio_factura_ov(*, saldo: str | None) -> str:
-    """Guía N1: factura por mail + OV; sin adjunto PDF por chat."""
-    from app.services.eco_voice import OV_BATAN_URL, mensaje_saldo_padron
+def _celular_ov_desde_contexto(contexto_abonado: str) -> str:
+    m = re.search(r"^- celular_ov:\s*(\S+)", contexto_abonado or "", flags=re.M | re.I)
+    return (m.group(1) if m else "").strip()
 
+
+def _urls_ov_desde_contexto(contexto_abonado: str) -> dict[str, str]:
+    """Deep-links OV por celular del padrón (cualquier canal) o hash público."""
+    from app.services.ov_batan import urls_ov_gestiones
+
+    return urls_ov_gestiones(_celular_ov_desde_contexto(contexto_abonado))
+
+
+def _plantilla_pago_ctx(contexto_abonado: str) -> str:
+    from app.services.eco_voice import plantilla_pago_qr
+
+    urls = _urls_ov_desde_contexto(contexto_abonado)
+    return plantilla_pago_qr(pagar_url=urls["pagar"], ov_url=urls["my"])
+
+
+def _mensaje_envio_factura_ov(*, saldo: str | None, contexto_abonado: str = "") -> str:
+    """Guía N1: factura por mail + OV (deep-link por celular si hay API)."""
+    from app.services.eco_voice import mensaje_saldo_padron
+
+    urls = _urls_ov_desde_contexto(contexto_abonado)
+    ov_link = urls.get("my") or urls.get("home") or "https://ov.batan.coop"
     pref = ""
     if saldo is not None:
         pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+    if _celular_ov_desde_contexto(contexto_abonado):
+        return (
+            f"{pref}"
+            "Las facturas también suelen llegar por correo al mail registrado.\n"
+            "Para verlas y descargarlas en la oficina virtual (acceso con tu celular "
+            "de la cuenta):\n"
+            f"{ov_link}\n"
+            "Por este chat no te adjunto el PDF.\n"
+            "¿Pudiste entrar? Si no tenés correo registrado, avisame y te derivo "
+            "con un agente."
+        )
     return (
         f"{pref}"
         "Las facturas suelen llegar por correo electrónico al mail que tenés "
         "registrado para eso.\n"
         "También las podés ver y descargar en la oficina virtual:\n"
-        f"{OV_BATAN_URL}\n"
+        f"{ov_link}\n"
         "Entrá autenticándote con ese mismo correo (el registrado para recibir "
         "las facturas). Por este chat no te adjunto el PDF.\n"
         "¿Pudiste entrar con ese mail? Si no tenés ningún correo registrado, "
@@ -1858,13 +1890,14 @@ def _mensaje_envio_factura_ov(*, saldo: str | None) -> str:
     )
 
 
-def _mensaje_guia_pago_ov(*, saldo: str | None) -> str:
-    from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
+def _mensaje_guia_pago_ov(*, saldo: str | None, contexto_abonado: str = "") -> str:
+    from app.services.eco_voice import mensaje_saldo_padron, plantilla_pago_qr
 
+    urls = _urls_ov_desde_contexto(contexto_abonado)
     pref = ""
     if saldo is not None:
         pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
-    return f"{pref}{PLANTILLA_PAGO_QR}"
+    return f"{pref}{plantilla_pago_qr(pagar_url=urls['pagar'], ov_url=urls['my'])}"
 
 
 def _facturacion_deterministica(
@@ -1875,7 +1908,6 @@ def _facturacion_deterministica(
 ) -> dict | None:
     """Respuestas fijas con saldo real; sin inventar CBU/QR adjunto/web."""
     from app.services.eco_voice import (
-        PLANTILLA_PAGO_QR,
         mensaje_saldo_padron,
         servicio_cortado_desde_contexto,
         texto_ov_aviso_pago,
@@ -1884,6 +1916,7 @@ def _facturacion_deterministica(
     identificado = "modo: identificado" in (contexto_abonado or "")
     saldo = _saldo_desde_contexto(contexto_abonado) if identificado else None
     cortado = servicio_cortado_desde_contexto(contexto_abonado) if identificado else False
+    plantilla_pago = _plantilla_pago_ctx(contexto_abonado)
     t = (mensaje_cliente or "").lower().strip()
 
     # Invitado: sin cuenta no hay saldo; pedir DNI (no llamar al LLM).
@@ -1909,6 +1942,27 @@ def _facturacion_deterministica(
             "motivo": "facturacion_cierre_cliente",
             "cierre_calido": True,
         }
+
+    # Gestos OV por comprensión (sin menú estático): factura / pagar / talón / pack / …
+    if identificado:
+        from app.services.ov_intencion import (
+            GESTO_ACLARAR,
+            clasificar_gesto_ov,
+            mensaje_gesto_ov,
+        )
+
+        gesto = clasificar_gesto_ov(mensaje_cliente)
+        if gesto:
+            urls = _urls_ov_desde_contexto(contexto_abonado)
+            pref = ""
+            if saldo is not None and gesto != GESTO_ACLARAR:
+                pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+            return {
+                "accion": "ask",
+                "mensaje": mensaje_gesto_ov(gesto, urls, prefijo=pref),
+                "paso_cubierto": f"ov_gesto_{gesto}",
+                "motivo": f"facturacion_ov_{gesto}",
+            }
 
     # Ya pagó / no se refleja → link de aviso de pago (sin inventar comprobantes).
     if identificado and any(
@@ -1969,7 +2023,7 @@ def _facturacion_deterministica(
             "accion": "ask",
             "mensaje": (
                 f"{pref}Sí: la oficina virtual está acá.\n"
-                f"{PLANTILLA_PAGO_QR}"
+                f"{plantilla_pago}"
             ),
             "paso_cubierto": "guia_oficina_virtual",
             "motivo": "facturacion_oficina_virtual",
@@ -1996,7 +2050,7 @@ def _facturacion_deterministica(
             return {
                 "accion": "ask",
                 "mensaje": (
-                    f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n{PLANTILLA_PAGO_QR}"
+                    f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n{plantilla_pago}"
                 ),
                 "paso_cubierto": "informar_saldo_y_pago",
                 "motivo": "facturacion_saldo_y_web_pago",
@@ -2043,7 +2097,7 @@ def _facturacion_deterministica(
             "accion": "ask",
             "mensaje": (
                 f"{extra}Por este chat no te puedo pasar CBU ni adjuntar un QR.\n"
-                f"{PLANTILLA_PAGO_QR}"
+                f"{plantilla_pago}"
             ),
             "paso_cubierto": "guia_pago_fiserv",
             "motivo": "facturacion_sin_invento_cbu",
@@ -2053,7 +2107,9 @@ def _facturacion_deterministica(
     if identificado and _cliente_pide_envio_boleta_o_factura(mensaje_cliente):
         return {
             "accion": "ask",
-            "mensaje": _mensaje_envio_factura_ov(saldo=saldo),
+            "mensaje": _mensaje_envio_factura_ov(
+                saldo=saldo, contexto_abonado=contexto_abonado
+            ),
             "paso_cubierto": "guia_factura_ov_mail",
             "motivo": "facturacion_envio_factura_ov",
         }
@@ -2140,7 +2196,9 @@ def _facturacion_deterministica(
     ):
         return {
             "accion": "ask",
-            "mensaje": _mensaje_guia_pago_ov(saldo=saldo),
+            "mensaje": _mensaje_guia_pago_ov(
+                saldo=saldo, contexto_abonado=contexto_abonado
+            ),
             "paso_cubierto": "guia_pago_fiserv",
             "motivo": "facturacion_pago_plantilla",
         }
@@ -2736,11 +2794,15 @@ def diagnosticar_turno(
             accion = "ask"
             if _cliente_pide_envio_boleta_o_factura(mensaje_cliente):
                 motivo = "bloqueado_escalate_facturacion_factura"
-                mensaje = _mensaje_envio_factura_ov(saldo=saldo_f)
+                mensaje = _mensaje_envio_factura_ov(
+                    saldo=saldo_f, contexto_abonado=contexto_abonado
+                )
                 paso = "guia_factura_ov_mail"
             else:
                 motivo = "bloqueado_escalate_facturacion_pago"
-                mensaje = _mensaje_guia_pago_ov(saldo=saldo_f)
+                mensaje = _mensaje_guia_pago_ov(
+                    saldo=saldo_f, contexto_abonado=contexto_abonado
+                )
                 paso = "guia_pago_fiserv"
 
         # Guardrails
@@ -3129,9 +3191,10 @@ def diagnosticar_turno(
             or _parece_niega_oficina_virtual(mensaje)
         ):
             saldo = _saldo_desde_contexto(contexto_abonado)
-            from app.services.eco_voice import PLANTILLA_PAGO_QR, mensaje_saldo_padron
+            from app.services.eco_voice import mensaje_saldo_padron
 
             pref = f"{mensaje_saldo_padron(saldo, incluir_ov=False)}\n" if saldo else ""
+            plantilla_pago = _plantilla_pago_ctx(contexto_abonado)
             if (
                 _cliente_pide_pagar(mensaje_cliente)
                 or _pide_cbu_o_adjunto(mensaje_cliente)
@@ -3141,7 +3204,7 @@ def diagnosticar_turno(
                 mensaje = (
                     f"{pref}Sí, tenemos oficina virtual. "
                     f"Por este chat no te paso CBU ni adjunto QR.\n"
-                    f"{PLANTILLA_PAGO_QR}"
+                    f"{plantilla_pago}"
                 )
                 paso = "guia_pago_fiserv"
             elif saldo and _cliente_consulta_saldo(mensaje_cliente):
@@ -3150,7 +3213,7 @@ def diagnosticar_turno(
             else:
                 mensaje = (
                     f"{pref}Sí tenemos oficina virtual para pagos y gestiones.\n"
-                    f"{PLANTILLA_PAGO_QR}"
+                    f"{plantilla_pago}"
                 )
                 paso = "guia_oficina_virtual"
             motivo = "bloqueado_invento_pago_o_desvio"

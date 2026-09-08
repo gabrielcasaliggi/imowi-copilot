@@ -8,7 +8,7 @@
 | **Agente** | `batan` / `batan` | Bandeja + tickets N2 + KB |
 | **Abonado** | `https://soporte.ecolan.com` o app nativa (`mobile/`) | Chat con Eko; si escala, agente toma el hilo |
 
-WhatsApp Meta queda como canal de aviso; el soporte turno a turno vive en portal/app (sin costo por mensaje).
+WhatsApp Meta: el abonado puede identificarse por el **número de origen** contra BillTrack (`api_person_phone`); si hay varias cuentas con el mismo celular, Eko pide elegir. Si no hay match, se pide DNI. Detalle: [`INTEGRACION-OV-FACTURAS-WA.md`](./INTEGRACION-OV-FACTURAS-WA.md). El soporte turno a turno prioriza portal/app (sin costo por mensaje).
 
 ## Portal web
 

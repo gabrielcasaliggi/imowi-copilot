@@ -240,6 +240,29 @@ BCM_VERIFY_SSL = os.getenv("BCM_VERIFY_SSL", "true").strip().lower() not in (
     "no",
     "off",
 )
+
+# Oficina Virtual Batán — API deep-links (jsat-get-link-ov). Sin secretos en código.
+OV_BATAN_API_URL = (
+    os.getenv("OV_BATAN_API_URL", "https://ov.batan.coop/api").strip().rstrip("/")
+    or "https://ov.batan.coop/api"
+)
+OV_BATAN_PUBLIC_URL = (
+    os.getenv("OV_BATAN_PUBLIC_URL", "https://ov.batan.coop").strip().rstrip("/")
+    or "https://ov.batan.coop"
+)
+OV_BATAN_API_USER = os.getenv("OV_BATAN_API_USER", "").strip()
+OV_BATAN_API_PASSWORD = os.getenv("OV_BATAN_API_PASSWORD", "").strip()
+OV_BATAN_ENABLED = os.getenv("OV_BATAN_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+try:
+    OV_BATAN_TIMEOUT = float(os.getenv("OV_BATAN_TIMEOUT", "20") or "20")
+except (TypeError, ValueError):
+    OV_BATAN_TIMEOUT = 20.0
+
 try:
     BCM_TIMEOUT = float(os.getenv("BCM_TIMEOUT", "12") or "12")
 except (TypeError, ValueError):

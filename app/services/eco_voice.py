@@ -25,20 +25,31 @@ OV_BATAN_URL = "https://ov.batan.coop"
 OV_BATAN_PAGAR_URL = "https://ov.batan.coop/#/pagar"
 OV_BATAN_AVISO_PAGO_URL = "https://ov.batan.coop/#/aviso-de-pago"
 
-# Una URL por línea para que el portal las muestre como links claros.
-TEXTO_OV_GESTIONES = (
-    f"Pagos y gestiones:\n{OV_BATAN_URL}\nPara pagar con DNI:\n{OV_BATAN_PAGAR_URL}"
-)
 
-# Plantilla fija N1 pagos — no depende del LLM (evita inventar CBU/adjuntos).
-PLANTILLA_PAGO_QR = (
-    f"Podés abonar acá:\n{OV_BATAN_PAGAR_URL}\n"
-    f"Oficina virtual:\n{OV_BATAN_URL}\n"
-    "También con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
-    "Cuando se acredita, el servicio se reactiva solo. "
-    "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente que te ubique la cuenta. "
-    "¿Pudiste pagar o necesitás que te ubique la cuenta?"
-)
+def plantilla_pago_qr(*, pagar_url: str = "", ov_url: str = "") -> str:
+    """Guía de pago; URLs pueden ser deep-link OV por celular o hash público."""
+    pagar = (pagar_url or "").strip() or OV_BATAN_PAGAR_URL
+    ov = (ov_url or "").strip() or OV_BATAN_URL
+    return (
+        f"Podés abonar acá:\n{pagar}\n"
+        f"Oficina virtual:\n{ov}\n"
+        "También con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
+        "Cuando se acredita, el servicio se reactiva solo. "
+        "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente "
+        "que te ubique la cuenta. "
+        "¿Pudiste pagar o necesitás que te ubique la cuenta?"
+    )
+
+
+def texto_ov_gestiones(*, pagar_url: str = "", ov_url: str = "") -> str:
+    pagar = (pagar_url or "").strip() or OV_BATAN_PAGAR_URL
+    ov = (ov_url or "").strip() or OV_BATAN_URL
+    return f"Pagos y gestiones:\n{ov}\nPara pagar:\n{pagar}"
+
+
+# Compat: constantes usadas por tests / imports existentes.
+TEXTO_OV_GESTIONES = texto_ov_gestiones()
+PLANTILLA_PAGO_QR = plantilla_pago_qr()
 
 # Demora de acreditación (pago ≠ refleja al instante en padrón/BillTrack).
 TEXTO_DEMORA_ACREDITACION = (
@@ -475,6 +486,12 @@ def build_contexto_abonado(
             f"- bcm: {bcm_line}",
             "- Regla: no inventes saldos, ONT/OLT, PPPoE, UISP, BCM ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
         ]
+        celular_ov = (integ.get("celular_ov") or "").strip()
+        if celular_ov:
+            lines.insert(-1, f"- celular_ov: {celular_ov}")
+        canal_ctx = (integ.get("canal") or "").strip()
+        if canal_ctx:
+            lines.insert(-1, f"- canal: {canal_ctx}")
         return "\n".join(lines)
 
     nombre = str(getattr(abonado, "nombre", "") or "").strip()
@@ -525,6 +542,12 @@ def build_contexto_abonado(
         f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
         f"- pppoe: {pppoe_line}",
     ]
+    celular_ov = (integ.get("celular_ov") or "").strip()
+    if celular_ov:
+        lines.append(f"- celular_ov: {celular_ov}")
+    canal_ctx = (integ.get("canal") or "").strip()
+    if canal_ctx:
+        lines.append(f"- canal: {canal_ctx}")
     if triage:
         lines.append(f"- pppoe_triage: {triage}")
     lines.append(f"- uisp: {uisp_line}")

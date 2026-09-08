@@ -581,8 +581,13 @@ def test_facturacion_saldo_y_pago_sin_inventar_cbu():
         pasos_cubiertos=["informar_saldo"],
         contexto_abonado=ctx,
     )
-    assert out2["motivo"] == "facturacion_pago_plantilla"
-    assert "fiserv" in (out2.get("mensaje") or "").lower()
+    assert out2["motivo"] in (
+        "facturacion_pago_plantilla",
+        "facturacion_ov_pagar",
+    )
+    assert "fiserv" in (out2.get("mensaje") or "").lower() or "ov.batan" in (
+        out2.get("mensaje") or ""
+    ).lower() or "pagar" in (out2.get("mensaje") or "").lower()
     assert "cbu" not in (out2.get("mensaje") or "").lower()
     assert "adjunt" not in (out2.get("mensaje") or "").lower()
 

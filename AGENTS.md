@@ -85,3 +85,5 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 | 2026-09-01 | Schema: `aplicar_schema` en boot | Production postgres con estate no usa `create_all`; Alembic stamp/upgrade; `migrate_schema` sigue aditivo |
 | 2026-09-01 | FE contrato + mobile CI | `npm test` del api-client (4 endpoints) y `tsc --noEmit` de `mobile/` en GitHub Actions |
 | 2026-09-01 | Dump KB fuera de git | Un dump opcional en `data/`; N1 usa estate. No versionar 52k duplicados |
+| 2026-09-08 | Auth WA por MSISDN (F1) | `lookup_abonados_por_telefono` + desambiguación N cuentas; brief `docs/INTEGRACION-OV-FACTURAS-WA.md` |
+| 2026-09-08 | Deep-links OV por celular (F2) | `ov_batan.py` `/ov/link` multi-canal; paths jsat; env `OV_BATAN_*` |

@@ -31,6 +31,12 @@ from app.config import (
     KNOWLEDGE_MAX_FRAGMENT_CHARS,
     KNOWLEDGE_MIN_SCORE,
     KNOWLEDGE_TOP_K,
+    OV_BATAN_API_PASSWORD,
+    OV_BATAN_API_URL,
+    OV_BATAN_API_USER,
+    OV_BATAN_ENABLED,
+    OV_BATAN_PUBLIC_URL,
+    OV_BATAN_TIMEOUT,
     RADIUS_API_BASE_URL,
     RADIUS_API_ENABLED,
     RADIUS_API_KEY,
@@ -67,6 +73,7 @@ _SECRET_KEYS = {
     ("radius", "token"),
     ("uisp", "token"),
     ("bcm", "app_pass"),
+    ("ov_batan", "password"),
 }
 
 _URL_SECRET_KEYS = {
@@ -151,6 +158,19 @@ def _default_payload() -> dict[str, Any]:
                 "Sopnet BCM (FTTH): OLT/ONU del abonado. Al autenticarse, el DNI "
                 "resuelve BillTrack client_number y se usa como query `numero` en "
                 "BCM. JWT con usuario + password de aplicación. Solo lectura."
+            ),
+        },
+        "ov_batan": {
+            "enabled": OV_BATAN_ENABLED,
+            "api_url": OV_BATAN_API_URL,
+            "public_url": OV_BATAN_PUBLIC_URL,
+            "user": OV_BATAN_API_USER,
+            "password": OV_BATAN_API_PASSWORD,
+            "timeout": OV_BATAN_TIMEOUT,
+            "nota": (
+                "Oficina Virtual Batán (API): deep-links autenticados por celular "
+                "(/ov/link?celular=&path=). Mismo patrón jsat-get-link-ov. "
+                "Usuario técnico de servicio; no pegar secretos en código."
             ),
         },
         "knowledge": {
@@ -470,6 +490,49 @@ def resolve_bcm(db: Session | None = None) -> dict[str, Any]:
     }
 
 
+def resolve_ov_batan(db: Session | None = None) -> dict[str, Any]:
+    """API Oficina Virtual (deep-links por celular)."""
+    s = get_merged_settings(db).get("ov_batan") or {}
+    if not isinstance(s, dict):
+        s = {}
+    enabled = _as_bool(s.get("enabled"), OV_BATAN_ENABLED)
+    if OV_BATAN_ENABLED:
+        enabled = True
+
+    try:
+        timeout = float(
+            s.get("timeout") if s.get("timeout") is not None else OV_BATAN_TIMEOUT
+        )
+    except (TypeError, ValueError):
+        timeout = OV_BATAN_TIMEOUT
+
+    password = str(s.get("password") if s.get("password") is not None else "").strip()
+    if not password or "***" in password:
+        password = OV_BATAN_API_PASSWORD
+    user = str(s.get("user") or OV_BATAN_API_USER or "").strip()
+    if (not user) and OV_BATAN_API_USER:
+        user = OV_BATAN_API_USER
+
+    api_url = str(s.get("api_url") or OV_BATAN_API_URL or "").strip().rstrip("/")
+    if not api_url:
+        api_url = OV_BATAN_API_URL
+    public_url = str(s.get("public_url") or OV_BATAN_PUBLIC_URL or "").strip().rstrip(
+        "/"
+    )
+    if not public_url:
+        public_url = OV_BATAN_PUBLIC_URL
+
+    return {
+        "enabled": enabled,
+        "api_url": api_url,
+        "public_url": public_url,
+        "user": user,
+        "password": password,
+        "timeout": timeout,
+        "nota": str(s.get("nota") or ""),
+    }
+
+
 def resolve_knowledge(db: Session | None = None) -> dict[str, float | int]:
     s = get_merged_settings(db)["knowledge"]
     return {
@@ -568,6 +631,7 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
     radius = resolve_radius(db)
     uisp = resolve_uisp(db)
     bcm = resolve_bcm(db)
+    ov = resolve_ov_batan(db)
     row = db.get(PlatformConfig, CONFIG_ID) if db else None
     bt_url = str(bt.get("url") or "")
     return {
@@ -587,6 +651,10 @@ def public_status(db: Session | None = None) -> dict[str, Any]:
         "uisp_enabled": bool(uisp.get("enabled") and uisp.get("token")),
         "bcm_configured": bool(bcm.get("base_url") and bcm.get("user") and bcm.get("app_pass")),
         "bcm_enabled": bool(bcm.get("enabled") and bcm.get("user") and bcm.get("app_pass")),
+        "ov_batan_configured": bool(ov.get("api_url") and ov.get("user") and ov.get("password")),
+        "ov_batan_enabled": bool(
+            ov.get("enabled") and ov.get("user") and ov.get("password")
+        ),
         "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
         "updated_by": row.updated_by if row else "",
         "settings": s,

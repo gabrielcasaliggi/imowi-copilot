@@ -79,6 +79,27 @@ logger = logging.getLogger("operations_hub")
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
 
+def _plantilla_pago_ov(
+    db: Session,
+    abonado: Abonado | None,
+    conv: ConversacionCanal,
+    *,
+    canal: str,
+) -> str:
+    """Plantilla de pago con deep-link OV por celular del padrón (todo canal)."""
+    from app.services.eco_voice import plantilla_pago_qr
+    from app.services.ov_batan import resolver_celular_ov, urls_ov_gestiones
+
+    cel = resolver_celular_ov(
+        abonado,
+        canal=canal,
+        wa_id=getattr(conv, "wa_id", "") or "",
+        telefono_hilo=getattr(conv, "telefono", "") or "",
+    )
+    urls = urls_ov_gestiones(cel, db=db)
+    return plantilla_pago_qr(pagar_url=urls["pagar"], ov_url=urls["my"])
+
+
 def _cliente_indica_solo_wifi(texto: str) -> bool:
     """True si el abonado acota el problema a Wi‑Fi (no a toda la línea)."""
     t = (texto or "").lower().strip()
@@ -1316,7 +1337,7 @@ def _responder_pendiente_pago_o_corte(
     canal: str,
 ) -> dict:
     """Abonado dice que aún no pagó o teme corte: OV/QR, no diagnóstico técnico."""
-    from app.services.eco_voice import PLANTILLA_PAGO_QR, texto_monto_ars
+    from app.services.eco_voice import texto_monto_ars
 
     nombre = _primer_nombre_cliente(abonado)
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
@@ -1329,6 +1350,7 @@ def _responder_pendiente_pago_o_corte(
     intro = f"Entiendo{', ' + nombre if nombre else ''}."
     cortado = estado in ("corte", "cortado", "suspendido", "suspendida")
     tiene_deuda = _deuda_positiva(abonado)
+    plantilla = _plantilla_pago_ov(db, abonado, conv, canal=canal)
 
     if not tiene_deuda and not cortado:
         resp = (
@@ -1346,7 +1368,7 @@ def _responder_pendiente_pago_o_corte(
         resp = (
             f"{intro} Si todavía no pagaste, podés abonar así:\n"
             f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
-            f"{PLANTILLA_PAGO_QR}"
+            f"{plantilla}"
         )
         intencion = "corte_deuda"
 
@@ -4487,11 +4509,10 @@ def procesar_mensaje_entrante(
                 "intencion": "aviso_deuda",
             }
         if eleccion == "pago":
-            from app.services.eco_voice import PLANTILLA_PAGO_QR
-
             deuda = str(abonado.deuda_monto or "0") if abonado else "0"
             resp = (
-                f"{mensaje_saldo_padron(deuda, incluir_ov=False)}\n{PLANTILLA_PAGO_QR}"
+                f"{mensaje_saldo_padron(deuda, incluir_ov=False)}\n"
+                f"{_plantilla_pago_ov(db, abonado, conv, canal=canal)}"
             )
             ctx["intencion"] = "corte_deuda"
             ctx["paso_idx"] = 0
