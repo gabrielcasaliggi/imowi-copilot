@@ -196,10 +196,13 @@ def _load_raw(db: Session) -> dict[str, Any]:
     row = db.get(PlatformConfig, CONFIG_ID)
     if not row or not row.payload_json:
         return {}
+    raw = row.payload_json
+    if not isinstance(raw, (str, bytes, bytearray)):
+        return {}
     try:
-        data = json.loads(row.payload_json)
+        data = json.loads(raw)
         return data if isinstance(data, dict) else {}
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, TypeError, ValueError):
         return {}
 
 

@@ -87,17 +87,21 @@ def _plantilla_pago_ov(
     canal: str,
 ) -> str:
     """Plantilla de pago con deep-link OV por celular del padrón (todo canal)."""
-    from app.services.eco_voice import plantilla_pago_qr
+    from app.services.eco_voice import PLANTILLA_PAGO_QR, plantilla_pago_qr
     from app.services.ov_batan import resolver_celular_ov, urls_ov_gestiones
 
-    cel = resolver_celular_ov(
-        abonado,
-        canal=canal,
-        wa_id=getattr(conv, "wa_id", "") or "",
-        telefono_hilo=getattr(conv, "telefono", "") or "",
-    )
-    urls = urls_ov_gestiones(cel, db=db)
-    return plantilla_pago_qr(pagar_url=urls["pagar"], ov_url=urls["my"])
+    try:
+        cel = resolver_celular_ov(
+            abonado,
+            canal=canal,
+            wa_id=getattr(conv, "wa_id", "") or "",
+            telefono_hilo=getattr(conv, "telefono", "") or "",
+        )
+        urls = urls_ov_gestiones(cel, db=db)
+        return plantilla_pago_qr(pagar_url=urls["pagar"], ov_url=urls["my"])
+    except Exception:
+        logger.debug("plantilla_pago_ov: fallback público", exc_info=True)
+        return PLANTILLA_PAGO_QR
 
 
 def _cliente_indica_solo_wifi(texto: str) -> bool:
