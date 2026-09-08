@@ -44,6 +44,16 @@ def test_public_url_paths():
     assert public_url(PATH_MY).endswith("#/my")
 
 
+def test_variantes_celular_ov_prioriza_sin_54():
+    from app.services.ov_batan import variantes_celular_ov
+
+    vars_ = variantes_celular_ov("5492236964611")
+    assert vars_[0] == "92236964611"
+    assert "2236964611" in vars_
+    assert "5492236964611" in vars_
+    assert vars_.index("92236964611") < vars_.index("5492236964611")
+
+
 def test_resolver_celular_wa_prioriza_hilo():
     """Botmaker/jsat: en WhatsApp el MSISDN del chat va primero."""
     from app.services.ov_batan import candidatos_celular_ov
@@ -86,18 +96,24 @@ def test_urls_sin_api_son_publicas(monkeypatch):
     assert "#/talon-de-pago" in urls["talon"]
 
 
-def test_fast_or_public_usa_link_api(monkeypatch):
+def test_fast_or_public_prueba_variante_sin_54(monkeypatch):
     from app.services import ov_batan as ov
 
     clear_sid_cache()
+    tried: list[str] = []
+
+    def _fake_link(path, celular, db=None):
+        tried.append(celular)
+        if celular == "92235551234":
+            return f"https://ov.batan.coop/#/pagar?useCustomer=true&tsid=x&user={celular}"
+        return None
+
     monkeypatch.setattr(ov, "ov_configurado", lambda db=None: True)
-    monkeypatch.setattr(
-        ov,
-        "get_fast_link",
-        lambda path, celular, db=None: f"https://ov.batan.coop/fast/{path.split('?')[0]}",
-    )
+    monkeypatch.setattr(ov, "get_fast_link", _fake_link)
     link = fast_or_public(PATH_PAGAR, "5492235551234", db=None)
-    assert link.startswith("https://ov.batan.coop/fast/pagar")
+    assert "tsid=x" in link
+    assert tried[0] == "92235551234"
+    assert "92235551234" in tried
 
 
 def test_resolve_ov_abre_db_si_session_none(monkeypatch):

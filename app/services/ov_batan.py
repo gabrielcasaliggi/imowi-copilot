@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 from typing import Any
 from urllib.parse import quote
@@ -148,6 +149,39 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
         return new_sid
 
 
+def variantes_celular_ov(celular: str) -> list[str]:
+    """Formatos a probar en /ov/link.
+
+    Feedback prod: el prefijo país ``549…`` a menudo no matchea el padrón OV
+    (guardan nacional ``9…`` o local ``área+número``). Orden: sin 54 primero.
+    """
+    from app.estate.canal_repo import normalizar_telefono
+
+    dig = normalizar_telefono(celular or "")
+    if not dig or len(dig) < 8:
+        return []
+
+    out: list[str] = []
+
+    def _add(raw: str) -> None:
+        n = re.sub(r"\D", "", raw or "")
+        if n and len(n) >= 8 and n not in out:
+            out.append(n)
+
+    if dig.startswith("54") and len(dig) > 10:
+        sin54 = dig[2:]
+        _add(sin54)
+        # 549XXXXXXXXXX → 9 + 10 dígitos; OV a veces quiere los 10 locales
+        if sin54.startswith("9") and len(sin54) >= 11:
+            _add(sin54[1:])
+        elif len(sin54) == 10:
+            _add("9" + sin54)
+        if len(sin54) >= 10:
+            _add("0" + (sin54[1:] if sin54.startswith("9") else sin54))
+    _add(dig)
+    return out
+
+
 def candidatos_celular_ov(
     abonado: Any | None = None,
     *,
@@ -199,10 +233,12 @@ def get_fast_link(
     *,
     db: Session | None = None,
 ) -> str | None:
-    """Deep-link autenticado o None si OV no está listo / falla."""
-    from app.estate.canal_repo import normalizar_telefono
+    """Deep-link autenticado o None si OV no está listo / falla.
 
-    cel = normalizar_telefono(celular or "")
+    ``celular`` se usa tal cual (solo dígitos): no re-agregar ``54`` acá,
+    porque OV a menudo exige formato nacional sin país.
+    """
+    cel = re.sub(r"\D", "", celular or "")
     path_n = (path or "").strip()
     if not cel or not path_n:
         return None
@@ -220,10 +256,11 @@ def get_fast_link(
         data = _response_json(r) if r.content else {}
         if not r.is_success or str(data.get("status") or "").upper() != "OK":
             logger.info(
-                "OV /ov/link no OK status_http=%s body_status=%s cel=***%s",
+                "OV /ov/link no OK status_http=%s body_status=%s cel_len=%s pref=%s",
                 r.status_code,
                 data.get("status"),
-                cel[-4:] if cel else "",
+                len(cel),
+                cel[:3] if cel else "",
             )
             return None
         link = data.get("result")
@@ -232,9 +269,16 @@ def get_fast_link(
         if link is None:
             return None
         out = str(link).strip()
+        if out:
+            logger.info(
+                "OV /ov/link OK cel_len=%s pref=%s path=%s",
+                len(cel),
+                cel[:3],
+                path_n[:24],
+            )
         return out or None
     except Exception:
-        logger.exception("OV get_fast_link falló (cel=***%s)", cel[-4:] if cel else "")
+        logger.exception("OV get_fast_link falló (cel_len=%s)", len(cel))
         return None
 
 
@@ -245,16 +289,14 @@ def fast_or_public(
     db: Session | None = None,
     celulares: list[str] | None = None,
 ) -> str:
-    """Prefiere deep-link; prueba varios celulares; si no, hash público."""
-    from app.estate.canal_repo import normalizar_telefono
-
+    """Prefiere deep-link; prueba varios celulares/formatos; si no, hash público."""
     cfg = resolve_ov_batan(db)
     public_base = str(cfg.get("public_url") or "https://ov.batan.coop").rstrip("/")
     cands: list[str] = []
     for raw in list(celulares or []) + ([celular] if celular else []):
-        n = normalizar_telefono(str(raw or ""))
-        if n and len(n) >= 8 and n not in cands:
-            cands.append(n)
+        for v in variantes_celular_ov(str(raw or "")):
+            if v not in cands:
+                cands.append(v)
     for cel in cands:
         fast = get_fast_link(path, cel, db=db)
         if fast:
@@ -355,38 +397,41 @@ def probe_ov_batan(
         return {"ok": False, "error": err, "hint": hint, "api_url": cfg["api_url"]}
     latency_ms = int((time.monotonic() - t0) * 1000)
     fast = None
+    cel_ok = ""
     cel = (celular or "").strip()
     if cel:
-        # Bypass resolve_ov_batan: llamar link con el sid recién obtenido.
-        from app.estate.canal_repo import normalizar_telefono
-
-        cel_n = normalizar_telefono(cel)
-        try:
-            url = (
-                f"{cfg['api_url']}/ov/link"
-                f"?celular={quote(cel_n)}&path={quote(PATH_PAGAR, safe='?=&')}"
-            )
-            r = httpx.get(url, headers={"sid": sid}, timeout=cfg["timeout"])
-            data = _response_json(r) if r.content else {}
-            if r.is_success and str(data.get("status") or "").upper() == "OK":
-                fast = str(data.get("result") or "").strip() or None
-            else:
-                return {
-                    "ok": False,
-                    "authenticated": True,
-                    "latency_ms": latency_ms,
-                    "api_url": cfg["api_url"],
-                    "error": f"/ov/link no OK ({data.get('status') or r.status_code})",
-                    "hint": "Sesión OK; el celular puede no existir en OV o el path falló.",
-                }
-        except Exception as exc:
+        last_err = ""
+        for cel_n in variantes_celular_ov(cel):
+            try:
+                url = (
+                    f"{cfg['api_url']}/ov/link"
+                    f"?celular={quote(cel_n)}&path={quote(PATH_PAGAR, safe='?=&')}"
+                )
+                r = httpx.get(url, headers={"sid": sid}, timeout=cfg["timeout"])
+                data = _response_json(r) if r.content else {}
+                if r.is_success and str(data.get("status") or "").upper() == "OK":
+                    link = data.get("result")
+                    if isinstance(link, dict):
+                        link = link.get("url") or link.get("link") or link.get("href")
+                    fast = str(link or "").strip() or None
+                    if fast:
+                        cel_ok = cel_n
+                        break
+                last_err = f"/ov/link no OK ({data.get('status') or r.status_code}) cel_len={len(cel_n)}"
+            except Exception as exc:
+                last_err = str(exc)[:240]
+        if not fast:
             return {
                 "ok": False,
                 "authenticated": True,
                 "latency_ms": latency_ms,
                 "api_url": cfg["api_url"],
-                "error": str(exc)[:240],
-                "hint": "Sesión OK; falló la prueba de /ov/link.",
+                "error": last_err or "/ov/link sin link",
+                "hint": (
+                    "Sesión OK; probamos formatos sin 54 / local. "
+                    "Revisá que el celular exista en OV."
+                ),
+                "variantes_probadas": variantes_celular_ov(cel),
             }
     return {
         "ok": True,
@@ -394,4 +439,5 @@ def probe_ov_batan(
         "latency_ms": latency_ms,
         "api_url": cfg["api_url"],
         "fast_link": fast,
+        "celular_ok": cel_ok or None,
     }
