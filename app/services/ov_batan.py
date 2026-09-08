@@ -148,6 +148,51 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
         return new_sid
 
 
+def candidatos_celular_ov(
+    abonado: Any | None = None,
+    *,
+    canal: str = "",
+    wa_id: str = "",
+    telefono_hilo: str = "",
+) -> list[str]:
+    """Celulares a probar en /ov/link (orden = prioridad).
+
+    WhatsApp (patrón Botmaker/jsat): MSISDN del hilo primero, luego padrón.
+    Otros canales: solo padrón BillTrack de la cuenta identificada.
+    """
+    from app.estate.canal_repo import normalizar_telefono
+
+    out: list[str] = []
+
+    def _add(raw: Any) -> None:
+        n = normalizar_telefono(str(raw or ""))
+        if n and len(n) >= 8 and n not in out:
+            out.append(n)
+
+    canal_l = (canal or "").strip().lower()
+    if canal_l == "whatsapp":
+        _add(wa_id)
+        _add(telefono_hilo)
+    if abonado is not None:
+        _add(getattr(abonado, "telefono_e164", None))
+        _add(getattr(abonado, "linea_msisdn", None))
+    return out
+
+
+def resolver_celular_ov(
+    abonado: Any | None = None,
+    *,
+    canal: str = "",
+    wa_id: str = "",
+    telefono_hilo: str = "",
+) -> str:
+    """Primer celular candidato para /ov/link (compat)."""
+    cands = candidatos_celular_ov(
+        abonado, canal=canal, wa_id=wa_id, telefono_hilo=telefono_hilo
+    )
+    return cands[0] if cands else ""
+
+
 def get_fast_link(
     path: str,
     celular: str,
@@ -182,6 +227,8 @@ def get_fast_link(
             )
             return None
         link = data.get("result")
+        if isinstance(link, dict):
+            link = link.get("url") or link.get("link") or link.get("href")
         if link is None:
             return None
         out = str(link).strip()
@@ -193,71 +240,55 @@ def get_fast_link(
 
 def fast_or_public(
     path: str,
-    celular: str,
+    celular: str = "",
     *,
     db: Session | None = None,
+    celulares: list[str] | None = None,
 ) -> str:
-    """Prefiere deep-link; si no, hash público."""
+    """Prefiere deep-link; prueba varios celulares; si no, hash público."""
+    from app.estate.canal_repo import normalizar_telefono
+
     cfg = resolve_ov_batan(db)
     public_base = str(cfg.get("public_url") or "https://ov.batan.coop").rstrip("/")
-    cel = (celular or "").strip()
-    if cel:
+    cands: list[str] = []
+    for raw in list(celulares or []) + ([celular] if celular else []):
+        n = normalizar_telefono(str(raw or ""))
+        if n and len(n) >= 8 and n not in cands:
+            cands.append(n)
+    for cel in cands:
         fast = get_fast_link(path, cel, db=db)
         if fast:
             return fast
+    if cands:
         logger.info(
-            "OV fast_or_public: fallback hash público path=%s cel=***%s",
+            "OV fast_or_public: fallback hash público path=%s cands=%s",
             (path or "")[:40],
-            cel[-4:],
+            len(cands),
         )
     else:
-        logger.info("OV fast_or_public: sin celular → hash público path=%s", (path or "")[:40])
+        logger.info(
+            "OV fast_or_public: sin celular → hash público path=%s", (path or "")[:40]
+        )
     return public_url(path, public_base=public_base)
-
-
-def resolver_celular_ov(
-    abonado: Any | None = None,
-    *,
-    canal: str = "",
-    wa_id: str = "",
-    telefono_hilo: str = "",
-) -> str:
-    """Celular para /ov/link: padrón del abonado; en WA sin padrón, MSISDN del hilo.
-
-    Multi-canal: web/app/telegram usan el teléfono BillTrack de la cuenta identificada.
-    """
-    from app.estate.canal_repo import normalizar_telefono
-
-    if abonado is not None:
-        for raw in (
-            getattr(abonado, "telefono_e164", None),
-            getattr(abonado, "linea_msisdn", None),
-        ):
-            n = normalizar_telefono(str(raw or ""))
-            if n and len(n) >= 8:
-                return n
-    if (canal or "").strip().lower() == "whatsapp":
-        for raw in (wa_id, telefono_hilo):
-            n = normalizar_telefono(str(raw or ""))
-            if n and len(n) >= 8:
-                return n
-    return ""
 
 
 def urls_ov_gestiones(
     celular: str = "",
     *,
     db: Session | None = None,
+    celulares: list[str] | None = None,
 ) -> dict[str, str]:
     """URLs de gestiones OV (fast-link si hay celular + API; si no, públicas)."""
     cfg = resolve_ov_batan(db)
     public_base = str(cfg.get("public_url") or "https://ov.batan.coop").rstrip("/")
-    cel = (celular or "").strip()
+    cands = [c for c in (celulares or []) if str(c or "").strip()]
+    if celular and celular not in cands:
+        cands = [celular, *cands]
 
     def _one(path: str) -> str:
-        return fast_or_public(path, cel, db=db) if cel else public_url(
-            path, public_base=public_base
-        )
+        if cands:
+            return fast_or_public(path, "", db=db, celulares=cands)
+        return public_url(path, public_base=public_base)
 
     return {
         "pagar": _one(PATH_PAGAR),

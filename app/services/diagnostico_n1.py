@@ -1853,16 +1853,52 @@ def _bot_ofrecio_factura_ov(historial_mensajes: list | None) -> bool:
     )
 
 
+def _bot_ofrecio_gestiones_ov(historial_mensajes: list | None) -> bool:
+    """True si el bot listó gestiones OV (ver/pagar/talón) en el hilo reciente."""
+    h = _historial_bot_texto(historial_mensajes).lower()
+    return any(
+        k in h
+        for k in (
+            "gestiones de facturación",
+            "gestiones de facturacion",
+            "ver / descargar factura",
+            "ver/descargar factura",
+            "talón / qr",
+            "talon / qr",
+        )
+    )
+
+
 def _celular_ov_desde_contexto(contexto_abonado: str) -> str:
     m = re.search(r"^- celular_ov:\s*(\S+)", contexto_abonado or "", flags=re.M | re.I)
     return (m.group(1) if m else "").strip()
 
 
+def _celulares_ov_desde_contexto(contexto_abonado: str) -> list[str]:
+    """Lista de celulares a probar (WA + padrón) desde el bloque de contexto."""
+    ctx = contexto_abonado or ""
+    out: list[str] = []
+    m_multi = re.search(r"^- celulares_ov:\s*(.+)$", ctx, flags=re.M | re.I)
+    if m_multi:
+        for part in re.split(r"[\s,;]+", m_multi.group(1).strip()):
+            p = part.strip()
+            if p and p not in out:
+                out.append(p)
+    one = _celular_ov_desde_contexto(ctx)
+    if one and one not in out:
+        out.insert(0, one)
+    return out
+
+
 def _urls_ov_desde_contexto(contexto_abonado: str) -> dict[str, str]:
-    """Deep-links OV por celular del padrón (cualquier canal) o hash público."""
+    """Deep-links OV por celular del padrón/WA o hash público."""
     from app.services.ov_batan import urls_ov_gestiones
 
-    return urls_ov_gestiones(_celular_ov_desde_contexto(contexto_abonado))
+    cels = _celulares_ov_desde_contexto(contexto_abonado)
+    return urls_ov_gestiones(
+        cels[0] if cels else "",
+        celulares=cels,
+    )
 
 
 def _plantilla_pago_ctx(contexto_abonado: str) -> str:
@@ -1962,11 +1998,54 @@ def _facturacion_deterministica(
     if identificado:
         from app.services.ov_intencion import (
             GESTO_ACLARAR,
+            GESTO_PAGAR,
+            GESTO_TALON,
+            GESTO_VER_FACTURA,
             clasificar_gesto_ov,
             mensaje_gesto_ov,
         )
 
         gesto = clasificar_gesto_ov(mensaje_cliente)
+        # Respuestas cortas tras listar gestiones («Ver», «Pagar», «Talón»).
+        if not gesto and _bot_ofrecio_gestiones_ov(historial_mensajes):
+            t_corto = re.sub(r"[¡!¿?.,;:]+", "", t).strip()
+            t_corto = (
+                t_corto.replace("á", "a")
+                .replace("é", "e")
+                .replace("í", "i")
+                .replace("ó", "o")
+                .replace("ú", "u")
+            )
+            if t_corto in (
+                "ver",
+                "descargar",
+                "descarga",
+                "factura",
+                "la factura",
+                "mi factura",
+                "1",
+                "ver factura",
+                "ver la factura",
+            ):
+                gesto = GESTO_VER_FACTURA
+            elif t_corto in (
+                "pagar",
+                "abonar",
+                "pago",
+                "2",
+                "quiero pagar",
+            ):
+                gesto = GESTO_PAGAR
+            elif t_corto in (
+                "talon",
+                "talón",
+                "qr",
+                "3",
+                "talon de pago",
+                "cupon",
+                "cupón",
+            ):
+                gesto = GESTO_TALON
         if gesto:
             urls = _urls_ov_desde_contexto(contexto_abonado)
             pref = ""

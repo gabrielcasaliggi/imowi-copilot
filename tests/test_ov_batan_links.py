@@ -44,6 +44,22 @@ def test_public_url_paths():
     assert public_url(PATH_MY).endswith("#/my")
 
 
+def test_resolver_celular_wa_prioriza_hilo():
+    """Botmaker/jsat: en WhatsApp el MSISDN del chat va primero."""
+    from app.services.ov_batan import candidatos_celular_ov
+
+    abo = SimpleNamespace(telefono_e164="5492235551234", linea_msisdn="")
+    assert (
+        resolver_celular_ov(
+            abo, canal="whatsapp", wa_id="5492235559999", telefono_hilo=""
+        )
+        == "5492235559999"
+    )
+    assert candidatos_celular_ov(
+        abo, canal="whatsapp", wa_id="5492235559999", telefono_hilo=""
+    ) == ["5492235559999", "5492235551234"]
+
+
 def test_resolver_celular_prioriza_padron():
     abo = SimpleNamespace(telefono_e164="5492235551234", linea_msisdn="")
     assert resolver_celular_ov(abo, canal="web") == "5492235551234"
@@ -140,7 +156,7 @@ def test_mensaje_factura_usa_my_cuando_hay_celular(monkeypatch):
 
     monkeypatch.setattr(
         "app.services.ov_batan.urls_ov_gestiones",
-        lambda celular="", db=None: {
+        lambda celular="", db=None, celulares=None: {
             "pagar": "https://ov.batan.coop/fast/pagar",
             "my": "https://ov.batan.coop/fast/my",
             "talon": "https://ov.batan.coop/fast/talon",
@@ -162,7 +178,7 @@ def test_plantilla_pago_ctx_inyecta_pagar(monkeypatch):
 
     monkeypatch.setattr(
         "app.services.ov_batan.urls_ov_gestiones",
-        lambda celular="", db=None: {
+        lambda celular="", db=None, celulares=None: {
             "pagar": "https://ov.batan.coop/fast/pagar-x",
             "my": "https://ov.batan.coop/fast/my-x",
             "talon": "",

@@ -491,6 +491,9 @@ def build_contexto_abonado(
         celular_ov = (integ.get("celular_ov") or "").strip()
         if celular_ov:
             lines.insert(-1, f"- celular_ov: {celular_ov}")
+        celulares_ov = (integ.get("celulares_ov") or "").strip()
+        if celulares_ov:
+            lines.insert(-1, f"- celulares_ov: {celulares_ov}")
         canal_ctx = (integ.get("canal") or "").strip()
         if canal_ctx:
             lines.insert(-1, f"- canal: {canal_ctx}")
@@ -547,6 +550,9 @@ def build_contexto_abonado(
     celular_ov = (integ.get("celular_ov") or "").strip()
     if celular_ov:
         lines.append(f"- celular_ov: {celular_ov}")
+    celulares_ov = (integ.get("celulares_ov") or "").strip()
+    if celulares_ov:
+        lines.append(f"- celulares_ov: {celulares_ov}")
     canal_ctx = (integ.get("canal") or "").strip()
     if canal_ctx:
         lines.append(f"- canal: {canal_ctx}")

@@ -88,16 +88,18 @@ def _plantilla_pago_ov(
 ) -> str:
     """Plantilla de pago con deep-link OV por celular del padrón (todo canal)."""
     from app.services.eco_voice import PLANTILLA_PAGO_QR, plantilla_pago_qr
-    from app.services.ov_batan import resolver_celular_ov, urls_ov_gestiones
+    from app.services.ov_batan import candidatos_celular_ov, urls_ov_gestiones
 
     try:
-        cel = resolver_celular_ov(
+        cels = candidatos_celular_ov(
             abonado,
             canal=canal,
             wa_id=getattr(conv, "wa_id", "") or "",
             telefono_hilo=getattr(conv, "telefono", "") or "",
         )
-        urls = urls_ov_gestiones(cel, db=db)
+        urls = urls_ov_gestiones(
+            cels[0] if cels else "", db=db, celulares=cels
+        )
         return plantilla_pago_qr(pagar_url=urls["pagar"], ov_url=urls["my"])
     except Exception:
         logger.debug("plantilla_pago_ov: fallback público", exc_info=True)
@@ -1306,7 +1308,7 @@ def _responder_consulta_saldo(
     canal: str,
 ) -> dict:
     """Saldo/deuda del padrón — sin empujar QR si no hay deuda."""
-    from app.services.ov_batan import resolver_celular_ov, urls_ov_gestiones
+    from app.services.ov_batan import candidatos_celular_ov, urls_ov_gestiones
 
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
     nota_baja = (
@@ -1314,13 +1316,13 @@ def _responder_consulta_saldo(
         if (abonado.estado or "").lower() == "baja"
         else ""
     )
-    cel = resolver_celular_ov(
+    cels = candidatos_celular_ov(
         abonado,
         canal=canal,
         wa_id=getattr(conv, "wa_id", "") or "",
         telefono_hilo=getattr(conv, "telefono", "") or "",
     )
-    urls = urls_ov_gestiones(cel, db=db)
+    urls = urls_ov_gestiones(cels[0] if cels else "", db=db, celulares=cels)
     resp = mensaje_saldo_padron(
         deuda,
         nota_extra=nota_baja,

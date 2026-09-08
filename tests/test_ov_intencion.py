@@ -113,3 +113,38 @@ def test_facturacion_deterministica_usa_gesto(monkeypatch):
     assert out2 is not None
     assert out2["motivo"] == "facturacion_ov_ver_factura"
     assert "https://ov.fast/my" in (out2["mensaje"] or "")
+
+
+def test_facturacion_ver_corto_tras_gestiones(monkeypatch):
+    from app.services import diagnostico_n1 as d
+
+    monkeypatch.setattr(
+        d,
+        "_urls_ov_desde_contexto",
+        lambda _c: {
+            "pagar": "https://ov.fast/pagar?tsid=1&user=549",
+            "my": "https://ov.fast/my?tsid=1&user=549",
+            "talon": "https://ov.fast/talon",
+            "pack": "",
+            "portabilidad": "",
+            "home": "https://ov.batan.coop",
+        },
+    )
+    hist = [
+        {
+            "autor": "bot",
+            "texto": (
+                "Estas son las gestiones de facturación en la Oficina Virtual:\n"
+                "• Ver / descargar factura:\nhttps://x\n"
+            ),
+        },
+        {"autor": "cliente", "texto": "Ver"},
+    ]
+    out = d._facturacion_deterministica(
+        "Ver",
+        contexto_abonado="CONTEXTO\n- modo: identificado\n- deuda_monto: 0\n- celular_ov: 5492235551234\n",
+        historial_mensajes=hist,
+    )
+    assert out is not None
+    assert out["motivo"] == "facturacion_ov_ver_factura"
+    assert "tsid=1" in (out["mensaje"] or "")

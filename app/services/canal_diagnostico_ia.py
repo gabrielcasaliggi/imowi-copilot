@@ -492,16 +492,17 @@ def _aplicar_diagnostico_ia(
         extras_ctx["tecnologia_acceso"] = str(ctx.get("tecnologia_acceso") or "")
 
     extras_ctx["canal"] = (canal or "").strip()
-    from app.services.ov_batan import resolver_celular_ov
+    from app.services.ov_batan import candidatos_celular_ov
 
-    cel_ov = resolver_celular_ov(
+    cels_ov = candidatos_celular_ov(
         abonado,
         canal=canal,
         wa_id=getattr(conv, "wa_id", "") or "",
         telefono_hilo=getattr(conv, "telefono", "") or "",
     )
-    if cel_ov:
-        extras_ctx["celular_ov"] = cel_ov
+    if cels_ov:
+        extras_ctx["celular_ov"] = cels_ov[0]
+        extras_ctx["celulares_ov"] = ",".join(cels_ov)
 
     result = diagnosticar_turno(
         intencion=intencion,
