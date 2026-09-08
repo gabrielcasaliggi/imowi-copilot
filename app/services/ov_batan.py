@@ -219,3 +219,88 @@ def clear_sid_cache() -> None:
     global _cached_sid
     with _sid_lock:
         _cached_sid = ""
+
+
+def probe_ov_batan(
+    *,
+    api_url: str,
+    user: str,
+    password: str,
+    timeout: float = 20,
+    public_url: str = "https://ov.batan.coop",
+    celular: str = "",
+) -> dict[str, Any]:
+    """Prueba login (+ opcional /ov/link). No usa settings de DB."""
+    import time
+
+    clear_sid_cache()
+    cfg = {
+        "enabled": True,
+        "api_url": (api_url or "").rstrip("/"),
+        "public_url": (public_url or "").rstrip("/") or "https://ov.batan.coop",
+        "user": (user or "").strip(),
+        "password": (password or "").strip(),
+        "timeout": float(timeout or 20),
+    }
+    if not cfg["api_url"]:
+        return {"ok": False, "error": "Falta la URL de la API OV", "hint": "Ej.: https://ov.batan.coop/api"}
+    if not cfg["user"] or not cfg["password"]:
+        return {
+            "ok": False,
+            "error": "Faltan usuario o password de servicio OV",
+            "hint": "Pegá OV_BATAN_API_USER / PASSWORD o guardalos en esta sección.",
+        }
+    t0 = time.monotonic()
+    try:
+        sid = _ensure_sid(cfg)
+    except Exception as exc:
+        err = str(exc)[:240]
+        hint = "Revisá usuario/clave y que el host OV sea alcanzable desde el API."
+        low = err.lower()
+        if "401" in err or "403" in err or "password" in low:
+            hint = "Credenciales rechazadas por /session/login."
+        elif "timed out" in low or "timeout" in low:
+            hint = "OV no respondió a tiempo."
+        return {"ok": False, "error": err, "hint": hint, "api_url": cfg["api_url"]}
+    latency_ms = int((time.monotonic() - t0) * 1000)
+    fast = None
+    cel = (celular or "").strip()
+    if cel:
+        # Bypass resolve_ov_batan: llamar link con el sid recién obtenido.
+        from app.estate.canal_repo import normalizar_telefono
+
+        cel_n = normalizar_telefono(cel)
+        try:
+            url = (
+                f"{cfg['api_url']}/ov/link"
+                f"?celular={quote(cel_n)}&path={quote(PATH_PAGAR, safe='?=&')}"
+            )
+            r = httpx.get(url, headers={"sid": sid}, timeout=cfg["timeout"])
+            data = r.json() if r.content else {}
+            if r.is_success and str(data.get("status") or "").upper() == "OK":
+                fast = str(data.get("result") or "").strip() or None
+            else:
+                return {
+                    "ok": False,
+                    "authenticated": True,
+                    "latency_ms": latency_ms,
+                    "api_url": cfg["api_url"],
+                    "error": f"/ov/link no OK ({data.get('status') or r.status_code})",
+                    "hint": "Sesión OK; el celular puede no existir en OV o el path falló.",
+                }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "authenticated": True,
+                "latency_ms": latency_ms,
+                "api_url": cfg["api_url"],
+                "error": str(exc)[:240],
+                "hint": "Sesión OK; falló la prueba de /ov/link.",
+            }
+    return {
+        "ok": True,
+        "authenticated": True,
+        "latency_ms": latency_ms,
+        "api_url": cfg["api_url"],
+        "fast_link": fast,
+    }

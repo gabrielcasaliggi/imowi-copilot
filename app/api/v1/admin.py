@@ -1038,3 +1038,56 @@ def test_bcm_connection(
             "(BillTrack client_number, query BCM `numero`). OLT/ONU salen de la ficha del cliente."
         ),
     }
+
+
+@router.post("/admin/settings/test-ov-batan")
+def test_ov_batan_connection(
+    body: dict = Body(default={}),
+    _: UsuarioSesion = Depends(requiere_admin),
+    db: Session = Depends(get_db),
+):
+    """Prueba sesión OV (/session/login) y opcionalmente /ov/link por celular."""
+    from app.services.ov_batan import probe_ov_batan
+    from app.services.platform_settings import resolve_ov_batan
+
+    payload = body if isinstance(body, dict) else {}
+    cfg = resolve_ov_batan(db)
+
+    api_url = str(
+        payload.get("api_url") if payload.get("api_url") is not None else cfg.get("api_url") or ""
+    ).strip()
+    public_url = str(
+        payload.get("public_url")
+        if payload.get("public_url") is not None
+        else cfg.get("public_url") or ""
+    ).strip()
+    user = str(
+        payload.get("user") if payload.get("user") is not None else cfg.get("user") or ""
+    ).strip()
+    password = str(
+        payload.get("password")
+        if payload.get("password") is not None
+        else cfg.get("password") or ""
+    ).strip()
+    if "***" in password:
+        password = str(cfg.get("password") or "")
+    try:
+        timeout = float(
+            payload.get("timeout")
+            if payload.get("timeout") is not None
+            else cfg.get("timeout") or 20
+        )
+    except (TypeError, ValueError):
+        timeout = 20.0
+    celular = str(payload.get("celular") or "").strip()
+
+    result = probe_ov_batan(
+        api_url=api_url,
+        user=user,
+        password=password,
+        timeout=timeout,
+        public_url=public_url,
+        celular=celular,
+    )
+    result["scope"] = "ov_batan"
+    return result

@@ -187,6 +187,8 @@ export interface PlatformSettingsResponse {
   uisp_enabled?: boolean;
   bcm_configured?: boolean;
   bcm_enabled?: boolean;
+  ov_batan_configured?: boolean;
+  ov_batan_enabled?: boolean;
   updated_at?: string | null;
   updated_by?: string;
   settings: {
@@ -239,6 +241,16 @@ export interface PlatformSettingsResponse {
       verify_ssl?: boolean;
       nota?: string;
       app_pass_configured?: boolean;
+    };
+    ov_batan?: {
+      enabled?: boolean;
+      api_url?: string;
+      public_url?: string;
+      user?: string;
+      password?: string;
+      timeout?: number;
+      nota?: string;
+      password_configured?: boolean;
     };
     knowledge?: { min_score?: number; top_k?: number; max_fragment_chars?: number };
     canal?: { usar_llama_default?: boolean };

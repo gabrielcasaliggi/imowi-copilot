@@ -1284,6 +1284,28 @@ export const api = {
     });
   },
 
+  testAdminOvBatan(payload?: {
+    api_url?: string;
+    public_url?: string;
+    user?: string;
+    password?: string;
+    timeout?: number;
+    celular?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      authenticated?: boolean;
+      latency_ms?: number;
+      fast_link?: string | null;
+      api_url?: string;
+      error?: string;
+      hint?: string;
+    }>("/api/v1/admin/settings/test-ov-batan", {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
   inboxConversations(
     params?: {
       estado?: string;

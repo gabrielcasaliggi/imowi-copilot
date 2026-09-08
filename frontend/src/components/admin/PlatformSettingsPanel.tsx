@@ -13,7 +13,17 @@ import {
 
 const labelCls = "block text-xs text-slate-400 mb-1";
 
-type SettingsSection = "ai" | "whatsapp" | "telegram" | "database" | "billtrack" | "uisp" | "bcm" | "knowledge" | "playbooks";
+type SettingsSection =
+  | "ai"
+  | "whatsapp"
+  | "telegram"
+  | "database"
+  | "billtrack"
+  | "uisp"
+  | "bcm"
+  | "ov_batan"
+  | "knowledge"
+  | "playbooks";
 
 export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string) => void }) {
   const botName = getBranding().botDisplayName;
@@ -75,6 +85,19 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     ok: boolean;
     detail: string;
   } | null>(null);
+  const [ovBatan, setOvBatan] = useState({
+    enabled: false,
+    api_url: "https://ov.batan.coop/api",
+    public_url: "https://ov.batan.coop",
+    user: "",
+    password: "",
+    timeout: "20",
+  });
+  const [ovTestCelular, setOvTestCelular] = useState("");
+  const [ovBatanTest, setOvBatanTest] = useState<{
+    ok: boolean;
+    detail: string;
+  } | null>(null);
   const [kb, setKb] = useState({ min_score: 0.15, top_k: 1, max_fragment_chars: 1800 });
   const [playbooks, setPlaybooks] = useState<PlaybookMap>({});
   const [playbooksResetToken, setPlaybooksResetToken] = useState(0);
@@ -129,6 +152,14 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       timeout: String(s.bcm?.timeout ?? 12),
       verify_ssl: s.bcm?.verify_ssl !== false,
     });
+    setOvBatan({
+      enabled: Boolean(s.ov_batan?.enabled ?? res.ov_batan_enabled),
+      api_url: s.ov_batan?.api_url || "https://ov.batan.coop/api",
+      public_url: s.ov_batan?.public_url || "https://ov.batan.coop",
+      user: s.ov_batan?.user || "",
+      password: s.ov_batan?.password || "",
+      timeout: String(s.ov_batan?.timeout ?? 20),
+    });
     setKb({
       min_score: Number(s.knowledge?.min_score ?? 0.15),
       top_k: Number(s.knowledge?.top_k ?? 1),
@@ -177,6 +208,14 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
           app_pass: bcm.app_pass,
           timeout: Number(bcm.timeout) || 12,
           verify_ssl: bcm.verify_ssl,
+        },
+        ov_batan: {
+          enabled: ovBatan.enabled,
+          api_url: ovBatan.api_url,
+          public_url: ovBatan.public_url,
+          user: ovBatan.user,
+          password: ovBatan.password,
+          timeout: Number(ovBatan.timeout) || 20,
         },
         knowledge: kb,
         playbooks,
@@ -399,6 +438,40 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     }
   };
 
+  const testOvBatan = async () => {
+    setBusy(true);
+    try {
+      const r = await api.testAdminOvBatan({
+        api_url: ovBatan.api_url,
+        public_url: ovBatan.public_url,
+        user: ovBatan.user,
+        password: ovBatan.password,
+        timeout: Number(ovBatan.timeout) || 20,
+        celular: ovTestCelular.trim() || undefined,
+      });
+      if (r.ok) {
+        const parts = [
+          r.authenticated ? "sesión OK" : null,
+          r.latency_ms != null ? `${r.latency_ms} ms` : null,
+          r.fast_link ? "deep-link OK" : null,
+        ].filter(Boolean);
+        const detail = parts.join(" · ") || "OK";
+        setOvBatanTest({ ok: true, detail });
+        onMessage?.(`Oficina Virtual OK · ${detail}`);
+      } else {
+        const detail = [r.error || "No se pudo conectar", r.hint].filter(Boolean).join(" — ");
+        setOvBatanTest({ ok: false, detail });
+        onMessage?.(`Oficina Virtual falló: ${detail}`);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Error test OV";
+      setOvBatanTest({ ok: false, detail });
+      onMessage?.(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <p className="text-slate-500 text-sm">Cargando configuración…</p>;
   }
@@ -410,6 +483,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     { id: "billtrack", label: "Clientes (BillTrack)" },
     { id: "uisp", label: "Radio (UISP)" },
     { id: "bcm", label: "Fibra (BCM)" },
+    { id: "ov_batan", label: "Oficina Virtual" },
     { id: "database", label: "Data Estate" },
     { id: "knowledge", label: "Conocimiento" },
     { id: "playbooks", label: "Playbooks" },
@@ -506,6 +580,28 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                     ? "available"
                     : "soon"
                   : data.bcm_enabled
+                    ? "available"
+                    : "neutral"
+              }
+            />
+            <StatusPill
+              label={
+                ovBatanTest
+                  ? ovBatanTest.ok
+                    ? "OV OK"
+                    : "OV falló"
+                  : data.ov_batan_enabled
+                    ? "OV lista"
+                    : data.ov_batan_configured
+                      ? "OV off"
+                      : "OV pendiente"
+              }
+              tone={
+                ovBatanTest
+                  ? ovBatanTest.ok
+                    ? "available"
+                    : "soon"
+                  : data.ov_batan_enabled
                     ? "available"
                     : "neutral"
               }
@@ -1004,6 +1100,116 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                       : `Falló · ${bcmTest.detail}`
                   }
                   tone={bcmTest.ok ? "available" : "soon"}
+                />
+              )}
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {section === "ov_batan" && (
+        <GlassCard title="Oficina Virtual — deep-links por celular" accent="cyan" variant="secondary">
+          <div className="grid gap-3 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs text-slate-400">
+              API de OV Batán (patrón jsat-get-link-ov). {botName} pide un link autenticado con el{" "}
+              <code className="text-slate-300">celular</code> del padrón (
+              <code className="text-slate-300">/ov/link</code>
+              ). Sirve en web, app, WhatsApp y Telegram. Usuario técnico de servicio — no pegues la
+              clave en chats. Si está apagado, se usan los links públicos{" "}
+              <code className="text-slate-300">ov.batan.coop/#/…</code>.
+            </p>
+            <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={ovBatan.enabled}
+                onChange={(e) => setOvBatan({ ...ovBatan, enabled: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Habilitar deep-links OV para {botName}
+            </label>
+            <div className="md:col-span-2">
+              <label className={labelCls}>URL API (sin barra final)</label>
+              <input
+                className={inputCls}
+                value={ovBatan.api_url}
+                onChange={(e) => {
+                  setOvBatan({ ...ovBatan, api_url: e.target.value });
+                  setOvBatanTest(null);
+                }}
+                placeholder="https://ov.batan.coop/api"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>URL pública (fallback)</label>
+              <input
+                className={inputCls}
+                value={ovBatan.public_url}
+                onChange={(e) => setOvBatan({ ...ovBatan, public_url: e.target.value })}
+                placeholder="https://ov.batan.coop"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Usuario técnico OV</label>
+              <input
+                className={inputCls}
+                value={ovBatan.user}
+                onChange={(e) => {
+                  setOvBatan({ ...ovBatan, user: e.target.value });
+                  setOvBatanTest(null);
+                }}
+                placeholder="usuario de servicio"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Password (dejar enmascarado si no cambiás)</label>
+              <input
+                className={inputCls}
+                type="password"
+                value={ovBatan.password}
+                onChange={(e) => {
+                  setOvBatan({ ...ovBatan, password: e.target.value });
+                  setOvBatanTest(null);
+                }}
+                placeholder="OV_BATAN_API_PASSWORD"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Timeout (segundos)</label>
+              <input
+                className={inputCls}
+                value={ovBatan.timeout}
+                onChange={(e) => setOvBatan({ ...ovBatan, timeout: e.target.value })}
+                placeholder="20"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Probar celular (opcional, E.164)</label>
+              <input
+                className={inputCls}
+                value={ovTestCelular}
+                onChange={(e) => setOvTestCelular(e.target.value)}
+                placeholder="5492235551234"
+              />
+            </div>
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void testOvBatan()}
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:border-ecolan-brand/40"
+              >
+                Probar sesión OV
+              </button>
+              {ovBatanTest && (
+                <StatusPill
+                  label={
+                    ovBatanTest.ok
+                      ? `Conectada · ${ovBatanTest.detail}`
+                      : `Falló · ${ovBatanTest.detail}`
+                  }
+                  tone={ovBatanTest.ok ? "available" : "soon"}
                 />
               )}
             </div>
