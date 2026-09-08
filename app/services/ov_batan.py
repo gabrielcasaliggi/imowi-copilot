@@ -152,8 +152,9 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
 def variantes_celular_ov(celular: str) -> list[str]:
     """Formatos a probar en /ov/link.
 
-    Feedback prod: el prefijo país ``549…`` a menudo no matchea el padrón OV
-    (guardan nacional ``9…`` o local ``área+número``). Orden: sin 54 primero.
+    Botmaker manda el MSISDN completo ``549…``. Probar primero sin ``54`` devolvía
+    un tsid «OK» pero al abrir: «usuario NO TIENE asociado ningún cliente».
+    Orden: E.164 completo (549) → nacional / local como fallback.
     """
     from app.estate.canal_repo import normalizar_telefono
 
@@ -168,18 +169,33 @@ def variantes_celular_ov(celular: str) -> list[str]:
         if n and len(n) >= 8 and n not in out:
             out.append(n)
 
+    # 1) Como Botmaker / WhatsApp Meta
+    _add(dig)
     if dig.startswith("54") and len(dig) > 10:
         sin54 = dig[2:]
         _add(sin54)
-        # 549XXXXXXXXXX → 9 + 10 dígitos; OV a veces quiere los 10 locales
         if sin54.startswith("9") and len(sin54) >= 11:
             _add(sin54[1:])
         elif len(sin54) == 10:
             _add("9" + sin54)
         if len(sin54) >= 10:
             _add("0" + (sin54[1:] if sin54.startswith("9") else sin54))
-    _add(dig)
     return out
+
+
+def _link_ov_usable(link: str, *, celular_pedido: str = "") -> bool:
+    """Solo aceptamos tsid pedidos con MSISDN ``54…`` (estilo Botmaker).
+
+    Pedir sin ``54`` a veces devuelve link con ``user=549…`` pero al abrir:
+    «usuario NO TIENE asociado ningún cliente».
+    """
+    u = (link or "").strip()
+    if not u or "tsid=" not in u.lower():
+        return False
+    ped = re.sub(r"\D", "", celular_pedido or "")
+    if ped and not ped.startswith("54"):
+        return False
+    return True
 
 
 def candidatos_celular_ov(
@@ -191,9 +207,8 @@ def candidatos_celular_ov(
 ) -> list[str]:
     """Celulares a probar en /ov/link (orden = prioridad).
 
-    1) Celular del **padrón de la cuenta identificada** (BillTrack) — es la cuenta
-       que Eko está atendiendo (evita WA de un familiar ≠ cuenta Jorge).
-    2) MSISDN del hilo (WA / portal post-login) como fallback.
+    WhatsApp: MSISDN del hilo primero (Botmaker / PLATFORM_CONTACT_ID), luego padrón.
+    Portal: padrón + celular del hilo post-login.
     """
     from app.estate.canal_repo import normalizar_telefono
 
@@ -202,19 +217,19 @@ def candidatos_celular_ov(
     def _add(raw: Any) -> None:
         n = normalizar_telefono(str(raw or ""))
         if n and len(n) >= 8 and n not in out:
-            # IDs sintéticos del portal — no sirven para OV
             if n.startswith("guest") or not n.isdigit():
                 return
             out.append(n)
 
     canal_l = (canal or "").strip().lower()
-    if abonado is not None:
-        _add(getattr(abonado, "telefono_e164", None))
-        _add(getattr(abonado, "linea_msisdn", None))
+    # WA: mismo criterio que Botmaker (el número del chat es el de OV).
     if canal_l == "whatsapp":
         _add(wa_id)
         _add(telefono_hilo)
-    elif canal_l in ("web", "app", "simulate"):
+    if abonado is not None:
+        _add(getattr(abonado, "telefono_e164", None))
+        _add(getattr(abonado, "linea_msisdn", None))
+    if canal_l in ("web", "app", "simulate"):
         hilo = str(telefono_hilo or wa_id or "").strip()
         if hilo and not hilo.lower().startswith("guest"):
             _add(hilo)
@@ -278,6 +293,13 @@ def get_fast_link(
         if link is None:
             return None
         out = str(link).strip()
+        if out and not _link_ov_usable(out, celular_pedido=cel):
+            logger.info(
+                "OV /ov/link descartado (user= huérfano?) cel_len=%s pref=%s",
+                len(cel),
+                cel[:3],
+            )
+            return None
         if out:
             logger.info(
                 "OV /ov/link OK cel_len=%s pref=%s path=%s",
@@ -306,6 +328,7 @@ def fast_or_public(
         for v in variantes_celular_ov(str(raw or "")):
             if v not in cands:
                 cands.append(v)
+    # Preferir respuesta pedida con 549… (Botmaker); si varias OK, la primera usable.
     for cel in cands:
         fast = get_fast_link(path, cel, db=db)
         if fast:

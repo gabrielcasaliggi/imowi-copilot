@@ -31,20 +31,24 @@ def plantilla_pago_qr(*, pagar_url: str = "", ov_url: str = "") -> str:
     pagar = (pagar_url or "").strip() or OV_BATAN_PAGAR_URL
     ov = (ov_url or "").strip() or OV_BATAN_URL
     return (
-        f"Podés abonar acá:\n{pagar}\n"
-        f"Oficina virtual:\n{ov}\n"
+        f"Abonar tu factura\n"
+        f"Ingresá al siguiente link\n{pagar}\n"
+        f"También podés ver tu cuenta acá:\n{ov}\n"
         "También con el QR Fiserv de la factura (Mercado Pago, MODO, etc.). "
         "Cuando se acredita, el servicio se reactiva solo. "
-        "Si no tenés el QR, identificáte con DNI en el portal o pedí a un agente "
-        "que te ubique la cuenta. "
-        "¿Pudiste pagar o necesitás que te ubique la cuenta?"
+        "¿Pudiste pagar?"
     )
 
 
 def texto_ov_gestiones(*, pagar_url: str = "", ov_url: str = "") -> str:
+    """Misma idea que Botmaker: deep-link de pago con «Ingresá al siguiente link»."""
     pagar = (pagar_url or "").strip() or OV_BATAN_PAGAR_URL
     ov = (ov_url or "").strip() or OV_BATAN_URL
-    return f"Pagos y gestiones:\n{ov}\nPara pagar:\n{pagar}"
+    return (
+        f"Pagos y gestiones:\n{ov}\n"
+        f"Abonar tu factura\n"
+        f"Ingresá al siguiente link\n{pagar}"
+    )
 
 
 # Compat: constantes usadas por tests / imports existentes.

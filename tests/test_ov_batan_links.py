@@ -44,14 +44,23 @@ def test_public_url_paths():
     assert public_url(PATH_MY).endswith("#/my")
 
 
-def test_variantes_celular_ov_prioriza_sin_54():
+def test_variantes_celular_ov_prioriza_549():
     from app.services.ov_batan import variantes_celular_ov
 
     vars_ = variantes_celular_ov("5492236964611")
-    assert vars_[0] == "92236964611"
-    assert "2236964611" in vars_
-    assert "5492236964611" in vars_
-    assert vars_.index("92236964611") < vars_.index("5492236964611")
+    assert vars_[0] == "5492236964611"
+    assert "92236964611" in vars_
+
+
+def test_link_ov_usable_exige_pedido_con_54():
+    from app.services.ov_batan import _link_ov_usable
+
+    ok = (
+        "https://ov.batan.coop/#/pagar?useCustomer=true"
+        "&tsid=abc&user=5492235402690"
+    )
+    assert _link_ov_usable(ok, celular_pedido="5492235402690") is True
+    assert _link_ov_usable(ok, celular_pedido="92235402690") is False
 
 
 def test_resolver_celular_portal_usa_hilo():
@@ -67,8 +76,8 @@ def test_resolver_celular_portal_usa_hilo():
     ) == []
 
 
-def test_resolver_celular_wa_prioriza_padron_cuenta():
-    """Cuenta identificada (Jorge) antes que MSISDN del chat (puede ser otro celular)."""
+def test_resolver_celular_wa_prioriza_hilo_botmaker():
+    """WhatsApp: MSISDN del chat primero (como Botmaker)."""
     from app.services.ov_batan import candidatos_celular_ov
 
     abo = SimpleNamespace(telefono_e164="5492235551234", linea_msisdn="")
@@ -76,11 +85,11 @@ def test_resolver_celular_wa_prioriza_padron_cuenta():
         resolver_celular_ov(
             abo, canal="whatsapp", wa_id="5492235559999", telefono_hilo=""
         )
-        == "5492235551234"
+        == "5492235559999"
     )
     assert candidatos_celular_ov(
         abo, canal="whatsapp", wa_id="5492235559999", telefono_hilo=""
-    ) == ["5492235551234", "5492235559999"]
+    ) == ["5492235559999", "5492235551234"]
 
 
 def test_resolver_celular_prioriza_padron():
@@ -109,7 +118,7 @@ def test_urls_sin_api_son_publicas(monkeypatch):
     assert "#/talon-de-pago" in urls["talon"]
 
 
-def test_fast_or_public_prueba_variante_sin_54(monkeypatch):
+def test_fast_or_public_prueba_549_primero(monkeypatch):
     from app.services import ov_batan as ov
 
     clear_sid_cache()
@@ -117,16 +126,22 @@ def test_fast_or_public_prueba_variante_sin_54(monkeypatch):
 
     def _fake_link(path, celular, db=None):
         tried.append(celular)
-        if celular == "92235551234":
-            return f"https://ov.batan.coop/#/pagar?useCustomer=true&tsid=x&user={celular}"
-        return None
+        if celular == "5492235551234":
+            return (
+                "https://ov.batan.coop/#/pagar?useCustomer=true"
+                f"&tsid=x&user={celular}"
+            )
+        # Simula el tsid huérfano si se pide sin 54
+        return (
+            "https://ov.batan.coop/#/pagar?useCustomer=true"
+            "&tsid=orphan&user=5492235551234"
+        )
 
     monkeypatch.setattr(ov, "ov_configurado", lambda db=None: True)
     monkeypatch.setattr(ov, "get_fast_link", _fake_link)
     link = fast_or_public(PATH_PAGAR, "5492235551234", db=None)
     assert "tsid=x" in link
-    assert tried[0] == "92235551234"
-    assert "92235551234" in tried
+    assert tried[0] == "5492235551234"
 
 
 def test_resolve_ov_abre_db_si_session_none(monkeypatch):

@@ -125,7 +125,7 @@ La API OV **resuelve al abonado solo por número telefónico** (`celular`). No u
 | Timeout | `OV_BATAN_TIMEOUT` (default 20s) |
 | Enable | `OV_BATAN_ENABLED=true` |
 
-**WhatsApp / portal:** el deep-link usa primero el **celular del padrón de la cuenta identificada** (BillTrack). El MSISDN del hilo WA es fallback (si alguien escribe desde otro celular, el de la cuenta tiene prioridad). Se prueban formatos sin `54` / local.
+**WhatsApp:** deep-link como Botmaker: pedir `/ov/link` con MSISDN **``549…``** (no sin país: ese tsid abre pero dice «usuario sin cliente»). Orden candidatos: MSISDN del hilo WA, luego padrón.
 
 ### 4.2 Client Action `jsat-get-link-ov` — paths
 

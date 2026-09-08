@@ -82,8 +82,6 @@ def clasificar_gesto_ov(texto: str) -> str | None:
             "quiero factura",
             "quiero la ultima factura",
             "quiero la última factura",
-            "ultima factura",
-            "última factura",
             "necesito mi factura",
             "necesito la factura",
             "necesito factura",
