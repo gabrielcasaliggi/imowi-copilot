@@ -77,6 +77,28 @@ def clasificar_gesto_ov(texto: str) -> str | None:
             "mandame la factura",
             "enviame la factura",
             "pasame la factura",
+            "quiero mi factura",
+            "quiero la factura",
+            "quiero factura",
+            "necesito mi factura",
+            "necesito la factura",
+            "necesito factura",
+            "dame mi factura",
+            "dame la factura",
+            "dame la boleta",
+            "darmela",
+            "pasamela",
+            "enviamela",
+            "mandamela",
+            "me la das",
+            "me la pasas",
+            "me la mandas",
+            "me la envias",
+            "podes darmela",
+            "puedes darmela",
+            "pasame la boleta",
+            "enviame la boleta",
+            "mandame la boleta",
         )
     )
     # «¿Cuánto me vino?» / saldo + web → flujo de saldo, no deep-link suelto.
@@ -172,9 +194,36 @@ def clasificar_gesto_ov(texto: str) -> str | None:
                 "enviane",
                 "pasame",
                 "necesito la",
+                "necesito mi",
                 "quiero la",
+                "quiero mi",
                 "dame la",
+                "dame mi",
+                "darme la",
+                "darme mi",
+                "podes darme",
+                "puedes darme",
             )
+        )
+    ):
+        return GESTO_VER_FACTURA
+
+    # Pedido pronominal («dámela vos») tras hablar de factura/boleta en el hilo.
+    if any(
+        k in t
+        for k in (
+            "darmela",
+            "pasamela",
+            "enviamela",
+            "mandamela",
+            "me la das",
+            "me la pasas",
+            "me la mandas",
+            "me la envias",
+            "podes darmela",
+            "puedes darmela",
+            "darmela vos",
+            "pasamela vos",
         )
     ):
         return GESTO_VER_FACTURA
@@ -262,10 +311,10 @@ def mensaje_gesto_ov(
     if gesto == GESTO_VER_FACTURA:
         return (
             f"{pref}"
-            "Para ver y descargar tu factura (y tus servicios) entrá acá:\n"
+            "Todavía no te adjunto el PDF por este chat, pero podés verla y "
+            "descargarla acá (acceso con el celular de tu cuenta):\n"
             f"{link}\n"
-            "El acceso se arma con el celular de tu cuenta. "
-            "¿Pudiste entrar?"
+            "¿Pudiste abrirla? Si el link no entra o ves otra cuenta, avisame."
         )
     if gesto == GESTO_PAGAR:
         return (

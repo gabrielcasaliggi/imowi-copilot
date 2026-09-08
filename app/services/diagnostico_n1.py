@@ -1769,6 +1769,21 @@ def _cliente_pide_envio_boleta_o_factura(texto: str) -> bool:
             "enviame la factura",
             "envíame la boleta",
             "envíame la factura",
+            "quiero mi factura",
+            "quiero la factura",
+            "quiero factura",
+            "necesito mi factura",
+            "necesito la factura",
+            "dame la factura",
+            "dame mi factura",
+            "dame la boleta",
+            "darmela",
+            "pasamela",
+            "enviamela",
+            "me la das",
+            "podes darmela",
+            "puedes darmela",
+            "podes dármela",
             "copia de la boleta",
             "copia de boleta",
             "pdf de la factura",
@@ -3183,6 +3198,51 @@ def diagnosticar_turno(
             )
             paso = "triaje_motivo"
             motivo = "bloqueado_dump_pagos"
+
+        # Facturación: si el LLM inventa «por seguridad no te mando el PDF»,
+        # forzar deep-link OV de factura (gesto o pedido de envío).
+        if es_facturacion and accion in ("ask", "resolved"):
+            from app.services.ov_intencion import (
+                GESTO_VER_FACTURA,
+                clasificar_gesto_ov,
+                mensaje_gesto_ov,
+            )
+
+            gesto_cli = clasificar_gesto_ov(mensaje_cliente)
+            ml = (mensaje or "").lower()
+            llm_niega_envio_factura = any(
+                k in ml
+                for k in (
+                    "por seguridad",
+                    "no puedo enviarte el archivo",
+                    "no puedo enviarte el pdf",
+                    "no te puedo enviar el archivo",
+                    "no te mando el archivo",
+                )
+            ) and any(
+                k in ml for k in ("factura", "boleta", "pdf", "archivo", "ov.batan")
+            )
+            pide_doc = gesto_cli == GESTO_VER_FACTURA or (
+                _cliente_pide_envio_boleta_o_factura(mensaje_cliente)
+            )
+            if pide_doc and (
+                gesto_cli == GESTO_VER_FACTURA or llm_niega_envio_factura
+            ):
+                # Si el determinístico no cortó y el LLM inventó / genérico, reescribir.
+                urls = _urls_ov_desde_contexto(contexto_abonado or "")
+                saldo = _saldo_desde_contexto(contexto_abonado)
+                from app.services.eco_voice import mensaje_saldo_padron
+
+                pref = (
+                    mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+                    if saldo is not None
+                    else ""
+                )
+                mensaje = mensaje_gesto_ov(GESTO_VER_FACTURA, urls, prefijo=pref)
+                paso = "ov_gesto_ver_factura"
+                motivo = "bloqueado_llm_factura_ov"
+                if accion == "resolved":
+                    accion = "ask"
 
         # Facturación: bloquear inventos (CBU, adjunto QR falso, web inventada) y desvío técnico
         if es_facturacion and accion in ("ask", "resolved") and (

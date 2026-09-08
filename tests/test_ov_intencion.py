@@ -18,6 +18,9 @@ from app.services.ov_intencion import (
 def test_gesto_ver_factura():
     assert clasificar_gesto_ov("mandame la factura") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("quiero descargar la factura") == GESTO_VER_FACTURA
+    assert clasificar_gesto_ov("quiero mi factura") == GESTO_VER_FACTURA
+    assert clasificar_gesto_ov("Quiero mi factura") == GESTO_VER_FACTURA
+    assert clasificar_gesto_ov("Podes dármela vos?") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("ver mis facturas") == GESTO_VER_FACTURA
     assert clasificar_gesto_ov("pdf de la boleta") == GESTO_VER_FACTURA
 
@@ -48,6 +51,7 @@ def test_gesto_aclarar_sin_menu_fijo():
 
 def test_gesto_none_deja_flujo_saldo():
     assert clasificar_gesto_ov("cuánto debo") is None
+    assert clasificar_gesto_ov("cuánto debo en mi factura") is None
     assert clasificar_gesto_ov("ya pagué y no se refleja") is None
     assert clasificar_gesto_ov("hola") is None
 
@@ -63,6 +67,7 @@ def test_mensaje_gesto_incluye_link():
     }
     msg = mensaje_gesto_ov(GESTO_VER_FACTURA, urls)
     assert "https://ov.example/my" in msg
+    assert "no te adjunto el PDF" in msg.lower() or "no te adjunto el pdf" in msg.lower()
     msg_p = mensaje_gesto_ov(GESTO_PAGAR, urls, prefijo="Saldo: $100\n")
     assert "Saldo: $100" in msg_p
     assert "https://ov.example/pagar" in msg_p
@@ -84,10 +89,19 @@ def test_facturacion_deterministica_usa_gesto(monkeypatch):
         },
     )
     out = d._facturacion_deterministica(
-        "quiero descargar la factura",
+        "quiero mi factura",
         contexto_abonado="CONTEXTO\n- modo: identificado\n- deuda_monto: 10\n- celular_ov: 5492235551234\n",
         historial_mensajes=[],
     )
     assert out is not None
     assert out["motivo"] == "facturacion_ov_ver_factura"
     assert "https://ov.fast/my" in (out["mensaje"] or "")
+
+    out2 = d._facturacion_deterministica(
+        "Podes dármela vos?",
+        contexto_abonado="CONTEXTO\n- modo: identificado\n- deuda_monto: 10\n- celular_ov: 5492235551234\n",
+        historial_mensajes=[],
+    )
+    assert out2 is not None
+    assert out2["motivo"] == "facturacion_ov_ver_factura"
+    assert "https://ov.fast/my" in (out2["mensaje"] or "")
