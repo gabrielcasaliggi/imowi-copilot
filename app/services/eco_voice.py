@@ -321,6 +321,8 @@ def mensaje_saldo_padron(
     *,
     incluir_ov: bool = True,
     nota_extra: str = "",
+    pagar_url: str = "",
+    ov_url: str = "",
 ) -> str:
     """Texto claro de saldo + links OV.
 
@@ -349,7 +351,7 @@ def mensaje_saldo_padron(
     if (nota_extra or "").strip():
         partes.append(nota_extra.strip())
     if incluir_ov:
-        partes.append(TEXTO_OV_GESTIONES)
+        partes.append(texto_ov_gestiones(pagar_url=pagar_url, ov_url=ov_url))
         if debe:
             partes.append("¿Necesitás abonar o algo más?")
         else:

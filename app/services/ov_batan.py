@@ -79,9 +79,26 @@ def public_url(path: str, *, public_base: str = "") -> str:
 
 
 def resolve_ov_batan(db: Session | None = None) -> dict[str, Any]:
+    """Settings OV: Session dada, o una corta a DB (Admin), o solo env."""
     from app.services.platform_settings import resolve_ov_batan as _resolve
 
-    return _resolve(db)
+    if db is not None:
+        return _resolve(db)
+    session = None
+    try:
+        from app.estate.database import get_session_factory
+
+        session = get_session_factory()()
+        return _resolve(session)
+    except Exception:
+        logger.debug("OV settings: sin DB usable; solo env", exc_info=True)
+        return _resolve(None)
+    finally:
+        if session is not None:
+            try:
+                session.close()
+            except Exception:
+                pass
 
 
 def ov_configurado(db: Session | None = None) -> bool:
@@ -145,6 +162,7 @@ def get_fast_link(
     if not cel or not path_n:
         return None
     if not ov_configurado(db):
+        logger.info("OV get_fast_link: no configurado (enabled/user/pass)")
         return None
 
     cfg = resolve_ov_batan(db)
@@ -157,9 +175,10 @@ def get_fast_link(
         data = _response_json(r) if r.content else {}
         if not r.is_success or str(data.get("status") or "").upper() != "OK":
             logger.info(
-                "OV /ov/link no OK status_http=%s body_status=%s",
+                "OV /ov/link no OK status_http=%s body_status=%s cel=***%s",
                 r.status_code,
                 data.get("status"),
+                cel[-4:] if cel else "",
             )
             return None
         link = data.get("result")
@@ -186,6 +205,13 @@ def fast_or_public(
         fast = get_fast_link(path, cel, db=db)
         if fast:
             return fast
+        logger.info(
+            "OV fast_or_public: fallback hash público path=%s cel=***%s",
+            (path or "")[:40],
+            cel[-4:],
+        )
+    else:
+        logger.info("OV fast_or_public: sin celular → hash público path=%s", (path or "")[:40])
     return public_url(path, public_base=public_base)
 
 

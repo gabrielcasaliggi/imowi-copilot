@@ -1306,13 +1306,27 @@ def _responder_consulta_saldo(
     canal: str,
 ) -> dict:
     """Saldo/deuda del padrón — sin empujar QR si no hay deuda."""
+    from app.services.ov_batan import resolver_celular_ov, urls_ov_gestiones
+
     deuda = str(abonado.deuda_monto or "0").strip() or "0"
     nota_baja = (
         "La cuenta figura «de baja» en el sistema."
         if (abonado.estado or "").lower() == "baja"
         else ""
     )
-    resp = mensaje_saldo_padron(deuda, nota_extra=nota_baja)
+    cel = resolver_celular_ov(
+        abonado,
+        canal=canal,
+        wa_id=getattr(conv, "wa_id", "") or "",
+        telefono_hilo=getattr(conv, "telefono", "") or "",
+    )
+    urls = urls_ov_gestiones(cel, db=db)
+    resp = mensaje_saldo_padron(
+        deuda,
+        nota_extra=nota_baja,
+        pagar_url=urls.get("pagar") or "",
+        ov_url=urls.get("my") or "",
+    )
     ctx["intencion"] = "facturacion"
     ctx["saludo"] = True
     ctx.pop("invitado", None)
@@ -4288,7 +4302,7 @@ def procesar_mensaje_entrante(
             _cliente_pide_oficina_virtual,
             _cliente_pide_pagar,
         )
-        from app.services.eco_voice import PLANTILLA_PAGO_QR
+        from app.services.ov_intencion import clasificar_gesto_ov
 
         deuda = str(abonado.deuda_monto or "0").strip() or "0"
         nota_baja = (
@@ -4296,18 +4310,23 @@ def procesar_mensaje_entrante(
             if (abonado.estado or "").lower() == "baja"
             else ""
         )
+        gesto_ov = clasificar_gesto_ov(texto)
 
-        if _cliente_consulta_saldo(texto):
+        # Gestos OV (factura/pagar/…) van al diagnóstico; no cortar a saldo genérico.
+        if gesto_ov is None and _cliente_consulta_saldo(texto):
             return _responder_consulta_saldo(
                 db, org_id, conv, abonado, ctx, canal=canal
             )
 
-        if _cliente_pendiente_pago_o_corte(texto):
+        if gesto_ov is None and _cliente_pendiente_pago_o_corte(texto):
             return _responder_pendiente_pago_o_corte(
                 db, org_id, conv, abonado, ctx, canal=canal
             )
 
-        if _cliente_pide_oficina_virtual(texto) or _cliente_pide_pagar(texto):
+        if gesto_ov is None and (
+            _cliente_pide_oficina_virtual(texto) or _cliente_pide_pagar(texto)
+        ):
+            plantilla = _plantilla_pago_ov(db, abonado, conv, canal=canal)
             if _deuda_positiva(abonado) or (abonado.estado or "").lower() in (
                 "corte",
                 "cortado",
@@ -4316,12 +4335,13 @@ def procesar_mensaje_entrante(
             ):
                 resp = (
                     f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
-                    f"{PLANTILLA_PAGO_QR}"
+                    f"{plantilla}"
                 )
             else:
                 resp = (
                     f"{mensaje_saldo_padron(deuda, incluir_ov=False, nota_extra=nota_baja)}\n"
-                    "No hace falta que abones: no tenés deuda pendiente en este momento."
+                    "No hace falta que abones: no tenés deuda pendiente en este momento.\n"
+                    f"{plantilla}"
                 )
             ctx["intencion"] = "facturacion"
             ctx["saludo"] = True
@@ -4338,6 +4358,30 @@ def procesar_mensaje_entrante(
                 "abonado": crepo.abonado_to_dict(abonado),
                 "intencion": "facturacion",
             }
+
+        # Pedido OV explícito: forzar intención facturación para el diagnóstico N1.
+        if gesto_ov is not None and not intencion_es_facturacion(
+            str(ctx.get("intencion") or "")
+        ):
+            ctx["intencion"] = "facturacion"
+            ctx["paso_idx"] = 0
+            ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0)
+            ctx["pasos_cubiertos"] = list(ctx.get("pasos_cubiertos") or [])
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            diag_ov = _aplicar_diagnostico_ia(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion="facturacion",
+                usar_llama=usar_llama,
+            )
+            if diag_ov is not None:
+                return diag_ov
 
     # Corte por deuda automático si aplica
     intencion = ctx.get("intencion") or ""

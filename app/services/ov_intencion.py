@@ -272,6 +272,31 @@ def clasificar_gesto_ov(texto: str) -> str | None:
     ) and not any(k in t for k in ("aviso de pago", "ya pague", "ya pagué")):
         return GESTO_ACLARAR
 
+    # «¿Qué opciones tengo de facturación?»
+    if any(
+        k in t
+        for k in (
+            "opciones",
+            "que opciones",
+            "que puedo hacer",
+            "que gestiones",
+            "menu de factur",
+            "parte de factur",
+        )
+    ) and any(
+        k in t
+        for k in (
+            "factura",
+            "factur",
+            "pago",
+            "deuda",
+            "boleta",
+            "ov",
+            "oficina",
+        )
+    ):
+        return GESTO_ACLARAR
+
     # “factura” / “boleta” sueltos en contexto de gestión (sin monto/saldo)
     if re.fullmatch(r"(la )?(factura|boleta|facturas|boletas)", t):
         return GESTO_ACLARAR
@@ -302,8 +327,19 @@ def mensaje_gesto_ov(
     if pref and not pref.endswith("\n"):
         pref = pref + "\n"
 
+    my = (urls.get("my") or urls.get("home") or "https://ov.batan.coop").strip()
+    pagar = (urls.get("pagar") or my).strip()
+    talon = (urls.get("talon") or pagar).strip()
+
     if gesto == GESTO_ACLARAR:
-        return f"{pref}{pregunta_aclaracion_ov()}"
+        return (
+            f"{pref}"
+            "Estas son las gestiones de facturación en la Oficina Virtual:\n"
+            f"• Ver / descargar factura:\n{my}\n"
+            f"• Pagar:\n{pagar}\n"
+            f"• Talón / QR:\n{talon}\n"
+            "¿Cuál necesitás? También aviso de pago, pack de datos o portabilidad."
+        )
 
     key = path_key_para_gesto(gesto)
     link = (urls.get(key or "") or urls.get("home") or "https://ov.batan.coop").strip()
@@ -312,16 +348,15 @@ def mensaje_gesto_ov(
         return (
             f"{pref}"
             "Todavía no te adjunto el PDF por este chat, pero podés verla y "
-            "descargarla acá (acceso con el celular de tu cuenta):\n"
+            "descargarla acá:\n"
             f"{link}\n"
             "¿Pudiste abrirla? Si el link no entra o ves otra cuenta, avisame."
         )
     if gesto == GESTO_PAGAR:
         return (
             f"{pref}"
-            "Podés abonar por acá:\n"
-            f"{link}\n"
-            "También con el QR Fiserv de la factura si lo tenés. "
+            "Abonar tu factura\n"
+            f"Ingresá al siguiente link\n{link}\n"
             "¿Pudiste pagar?"
         )
     if gesto == GESTO_TALON:

@@ -84,6 +84,57 @@ def test_fast_or_public_usa_link_api(monkeypatch):
     assert link.startswith("https://ov.batan.coop/fast/pagar")
 
 
+def test_resolve_ov_abre_db_si_session_none(monkeypatch):
+    """Sin Session explícita, igual lee platform settings (Admin), no solo env."""
+    from app.services import ov_batan as ov
+
+    calls: list[object] = []
+
+    class _FakeSession:
+        def close(self):
+            calls.append("close")
+
+    monkeypatch.setattr(
+        "app.estate.database.get_session_factory",
+        lambda: (lambda: _FakeSession()),
+    )
+
+    def _fake_resolve(db):
+        calls.append(db)
+        return {
+            "enabled": True,
+            "api_url": "https://ov.batan.coop/api",
+            "public_url": "https://ov.batan.coop",
+            "user": "u",
+            "password": "p",
+            "timeout": 20,
+            "nota": "",
+        }
+
+    monkeypatch.setattr(
+        "app.services.platform_settings.resolve_ov_batan",
+        _fake_resolve,
+    )
+    cfg = ov.resolve_ov_batan(None)
+    assert cfg["enabled"] is True
+    assert any(isinstance(c, _FakeSession) for c in calls)
+    assert "close" in calls
+
+
+def test_mensaje_saldo_usa_urls_dinamicas():
+    from app.services.eco_voice import mensaje_saldo_padron
+
+    msg = mensaje_saldo_padron(
+        0,
+        pagar_url="https://ov.batan.coop/#/pagar?tsid=1&user=549",
+        ov_url="https://ov.batan.coop/#/my?tsid=1&user=549",
+    )
+    assert "tsid=1" in msg
+    assert "user=549" in msg
+    assert "#/pagar?tsid=1" in msg
+    assert "#/my?tsid=1" in msg
+
+
 def test_mensaje_factura_usa_my_cuando_hay_celular(monkeypatch):
     from app.services.diagnostico_n1 import _mensaje_envio_factura_ov
 

@@ -278,8 +278,10 @@ def _aplicar_diagnostico_ia(
 
     if abonado:
         from app.services.diagnostico_n1 import _cliente_consulta_saldo
+        from app.services.ov_intencion import clasificar_gesto_ov
 
-        if _cliente_consulta_saldo(texto):
+        # «factura» suelta / gestos OV no deben cortar a saldo con links públicos.
+        if _cliente_consulta_saldo(texto) and clasificar_gesto_ov(texto) is None:
             return _responder_consulta_saldo(
                 db, org_id, conv, abonado, ctx, canal=canal
             )

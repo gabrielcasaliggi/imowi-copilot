@@ -44,6 +44,10 @@ def test_gesto_pack_y_portabilidad():
 def test_gesto_aclarar_sin_menu_fijo():
     assert clasificar_gesto_ov("oficina virtual") == GESTO_ACLARAR
     assert clasificar_gesto_ov("factura") == GESTO_ACLARAR
+    assert (
+        clasificar_gesto_ov("Que opciones tengo para la parte de facturación")
+        == GESTO_ACLARAR
+    )
     q = pregunta_aclaracion_ov().lower()
     assert "1)" not in q and "2)" not in q
     assert "factura" in q and "pagar" in q
@@ -58,19 +62,23 @@ def test_gesto_none_deja_flujo_saldo():
 
 def test_mensaje_gesto_incluye_link():
     urls = {
-        "pagar": "https://ov.example/pagar",
-        "my": "https://ov.example/my",
+        "pagar": "https://ov.example/pagar?tsid=abc&user=549",
+        "my": "https://ov.example/my?tsid=abc&user=549",
         "talon": "https://ov.example/talon",
         "pack": "https://ov.example/pack",
         "portabilidad": "https://ov.example/port",
         "home": "https://ov.example",
     }
     msg = mensaje_gesto_ov(GESTO_VER_FACTURA, urls)
-    assert "https://ov.example/my" in msg
+    assert "https://ov.example/my?tsid=abc&user=549" in msg
     assert "no te adjunto el PDF" in msg.lower() or "no te adjunto el pdf" in msg.lower()
     msg_p = mensaje_gesto_ov(GESTO_PAGAR, urls, prefijo="Saldo: $100\n")
     assert "Saldo: $100" in msg_p
-    assert "https://ov.example/pagar" in msg_p
+    assert "Abonar tu factura" in msg_p
+    assert "https://ov.example/pagar?tsid=abc&user=549" in msg_p
+    msg_a = mensaje_gesto_ov(GESTO_ACLARAR, urls)
+    assert "1)" not in msg_a
+    assert urls["pagar"] in msg_a and urls["my"] in msg_a
 
 
 def test_facturacion_deterministica_usa_gesto(monkeypatch):
