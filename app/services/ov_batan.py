@@ -191,8 +191,9 @@ def candidatos_celular_ov(
 ) -> list[str]:
     """Celulares a probar en /ov/link (orden = prioridad).
 
-    WhatsApp (patrón Botmaker/jsat): MSISDN del hilo primero, luego padrón.
-    Portal web/app: padrón + celular del hilo post-login (no guest*).
+    1) Celular del **padrón de la cuenta identificada** (BillTrack) — es la cuenta
+       que Eko está atendiendo (evita WA de un familiar ≠ cuenta Jorge).
+    2) MSISDN del hilo (WA / portal post-login) como fallback.
     """
     from app.estate.canal_repo import normalizar_telefono
 
@@ -207,14 +208,13 @@ def candidatos_celular_ov(
             out.append(n)
 
     canal_l = (canal or "").strip().lower()
-    if canal_l == "whatsapp":
-        _add(wa_id)
-        _add(telefono_hilo)
     if abonado is not None:
         _add(getattr(abonado, "telefono_e164", None))
         _add(getattr(abonado, "linea_msisdn", None))
-    # Portal/app: tras OTP el hilo guarda el teléfono BillTrack
-    if canal_l in ("web", "app", "simulate"):
+    if canal_l == "whatsapp":
+        _add(wa_id)
+        _add(telefono_hilo)
+    elif canal_l in ("web", "app", "simulate"):
         hilo = str(telefono_hilo or wa_id or "").strip()
         if hilo and not hilo.lower().startswith("guest"):
             _add(hilo)

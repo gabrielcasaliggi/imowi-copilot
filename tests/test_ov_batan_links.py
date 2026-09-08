@@ -67,8 +67,8 @@ def test_resolver_celular_portal_usa_hilo():
     ) == []
 
 
-def test_resolver_celular_wa_prioriza_hilo():
-    """Botmaker/jsat: en WhatsApp el MSISDN del chat va primero."""
+def test_resolver_celular_wa_prioriza_padron_cuenta():
+    """Cuenta identificada (Jorge) antes que MSISDN del chat (puede ser otro celular)."""
     from app.services.ov_batan import candidatos_celular_ov
 
     abo = SimpleNamespace(telefono_e164="5492235551234", linea_msisdn="")
@@ -76,11 +76,11 @@ def test_resolver_celular_wa_prioriza_hilo():
         resolver_celular_ov(
             abo, canal="whatsapp", wa_id="5492235559999", telefono_hilo=""
         )
-        == "5492235559999"
+        == "5492235551234"
     )
     assert candidatos_celular_ov(
         abo, canal="whatsapp", wa_id="5492235559999", telefono_hilo=""
-    ) == ["5492235559999", "5492235551234"]
+    ) == ["5492235551234", "5492235559999"]
 
 
 def test_resolver_celular_prioriza_padron():

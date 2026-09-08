@@ -1865,8 +1865,60 @@ def _bot_ofrecio_gestiones_ov(historial_mensajes: list | None) -> bool:
             "ver/descargar factura",
             "talón / qr",
             "talon / qr",
+            "todavía no te adjunto el pdf",
+            "todavia no te adjunto el pdf",
+            "ingresá al siguiente link",
+            "ingresa al siguiente link",
+            "tsid=",
         )
     )
+
+
+def _cliente_dice_link_ov_pide_login(texto: str) -> bool:
+    """El deep-link OV le pidió usuario/clave en el navegador."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    pide_auth = any(
+        k in t
+        for k in (
+            "autentic",
+            "iniciar sesion",
+            "iniciar sesión",
+            "me pide login",
+            "me pide usuario",
+            "me pide clave",
+            "me pide contraseña",
+            "me pide contrasena",
+            "pide que me autentique",
+            "pide autentic",
+            "me pide que me loguee",
+            "me pide que inicie",
+            "no me deja entrar",
+            "no puedo entrar",
+            "no entra el link",
+            "el link no anda",
+            "link no funciona",
+            "me pide mail",
+            "me pide correo",
+        )
+    )
+    habla_link = any(
+        k in t
+        for k in (
+            "link",
+            "enlace",
+            "ov",
+            "oficina",
+            "factura",
+            "pagar",
+            "entrar",
+            "abre",
+            "abrir",
+        )
+    ) or len(t) < 80
+    return pide_auth and habla_link
+
 
 
 def _celular_ov_desde_contexto(contexto_abonado: str) -> str:
@@ -2046,6 +2098,30 @@ def _facturacion_deterministica(
                 "cupón",
             ):
                 gesto = GESTO_TALON
+
+        # Deep-link abrió pero OV pidió login → reenviar con cel de la cuenta.
+        if not gesto and _cliente_dice_link_ov_pide_login(mensaje_cliente):
+            urls = _urls_ov_desde_contexto(contexto_abonado)
+            link = (urls.get("my") or urls.get("home") or "https://ov.batan.coop").strip()
+            pref = ""
+            if saldo is not None:
+                pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    f"{pref}"
+                    "Ese acceso se arma con el celular registrado en tu cuenta. "
+                    "Probá de nuevo este link (abrilo desde el celular de la cuenta, "
+                    "o copiá la URL completa):\n"
+                    f"{link}\n"
+                    "Si sigue pidiendo usuario/clave, el número de este chat puede no "
+                    "ser el cargado en Oficina Virtual: avisame y te derivo con un "
+                    "agente para revisar el celular de la cuenta."
+                ),
+                "paso_cubierto": "ov_gesto_ver_factura",
+                "motivo": "facturacion_ov_link_pide_login",
+            }
+
         if gesto:
             urls = _urls_ov_desde_contexto(contexto_abonado)
             pref = ""
