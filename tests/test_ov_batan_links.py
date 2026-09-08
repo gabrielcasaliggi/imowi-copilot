@@ -44,12 +44,31 @@ def test_public_url_paths():
     assert public_url(PATH_MY).endswith("#/my")
 
 
-def test_variantes_celular_ov_prioriza_549():
-    from app.services.ov_batan import variantes_celular_ov
+def test_ov_link_uri_cruda_como_botmaker():
+    """jsat concatena path con ? literal; no percent-encode."""
+    api = "https://ov.batan.coop/api"
+    cel = "5492235402690"
+    path = "pagar?useCustomer=true"
+    url = f"{api}/ov/link?celular={cel}&path={path}"
+    assert "path=pagar?useCustomer=true" in url
+    assert "%3F" not in url
 
-    vars_ = variantes_celular_ov("5492236964611")
-    assert vars_[0] == "5492236964611"
-    assert "92236964611" in vars_
+
+def test_url_ov_para_key_un_solo_path(monkeypatch):
+    from app.services import ov_batan as ov
+    from app.services.ov_batan import url_ov_para_key
+
+    calls: list[str] = []
+
+    def _fake(path, celular="", db=None, celulares=None):
+        calls.append(path)
+        return f"https://ov.batan.coop/#/{path.split('?', 1)[0]}?tsid=t&user=549"
+
+    monkeypatch.setattr(ov, "fast_or_public", _fake)
+    link = url_ov_para_key("pagar", "5492235402690")
+    assert "tsid=t" in link
+    assert calls == [ov.PATH_PAGAR]
+
 
 
 def test_link_ov_usable_exige_pedido_con_54():

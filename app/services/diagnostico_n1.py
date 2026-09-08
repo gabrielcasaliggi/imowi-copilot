@@ -1861,10 +1861,15 @@ def _bot_ofrecio_gestiones_ov(historial_mensajes: list | None) -> bool:
         for k in (
             "gestiones de facturación",
             "gestiones de facturacion",
+            "ver o descargar la factura",
             "ver / descargar factura",
             "ver/descargar factura",
             "talón / qr",
             "talon / qr",
+            "talón/qr",
+            "talon/qr",
+            "qué necesitás hacer",
+            "que necesitas hacer",
             "todavía no te adjunto el pdf",
             "todavia no te adjunto el pdf",
             "ingresá al siguiente link",
@@ -1942,15 +1947,24 @@ def _celulares_ov_desde_contexto(contexto_abonado: str) -> list[str]:
     return out
 
 
-def _urls_ov_desde_contexto(contexto_abonado: str) -> dict[str, str]:
-    """Deep-links OV por celular del padrón/WA o hash público."""
-    from app.services.ov_batan import urls_ov_gestiones
+def _urls_ov_desde_contexto(
+    contexto_abonado: str,
+    *,
+    solo_key: str | None = None,
+) -> dict[str, str]:
+    """Deep-links OV por celular del padrón/WA o hash público.
+
+    ``solo_key``: un solo path (pagar/my/…) como Botmaker — evita varios
+    /ov/link seguidos que reusan el mismo tsid y dejan al usuario sin cliente.
+    """
+    from app.services.ov_batan import url_ov_para_key, urls_ov_gestiones
 
     cels = _celulares_ov_desde_contexto(contexto_abonado)
-    return urls_ov_gestiones(
-        cels[0] if cels else "",
-        celulares=cels,
-    )
+    cel0 = cels[0] if cels else ""
+    if solo_key:
+        link = url_ov_para_key(solo_key, cel0, celulares=cels)
+        return {solo_key: link, "home": "https://ov.batan.coop"}
+    return urls_ov_gestiones(cel0, celulares=cels)
 
 
 def _plantilla_pago_ctx(contexto_abonado: str) -> str:
@@ -2055,6 +2069,7 @@ def _facturacion_deterministica(
             GESTO_VER_FACTURA,
             clasificar_gesto_ov,
             mensaje_gesto_ov,
+            path_key_para_gesto,
         )
 
         gesto = clasificar_gesto_ov(mensaje_cliente)
@@ -2123,7 +2138,13 @@ def _facturacion_deterministica(
             }
 
         if gesto:
-            urls = _urls_ov_desde_contexto(contexto_abonado)
+            urls: dict[str, str] = {}
+            if gesto != GESTO_ACLARAR:
+                # Un solo /ov/link (Botmaker); no pedir my+pagar+talón juntos.
+                key = path_key_para_gesto(gesto)
+                urls = _urls_ov_desde_contexto(
+                    contexto_abonado, solo_key=key or "pagar"
+                )
             pref = ""
             if saldo is not None and gesto != GESTO_ACLARAR:
                 pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"

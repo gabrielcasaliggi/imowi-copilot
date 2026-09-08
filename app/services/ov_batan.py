@@ -259,8 +259,9 @@ def get_fast_link(
 ) -> str | None:
     """Deep-link autenticado o None si OV no está listo / falla.
 
-    ``celular`` se usa tal cual (solo dígitos): no re-agregar ``54`` acá,
-    porque OV a menudo exige formato nacional sin país.
+    Replica jsat-get-link-ov: URI cruda
+    ``/ov/link?celular={msisdn}&path={path}`` (path con ``?`` literal, sin
+    percent-encoding). El ``result`` de OV se reenvía tal cual.
     """
     cel = re.sub(r"\D", "", celular or "")
     path_n = (path or "").strip()
@@ -275,7 +276,9 @@ def get_fast_link(
     timeout = float(cfg.get("timeout") or 20)
     try:
         sid = _ensure_sid(cfg)
-        url = f"{api}/ov/link?celular={quote(cel)}&path={quote(path_n, safe='?=&')}"
+        # Igual que Botmaker (request-promise con URI concatenada). No usar
+        # httpx params=/quote(path): %3F cambia lo que OV asocia al tsid.
+        url = f"{api}/ov/link?celular={cel}&path={path_n}"
         r = httpx.get(url, headers={"sid": sid}, timeout=timeout)
         data = _response_json(r) if r.content else {}
         if not r.is_success or str(data.get("status") or "").upper() != "OK":
@@ -287,6 +290,7 @@ def get_fast_link(
                 cel[:3] if cel else "",
             )
             return None
+        # Botmaker: result es el string del link (no un dict).
         link = data.get("result")
         if isinstance(link, dict):
             link = link.get("url") or link.get("link") or link.get("href")
@@ -302,15 +306,38 @@ def get_fast_link(
             return None
         if out:
             logger.info(
-                "OV /ov/link OK cel_len=%s pref=%s path=%s",
+                "OV /ov/link OK cel_len=%s pref=%s path=%s has_tsid=%s",
                 len(cel),
                 cel[:3],
-                path_n[:24],
+                path_n[:28],
+                "tsid=" in out.lower(),
             )
         return out or None
     except Exception:
         logger.exception("OV get_fast_link falló (cel_len=%s)", len(cel))
         return None
+
+
+# Keys → path jsat (un solo /ov/link por gesto; no pedir 5 paths de golpe).
+_PATH_POR_KEY = {
+    "my": PATH_MY,
+    "pagar": PATH_PAGAR,
+    "talon": PATH_TALON,
+    "pack": PATH_COMPRAR_PACK,
+    "portabilidad": PATH_PORTABILIDAD,
+}
+
+
+def url_ov_para_key(
+    key: str,
+    celular: str = "",
+    *,
+    db: Session | None = None,
+    celulares: list[str] | None = None,
+) -> str:
+    """Un deep-link para una sola gestión (como Botmaker: un path por pedido)."""
+    path = _PATH_POR_KEY.get((key or "").strip()) or PATH_PAGAR
+    return fast_or_public(path, celular, db=db, celulares=celulares)
 
 
 def fast_or_public(
@@ -435,9 +462,10 @@ def probe_ov_batan(
         last_err = ""
         for cel_n in variantes_celular_ov(cel):
             try:
+                # Misma URI cruda que jsat-get-link-ov (path con ? literal).
                 url = (
                     f"{cfg['api_url']}/ov/link"
-                    f"?celular={quote(cel_n)}&path={quote(PATH_PAGAR, safe='?=&')}"
+                    f"?celular={cel_n}&path={PATH_PAGAR}"
                 )
                 r = httpx.get(url, headers={"sid": sid}, timeout=cfg["timeout"])
                 data = _response_json(r) if r.content else {}
@@ -446,9 +474,10 @@ def probe_ov_batan(
                     if isinstance(link, dict):
                         link = link.get("url") or link.get("link") or link.get("href")
                     fast = str(link or "").strip() or None
-                    if fast:
+                    if fast and _link_ov_usable(fast, celular_pedido=cel_n):
                         cel_ok = cel_n
                         break
+                    fast = None
                 last_err = f"/ov/link no OK ({data.get('status') or r.status_code}) cel_len={len(cel_n)}"
             except Exception as exc:
                 last_err = str(exc)[:240]
@@ -460,8 +489,8 @@ def probe_ov_batan(
                 "api_url": cfg["api_url"],
                 "error": last_err or "/ov/link sin link",
                 "hint": (
-                    "Sesión OK; probamos formatos sin 54 / local. "
-                    "Revisá que el celular exista en OV."
+                    "Sesión OK; usá el mismo usuario de servicio que Botmaker "
+                    "(JSATBOT) y celular 549…. Revisá Admin → Oficina Virtual."
                 ),
                 "variantes_probadas": variantes_celular_ov(cel),
             }

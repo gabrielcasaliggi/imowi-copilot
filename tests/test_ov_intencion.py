@@ -81,7 +81,9 @@ def test_mensaje_gesto_incluye_link():
     assert "https://ov.example/pagar?tsid=abc&user=549" in msg_p
     msg_a = mensaje_gesto_ov(GESTO_ACLARAR, urls)
     assert "1)" not in msg_a
-    assert urls["pagar"] in msg_a and urls["my"] in msg_a
+    assert "factura" in msg_a.lower() and "pagar" in msg_a.lower()
+    # Aclaración sin deep-links (se piden al elegir)
+    assert "tsid=" not in msg_a
 
 
 def test_facturacion_deterministica_usa_gesto(monkeypatch):
@@ -90,7 +92,7 @@ def test_facturacion_deterministica_usa_gesto(monkeypatch):
     monkeypatch.setattr(
         d,
         "_urls_ov_desde_contexto",
-        lambda _c: {
+        lambda _c, **_kw: {
             "pagar": "https://ov.fast/pagar",
             "my": "https://ov.fast/my",
             "talon": "https://ov.fast/talon",
@@ -124,7 +126,7 @@ def test_facturacion_ver_corto_tras_gestiones(monkeypatch):
     monkeypatch.setattr(
         d,
         "_urls_ov_desde_contexto",
-        lambda _c: {
+        lambda _c, **_kw: {
             "pagar": "https://ov.fast/pagar?tsid=1&user=549",
             "my": "https://ov.fast/my?tsid=1&user=549",
             "talon": "https://ov.fast/talon",

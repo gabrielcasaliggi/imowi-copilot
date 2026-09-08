@@ -361,19 +361,10 @@ def mensaje_gesto_ov(
     if pref and not pref.endswith("\n"):
         pref = pref + "\n"
 
-    my = (urls.get("my") or urls.get("home") or "https://ov.batan.coop").strip()
-    pagar = (urls.get("pagar") or my).strip()
-    talon = (urls.get("talon") or pagar).strip()
-
     if gesto == GESTO_ACLARAR:
-        return (
-            f"{pref}"
-            "Estas son las gestiones de facturación en la Oficina Virtual:\n"
-            f"• Ver / descargar factura:\n{my}\n"
-            f"• Pagar:\n{pagar}\n"
-            f"• Talón / QR:\n{talon}\n"
-            "¿Cuál necesitás? También aviso de pago, pack de datos o portabilidad."
-        )
+        # Una pregunta (como Botmaker: primero eligen, después un solo deep-link).
+        # No generar 3 tsid de golpe: el path mal encodeado / tsid reusado fallaba al abrir.
+        return f"{pref}{pregunta_aclaracion_ov()}"
 
     key = path_key_para_gesto(gesto)
     link = (urls.get(key or "") or urls.get("home") or "https://ov.batan.coop").strip()
