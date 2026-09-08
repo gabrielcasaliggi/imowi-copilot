@@ -3,16 +3,40 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from app.services.ov_batan import (
     PATH_MY,
     PATH_PAGAR,
+    _response_json,
     clear_sid_cache,
     fast_or_public,
     public_url,
     resolver_celular_ov,
     urls_ov_gestiones,
 )
+
+
+def test_response_json_tolera_latin1_con_o_acento():
+    """OV a veces responde Latin-1; 0xf3 = ó (p.ej. 'sesión')."""
+    body = b'{"status":"OK","result":{"sid":"abc","msg":"Sesi\xf3n activa"}}'
+    r = MagicMock()
+    r.content = body
+    r.charset_encoding = None
+    r.encoding = "utf-8"
+    data = _response_json(r)
+    assert data["status"] == "OK"
+    assert data["result"]["sid"] == "abc"
+    assert "ó" in data["result"]["msg"]
+
+
+def test_response_json_utf8_sigue_ok():
+    body = b'{"status":"OK","result":{"sid":"xyz"}}'
+    r = MagicMock()
+    r.content = body
+    r.charset_encoding = "utf-8"
+    r.encoding = "utf-8"
+    assert _response_json(r)["result"]["sid"] == "xyz"
 
 
 def test_public_url_paths():

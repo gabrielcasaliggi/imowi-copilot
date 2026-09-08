@@ -8,6 +8,7 @@ Credenciales solo por env / platform settings — nunca hardcode.
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from typing import Any
@@ -17,6 +18,34 @@ import httpx
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("operations_hub")
+
+
+def _response_json(r: httpx.Response) -> Any:
+    """Parsea JSON tolerando UTF-8 y Latin-1/CP1252 (OV a veces manda ó como 0xf3)."""
+    raw = r.content or b""
+    if not raw:
+        return {}
+    # Charset declarado (si viene) → utf-8 → latin-1 (nunca falla a nivel bytes).
+    candidates: list[str] = []
+    declared = (r.charset_encoding or r.encoding or "").strip().lower()
+    for enc in (declared, "utf-8", "utf-8-sig", "latin-1", "cp1252"):
+        if enc and enc not in candidates:
+            candidates.append(enc)
+    last_err: Exception | None = None
+    for enc in candidates:
+        try:
+            text = raw.decode(enc)
+        except UnicodeDecodeError as exc:
+            last_err = exc
+            continue
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            last_err = exc
+            continue
+    if last_err:
+        raise last_err
+    return {}
 
 # Paths de Client Action jsat-get-link-ov (Botmaker).
 PATH_MY = "my?useCustomer=true"
@@ -82,7 +111,7 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
                     headers={"sid": sid},
                     timeout=timeout,
                 )
-                data = r.json() if r.content else {}
+                data = _response_json(r) if r.content else {}
                 if r.is_success and str(data.get("status") or "").upper() == "OK":
                     return sid
             except Exception:
@@ -91,7 +120,7 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
         login_url = f"{api}/session/login?user={quote(user)}&password={quote(password)}"
         r = httpx.post(login_url, timeout=timeout)
         r.raise_for_status()
-        data = r.json() if r.content else {}
+        data = _response_json(r) if r.content else {}
         result = data.get("result") if isinstance(data, dict) else None
         new_sid = ""
         if isinstance(result, dict):
@@ -125,7 +154,7 @@ def get_fast_link(
         sid = _ensure_sid(cfg)
         url = f"{api}/ov/link?celular={quote(cel)}&path={quote(path_n, safe='?=&')}"
         r = httpx.get(url, headers={"sid": sid}, timeout=timeout)
-        data = r.json() if r.content else {}
+        data = _response_json(r) if r.content else {}
         if not r.is_success or str(data.get("status") or "").upper() != "OK":
             logger.info(
                 "OV /ov/link no OK status_http=%s body_status=%s",
@@ -257,7 +286,12 @@ def probe_ov_batan(
         err = str(exc)[:240]
         hint = "Revisá usuario/clave y que el host OV sea alcanzable desde el API."
         low = err.lower()
-        if "401" in err or "403" in err or "password" in low:
+        if "codec" in low or "decode" in low or "utf-8" in low:
+            hint = (
+                "La OV respondió con encoding no-UTF8; si sigue tras actualizar, "
+                "revisá que la URL apunte a /api y no a una página HTML."
+            )
+        elif "401" in err or "403" in err or "password" in low:
             hint = "Credenciales rechazadas por /session/login."
         elif "timed out" in low or "timeout" in low:
             hint = "OV no respondió a tiempo."
@@ -276,7 +310,7 @@ def probe_ov_batan(
                 f"?celular={quote(cel_n)}&path={quote(PATH_PAGAR, safe='?=&')}"
             )
             r = httpx.get(url, headers={"sid": sid}, timeout=cfg["timeout"])
-            data = r.json() if r.content else {}
+            data = _response_json(r) if r.content else {}
             if r.is_success and str(data.get("status") or "").upper() == "OK":
                 fast = str(data.get("result") or "").strip() or None
             else:
