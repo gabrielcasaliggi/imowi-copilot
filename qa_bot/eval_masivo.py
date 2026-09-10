@@ -6,8 +6,13 @@ Reemplaza el ciclo de capturas manuales. Tras cada ajuste de KB/playbook:
     .venv/bin/python -m qa_bot.eval_masivo --limit 50 --categoria internet
     .venv/bin/python -m qa_bot.eval_masivo --solo-extraer
     .venv/bin/python -m qa_bot.eval_masivo --corpus data/eval-botmaker/corpus.json
+    .venv/bin/python -m qa_bot.eval_masivo --corpus data/eval-botmaker/corpus.json --planta enlace_ok
+    .venv/bin/python -m qa_bot.eval_masivo --corpus data/eval-botmaker/corpus.json --planta onu_offline
 
-Por defecto pega a la API local (TestClient), no a producción.
+    `--planta none` (default) aísla el LLM y no entra a BCM. `enlace_ok` /
+    `onu_offline` mockean Radius+BCM y miden la rama de planta.
+
+    Por defecto pega a la API local (TestClient), no a producción.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ import json
 import os
 import sys
 import time
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -93,6 +99,102 @@ def _jsonable(obj: Any) -> Any:
     return obj
 
 
+def _estado_pppoe_ftth(*, online: bool = True):
+    from app.radius.contract import EstadoConexionPPPoE, ServicioConectividad, SesionPPPoE
+
+    return EstadoConexionPPPoE(
+        servicio=ServicioConectividad(
+            login="mariaftth",
+            service_type_code="INTFO",
+            service_type_label="Fibra Optica",
+            product="Ecolan 50Mb",
+            state="Habilitado",
+            service_on=True,
+            base_account_number="200",
+        ),
+        sesion=SesionPPPoE(
+            username="mariaftth",
+            online=online,
+            public_ip="181.41.1.20" if online else "",
+            uptime="4d4h" if online else "",
+        ),
+    )
+
+
+def _onu_eval(modo: str):
+    from app.bcm.contract import EstadoOnuBcm
+
+    if modo == "onu_offline":
+        return EstadoOnuBcm(
+            numero_cliente="200",
+            encontrado=True,
+            online=False,
+            rx_dbm=None,
+        )
+    return EstadoOnuBcm(
+        numero_cliente="200",
+        encontrado=True,
+        online=True,
+        rx_dbm=-18.0,
+        calidad_optica="buena",
+        olt_nombre="OLT-Eval",
+    )
+
+
+def _stack_replay(*, planta: str):
+    """Parches del replay. `planta` = none | enlace_ok | onu_offline."""
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    stack = ExitStack()
+    stack.enter_context(
+        patch("app.services.canal_abonado.playbooks_as_pasos", return_value=PLAYBOOKS)
+    )
+    if planta in ("enlace_ok", "onu_offline"):
+        onu = _onu_eval(planta)
+        pppoe_online = planta == "enlace_ok"
+        stack.enter_context(
+            patch("app.api.v1.portal.resolve_canal_usar_llama", return_value=True)
+        )
+        stack.enter_context(
+            patch(
+                "app.services.canal_abonado.resolve_canal_diagnostico_ia",
+                return_value=True,
+            )
+        )
+        stack.enter_context(
+            patch("app.services.conexion_uisp.resolve_uisp_client", return_value=None)
+        )
+        stack.enter_context(
+            patch("app.services.conexion_bcm.resolve_bcm_client", return_value=object())
+        )
+        stack.enter_context(
+            patch(
+                "app.services.conexion_bcm.consultar_onu_bcm_mejor_esfuerzo",
+                return_value=onu,
+            )
+        )
+        stack.enter_context(
+            patch("app.services.conexion_bcm.consultar_onu_bcm", return_value=onu)
+        )
+        stack.enter_context(
+            patch(
+                "app.services.conexion_pppoe.consultar_conexion_pppoe",
+                return_value=_estado_pppoe_ftth(online=pppoe_online),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.llm.chat_completion",
+                side_effect=RuntimeError("eval-planta: sin LLM"),
+            )
+        )
+    else:
+        stack.enter_context(
+            patch("app.api.v1.portal.resolve_canal_usar_llama", return_value=False)
+        )
+    return stack
+
+
 def _marcar_lectura(payload: dict[str, Any], bot: str) -> bool:
     if payload.get("lectura_forzada_e1"):
         return True
@@ -118,14 +220,10 @@ def replay_caso(
     dni: str = "30111222",
     max_turnos: int = 4,
     token: str | None = None,
+    planta: str = "none",
 ) -> ResultadoCaso:
-    from app.domain.flujos_abonado import PLAYBOOKS
-
     try:
-        with (
-            patch("app.api.v1.portal.resolve_canal_usar_llama", return_value=False),
-            patch("app.services.canal_abonado.playbooks_as_pasos", return_value=PLAYBOOKS),
-        ):
+        with _stack_replay(planta=planta):
             if not token:
                 token, _conv_id = _sesion_portal(client, dni)
             mensajes = (caso.turnos_usuario or [caso.apertura])[:max_turnos]
@@ -206,9 +304,12 @@ def replay_casos(
     client: Any | None = None,
     dni: str = "30111222",
     max_turnos: int = 4,
+    planta: str = "none",
 ) -> list[ResultadoCaso]:
     if client is not None:
-        return _replay_con_cliente(client, casos, dni=dni, max_turnos=max_turnos)
+        return _replay_con_cliente(
+            client, casos, dni=dni, max_turnos=max_turnos, planta=planta
+        )
     _aislar_entorno_eval()
     from fastapi.testclient import TestClient
 
@@ -216,7 +317,9 @@ def replay_casos(
 
     # Context manager: dispara lifespan (schema + seed). Sin `with`, SQLite nace vacío.
     with TestClient(app) as owned:
-        return _replay_con_cliente(owned, casos, dni=dni, max_turnos=max_turnos)
+        return _replay_con_cliente(
+            owned, casos, dni=dni, max_turnos=max_turnos, planta=planta
+        )
 
 
 def _replay_con_cliente(
@@ -225,6 +328,7 @@ def _replay_con_cliente(
     *,
     dni: str,
     max_turnos: int,
+    planta: str = "none",
 ) -> list[ResultadoCaso]:
     token, conv_id = _sesion_portal(client, dni)
     results: list[ResultadoCaso] = []
@@ -234,7 +338,9 @@ def _replay_con_cliente(
             flush=True,
         )
         _reset_hilo_n1(conv_id)
-        r = replay_caso(client, caso, dni=dni, max_turnos=max_turnos, token=token)
+        r = replay_caso(
+            client, caso, dni=dni, max_turnos=max_turnos, token=token, planta=planta
+        )
         flag = "ERR" if r.error else ("N2" if r.ticket else "OK")
         print(
             f"  {flag} score={r.score_n1} bucle={r.bucle} "
@@ -258,13 +364,14 @@ def resumen(results: list[ResultadoCaso]) -> dict[str, Any]:
     }
 
 
-def _reporte_md(results: list[ResultadoCaso], dest: Path) -> None:
+def _reporte_md(results: list[ResultadoCaso], dest: Path, *, planta: str = "none") -> None:
     s = resumen(results)
     lines = [
         "# Evaluación masiva N1 (Botmaker → endpoint)",
         "",
         f"Generado: {datetime.now(UTC).isoformat()}",
         "",
+        f"- Planta mock: **{planta}**",
         f"- Casos: **{s['n']}**",
         f"- Score N1 promedio: **{s['score_n1_promedio']}**",
         f"- Bucles: **{s['bucles']}**",
@@ -322,6 +429,12 @@ def main(argv: list[str] | None = None) -> int:
         "--reextraer",
         action="store_true",
         help="Ignora corpus.json y vuelve a leer el dump / --input-file.",
+    )
+    parser.add_argument(
+        "--planta",
+        choices=("none", "enlace_ok", "onu_offline"),
+        default="none",
+        help="Mock BCM/Radius: none (playbook), enlace_ok, onu_offline.",
     )
     args = parser.parse_args(argv)
 
@@ -391,17 +504,21 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: corpus vacío", file=sys.stderr)
         return 2
 
-    results = replay_casos(casos, dni=args.dni, max_turnos=args.max_turnos)
+    results = replay_casos(
+        casos, dni=args.dni, max_turnos=args.max_turnos, planta=args.planta
+    )
     s = resumen(results)
-    out_json = ARTIFACTS / "eval_botmaker.json"
-    out_md = ARTIFACTS / "eval_botmaker.md"
+    suffix = "" if args.planta == "none" else f"_planta_{args.planta}"
+    out_json = ARTIFACTS / f"eval_botmaker{suffix}.json"
+    out_md = ARTIFACTS / f"eval_botmaker{suffix}.md"
     payload = {
         "generado_at": datetime.now(UTC).isoformat(),
+        "planta": args.planta,
         "resumen": s,
         "casos": _jsonable(results),
     }
     out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    _reporte_md(results, out_md)
+    _reporte_md(results, out_md, planta=args.planta)
     print(
         f"\nResumen: n={s['n']} score={s['score_n1_promedio']} "
         f"bucles={s['bucles']} n2={s['tickets']} e1_lectura={s['lectura_forzada_e1']}",
