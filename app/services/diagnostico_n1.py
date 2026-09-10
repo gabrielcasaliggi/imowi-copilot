@@ -2589,11 +2589,65 @@ def diagnosticar_turno(
         intencion=intencion,
     )
     if bcm_turno:
-        return bcm_turno
+        from app.services.guardrails_planta import aplicar_guardrails_planta
 
-    # PON verde fijo = enlace óptico OK → no preguntar cable amarillo
-    if aplica_optica_turno and detectar_enlace_optico_ok(
-        mensaje_cliente, historial_mensajes
+        return aplicar_guardrails_planta(
+            mensaje=str(bcm_turno.get("mensaje") or ""),
+            contexto_abonado=contexto_abonado or "",
+            mensaje_cliente=mensaje_cliente,
+            historial_mensajes=historial_mensajes,
+            accion=str(bcm_turno.get("accion") or "ask"),
+            paso_cubierto=str(bcm_turno.get("paso_cubierto") or ""),
+            motivo=str(bcm_turno.get("motivo") or ""),
+            intencion=intencion,
+        )
+
+    from app.services.guardrails_planta import (
+        evaluar_turno_sensa_planta,
+        planta_acceso_mala,
+    )
+
+    if (intencion or "").strip() == "tv_sensa":
+        sensa_planta = evaluar_turno_sensa_planta(
+            contexto_abonado=contexto_abonado or "",
+            mensaje_cliente=mensaje_cliente,
+            pasos_cubiertos=list(pasos_cubiertos or []),
+            intencion=intencion,
+        )
+        if sensa_planta:
+            return sensa_planta
+        if planta_acceso_mala(contexto_abonado or "") and "sensa_acceso_malo" in {
+            str(x) for x in (pasos_cubiertos or [])
+        }:
+            if "cpe_radio" in (contexto_abonado or "") or "uisp_triage" in (
+                contexto_abonado or ""
+            ):
+                uisp_seguir = evaluar_turno_visita_antena_uisp(
+                    contexto_abonado=contexto_abonado,
+                    mensaje_cliente=mensaje_cliente,
+                    historial_mensajes=historial_mensajes,
+                    pasos_cubiertos=list(pasos_cubiertos or []),
+                    turnos_diagnostico=int(turnos_diagnostico or 0),
+                    intencion="internet_radio",
+                )
+                if uisp_seguir:
+                    return uisp_seguir
+            bcm_seguir = evaluar_turno_onu_bcm(
+                contexto_abonado=contexto_abonado,
+                mensaje_cliente=mensaje_cliente,
+                historial_mensajes=historial_mensajes,
+                pasos_cubiertos=list(pasos_cubiertos or []),
+                turnos_diagnostico=int(turnos_diagnostico or 0),
+                intencion="internet_ftth",
+            )
+            if bcm_seguir:
+                return bcm_seguir
+
+    # PON verde fijo = enlace óptico OK → no preguntar luces (también en wifi).
+    if (
+        (aplica_optica_turno or (intencion or "").strip() in ("wifi", "internet_lento"))
+        and detectar_enlace_optico_ok(mensaje_cliente, historial_mensajes)
+        and not linea_ya_ok
     ):
         return {
             "accion": "ask",
@@ -3603,6 +3657,25 @@ def diagnosticar_turno(
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"
+
+        from app.services.guardrails_planta import aplicar_guardrails_planta
+
+        g_planta = aplicar_guardrails_planta(
+            mensaje=mensaje,
+            contexto_abonado=contexto_abonado or "",
+            mensaje_cliente=mensaje_cliente,
+            historial_mensajes=historial_mensajes,
+            accion=accion,
+            paso_cubierto=paso,
+            motivo=motivo,
+            intencion=intencion,
+        )
+        accion = g_planta["accion"] or accion
+        mensaje = g_planta["mensaje"] or mensaje
+        if g_planta.get("motivo"):
+            motivo = g_planta["motivo"]
+        if g_planta.get("paso_cubierto"):
+            paso = g_planta["paso_cubierto"]
 
         return {
             "accion": accion,

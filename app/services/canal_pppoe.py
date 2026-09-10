@@ -99,6 +99,12 @@ def _talvez_mensaje_pppoe(
         es_radio = (intencion or "").strip() == "internet_radio" or (
             ctx.get("tecnologia_acceso") == "internet_radio"
         )
+        es_ftth = (intencion or "").strip() == "internet_ftth" or (
+            ctx.get("tecnologia_acceso") == "internet_ftth"
+        )
+        es_adsl = (intencion or "").strip() == "internet_adsl" or (
+            ctx.get("tecnologia_acceso") == "internet_adsl"
+        )
         from app.services.protocolo_mesa import rama_comercial
 
         if rama_comercial(abonado, estado.servicio):
@@ -113,7 +119,7 @@ def _talvez_mensaje_pppoe(
             )
 
         cpe = None
-        if login:
+        if login and not es_adsl:
             try:
                 from app.services.conexion_uisp import (
                     aplicar_uisp_a_ctx,
@@ -131,12 +137,6 @@ def _talvez_mensaje_pppoe(
                 logger.exception("UISP check falló en canal")
 
         onu = None
-        es_ftth = (intencion or "").strip() == "internet_ftth" or (
-            ctx.get("tecnologia_acceso") == "internet_ftth"
-        )
-        es_adsl = (intencion or "").strip() == "internet_adsl" or (
-            ctx.get("tecnologia_acceso") == "internet_adsl"
-        )
         if not es_radio and not es_adsl:
             try:
                 from app.services.conexion_bcm import (

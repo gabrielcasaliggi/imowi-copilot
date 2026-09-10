@@ -432,12 +432,24 @@ def contexto_bcm_para_abonado(
     }
 
 
+_INTENCIONES_BCM = frozenset(
+    {
+        "internet_ftth",
+        "internet",
+        "internet_lento",
+        "internet_intermitente",
+        "wifi",
+    }
+)
+
+
 def _aplica_ftth(intencion: str, contexto_abonado: str) -> bool:
+    """BCM solo en reclamos de acceso hogareño. No Sensa, IMOWI ni ADSL."""
     intent = (intencion or "").strip()
-    if intent == "internet_radio":
-        return False
     if intent == "internet_ftth":
         return True
+    if intent not in _INTENCIONES_BCM:
+        return False
     blob = contexto_abonado or ""
     low = blob.lower()
     if "bcm_triage" in low or "- bcm:" in low:
@@ -662,6 +674,22 @@ def evaluar_turno_onu_bcm(
             ),
             "paso_cubierto": "bcm_potencia_mala",
             "motivo": "bcm_potencia_mala",
+        }
+
+    if rama == "enlace_ok":
+        from app.domain.flujos_abonado import PASOS_DIAGNOSTICO_WIFI
+        from app.services.protocolo_mesa import _pregunta_wifi
+
+        if set(pasos) & PASOS_DIAGNOSTICO_WIFI or "wifi_vs_cable_ftth" in pasos:
+            return None
+        return {
+            "accion": "ask",
+            "mensaje": (
+                "Revisé tu ONT: está en línea y la potencia óptica se ve bien. "
+                f"{_pregunta_wifi()}"
+            ),
+            "paso_cubierto": "wifi_vs_cable_ftth",
+            "motivo": "bcm_enlace_ok_wifi",
         }
 
     return None

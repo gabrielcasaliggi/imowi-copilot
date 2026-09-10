@@ -290,21 +290,49 @@ def evaluar_turno_visita_antena_uisp(
     if not triage and not parsed.get("resumen"):
         return None
 
-    es_radio = (intencion or "").strip() in (
+    intent = (intencion or "").strip()
+    if intent in (
+        "tv_sensa",
+        "movil",
+        "movil_datos",
+        "movil_llamadas",
+        "internet_adsl",
+        "internet_ftth",
+        "telefono_fija",
+    ):
+        return None
+
+    es_radio = intent in (
         "internet_radio",
         "internet",
         "internet_lento",
         "internet_intermitente",
-    ) or any(k in triage for k in ("cpe_radio", "senal_mala", "offline"))
+    ) or any(k in triage for k in ("cpe_radio", "senal_mala", "cpe_radio_offline"))
     if not es_radio:
         return None
 
-    # Enlace OK: no escalar por antena (sigue WiFi/router).
+    # Enlace OK: no escalar por antena; el oficio sigue en casa (Wi‑Fi/router).
     if "cpe_radio_enlace_ok" in triage and not requiere_visita_campo_por_senal(
         estado_cpe_desde_contexto(contexto_abonado)
     ):
         if not cliente_pregunta_senal_antena(mensaje_cliente):
-            return None
+            from app.domain.flujos_abonado import PASOS_DIAGNOSTICO_WIFI
+            from app.services.protocolo_mesa import _pregunta_wifi
+
+            if (
+                set(pasos_cubiertos or []) & PASOS_DIAGNOSTICO_WIFI
+                or "wifi_vs_cable_ftth" in (pasos_cubiertos or [])
+            ):
+                return None
+            return {
+                "accion": "ask",
+                "mensaje": (
+                    "Revisé la antena en la red: el enlace con la torre está bien. "
+                    f"{_pregunta_wifi()}"
+                ),
+                "paso_cubierto": "wifi_vs_cable_ftth",
+                "motivo": "uisp_enlace_ok_wifi",
+            }
 
     estado = estado_cpe_desde_contexto(contexto_abonado)
     turnos = max(0, int(turnos_diagnostico or 0))
@@ -348,7 +376,14 @@ def evaluar_turno_visita_antena_uisp(
                 "paso_cubierto": "turno_campo_radio",
                 "motivo": "uisp_cpe_offline_visita",
             }
-        return None
+        from app.services.protocolo_mesa import mensaje_antena_no_enlazada
+
+        return {
+            "accion": "ask",
+            "mensaje": mensaje_antena_no_enlazada(),
+            "paso_cubierto": "poe_antena",
+            "motivo": "uisp_cpe_offline",
+        }
 
     if not requiere_visita_campo_por_senal(estado):
         return None
