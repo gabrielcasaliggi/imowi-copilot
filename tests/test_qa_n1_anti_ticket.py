@@ -2418,6 +2418,25 @@ def test_modalidad_titularidad_elige_rama():
     assert pasos[idx_der].id == "derivar_comercial"
 
 
+def test_alcance_baja_elige_rama_sensa():
+    from app.domain.flujos_abonado import (
+        PLAYBOOKS,
+        avanzar_paso_baja,
+        parse_alcance_baja,
+    )
+
+    assert parse_alcance_baja("Sensa") == "sensa"
+    assert parse_alcance_baja("solo internet") == "internet"
+    assert parse_alcance_baja("el celular IMOWI") == "movil"
+    assert parse_alcance_baja("todo") == "total"
+    pasos = PLAYBOOKS["baja_servicio"]
+    idx = avanzar_paso_baja(0, "Sensa", pasos)
+    assert pasos[idx].id == "baja_requisitos_sensa"
+    assert avanzar_paso_baja(idx, "Si", pasos) == idx
+    idx_der = avanzar_paso_baja(idx, "ya mandé el dni", pasos, docs_listos=True)
+    assert pasos[idx_der].id == "derivar_comercial"
+
+
 def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
     from app.services.canal_abonado import (
         _redactar_con_llama,
@@ -2427,6 +2446,7 @@ def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
 
     prompt = system_prompt_eco_rewrite_tramite().lower()
     assert "promociones" in prompt or "descuentos" in prompt
+    assert "sensa" in prompt
     borrador = (
         "Para hacerlo virtual: el titular manda foto de DNI y una nota firmada. "
         "Mandá esa documentación por este chat."
@@ -2442,6 +2462,14 @@ def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
     assert not _rewrite_tramite_conserva_hechos(
         borrador,
         "Perfecto, ahora un operador va a revisar toda la documentación que enviaste.",
+    )
+    sensa = (
+        "Para dar de baja Sensa hace falta foto del DNI del titular por este chat. "
+        "Sensa no tiene retiro de equipo de acceso."
+    )
+    assert not _rewrite_tramite_conserva_hechos(
+        sensa,
+        "Hola, para la baja mandame DNI. Si tenés Fibra o ADSL devolvé el equipo.",
     )
 
     from unittest.mock import patch
@@ -2469,6 +2497,12 @@ def test_playbooks_tramites_admin_terminan_en_derivar():
         assert es_paso_derivacion(pasos[-1])
         assert "baja_detalle" not in {p.id for p in PLAYBOOKS["baja_servicio"]}
         assert PLAYBOOKS["baja_servicio"][0].id == "baja_alcance"
+    baja_ids = {p.id for p in PLAYBOOKS["baja_servicio"]}
+    assert "baja_requisitos_sensa" in baja_ids
+    assert "baja_requisitos" not in baja_ids
+    sensa = next(p.pregunta for p in PLAYBOOKS["baja_servicio"] if p.id == "baja_requisitos_sensa").lower()
+    assert "dni" in sensa
+    assert "fibra" not in sensa and "adsl" not in sensa and "plantel" not in sensa
     baja = PLAYBOOKS["baja_servicio"][0].pregunta.lower()
     assert "$0" in baja
     assert "retención" in baja or "retencion" in baja
@@ -2504,7 +2538,9 @@ def test_sync_playbooks_tramites_reemplaza_baja_vieja():
     data = json.loads(out)
     ids = [p["id"] for p in data["playbooks"]["baja_servicio"]]
     assert "baja_alcance" in ids
+    assert "baja_requisitos_sensa" in ids
     assert "baja_detalle" not in ids
+    assert "baja_requisitos" not in ids
     assert data["playbooks"]["cambio_titularidad"][0]["id"] == "titularidad_modalidad"
     assert data["playbooks"]["cambio_domicilio"][0]["id"] == "domicilio_info"
     tit_ids = [p["id"] for p in data["playbooks"]["cambio_titularidad"]]
@@ -2533,12 +2569,20 @@ def test_sync_playbooks_tramites_reemplaza_baja_vieja():
     tit2 = [p["id"] for p in json.loads(out2)["playbooks"]["cambio_titularidad"]]
     assert "titularidad_docs_virtual" in tit2
     assert json.loads(out2)["playbooks"]["baja_servicio"][0]["pregunta"] == "Custom admin"
+    assert "baja_requisitos_sensa" in [
+        p["id"] for p in json.loads(out2)["playbooks"]["baja_servicio"]
+    ]
 
     fresh = json.dumps(
         {
             "playbooks": {
                 "baja_servicio": [
-                    {"id": "baja_alcance", "pregunta": "Custom admin"}
+                    {"id": "baja_alcance", "pregunta": "Custom admin"},
+                    {"id": "baja_requisitos_sensa", "pregunta": "Custom s"},
+                    {"id": "baja_requisitos_internet", "pregunta": "Custom i"},
+                    {"id": "baja_requisitos_movil", "pregunta": "Custom m"},
+                    {"id": "baja_requisitos_total", "pregunta": "Custom t"},
+                    {"id": "derivar_comercial", "pregunta": "¿Te derivo?"},
                 ],
                 "cambio_titularidad": [
                     {"id": "titularidad_modalidad", "pregunta": "Custom"},
@@ -2786,3 +2830,64 @@ def test_titularidad_no_a_derivar_no_cierra():
     resp = (r.get("respuesta") or "").lower()
     assert "no te derivo" in resp
     assert "sigue abierto" in resp or "derivame" in resp
+
+
+def test_baja_sensa_pide_dni_sin_fibra_ni_ticket_con_si():
+    from app.estate.database import get_session_factory
+    from app.estate.seed import seed_kb_batan_servicios
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    org_id, tel = _reset_conv_titularidad_karina()
+    Session = get_session_factory()
+    with Session() as db:
+        seed_kb_batan_servicios(db)
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quería dar de baja el servicio",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r.get("intencion") == "baja_servicio"
+    assert not r.get("ticket_id"), r.get("respuesta")
+    resp = (r.get("respuesta") or "").lower()
+    assert "baja" in resp
+    assert "sensa" in resp or "total" in resp
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Sensa",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r2.get("intencion") == "baja_servicio"
+    assert not r2.get("ticket_id"), r2.get("respuesta")
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "dni" in resp2
+    assert "sensa" in resp2
+    assert "fibra" not in resp2
+    assert "adsl" not in resp2
+    assert "plantel" not in resp2
+    assert "bai" not in resp2
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Si",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r3.get("ticket_id"), r3.get("respuesta")
+    assert r3.get("estado") == "bot"
+    resp3 = (r3.get("respuesta") or "").lower()
+    assert "dni" in resp3
+    assert "fibra" not in resp3
+    assert "ticket" not in resp3
+

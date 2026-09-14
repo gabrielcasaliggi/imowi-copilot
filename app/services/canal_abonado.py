@@ -14,6 +14,7 @@ from app.domain.canales import enviar_externo as _enviar_externo
 from app.domain.flujos_abonado import (
     acepta_derivacion_clara,
     ajustar_intencion_a_padron,
+    avanzar_paso_baja,
     avanzar_paso_titularidad,
     clasificar_intencion,
     cliente_imposibilidad_pago,
@@ -38,10 +39,12 @@ from app.domain.flujos_abonado import (
     misma_queja,
     niega_producto_internet,
     parece_consulta_nueva,
+    parse_alcance_baja,
     parse_modalidad_titularidad,
     pide_humano,
     pide_humano_en_flujo_activo,
     rechaza_derivacion_clara,
+    recordatorio_docs_baja,
     recordatorio_docs_titularidad,
     refinar_intencion_internet,
     refinar_playbook_internet,
@@ -1810,6 +1813,21 @@ def _rewrite_tramite_conserva_hechos(borrador: str, texto: str) -> bool:
         )
     ) and not any(k in b for k in ("enviaste", "mandaste", "recib")):
         return False
+    extras = (
+        "fibra",
+        "adsl",
+        "bai",
+        "plantel",
+        "ont",
+        "desenchuf",
+        "nota firmada",
+    )
+    if any(k in t for k in extras) and not any(k in b for k in extras):
+        return False
+    if "dni" in t and "dni" not in b:
+        return False
+    if t.lstrip().startswith("hola") and not b.lstrip().startswith("hola"):
+        return False
     claves = (
         "dni",
         "nota",
@@ -2097,17 +2115,20 @@ def _docs_listos_titularidad(db: Session, conv: ConversacionCanal, texto: str) -
     )
 
 
-def _espera_docs_titularidad(db: Session, conv: ConversacionCanal) -> bool:
+def _espera_docs_tramite(db: Session, conv: ConversacionCanal) -> bool:
     ctx = crepo.get_contexto(conv)
-    if str(ctx.get("intencion") or "") != "cambio_titularidad":
-        return False
+    intent = str(ctx.get("intencion") or "")
     pb = _playbooks(db)
-    pasos = pb.get("cambio_titularidad") or []
+    pasos = pb.get(intent) or []
     idx = int(ctx.get("paso_idx") or 0)
     if not pasos or idx < 0 or idx >= len(pasos):
         return False
     pid = (pasos[idx].id or "").lower()
-    return pid.startswith("titularidad_docs") and "presencial" not in pid
+    if intent == "cambio_titularidad":
+        return pid.startswith("titularidad_docs") and "presencial" not in pid
+    if intent == "baja_servicio":
+        return pid.startswith("baja_requisitos")
+    return False
 
 
 def _cerrar_si_rechaza_derivacion(
@@ -2342,10 +2363,18 @@ def _iniciar_flujo_tramite_admin(
     pb = _playbooks(db)
     pasos = pb.get(intent) or pb["general"]
     pregunta = pasos[0].pregunta if pasos else "Contame qué necesitás."
-    if intent == "baja_servicio":
+    if intent == "baja_servicio" and pasos:
+        alcance = parse_alcance_baja(texto)
+        if alcance:
+            nxt = avanzar_paso_baja(0, texto, pasos)
+            ctx["paso_idx"] = nxt
+            ctx["baja_alcance"] = alcance
+            pregunta = pasos[nxt].pregunta
         prefijo = _prefijo_deuda_baja(abonado)
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
+        crepo.set_contexto(conv, ctx)
+        db.commit()
     if usar_llama:
         pregunta = _redactar_con_llama(
             pregunta,
@@ -3921,7 +3950,7 @@ def procesar_mensaje_entrante(
         )
 
     if solo_archivo:
-        espera_docs = _espera_docs_titularidad(db, conv)
+        espera_docs = _espera_docs_tramite(db, conv)
         if not (espera_docs and media_ok):
             resp = _MSG_ARCHIVO_GUARDADO if media_ok else _MSG_ARCHIVO_FALLO
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
@@ -4510,34 +4539,6 @@ def procesar_mensaje_entrante(
     # Saldo/pago/OV con cuenta identificada: respuesta fija (sin LLM).
     if abonado:
         intencion_ctx = (ctx.get("intencion") or "").strip()
-        if intencion_ctx == "baja_servicio" and acepta_derivacion_clara(texto):
-            tid = _crear_ticket_n2(
-                db,
-                org_id,
-                conv,
-                abonado,
-                "Baja — derivación comercial aceptada",
-                intencion="baja_servicio",
-                paso_idx=int(ctx.get("paso_idx") or 0),
-                ctx=ctx,
-            )
-            resp = _mensaje_cierre_escalamiento(
-                tid,
-                motivo="Baja — derivación comercial aceptada",
-                mensaje_ia="",
-                nota_temas=_nota_temas_pendientes(ctx),
-                intencion="baja_servicio",
-            )
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "espera_agente",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "ticket_id": tid,
-                "intencion": "baja_servicio",
-            }
         if intencion_ctx == "baja_servicio" and (
             cliente_imposibilidad_pago(texto) or solicita_baja_servicio(texto)
         ):
@@ -5750,6 +5751,16 @@ def procesar_mensaje_entrante(
                 pasos,
                 docs_listos=_docs_listos_titularidad(db, conv, texto),
             )
+        if intencion == "baja_servicio":
+            alcance = parse_alcance_baja(texto)
+            if alcance:
+                ctx["baja_alcance"] = alcance
+            return avanzar_paso_baja(
+                idx,
+                texto,
+                pasos,
+                docs_listos=_docs_listos_titularidad(db, conv, texto),
+            )
         return idx + 1
 
     def _preguntar(idx: int, *, prefijo: str = "", pregunta_override: str = "") -> dict:
@@ -5833,6 +5844,8 @@ def procesar_mensaje_entrante(
         pid = (pasos[idx].id if 0 <= idx < len(pasos) else "") or ""
         if intencion == "cambio_titularidad" and pid.startswith("titularidad_docs"):
             return _preguntar(idx, pregunta_override=recordatorio_docs_titularidad(pid))
+        if intencion == "baja_servicio" and pid.startswith("baja_requisitos"):
+            return _preguntar(idx, pregunta_override=recordatorio_docs_baja(pid))
         if incomprendido:
             return _preguntar(idx, prefijo="No te entendí. ")
         return _preguntar(idx)

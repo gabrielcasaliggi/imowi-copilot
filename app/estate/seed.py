@@ -1242,8 +1242,27 @@ def _sync_playbooks_tramites_admin(payload_json: str | None) -> str | None:
         or "baja_detalle" in ids
         or "baja_alcance" not in ids
     )
+    need_baja_ramas = (
+        isinstance(baja, list)
+        and baja
+        and "baja_alcance" in ids
+        and (
+            "baja_requisitos" in ids
+            or "baja_requisitos_sensa" not in ids
+        )
+    )
     if stale_baja:
         pb["baja_servicio"] = _pasos_playbook_a_dicts(PLAYBOOKS["baja_servicio"])
+        changed = True
+    elif need_baja_ramas:
+        alcance_preg = ""
+        for p in baja:
+            if isinstance(p, dict) and p.get("id") == "baja_alcance":
+                alcance_preg = str(p.get("pregunta") or "")
+                break
+        pb["baja_servicio"] = _pasos_playbook_a_dicts(PLAYBOOKS["baja_servicio"])
+        if alcance_preg:
+            pb["baja_servicio"][0]["pregunta"] = alcance_preg
         changed = True
     for key in ("cambio_titularidad", "cambio_domicilio"):
         cur = pb.get(key)

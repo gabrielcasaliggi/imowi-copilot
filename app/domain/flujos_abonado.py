@@ -595,15 +595,33 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "(no las armo yo).",
         ),
         PasoPlaybook(
-            "baja_requisitos",
-            "Para la baja hace falta foto del DNI del titular. "
+            "baja_requisitos_sensa",
+            "Para dar de baja Sensa hace falta foto del DNI del titular por este chat. "
+            "Sensa no tiene retiro de equipo de acceso. Mandá el DNI acá.",
+        ),
+        PasoPlaybook(
+            "baja_requisitos_internet",
+            "Para la baja de internet hace falta foto del DNI del titular. "
             "Fibra o ADSL: hay que devolver el equipo en la Cooperativa; desenchufar no da de baja. "
             "Internet inalámbrico (BAI): no desmontes, Plantel coordina el retiro. "
-            "Mandá el DNI u otra documentación por este chat.",
+            "Mandá el DNI por este chat.",
+        ),
+        PasoPlaybook(
+            "baja_requisitos_movil",
+            "Para dar de baja el móvil IMOWI hace falta foto del DNI del titular. "
+            "El operador confirma plazos y el número. Mandá el DNI por este chat.",
+        ),
+        PasoPlaybook(
+            "baja_requisitos_total",
+            "Para la baja hace falta foto del DNI del titular. "
+            "Si hay internet: Fibra o ADSL se devuelve el equipo en la Cooperativa "
+            "(desenchufar no da de baja); BAI no se desmonta, Plantel coordina el retiro. "
+            "Sensa y telefonía fija no tienen retiro de acceso. Mandá el DNI por este chat.",
         ),
         PasoPlaybook(
             "derivar_comercial",
-            "Un operador completa la baja y, si corresponde, la retención. ¿Te derivo?",
+            "Cuando el DNI esté en este chat, un operador completa la baja y, si corresponde, "
+            "la retención. ¿Te derivo?",
         ),
     ],
     "cambio_titularidad": [
@@ -860,6 +878,108 @@ def avanzar_paso_titularidad(
     if pid.startswith("titularidad_docs"):
         presencial = "presencial" in pid
         if presencial or docs_listos:
+            found = _indice_paso_id(pasos, "derivar_comercial")
+            return found if found is not None else min(idx + 1, len(pasos) - 1)
+        return idx
+    return min(idx + 1, len(pasos) - 1)
+
+
+def parse_alcance_baja(texto: str) -> str | None:
+    """total | internet | sensa | movil, según el producto a dar de baja."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return None
+    if any(
+        k in t
+        for k in (
+            "baja total",
+            "total",
+            "todo el servicio",
+            "todos los servicios",
+            "de todo",
+            "dar de baja todo",
+            "baja de todo",
+            "todo internet y",
+            "internet y sensa",
+            "sensa y internet",
+        )
+    ) or t in ("todo", "todos"):
+        return "total"
+    hits: list[str] = []
+    if any(k in t for k in ("sensa", "ott", "televisión", "television", "la tele")):
+        hits.append("sensa")
+    if any(
+        k in t
+        for k in ("imowi", "móvil", "movil", "celular", "telefonía móvil", "telefonia movil")
+    ):
+        hits.append("movil")
+    if any(
+        k in t
+        for k in ("internet", "fibra", "adsl", "wifi", "wi-fi", "bai", "radio")
+    ):
+        hits.append("internet")
+    if len(hits) > 1:
+        return "total"
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+_DOCS_BAJA = {
+    "sensa": "baja_requisitos_sensa",
+    "internet": "baja_requisitos_internet",
+    "movil": "baja_requisitos_movil",
+    "total": "baja_requisitos_total",
+}
+
+
+def recordatorio_docs_baja(paso_id: str) -> str:
+    """Pedido de DNI si todavía no hay archivo en el chat."""
+    pid = (paso_id or "").lower()
+    if "sensa" in pid:
+        return (
+            "Todavía no me llegó la foto del DNI por este chat. "
+            "Para la baja de Sensa no hay que devolver equipo: con el DNI del titular "
+            "un operador completa el trámite. Mandalo acá."
+        )
+    if "movil" in pid:
+        return (
+            "Todavía no me llegó la foto del DNI por este chat. "
+            "Para la baja del móvil IMOWI hace falta el DNI del titular. Mandalo acá."
+        )
+    if "internet" in pid:
+        return (
+            "Todavía no me llegó la foto del DNI por este chat. "
+            "Para internet, si es fibra o ADSL hay que devolver el equipo en la Cooperativa; "
+            "si es BAI no lo desmontes. Mandá el DNI acá."
+        )
+    return (
+        "Todavía no me llegó la foto del DNI por este chat. "
+        "Mandala acá y un operador completa el trámite."
+    )
+
+
+def avanzar_paso_baja(
+    paso_idx: int,
+    texto: str,
+    pasos: list[PasoPlaybook],
+    *,
+    docs_listos: bool = False,
+) -> int:
+    """Salta al checklist del producto; espera DNI antes de derivar."""
+    if not pasos:
+        return 0
+    idx = max(0, min(paso_idx, len(pasos) - 1))
+    pid = pasos[idx].id or ""
+    if pid == "baja_alcance":
+        alcance = parse_alcance_baja(texto)
+        if not alcance:
+            return idx
+        target = _DOCS_BAJA[alcance]
+        found = _indice_paso_id(pasos, target)
+        return found if found is not None else min(idx + 1, len(pasos) - 1)
+    if pid.startswith("baja_requisitos"):
+        if docs_listos:
             found = _indice_paso_id(pasos, "derivar_comercial")
             return found if found is not None else min(idx + 1, len(pasos) - 1)
         return idx
