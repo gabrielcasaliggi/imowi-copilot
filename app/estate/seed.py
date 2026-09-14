@@ -1247,7 +1247,20 @@ def _sync_playbooks_tramites_admin(payload_json: str | None) -> str | None:
         changed = True
     for key in ("cambio_titularidad", "cambio_domicilio"):
         cur = pb.get(key)
-        if not isinstance(cur, list) or not cur:
+        ids_key: list[str] = []
+        if isinstance(cur, list):
+            for p in cur:
+                if isinstance(p, dict):
+                    ids_key.append(str(p.get("id") or ""))
+        stale = (
+            not isinstance(cur, list)
+            or not cur
+            or (key == "cambio_titularidad" and (
+                "titularidad_docs" in ids_key
+                or "titularidad_docs_virtual" not in ids_key
+            ))
+        )
+        if stale:
             pb[key] = _pasos_playbook_a_dicts(PLAYBOOKS[key])
             changed = True
     if not changed:

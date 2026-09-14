@@ -2393,6 +2393,23 @@ def test_baja_con_deuda_no_empuja_pago_ni_diagnostico():
     assert r2.get("intencion") in ("baja_servicio", "aviso_deuda")
 
 
+def test_modalidad_titularidad_elige_rama():
+    from app.domain.flujos_abonado import (
+        PLAYBOOKS,
+        avanzar_paso_titularidad,
+        parse_modalidad_titularidad,
+    )
+
+    assert parse_modalidad_titularidad("Virtual") == "virtual"
+    assert parse_modalidad_titularidad("presencial, vamos los dos") == "presencial"
+    assert parse_modalidad_titularidad("es por fallecimiento") == "fallecimiento"
+    pasos = PLAYBOOKS["cambio_titularidad"]
+    idx_virtual = avanzar_paso_titularidad(0, "Virtual", pasos)
+    assert pasos[idx_virtual].id == "titularidad_docs_virtual"
+    idx_der = avanzar_paso_titularidad(idx_virtual, "ya mandé el dni", pasos)
+    assert pasos[idx_der].id == "derivar_comercial"
+
+
 def test_playbooks_tramites_admin_terminan_en_derivar():
     from app.domain.flujos_abonado import PLAYBOOKS, es_paso_derivacion, es_tramite_admin
 
@@ -2406,11 +2423,16 @@ def test_playbooks_tramites_admin_terminan_en_derivar():
     baja = PLAYBOOKS["baja_servicio"][0].pregunta.lower()
     assert "$0" in baja
     assert "retención" in baja or "retencion" in baja
-    docs = PLAYBOOKS["cambio_titularidad"][1].pregunta.lower()
-    assert "dni" in docs and "nota" in docs
-    assert "fallecimiento" in PLAYBOOKS["cambio_titularidad"][0].pregunta.lower() or (
-        "defunción" in docs or "defuncion" in docs
-    )
+    tit = PLAYBOOKS["cambio_titularidad"]
+    ids = {p.id for p in tit}
+    assert "titularidad_docs_virtual" in ids
+    assert "titularidad_docs" not in ids
+    virtual = next(p.pregunta for p in tit if p.id == "titularidad_docs_virtual").lower()
+    presencial = next(p.pregunta for p in tit if p.id == "titularidad_docs_presencial").lower()
+    assert "nota" in virtual and "dni" in virtual
+    assert "presencial" not in virtual and "fallecimiento" not in virtual
+    assert "cooperativa" in presencial
+    assert "foto" in presencial or "dni" in presencial
 
 
 def test_sync_playbooks_tramites_reemplaza_baja_vieja():
@@ -2436,6 +2458,32 @@ def test_sync_playbooks_tramites_reemplaza_baja_vieja():
     assert "baja_detalle" not in ids
     assert data["playbooks"]["cambio_titularidad"][0]["id"] == "titularidad_modalidad"
     assert data["playbooks"]["cambio_domicilio"][0]["id"] == "domicilio_info"
+    tit_ids = [p["id"] for p in data["playbooks"]["cambio_titularidad"]]
+    assert "titularidad_docs_virtual" in tit_ids
+    assert "titularidad_docs" not in tit_ids
+
+    dumped = json.dumps(
+        {
+            "playbooks": {
+                "baja_servicio": [
+                    {"id": "baja_alcance", "pregunta": "Custom admin"}
+                ],
+                "cambio_titularidad": [
+                    {"id": "titularidad_modalidad", "pregunta": "Custom"},
+                    {"id": "titularidad_docs", "pregunta": "Presencial: ... Virtual: ..."},
+                ],
+                "cambio_domicilio": [
+                    {"id": "domicilio_info", "pregunta": "Custom"}
+                ],
+            }
+        },
+        ensure_ascii=False,
+    )
+    out2 = _sync_playbooks_tramites_admin(dumped)
+    assert out2
+    tit2 = [p["id"] for p in json.loads(out2)["playbooks"]["cambio_titularidad"]]
+    assert "titularidad_docs_virtual" in tit2
+    assert json.loads(out2)["playbooks"]["baja_servicio"][0]["pregunta"] == "Custom admin"
 
     fresh = json.dumps(
         {
@@ -2444,7 +2492,11 @@ def test_sync_playbooks_tramites_reemplaza_baja_vieja():
                     {"id": "baja_alcance", "pregunta": "Custom admin"}
                 ],
                 "cambio_titularidad": [
-                    {"id": "titularidad_modalidad", "pregunta": "Custom"}
+                    {"id": "titularidad_modalidad", "pregunta": "Custom"},
+                    {"id": "titularidad_docs_virtual", "pregunta": "Custom v"},
+                    {"id": "titularidad_docs_presencial", "pregunta": "Custom p"},
+                    {"id": "titularidad_docs_fallecimiento", "pregunta": "Custom f"},
+                    {"id": "derivar_comercial", "pregunta": "¿Te derivo?"},
                 ],
                 "cambio_domicilio": [
                     {"id": "domicilio_info", "pregunta": "Custom"}
@@ -2520,6 +2572,8 @@ def test_cambio_titularidad_n1_informa_y_no_ticket_en_primer_turno():
     resp2 = (r2.get("respuesta") or "").lower()
     assert "dni" in resp2
     assert "nota" in resp2 or "firmada" in resp2
+    assert "presencial" not in resp2
+    assert "fallecimiento" not in resp2
 
     with Session() as db:
         r3 = procesar_mensaje_entrante(

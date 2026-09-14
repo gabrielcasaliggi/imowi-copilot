@@ -613,11 +613,21 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
             "tener deuda. ¿Es presencial (van ambos a la Cooperativa), virtual, o por fallecimiento?",
         ),
         PasoPlaybook(
-            "titularidad_docs",
-            "Presencial: titular actual y nuevo titular van a la Cooperativa con DNI. "
-            "Virtual: el titular manda foto de DNI y una nota firmada (nombres y DNI de ambos, "
-            "voluntad de ceder, firma y fecha); el futuro titular manda foto de DNI, dos teléfonos "
-            "y un mail. Fallecimiento: certificado de defunción, vínculo y DNI de quien asume. "
+            "titularidad_docs_virtual",
+            "Para hacerlo virtual: el titular manda foto de DNI y una nota firmada "
+            "(nombres y DNI de ambos, voluntad de ceder, firma y fecha). "
+            "El futuro titular manda foto de DNI, dos teléfonos y un mail. "
+            "Cuenta y futuro titular sin deuda. Mandá esa documentación por este chat.",
+        ),
+        PasoPlaybook(
+            "titularidad_docs_presencial",
+            "Para hacerlo presencial: titular actual y futuro titular van a la Cooperativa "
+            "con DNI. La cuenta no puede tener deuda. No hace falta mandar fotos por el chat.",
+        ),
+        PasoPlaybook(
+            "titularidad_docs_fallecimiento",
+            "Por fallecimiento: certificado de defunción, documentación del vínculo y DNI "
+            "de quien asume. No hace falta autorización del titular anterior. "
             "Mandá esa documentación por este chat.",
         ),
         PasoPlaybook(
@@ -686,6 +696,92 @@ INTENCIONES_TRAMITE_ADMIN = frozenset(
 
 def es_tramite_admin(intencion: str) -> bool:
     return (intencion or "").strip() in INTENCIONES_TRAMITE_ADMIN
+
+
+def parse_modalidad_titularidad(texto: str) -> str | None:
+    """virtual | presencial | fallecimiento, según la respuesta del socio."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return None
+    if any(
+        k in t
+        for k in (
+            "fallec",
+            "defunción",
+            "defuncion",
+            "sucesión",
+            "sucesion",
+        )
+    ):
+        return "fallecimiento"
+    if any(
+        k in t
+        for k in (
+            "presencial",
+            "en la cooperativa",
+            "a la cooperativa",
+            "vamos los dos",
+            "vamos ambos",
+            "vamos los 2",
+        )
+    ):
+        return "presencial"
+    if any(
+        k in t
+        for k in (
+            "virtual",
+            "por chat",
+            "por acá",
+            "por aca",
+            "por whatsapp",
+            "por wpp",
+            "online",
+            "en línea",
+            "en linea",
+        )
+    ):
+        return "virtual"
+    return None
+
+
+_DOCS_TITULARIDAD = {
+    "virtual": "titularidad_docs_virtual",
+    "presencial": "titularidad_docs_presencial",
+    "fallecimiento": "titularidad_docs_fallecimiento",
+}
+
+
+def _indice_paso_id(pasos: list[PasoPlaybook], pid: str) -> int | None:
+    for i, p in enumerate(pasos):
+        if (p.id or "") == pid:
+            return i
+    return None
+
+
+def avanzar_paso_titularidad(
+    paso_idx: int,
+    texto: str,
+    pasos: list[PasoPlaybook],
+) -> int:
+    """Salta al checklist de la modalidad elegida; de docs va a derivar.
+
+    Si la modalidad no se entiende, se queda en la pregunta.
+    """
+    if not pasos:
+        return 0
+    idx = max(0, min(paso_idx, len(pasos) - 1))
+    pid = pasos[idx].id or ""
+    if pid == "titularidad_modalidad":
+        mod = parse_modalidad_titularidad(texto)
+        if not mod:
+            return idx
+        target = _DOCS_TITULARIDAD[mod]
+        found = _indice_paso_id(pasos, target)
+        return found if found is not None else min(idx + 1, len(pasos) - 1)
+    if pid.startswith("titularidad_docs"):
+        found = _indice_paso_id(pasos, "derivar_comercial")
+        return found if found is not None else min(idx + 1, len(pasos) - 1)
+    return min(idx + 1, len(pasos) - 1)
 
 
 def tag_para_intencion(intencion: str) -> str:

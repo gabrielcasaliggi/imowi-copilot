@@ -14,6 +14,7 @@ from app.domain.canales import enviar_externo as _enviar_externo
 from app.domain.flujos_abonado import (
     acepta_derivacion_clara,
     ajustar_intencion_a_padron,
+    avanzar_paso_titularidad,
     clasificar_intencion,
     cliente_imposibilidad_pago,
     contiene_sintoma_canal,
@@ -5600,6 +5601,11 @@ def procesar_mensaje_entrante(
     paso_actual = pasos[paso_idx] if pasos else None
     veredicto = respuesta_paso_ok(texto)
 
+    def _avanzar_idx(idx: int) -> int:
+        if intencion == "cambio_titularidad":
+            return avanzar_paso_titularidad(idx, texto, pasos)
+        return idx + 1
+
     def _preguntar(idx: int, *, prefijo: str = "") -> dict:
         pregunta = pasos[idx].pregunta
         if prefijo:
@@ -5895,19 +5901,21 @@ def procesar_mensaje_entrante(
             return _escalar(
                 f"Playbook {intencion} agotado sin resolución en paso {paso_idx}"
             )
-        paso_idx += 1
-        ctx["paso_idx"] = paso_idx
+        nxt = _avanzar_idx(paso_idx)
+        ctx["paso_idx"] = nxt
         crepo.set_contexto(conv, ctx)
         db.commit()
-        return _preguntar(paso_idx)
+        if nxt == paso_idx:
+            return _preguntar(nxt, prefijo="No te entendí. ")
+        return _preguntar(nxt)
 
     # Afirmación / paso cumplido → avanzar en el playbook
     if veredicto is True:
-        paso_idx += 1
-        ctx["paso_idx"] = paso_idx
+        nxt = _avanzar_idx(paso_idx)
+        ctx["paso_idx"] = nxt
         crepo.set_contexto(conv, ctx)
         db.commit()
-        if paso_idx >= len(pasos):
+        if nxt >= len(pasos):
             conv.estado = "cerrado"
             db.commit()
             resp = (
@@ -5925,18 +5933,22 @@ def procesar_mensaje_entrante(
                 "respuesta": resp,
                 "estado": conv.estado,
             }
-        return _preguntar(paso_idx)
+        if nxt == paso_idx:
+            return _preguntar(nxt, prefijo="No te entendí. ")
+        return _preguntar(nxt)
 
     # Respuesta informativa / ambigua: avanzar si no es sí/no cerrado,
     # para recolectar datos; nunca escalar solo por estar en el último paso.
     if paso_idx < len(pasos) - 1 and not es_paso_derivacion(paso_actual):
-        paso_idx += 1
-        ctx["paso_idx"] = paso_idx
+        nxt = _avanzar_idx(paso_idx)
+        ctx["paso_idx"] = nxt
         # Guardar pista del mensaje para el contexto
         ctx["ultima_respuesta_libre"] = (texto or "")[:240]
         crepo.set_contexto(conv, ctx)
         db.commit()
-        return _preguntar(paso_idx)
+        if nxt == paso_idx:
+            return _preguntar(nxt, prefijo="No te entendí. ")
+        return _preguntar(nxt)
 
     pregunta = pasos[min(paso_idx, len(pasos) - 1)].pregunta
     resp = (
