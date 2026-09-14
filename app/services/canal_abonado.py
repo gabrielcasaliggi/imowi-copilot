@@ -1780,6 +1780,36 @@ def _kb_fragmento(
         return ""
 
 
+def _rewrite_tramite_conserva_hechos(borrador: str, texto: str) -> bool:
+    """False si el modelo tiró requisitos o inventó promo."""
+    b = (borrador or "").lower()
+    t = (texto or "").lower()
+    if not t.strip():
+        return False
+    if any(k in t for k in ("promo", "descuento", "bonificación", "bonificacion")) and not any(
+        k in b for k in ("promo", "descuento", "bonificación", "bonificacion")
+    ):
+        return False
+    claves = (
+        "dni",
+        "nota",
+        "deuda",
+        "saldo",
+        "cooperativa",
+        "plantel",
+        "equipo",
+        "defunción",
+        "defuncion",
+        "derivo",
+        "operador",
+    )
+    presentes = [k for k in claves if k in b]
+    if not presentes:
+        return True
+    keep = sum(1 for k in presentes if k in t)
+    return keep >= max(1, (len(presentes) + 1) // 2)
+
+
 def _redactar_con_llama(
     borrador: str,
     contexto: str,
@@ -1787,11 +1817,16 @@ def _redactar_con_llama(
     db: Session | None = None,
     org_id: str = "",
     consulta: str = "",
+    tramite: bool = False,
 ) -> str:
     """Reescribe el paso del playbook con la IA admin, estilo agente humano breve."""
     try:
         from app.llm import chat_completion
-        from app.services.eco_voice import TEMPERATURE_N1, system_prompt_eco_rewrite
+        from app.services.eco_voice import (
+            TEMPERATURE_N1,
+            system_prompt_eco_rewrite,
+            system_prompt_eco_rewrite_tramite,
+        )
         from app.services.prompt_safety import (
             looks_like_jailbreak,
             sanitize_user_text,
@@ -1810,11 +1845,14 @@ def _redactar_con_llama(
             if kb_ctx
             else ""
         )
+        max_borrador = 900 if tramite else 500
+        max_out = 720 if tramite else 320
+        system = system_prompt_eco_rewrite_tramite() if tramite else system_prompt_eco_rewrite()
         out = chat_completion(
             [
                 {
                     "role": "system",
-                    "content": with_anti_injection(system_prompt_eco_rewrite()),
+                    "content": with_anti_injection(system),
                 },
                 {
                     "role": "user",
@@ -1822,17 +1860,20 @@ def _redactar_con_llama(
                         f"Contexto: {sanitize_user_text(contexto, max_chars=400)}\n"
                         f"{kb_block}"
                         f"{wrap_untrusted('CLIENTE_DIJO', (consulta or '').strip() or '(n/a)')}\n"
-                        f"Borrador (reescribilo breve, una pregunta; no inventes acciones):\n"
-                        f"{sanitize_user_text(borrador, max_chars=500)}"
+                        f"Borrador (reescribilo breve; no inventes acciones ni requisitos):\n"
+                        f"{sanitize_user_text(borrador, max_chars=max_borrador)}"
                     ),
                 },
             ],
             temperature=TEMPERATURE_N1,
         )
         texto = (out or "").strip() or borrador
-        # Si el modelo se va de mambo, volver al playbook corto
-        if len(texto) > 320 or texto.count("?") > 1:
+        if len(texto) > max_out or texto.count("?") > (2 if tramite else 1):
             texto = borrador.strip()
+        if tramite:
+            if not _rewrite_tramite_conserva_hechos(borrador, texto):
+                return borrador.strip()
+            return texto
         from app.services.diagnostico_n1 import aplicar_guardrails_cambio_clave_wifi
         from app.services.wifi_bcm import gestion_remota_activa
 
@@ -2210,8 +2251,9 @@ def _iniciar_flujo_tramite_admin(
     canal: str,
     ctx: dict,
     intencion: str,
+    usar_llama: bool = False,
 ) -> dict:
-    """Recorre playbook de baja/titularidad/domicilio sin reescribir con LLM."""
+    """Arranca playbook de baja/titularidad/domicilio (tono LLM, hechos del playbook)."""
     intent = intencion if es_tramite_admin(intencion) else "baja_servicio"
     ctx["intencion"] = intent
     ctx["paso_idx"] = 0
@@ -2229,6 +2271,15 @@ def _iniciar_flujo_tramite_admin(
         prefijo = _prefijo_deuda_baja(abonado)
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
+    if usar_llama:
+        pregunta = _redactar_con_llama(
+            pregunta,
+            f"intencion={intent} tramite_admin=1",
+            db=db,
+            org_id=org_id,
+            consulta=texto,
+            tramite=True,
+        )
     _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
@@ -2249,6 +2300,7 @@ def _iniciar_flujo_baja_servicio(
     *,
     canal: str,
     ctx: dict,
+    usar_llama: bool = False,
 ) -> dict:
     return _iniciar_flujo_tramite_admin(
         db,
@@ -2259,6 +2311,7 @@ def _iniciar_flujo_baja_servicio(
         canal=canal,
         ctx=ctx,
         intencion="baja_servicio",
+        usar_llama=usar_llama,
     )
 
 
@@ -2372,6 +2425,7 @@ def _manejar_menu_consulta_n1(
                 canal=canal,
                 ctx=ctx,
                 intencion=intent,
+                usar_llama=usar_llama,
             )
         ctx.pop("menu_paso", None)
         ctx.pop("menu_servicio", None)
@@ -2414,6 +2468,7 @@ def _manejar_menu_consulta_n1(
                 canal=canal,
                 ctx=ctx,
                 intencion=intent,
+                usar_llama=usar_llama,
             )
         return _arrancar_intencion_menu(
             db,
@@ -2469,6 +2524,7 @@ def _arrancar_intencion_menu(
             canal=canal,
             ctx=ctx,
             intencion=intencion,
+            usar_llama=usar_llama,
         )
     ctx["intencion"] = intencion
     ctx["paso_idx"] = 0
@@ -4316,6 +4372,7 @@ def procesar_mensaje_entrante(
                         canal=canal,
                         ctx=ctx,
                         intencion=intent0,
+                        usar_llama=usar_llama,
                     )
                 return _arrancar_intencion_menu(
                     db,
@@ -4449,6 +4506,7 @@ def procesar_mensaje_entrante(
                 texto,
                 canal=canal,
                 ctx=ctx,
+                usar_llama=usar_llama,
             )
         from app.services.diagnostico_n1 import (
             _cliente_consulta_saldo,
@@ -4552,6 +4610,7 @@ def procesar_mensaje_entrante(
             texto,
             canal=canal,
             ctx=ctx,
+            usar_llama=usar_llama,
         )
 
     # Menú ya se resolvió más arriba (antes de pide_humano)
@@ -4609,6 +4668,7 @@ def procesar_mensaje_entrante(
                 texto,
                 canal=canal,
                 ctx=ctx,
+                usar_llama=usar_llama,
             )
         if _debe_explicar_sin_internet(
             abonado, texto, str(ctx.get("intencion_tecnica_pendiente") or "")
@@ -4947,6 +5007,7 @@ def procesar_mensaje_entrante(
                 canal=canal,
                 ctx=ctx,
                 intencion=intencion,
+                usar_llama=usar_llama,
             )
         if _debe_explicar_sin_internet(abonado, texto, intencion):
             ctx["intencion"] = "general"
@@ -5611,13 +5672,14 @@ def procesar_mensaje_entrante(
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
         # Pagos/QR en corte: plantilla fija. Facturación ya va por diagnóstico IA.
-        if usar_llama and intencion != "corte_deuda" and not es_tramite_admin(intencion):
+        if usar_llama and intencion != "corte_deuda":
             pregunta = _redactar_con_llama(
                 pregunta,
                 f"paso={idx} intencion={intencion}",
                 db=db,
                 org_id=org_id,
                 consulta=texto,
+                tramite=es_tramite_admin(intencion),
             )
         if intencion in ("movil", "movil_datos", "movil_llamadas"):
             from app.services.diagnostico_n1 import aplicar_guardrails_movil
@@ -5955,13 +6017,14 @@ def procesar_mensaje_entrante(
         "Para seguir ayudándote necesito un poco más de detalle. "
         f"{pregunta}"
     )
-    if usar_llama and not es_tramite_admin(intencion):
+    if usar_llama:
         resp = _redactar_con_llama(
             resp,
             f"paso={paso_idx} intencion={intencion} ambiguo=1",
             db=db,
             org_id=org_id,
             consulta=texto,
+            tramite=es_tramite_admin(intencion),
         )
     _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
     return {

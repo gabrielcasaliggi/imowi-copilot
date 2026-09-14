@@ -2410,6 +2410,43 @@ def test_modalidad_titularidad_elige_rama():
     assert pasos[idx_der].id == "derivar_comercial"
 
 
+def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
+    from app.services.canal_abonado import (
+        _redactar_con_llama,
+        _rewrite_tramite_conserva_hechos,
+    )
+    from app.services.eco_voice import system_prompt_eco_rewrite_tramite
+
+    prompt = system_prompt_eco_rewrite_tramite().lower()
+    assert "promociones" in prompt or "descuentos" in prompt
+    borrador = (
+        "Para hacerlo virtual: el titular manda foto de DNI y una nota firmada. "
+        "Mandá esa documentación por este chat."
+    )
+    ok = (
+        "Dale, para el trámite virtual necesito foto del DNI y una nota firmada. "
+        "Mandala por este chat."
+    )
+    assert _rewrite_tramite_conserva_hechos(borrador, ok)
+    assert not _rewrite_tramite_conserva_hechos(
+        borrador, "Te hago un 20% de descuento y listo, no hace falta DNI."
+    )
+
+    from unittest.mock import patch
+
+    with patch("app.llm.chat_completion", return_value=ok):
+        out = _redactar_con_llama(borrador, "intencion=cambio_titularidad", tramite=True)
+    assert "dni" in out.lower()
+    assert "descuento" not in out.lower()
+
+    with patch(
+        "app.llm.chat_completion",
+        return_value="Hay una promo y no hace falta documentación.",
+    ):
+        out2 = _redactar_con_llama(borrador, "intencion=cambio_titularidad", tramite=True)
+    assert out2 == borrador
+
+
 def test_playbooks_tramites_admin_terminan_en_derivar():
     from app.domain.flujos_abonado import PLAYBOOKS, es_paso_derivacion, es_tramite_admin
 
