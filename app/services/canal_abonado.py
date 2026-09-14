@@ -18,6 +18,7 @@ from app.domain.flujos_abonado import (
     clasificar_intencion,
     cliente_imposibilidad_pago,
     contiene_sintoma_canal,
+    declara_envio_docs_tramite,
     declara_solo_movil_sin_fijo,
     destino_n2_canal,
     detecta_frustracion,
@@ -30,15 +31,18 @@ from app.domain.flujos_abonado import (
     es_saludo_solo,
     es_tramite_admin,
     indica_resuelto,
+    insiste_operador_tramite,
     intencion_desde_tema,
     intencion_es_facturacion,
     intencion_es_internet,
     misma_queja,
     niega_producto_internet,
     parece_consulta_nueva,
+    parse_modalidad_titularidad,
     pide_humano,
     pide_humano_en_flujo_activo,
     rechaza_derivacion_clara,
+    recordatorio_docs_titularidad,
     refinar_intencion_internet,
     refinar_playbook_internet,
     registrar_queja,
@@ -1790,6 +1794,22 @@ def _rewrite_tramite_conserva_hechos(borrador: str, texto: str) -> bool:
         k in b for k in ("promo", "descuento", "bonificación", "bonificacion")
     ):
         return False
+    if any(
+        k in t
+        for k in (
+            "que enviaste",
+            "que mandaste",
+            "documentación que enviaste",
+            "documentacion que enviaste",
+            "ya recibí",
+            "ya recibi",
+            "ya tengo la documentación",
+            "ya tengo la documentacion",
+            "revisar toda la documentación",
+            "revisar toda la documentacion",
+        )
+    ) and not any(k in b for k in ("enviaste", "mandaste", "recib")):
+        return False
     claves = (
         "dni",
         "nota",
@@ -2060,6 +2080,36 @@ def _ultimo_texto_bot(historial) -> str:
     return ""
 
 
+def _hilo_tiene_adjunto_cliente(db: Session, conv_id: str) -> bool:
+    for m in crepo.list_mensajes(db, conv_id):
+        if str(getattr(m, "autor", "") or "").strip().lower() != "cliente":
+            continue
+        if str(getattr(m, "media_relpath", "") or "").strip():
+            return True
+    return False
+
+
+def _docs_listos_titularidad(db: Session, conv: ConversacionCanal, texto: str) -> bool:
+    return (
+        _hilo_tiene_adjunto_cliente(db, conv.id)
+        or declara_envio_docs_tramite(texto)
+        or insiste_operador_tramite(texto)
+    )
+
+
+def _espera_docs_titularidad(db: Session, conv: ConversacionCanal) -> bool:
+    ctx = crepo.get_contexto(conv)
+    if str(ctx.get("intencion") or "") != "cambio_titularidad":
+        return False
+    pb = _playbooks(db)
+    pasos = pb.get("cambio_titularidad") or []
+    idx = int(ctx.get("paso_idx") or 0)
+    if not pasos or idx < 0 or idx >= len(pasos):
+        return False
+    pid = (pasos[idx].id or "").lower()
+    return pid.startswith("titularidad_docs") and "presencial" not in pid
+
+
 def _cerrar_si_rechaza_derivacion(
     db: Session,
     org_id: str,
@@ -2069,13 +2119,38 @@ def _cerrar_si_rechaza_derivacion(
     canal: str,
     historial=None,
     abonado: Abonado | None = None,
+    intencion: str = "",
 ) -> dict | None:
-    """Si el bot ofreció derivar y el abonado dice «no», cierra sin repetir la pregunta."""
+    """Si el bot ofreció derivar y el abonado dice «no», cierra sin repetir la pregunta.
+
+    En trámites admin (titularidad/baja/domicilio) no cierra: el socio puede
+    seguir mandando documentación por el mismo chat.
+    """
     hist = historial if historial is not None else crepo.list_mensajes(db, conv.id)
     if not texto_ofrece_derivacion(_ultimo_texto_bot(hist)):
         return None
     if not rechaza_derivacion_clara(texto):
         return None
+    intent = (intencion or "").strip()
+    if not intent:
+        try:
+            intent = str(crepo.get_contexto(conv).get("intencion") or "")
+        except Exception:
+            intent = ""
+    if es_tramite_admin(intent):
+        resp = (
+            "Dale, no te derivo por ahora. El trámite sigue abierto: "
+            "cuando tengas la documentación mandala por este chat o escribí *derivame*."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intent,
+        }
     return _cerrar_consulta_resuelta(
         db,
         org_id,
@@ -3846,17 +3921,19 @@ def procesar_mensaje_entrante(
         )
 
     if solo_archivo:
-        resp = _MSG_ARCHIVO_GUARDADO if media_ok else _MSG_ARCHIVO_FALLO
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-        return {
-            "ok": True,
-            "modo": "bot",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-            "ticket_id": conv.ticket_id,
-            "media": media_ok,
-        }
+        espera_docs = _espera_docs_titularidad(db, conv)
+        if not (espera_docs and media_ok):
+            resp = _MSG_ARCHIVO_GUARDADO if media_ok else _MSG_ARCHIVO_FALLO
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "ticket_id": conv.ticket_id,
+                "media": media_ok,
+            }
 
     ctx = crepo.get_contexto(conv)
     # Capa de comprensión contextual (aditiva; si falla, sigue el flujo legacy).
@@ -5664,11 +5741,19 @@ def procesar_mensaje_entrante(
 
     def _avanzar_idx(idx: int) -> int:
         if intencion == "cambio_titularidad":
-            return avanzar_paso_titularidad(idx, texto, pasos)
+            mod = parse_modalidad_titularidad(texto)
+            if mod:
+                ctx["titularidad_modalidad"] = mod
+            return avanzar_paso_titularidad(
+                idx,
+                texto,
+                pasos,
+                docs_listos=_docs_listos_titularidad(db, conv, texto),
+            )
         return idx + 1
 
-    def _preguntar(idx: int, *, prefijo: str = "") -> dict:
-        pregunta = pasos[idx].pregunta
+    def _preguntar(idx: int, *, prefijo: str = "", pregunta_override: str = "") -> dict:
+        pregunta = pregunta_override or pasos[idx].pregunta
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
         # Pagos/QR en corte: plantilla fija. Facturación ya va por diagnóstico IA.
@@ -5744,13 +5829,23 @@ def procesar_mensaje_entrante(
             "intencion": intencion,
         }
 
+    def _preguntar_o_recordar(idx: int, *, incomprendido: bool = False) -> dict:
+        pid = (pasos[idx].id if 0 <= idx < len(pasos) else "") or ""
+        if intencion == "cambio_titularidad" and pid.startswith("titularidad_docs"):
+            return _preguntar(idx, pregunta_override=recordatorio_docs_titularidad(pid))
+        if incomprendido:
+            return _preguntar(idx, prefijo="No te entendí. ")
+        return _preguntar(idx)
+
     def _escalar(motivo: str) -> dict:
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
         nonlocal intencion, pasos, paso_idx
 
         # Nunca abrir ticket si el abonado está cerrando (gracias/perfecto/listo)
-        if _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto):
+        if not es_tramite_admin(intencion) and (
+            _cierra_consulta_facturacion(texto) or _cliente_desiste_o_resuelto(texto)
+        ):
             return _cerrar_consulta_resuelta(
                 db,
                 org_id,
@@ -5865,8 +5960,10 @@ def procesar_mensaje_entrante(
     if paso_wifi is not None:
         return paso_wifi
 
-    # El abonado dice que ya quedó resuelto
-    if indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto):
+    # El abonado dice que ya quedó resuelto (no en trámites: un «ok» no cierra)
+    if not es_tramite_admin(intencion) and (
+        indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto)
+    ):
         return _cerrar_consulta_resuelta(
             db,
             org_id,
@@ -5875,7 +5972,7 @@ def procesar_mensaje_entrante(
         )
 
     cierre_no = _cerrar_si_rechaza_derivacion(
-        db, org_id, conv, texto, canal=canal, abonado=abonado
+        db, org_id, conv, texto, canal=canal, abonado=abonado, intencion=intencion
     )
     if cierre_no is not None:
         return cierre_no
@@ -5948,10 +6045,17 @@ def procesar_mensaje_entrante(
         if paso_idx >= len(pasos) - 1:
             if es_paso_derivacion(paso_actual):
                 # Última pregunta de derivación respondida con "no"
-                resp = (
-                    "Entendido, no te derivo por ahora. Si más adelante necesitás "
-                    "ayuda o querés hablar con un agente, escribí *agente*."
-                )
+                if es_tramite_admin(intencion):
+                    resp = (
+                        "Dale, no te derivo por ahora. El trámite sigue abierto: "
+                        "cuando tengas la documentación mandala por este chat o "
+                        "escribí *derivame*."
+                    )
+                else:
+                    resp = (
+                        "Entendido, no te derivo por ahora. Si más adelante necesitás "
+                        "ayuda o querés hablar con un agente, escribí *agente*."
+                    )
                 _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
                 return {
                     "ok": True,
@@ -5968,7 +6072,7 @@ def procesar_mensaje_entrante(
         crepo.set_contexto(conv, ctx)
         db.commit()
         if nxt == paso_idx:
-            return _preguntar(nxt, prefijo="No te entendí. ")
+            return _preguntar_o_recordar(nxt, incomprendido=True)
         return _preguntar(nxt)
 
     # Afirmación / paso cumplido → avanzar en el playbook
@@ -5996,7 +6100,7 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
             }
         if nxt == paso_idx:
-            return _preguntar(nxt, prefijo="No te entendí. ")
+            return _preguntar_o_recordar(nxt, incomprendido=True)
         return _preguntar(nxt)
 
     # Respuesta informativa / ambigua: avanzar si no es sí/no cerrado,
@@ -6009,7 +6113,7 @@ def procesar_mensaje_entrante(
         crepo.set_contexto(conv, ctx)
         db.commit()
         if nxt == paso_idx:
-            return _preguntar(nxt, prefijo="No te entendí. ")
+            return _preguntar_o_recordar(nxt, incomprendido=True)
         return _preguntar(nxt)
 
     pregunta = pasos[min(paso_idx, len(pasos) - 1)].pregunta

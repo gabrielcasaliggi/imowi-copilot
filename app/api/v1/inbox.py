@@ -116,9 +116,13 @@ def get_inbox_conversation(
     c = crepo.mark_conversacion_read(db, _org_id(ctx), conv_id) or c
     abo = db.get(Abonado, c.abonado_id) if c.abonado_id else None
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, c.id)]
+    from app.services.tramite_cierre import dict_conversacion_con_cierre
+
     return {
         "tenant": ctx.organizacion_slug,
-        "conversacion": crepo.conversacion_to_dict(c, abonado=abo, tiene_no_leidos=False),
+        "conversacion": dict_conversacion_con_cierre(
+            db, c, crepo.conversacion_to_dict(c, abonado=abo, tiene_no_leidos=False)
+        ),
         "mensajes": mensajes,
     }
 
@@ -303,6 +307,11 @@ def close_conversation(
     nota = (body.nota if body else "").strip()
     if not nota:
         raise HTTPException(400, "Indicá un comentario de cierre (qué se hizo / por qué se cierra)")
+    from app.services.tramite_cierre import motivo_bloqueo_cierre_tramite
+
+    bloqueo = motivo_bloqueo_cierre_tramite(db, c)
+    if bloqueo:
+        raise HTTPException(400, bloqueo)
     c.estado = "cerrado"
     ctx_c = crepo.get_contexto(c)
     ctx_c["cierre_nota"] = nota

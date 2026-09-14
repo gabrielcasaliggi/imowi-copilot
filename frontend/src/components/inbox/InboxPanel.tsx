@@ -897,10 +897,16 @@ export function InboxPanel() {
               <h2 id="inbox-close-title" className="text-base font-semibold text-slate-50">
                 Cerrar conversación
               </h2>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Dejá un comentario de cierre (qué se hizo o por qué se cierra). Queda en el
-                historial del chat.
-              </p>
+              {detail?.cierre_bloqueado_motivo ? (
+                <p className="text-sm text-amber-200 leading-relaxed" role="alert">
+                  {detail.cierre_bloqueado_motivo}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  Dejá un comentario de cierre (qué se hizo o por qué se cierra). Queda en el
+                  historial del chat.
+                </p>
+              )}
             </div>
             <label className="sr-only" htmlFor="inbox-close-note">
               Comentario de cierre
@@ -927,7 +933,9 @@ export function InboxPanel() {
               <button
                 type="button"
                 onClick={() => void onCloseConfirmed()}
-                disabled={busy || !closeNote.trim()}
+                disabled={
+                  busy || !closeNote.trim() || Boolean(detail?.cierre_bloqueado_motivo)
+                }
                 className="text-xs px-3.5 py-2 rounded-lg font-semibold border border-rose-500/40 text-rose-200 hover:bg-rose-500/15 disabled:opacity-50"
               >
                 {busy ? "…" : "Cerrar con comentario"}

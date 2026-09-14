@@ -1522,6 +1522,7 @@ export interface InboxConversation {
   ultimo_mensaje_at?: string;
   agente_last_read_at?: string;
   tiene_no_leidos?: boolean;
+  cierre_bloqueado_motivo?: string;
 }
 
 export interface InboxMessage {

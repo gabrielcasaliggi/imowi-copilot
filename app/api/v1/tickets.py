@@ -531,6 +531,17 @@ def update_ticket(
             raise HTTPException(403, "Solo podés actualizar tickets asignados a vos")
         if body.asignado_a is not None:
             raise HTTPException(403, "Para reasignar usá la derivación del supervisor")
+    if body.estado == "Cerrado":
+        from app.estate import canal_repo as crepo_cierre
+        from app.services.tramite_cierre import motivo_bloqueo_cierre_tramite
+
+        conv_chk = crepo_cierre.get_conversacion_by_ticket(
+            db, t_existente.organizacion_id, ticket_id
+        )
+        if conv_chk:
+            bloqueo = motivo_bloqueo_cierre_tramite(db, conv_chk)
+            if bloqueo:
+                raise HTTPException(400, bloqueo)
     t = repo.update_ticket(
         db,
         ctx.organizacion_id,
@@ -715,10 +726,14 @@ def ticket_conversation(
         }
     abo = db.get(Abonado, conv.abonado_id) if conv.abonado_id else None
     mensajes = [crepo.mensaje_to_dict(m) for m in crepo.list_mensajes(db, conv.id)]
+    from app.services.tramite_cierre import dict_conversacion_con_cierre
+
     return {
         "tenant": ctx.organizacion_slug,
         "ticket_id": ticket_id,
-        "conversacion": crepo.conversacion_to_dict(conv, abonado=abo),
+        "conversacion": dict_conversacion_con_cierre(
+            db, conv, crepo.conversacion_to_dict(conv, abonado=abo)
+        ),
         "mensajes": mensajes,
     }
 

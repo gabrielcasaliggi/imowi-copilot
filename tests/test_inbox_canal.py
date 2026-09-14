@@ -458,3 +458,148 @@ def test_abonados_seed():
     r = client.get("/api/v1/inbox/abonados", headers=headers)
     assert r.status_code == 200
     assert len(r.json()["abonados"]) >= 3
+
+
+def _titularidad_hasta_espera(texto_modalidad: str, *, declarar_docs: bool) -> dict:
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235560100"
+    _cerrar_convs_telefono(tel)
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "34964560"))
+        assert abo
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(conv, {"saludo": True, "identificado": True})
+        db.commit()
+        org_id = org.id
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quiero hacer un cambio de titularidad",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto=texto_modalidad,
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    if declarar_docs:
+        with Session() as db:
+            procesar_mensaje_entrante(
+                db,
+                org_id,
+                telefono=tel,
+                texto="Ya mandé el DNI y la nota firmada",
+                canal="whatsapp",
+                usar_llama=False,
+            )
+    else:
+        with Session() as db:
+            procesar_mensaje_entrante(
+                db,
+                org_id,
+                telefono=tel,
+                texto="Ok",
+                canal="whatsapp",
+                usar_llama=False,
+            )
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Sí, derivame con un operador",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    return r
+
+
+def test_inbox_no_cierra_titularidad_virtual_sin_adjunto():
+    from app.estate.database import get_session_factory
+    from app.estate.models import MensajeCanal
+
+    r = _titularidad_hasta_espera("Virtual", declarar_docs=True)
+    cid = r["conversacion_id"]
+    assert r.get("ticket_id")
+    headers = _admin_headers()
+    blocked = client.post(
+        f"/api/v1/inbox/conversations/{cid}/close",
+        headers=headers,
+        json={"nota": "ok"},
+    )
+    assert blocked.status_code == 400, blocked.text
+    assert "documentación" in (blocked.json().get("detail") or "").lower()
+    detail = client.get(f"/api/v1/inbox/conversations/{cid}", headers=headers)
+    assert detail.status_code == 200
+    assert "documentación" in (detail.json()["conversacion"].get("cierre_bloqueado_motivo") or "").lower()
+
+    Session = get_session_factory()
+    with Session() as db:
+        msgs = list(
+            db.scalars(
+                select(MensajeCanal)
+                .where(MensajeCanal.conversacion_id == cid)
+                .order_by(MensajeCanal.created_at.asc())
+            ).all()
+        )
+        cliente = next(m for m in reversed(msgs) if m.autor == "cliente")
+        cliente.media_relpath = "canal_media/test/dni.png"
+        db.commit()
+
+    ok = client.post(
+        f"/api/v1/inbox/conversations/{cid}/close",
+        headers=headers,
+        json={"nota": "Docs en el chat, trámite derivado a comercial"},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["conversacion"]["estado"] == "cerrado"
+
+
+def test_ticket_no_cierra_titularidad_virtual_sin_adjunto():
+    r = _titularidad_hasta_espera("Virtual", declarar_docs=True)
+    tid = r.get("ticket_id")
+    assert tid
+    headers = _admin_headers()
+    blocked = client.put(
+        f"/api/v1/tickets/{tid}",
+        headers=headers,
+        json={"estado": "Cerrado", "resolucion_tecnica": "ok"},
+    )
+    assert blocked.status_code == 400, blocked.text
+    assert "documentación" in (blocked.json().get("detail") or "").lower()
+
+
+def test_inbox_cierra_titularidad_presencial_sin_adjunto():
+    r = _titularidad_hasta_espera("presencial, vamos los dos", declarar_docs=False)
+    cid = r["conversacion_id"]
+    assert r.get("ticket_id")
+    headers = _admin_headers()
+    ok = client.post(
+        f"/api/v1/inbox/conversations/{cid}/close",
+        headers=headers,
+        json={"nota": "Van a la Cooperativa con DNI"},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["conversacion"]["estado"] == "cerrado"
+

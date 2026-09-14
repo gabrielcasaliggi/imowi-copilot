@@ -215,6 +215,55 @@ def test_rechazar_derivacion_cierra_sin_repetir(monkeypatch):
     ) is None
 
 
+def test_rechazar_derivacion_tramite_no_cierra(monkeypatch):
+    from app.services.canal_abonado import _cerrar_si_rechaza_derivacion
+
+    conv = SimpleNamespace(
+        id="c4",
+        ticket_id="",
+        estado="bot",
+        canal="whatsapp",
+        telefono="5491",
+        wa_id="5491",
+        abonado_id="",
+        contexto_json='{"intencion": "cambio_titularidad"}',
+    )
+    sent: list[str] = []
+    hist = [
+        SimpleNamespace(
+            autor="bot",
+            direccion="out",
+            texto=(
+                "Cuando la documentación esté en este chat, un operador completa "
+                "el trámite. ¿Te derivo?"
+            ),
+        ),
+        SimpleNamespace(autor="cliente", direccion="in", texto="no"),
+    ]
+    monkeypatch.setattr(
+        "app.services.canal_abonado._enviar_respuesta",
+        lambda *_a, **_k: sent.append(_k.get("texto") or (_a[3] if len(_a) > 3 else "")),
+    )
+    monkeypatch.setattr(
+        "app.services.canal_abonado.enviar_encuesta_cierre",
+        lambda *_a, **_k: None,
+    )
+    out = _cerrar_si_rechaza_derivacion(
+        MagicMock(),
+        "org",
+        conv,
+        "no",
+        canal="whatsapp",
+        historial=hist,
+        intencion="cambio_titularidad",
+    )
+    assert out is not None
+    assert out["modo"] == "bot"
+    assert out["estado"] == "bot"
+    assert conv.estado == "bot"
+    assert "sigue abierto" in sent[0].lower()
+
+
 def test_consulta_medios_pago_publico():
     assert _es_consulta_medios_pago_publico(
         "Me cortaron el servicio por falta de pago, como pago?"

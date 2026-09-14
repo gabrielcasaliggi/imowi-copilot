@@ -2397,16 +2397,24 @@ def test_modalidad_titularidad_elige_rama():
     from app.domain.flujos_abonado import (
         PLAYBOOKS,
         avanzar_paso_titularidad,
+        declara_envio_docs_tramite,
         parse_modalidad_titularidad,
+        recordatorio_docs_titularidad,
     )
 
     assert parse_modalidad_titularidad("Virtual") == "virtual"
     assert parse_modalidad_titularidad("presencial, vamos los dos") == "presencial"
     assert parse_modalidad_titularidad("es por fallecimiento") == "fallecimiento"
+    assert declara_envio_docs_tramite("Ya mandé el DNI")
+    assert not declara_envio_docs_tramite("Ok")
+    assert "dni" in recordatorio_docs_titularidad("titularidad_docs_virtual").lower()
     pasos = PLAYBOOKS["cambio_titularidad"]
     idx_virtual = avanzar_paso_titularidad(0, "Virtual", pasos)
     assert pasos[idx_virtual].id == "titularidad_docs_virtual"
-    idx_der = avanzar_paso_titularidad(idx_virtual, "ya mandé el dni", pasos)
+    assert avanzar_paso_titularidad(idx_virtual, "Ok", pasos) == idx_virtual
+    idx_der = avanzar_paso_titularidad(
+        idx_virtual, "ya mandé el dni", pasos, docs_listos=True
+    )
     assert pasos[idx_der].id == "derivar_comercial"
 
 
@@ -2430,6 +2438,10 @@ def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
     assert _rewrite_tramite_conserva_hechos(borrador, ok)
     assert not _rewrite_tramite_conserva_hechos(
         borrador, "Te hago un 20% de descuento y listo, no hace falta DNI."
+    )
+    assert not _rewrite_tramite_conserva_hechos(
+        borrador,
+        "Perfecto, ahora un operador va a revisar toda la documentación que enviaste.",
     )
 
     from unittest.mock import patch
@@ -2611,6 +2623,17 @@ def test_cambio_titularidad_n1_informa_y_no_ticket_en_primer_turno():
     assert "nota" in resp2 or "firmada" in resp2
     assert "presencial" not in resp2
     assert "fallecimiento" not in resp2
+    with Session() as db:
+        from sqlalchemy import select as _sel
+
+        from app.estate import canal_repo as crepo
+        from app.estate.models import ConversacionCanal
+
+        conv = db.scalar(
+            _sel(ConversacionCanal).where(ConversacionCanal.id == r2["conversacion_id"])
+        )
+        assert conv
+        assert crepo.get_contexto(conv).get("titularidad_modalidad") == "virtual"
 
     with Session() as db:
         r3 = procesar_mensaje_entrante(
@@ -2637,3 +2660,129 @@ def test_cambio_titularidad_n1_informa_y_no_ticket_en_primer_turno():
         )
     assert r4.get("ticket_id"), r4.get("respuesta")
     assert r4.get("estado") == "espera_agente"
+
+
+def _reset_conv_titularidad_karina():
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+
+    tel = "5492235560100"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "34964560"))
+        assert abo
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(conv, {"saludo": True, "identificado": True})
+        db.commit()
+        return org.id, tel
+
+
+def test_titularidad_virtual_ok_sin_docs_recuerda():
+    from app.estate.database import get_session_factory
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    org_id, tel = _reset_conv_titularidad_karina()
+    Session = get_session_factory()
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quiero hacer un cambio de titularidad",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Virtual",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Ok",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r.get("intencion") == "cambio_titularidad"
+    assert not r.get("ticket_id"), r.get("respuesta")
+    assert r.get("estado") == "bot"
+    resp = (r.get("respuesta") or "").lower()
+    assert "todavía no me llegó" in resp or "todavia no me llego" in resp
+    assert "dni" in resp
+    assert "enviaste" not in resp
+
+
+def test_titularidad_no_a_derivar_no_cierra():
+    from app.estate.database import get_session_factory
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    org_id, tel = _reset_conv_titularidad_karina()
+    Session = get_session_factory()
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quiero hacer un cambio de titularidad",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Virtual",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    with Session() as db:
+        procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Ya mandé el DNI y la nota firmada",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="no",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r.get("ticket_id"), r.get("respuesta")
+    assert r.get("estado") == "bot"
+    assert r.get("modo") != "cerrado"
+    resp = (r.get("respuesta") or "").lower()
+    assert "no te derivo" in resp
+    assert "sigue abierto" in resp or "derivame" in resp

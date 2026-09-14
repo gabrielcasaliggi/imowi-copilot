@@ -406,9 +406,15 @@ export function ChatPanel() {
               <h2 id="resolve-dialog-title" className="text-base font-semibold text-slate-50">
                 Resolver y cerrar el ticket
               </h2>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Documentá qué se hizo. Ese texto queda como resolución del ticket.
-              </p>
+              {conv?.cierre_bloqueado_motivo ? (
+                <p className="text-sm text-amber-200 leading-relaxed" role="alert">
+                  {conv.cierre_bloqueado_motivo}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  Documentá qué se hizo. Ese texto queda como resolución del ticket.
+                </p>
+              )}
             </div>
             <label className="sr-only" htmlFor="resolve-note">
               Resolución
@@ -435,7 +441,9 @@ export function ChatPanel() {
               <button
                 type="button"
                 onClick={() => void onMarcarResuelto()}
-                disabled={busy || !resolveNote.trim()}
+                disabled={
+                  busy || !resolveNote.trim() || Boolean(conv?.cierre_bloqueado_motivo)
+                }
                 className="text-xs px-3.5 py-2 rounded-lg font-semibold bg-ecolan-brand text-white hover:bg-ecolan-brand-dark disabled:opacity-50"
               >
                 {busy ? "…" : "Cerrar con resolución"}

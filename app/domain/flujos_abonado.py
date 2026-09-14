@@ -632,7 +632,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "derivar_comercial",
-            "Un operador revisa la documentación y completa el trámite. ¿Te derivo?",
+            "Cuando la documentación esté en este chat, un operador completa el trámite. "
+            "¿Te derivo?",
         ),
     ],
     "cambio_domicilio": [
@@ -758,12 +759,90 @@ def _indice_paso_id(pasos: list[PasoPlaybook], pid: str) -> int | None:
     return None
 
 
+def declara_envio_docs_tramite(texto: str) -> bool:
+    """True si dice que ya mandó / va a mandar la documentación por el chat."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "ya mandé",
+            "ya mande",
+            "ya te mandé",
+            "ya te mande",
+            "ya envié",
+            "ya envie",
+            "te lo mandé",
+            "te lo mande",
+            "ahí te mando",
+            "ahi te mando",
+            "te mando el dni",
+            "te mando la nota",
+            "te mando la foto",
+            "mandé el dni",
+            "mande el dni",
+            "mandé la nota",
+            "mande la nota",
+            "mandé la foto",
+            "mande la foto",
+            "adjunté",
+            "adjunte",
+            "ahí va",
+            "ahi va",
+        )
+    )
+
+
+def insiste_operador_tramite(texto: str) -> bool:
+    """Pedido explícito de operador; no cuenta un «sí»/«ok» corto."""
+    if rechaza_derivacion_clara(texto):
+        return False
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "derivame",
+            "derívame",
+            "pasame con",
+            "pásame con",
+            "quiero agente",
+            "quiero un operador",
+            "abrí el ticket",
+            "abri el ticket",
+        )
+    )
+
+
+def recordatorio_docs_titularidad(paso_id: str) -> str:
+    """Pedido de docs si eligió virtual/fallecimiento y todavía no hay archivo."""
+    pid = (paso_id or "").lower()
+    if "fallecimiento" in pid:
+        return (
+            "Todavía no me llegó la documentación por este chat. "
+            "Para fallecimiento hace falta certificado de defunción, el vínculo "
+            "y el DNI de quien asume. Mandalo acá (foto o PDF) y después te derivo "
+            "con un operador."
+        )
+    return (
+        "Todavía no me llegó la documentación por este chat. "
+        "Para hacerlo virtual hace falta: foto del DNI del titular, la nota firmada "
+        "(nombres y DNI de ambos, voluntad de ceder, firma y fecha) y, del futuro "
+        "titular, foto de DNI, dos teléfonos y un mail. Mandalo acá y después te "
+        "derivo con un operador."
+    )
+
+
 def avanzar_paso_titularidad(
     paso_idx: int,
     texto: str,
     pasos: list[PasoPlaybook],
+    *,
+    docs_listos: bool = False,
 ) -> int:
-    """Salta al checklist de la modalidad elegida; de docs va a derivar.
+    """Salta al checklist de la modalidad; en virtual/fallecimiento espera docs.
 
     Si la modalidad no se entiende, se queda en la pregunta.
     """
@@ -779,8 +858,11 @@ def avanzar_paso_titularidad(
         found = _indice_paso_id(pasos, target)
         return found if found is not None else min(idx + 1, len(pasos) - 1)
     if pid.startswith("titularidad_docs"):
-        found = _indice_paso_id(pasos, "derivar_comercial")
-        return found if found is not None else min(idx + 1, len(pasos) - 1)
+        presencial = "presencial" in pid
+        if presencial or docs_listos:
+            found = _indice_paso_id(pasos, "derivar_comercial")
+            return found if found is not None else min(idx + 1, len(pasos) - 1)
+        return idx
     return min(idx + 1, len(pasos) - 1)
 
 

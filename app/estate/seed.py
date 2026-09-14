@@ -1263,6 +1263,20 @@ def _sync_playbooks_tramites_admin(payload_json: str | None) -> str | None:
         if stale:
             pb[key] = _pasos_playbook_a_dicts(PLAYBOOKS[key])
             changed = True
+        elif key == "cambio_titularidad" and isinstance(cur, list):
+            for p in cur:
+                if not isinstance(p, dict) or p.get("id") != "derivar_comercial":
+                    continue
+                q = str(p.get("pregunta") or "").lower()
+                if "esté en este chat" in q or "este en este chat" in q:
+                    continue
+                if "enviaste" in q or "revisa la documentación" in q:
+                    p["pregunta"] = next(
+                        x.pregunta
+                        for x in PLAYBOOKS["cambio_titularidad"]
+                        if x.id == "derivar_comercial"
+                    )
+                    changed = True
     if not changed:
         return None
     data["playbooks"] = pb
