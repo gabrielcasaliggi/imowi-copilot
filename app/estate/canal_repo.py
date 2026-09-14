@@ -233,6 +233,10 @@ def add_mensaje(
     autor: str,
     texto: str,
     meta_message_id: str = "",
+    media_tipo: str = "",
+    media_mime: str = "",
+    media_filename: str = "",
+    media_relpath: str = "",
 ) -> MensajeCanal:
     m = MensajeCanal(
         organizacion_id=org_id,
@@ -241,6 +245,10 @@ def add_mensaje(
         autor=autor,
         texto=texto or "",
         meta_message_id=(meta_message_id or "")[:191],
+        media_tipo=(media_tipo or "")[:24],
+        media_mime=(media_mime or "")[:80],
+        media_filename=(media_filename or "")[:180],
+        media_relpath=(media_relpath or "")[:260],
     )
     db.add(m)
     conv = db.get(ConversacionCanal, conversacion_id)
@@ -248,6 +256,36 @@ def add_mensaje(
         conv.updated_at = _now()
     db.commit()
     db.refresh(m)
+    return m
+
+
+def attach_media(
+    db: Session,
+    mensaje: MensajeCanal,
+    *,
+    media_tipo: str,
+    media_mime: str,
+    media_filename: str,
+    media_relpath: str,
+) -> MensajeCanal:
+    mensaje.media_tipo = (media_tipo or "")[:24]
+    mensaje.media_mime = (media_mime or "")[:80]
+    mensaje.media_filename = (media_filename or "")[:180]
+    mensaje.media_relpath = (media_relpath or "")[:260]
+    db.commit()
+    db.refresh(mensaje)
+    return mensaje
+
+
+def get_mensaje(
+    db: Session,
+    org_id: str,
+    conv_id: str,
+    msg_id: str,
+) -> MensajeCanal | None:
+    m = db.get(MensajeCanal, msg_id)
+    if not m or m.organizacion_id != org_id or m.conversacion_id != conv_id:
+        return None
     return m
 
 
@@ -457,7 +495,21 @@ def conversacion_to_dict(
         or (ctx.get("invitado") and not c.abonado_id and c.estado in ("espera_agente", "con_agente"))
     )
     cola_prioridad = str(ctx.get("cola_prioridad") or ("baja" if es_visitante else "alta"))
-    ultimo_texto = _truncate_preview(ultimo.texto) if ultimo else ""
+    ultimo_texto = ""
+    if ultimo:
+        from app.services.canal_media import preview_adjunto
+
+        tipo = str(getattr(ultimo, "media_tipo", "") or "").strip()
+        if tipo:
+            ultimo_texto = _truncate_preview(
+                preview_adjunto(
+                    tipo=tipo,
+                    filename=str(getattr(ultimo, "media_filename", "") or ""),
+                    texto=ultimo.texto or "",
+                )
+            )
+        else:
+            ultimo_texto = _truncate_preview(ultimo.texto)
     ultimo_autor = (ultimo.autor if ultimo else "") or ""
     ultimo_at = ""
     if ultimo and ultimo.created_at:
@@ -492,6 +544,13 @@ def conversacion_to_dict(
 
 
 def mensaje_to_dict(m: MensajeCanal) -> dict:
+    tipo = str(getattr(m, "media_tipo", "") or "").strip()
+    rel = str(getattr(m, "media_relpath", "") or "").strip()
+    media_url = ""
+    if tipo and rel:
+        media_url = (
+            f"/api/v1/inbox/conversations/{m.conversacion_id}/messages/{m.id}/media"
+        )
     return {
         "id": m.id,
         "conversacion_id": m.conversacion_id,
@@ -500,4 +559,8 @@ def mensaje_to_dict(m: MensajeCanal) -> dict:
         "texto": m.texto,
         "meta_message_id": m.meta_message_id,
         "created_at": m.created_at.isoformat() if m.created_at else "",
+        "media_tipo": tipo,
+        "media_mime": str(getattr(m, "media_mime", "") or "").strip(),
+        "media_filename": str(getattr(m, "media_filename", "") or "").strip(),
+        "media_url": media_url,
     }

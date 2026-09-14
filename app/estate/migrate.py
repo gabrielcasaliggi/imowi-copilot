@@ -50,6 +50,13 @@ _CONVERSACION_CANAL_COLUMNS: dict[str, str] = {
     "agente_last_read_at": "DATETIME",
 }
 
+_MENSAJE_CANAL_COLUMNS: dict[str, str] = {
+    "media_tipo": "VARCHAR(24) DEFAULT ''",
+    "media_mime": "VARCHAR(80) DEFAULT ''",
+    "media_filename": "VARCHAR(180) DEFAULT ''",
+    "media_relpath": "VARCHAR(260) DEFAULT ''",
+}
+
 _ABONADO_COLUMNS: dict[str, str] = {
     "client_number": "VARCHAR(40) DEFAULT ''",
 }
@@ -178,6 +185,12 @@ def migrate_schema(engine: Engine) -> list[str]:
         widened = _widen_varchar(engine, "mensajes_canal", "meta_message_id", 191)
         if widened:
             cambios.append("mensajes_canal.meta_message_id→191")
+        existentes_msg = {c["name"] for c in insp.get_columns("mensajes_canal")}
+        for col, ddl in _MENSAJE_CANAL_COLUMNS.items():
+            if col not in existentes_msg:
+                _add_column(engine, "mensajes_canal", col, ddl)
+                cambios.append(f"mensajes_canal.{col}")
+                logger.info("Migración: columna agregada mensajes_canal.%s", col)
 
     if insp.has_table("ticket_notifications"):
         if _nullable_column(engine, "ticket_notifications", "ticket_id"):

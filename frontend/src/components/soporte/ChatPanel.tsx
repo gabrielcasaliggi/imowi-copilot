@@ -354,7 +354,9 @@ export function ChatPanel() {
             </p>
           </div>
         ) : (
-          mensajes.map((m) => <ChatMessageBubble key={m.id} message={m} />)
+          mensajes.map((m) => (
+            <ChatMessageBubble key={m.id} message={m} tenantSlug={slug} />
+          ))
         )}
         <div ref={bottomRef} />
       </div>

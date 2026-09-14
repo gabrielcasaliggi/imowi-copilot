@@ -27,11 +27,11 @@ from app.domain.flujos_abonado import (
     es_paso_derivacion,
     es_saludo_corto,
     es_saludo_solo,
+    es_tramite_admin,
     indica_resuelto,
     intencion_desde_tema,
     intencion_es_facturacion,
     intencion_es_internet,
-    mensaje_baja_servicio_n1,
     misma_queja,
     niega_producto_internet,
     parece_consulta_nueva,
@@ -2180,7 +2180,63 @@ _AVISO_ESPERA_COOLDOWN_S = 90
 
 
 def _intencion_comercial_desde_texto(texto: str) -> str:
-    return "baja_servicio" if solicita_baja_servicio(texto) else "alta_plan"
+    intent = clasificar_intencion(texto)
+    if es_tramite_admin(intent):
+        return intent
+    return "alta_plan"
+
+
+def _prefijo_deuda_baja(abonado: Abonado | None) -> str:
+    """Saldo pendiente al arrancar baja (P29: mencionar deuda/saldo, no QR)."""
+    if abonado is None or not _deuda_positiva(abonado):
+        return ""
+    from app.services.eco_voice import texto_monto_ars
+
+    monto = str(getattr(abonado, "deuda_monto", "") or "").strip()
+    return (
+        f"En tu cuenta figura un saldo pendiente de {texto_monto_ars(monto)}. "
+        "Para la baja formal la cuenta tiene que quedar en cero; eso lo revisa un operador. "
+    )
+
+
+def _iniciar_flujo_tramite_admin(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+) -> dict:
+    """Recorre playbook de baja/titularidad/domicilio sin reescribir con LLM."""
+    intent = intencion if es_tramite_admin(intencion) else "baja_servicio"
+    ctx["intencion"] = intent
+    ctx["paso_idx"] = 0
+    ctx["diag_turnos"] = 0
+    ctx["pasos_cubiertos"] = []
+    ctx["ultima_respuesta_libre"] = (texto or "")[:240]
+    ctx.pop("intencion_tecnica_pendiente", None)
+    ctx.pop("aviso_deuda_ofrecido", None)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    pb = _playbooks(db)
+    pasos = pb.get(intent) or pb["general"]
+    pregunta = pasos[0].pregunta if pasos else "Contame qué necesitás."
+    if intent == "baja_servicio":
+        prefijo = _prefijo_deuda_baja(abonado)
+        if prefijo:
+            pregunta = f"{prefijo}{pregunta}"
+    _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": pregunta,
+        "estado": conv.estado,
+        "intencion": intent,
+    }
 
 
 def _iniciar_flujo_baja_servicio(
@@ -2193,24 +2249,16 @@ def _iniciar_flujo_baja_servicio(
     canal: str,
     ctx: dict,
 ) -> dict:
-    ctx["intencion"] = "baja_servicio"
-    ctx["paso_idx"] = 0
-    ctx["diag_turnos"] = 0
-    ctx["pasos_cubiertos"] = []
-    ctx.pop("intencion_tecnica_pendiente", None)
-    ctx.pop("aviso_deuda_ofrecido", None)
-    crepo.set_contexto(conv, ctx)
-    db.commit()
-    resp = mensaje_baja_servicio_n1(abonado, texto)
-    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-    return {
-        "ok": True,
-        "modo": "bot",
-        "conversacion_id": conv.id,
-        "respuesta": resp,
-        "estado": conv.estado,
-        "intencion": "baja_servicio",
-    }
+    return _iniciar_flujo_tramite_admin(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion="baja_servicio",
+    )
 
 
 def _intencion_desde_tipo_menu(tipo: str) -> str:
@@ -2311,10 +2359,10 @@ def _manejar_menu_consulta_n1(
             intent = _intencion_comercial_desde_texto(texto)
         else:
             intent = "internet" if elec == "internet" else "facturacion"
-        if intent == "baja_servicio":
+        if es_tramite_admin(intent):
             ctx.pop("menu_paso", None)
             ctx.pop("menu_servicio", None)
-            return _iniciar_flujo_baja_servicio(
+            return _iniciar_flujo_tramite_admin(
                 db,
                 org_id,
                 conv,
@@ -2322,6 +2370,7 @@ def _manejar_menu_consulta_n1(
                 texto,
                 canal=canal,
                 ctx=ctx,
+                intencion=intent,
             )
         ctx.pop("menu_paso", None)
         ctx.pop("menu_servicio", None)
@@ -2354,8 +2403,8 @@ def _manejar_menu_consulta_n1(
         intent = _intencion_comercial_desde_texto(texto) if tipo == "comercial" else _intencion_desde_tipo_menu(tipo)
         ctx.pop("menu_paso", None)
         ctx.pop("menu_servicio", None)
-        if intent == "baja_servicio":
-            return _iniciar_flujo_baja_servicio(
+        if es_tramite_admin(intent):
+            return _iniciar_flujo_tramite_admin(
                 db,
                 org_id,
                 conv,
@@ -2363,6 +2412,7 @@ def _manejar_menu_consulta_n1(
                 texto,
                 canal=canal,
                 ctx=ctx,
+                intencion=intent,
             )
         return _arrancar_intencion_menu(
             db,
@@ -2408,8 +2458,8 @@ def _arrancar_intencion_menu(
             refinada = refinar_playbook_internet(texto)
             if refinada:
                 intencion = refinada
-    if intencion == "baja_servicio":
-        return _iniciar_flujo_baja_servicio(
+    if es_tramite_admin(intencion):
+        return _iniciar_flujo_tramite_admin(
             db,
             org_id,
             conv,
@@ -2417,6 +2467,7 @@ def _arrancar_intencion_menu(
             texto,
             canal=canal,
             ctx=ctx,
+            intencion=intencion,
         )
     ctx["intencion"] = intencion
     ctx["paso_idx"] = 0
@@ -3179,6 +3230,57 @@ def _enviar_respuesta(
     return texto
 
 
+_MSG_ARCHIVO_GUARDADO = (
+    "Recibí el archivo. Queda guardado en este chat para que un operador lo revise."
+)
+_MSG_ARCHIVO_FALLO = (
+    "Recibí un archivo pero no pude guardarlo. ¿Podés reenviarlo como foto o PDF?"
+)
+
+
+def _persistir_adjunto_si_aplica(
+    db: Session,
+    org_id: str,
+    conversacion_id: str,
+    mensaje: object,
+    adjunto: dict | None,
+) -> bool:
+    """Guarda imagen/PDF en disco y lo liga al mensaje. False si no hay archivo usable."""
+    if not adjunto:
+        return False
+    raw = adjunto.get("bytes") or b""
+    if not raw:
+        logger.warning(
+            "Adjunto sin bytes conv=%s tipo=%s",
+            conversacion_id,
+            adjunto.get("tipo") or "",
+        )
+        return False
+    from app.estate.models import MensajeCanal
+    from app.services.canal_media import MediaRechazado, guardar
+
+    if not isinstance(mensaje, MensajeCanal):
+        return False
+    try:
+        meta = guardar(
+            org_id=org_id,
+            conversacion_id=conversacion_id,
+            mensaje_id=mensaje.id,
+            raw=raw,
+            tipo=str(adjunto.get("tipo") or ""),
+            mime=str(adjunto.get("mime") or ""),
+            filename=str(adjunto.get("filename") or ""),
+        )
+        crepo.attach_media(db, mensaje, **meta)
+        return True
+    except MediaRechazado as exc:
+        logger.warning("Adjunto rechazado conv=%s: %s", conversacion_id, exc)
+        return False
+    except Exception:
+        logger.exception("No se pudo guardar adjunto conv=%s", conversacion_id)
+        return False
+
+
 def mensaje_derivacion_visitante(*, motivo: str = "") -> str:
     """Copy cálido para quien no tiene cuenta identificada (sin tono de 'cola inferior')."""
     motivo_l = (motivo or "").lower()
@@ -3593,11 +3695,13 @@ def procesar_mensaje_entrante(
     meta_message_id: str = "",
     usar_llama: bool = True,
     entrada_audio: bool = False,
+    adjunto: dict | None = None,
 ) -> dict:
     """Procesa un mensaje del cliente. Retorna respuesta del bot o estado agente.
 
     Si entrada_audio=True y canal=whatsapp, las respuestas del bot de este turno
     se intentan enviar como nota de voz (TTS) con fallback a texto.
+    adjunto: bytes de imagen/PDF ya descargados (no se envían al LLM).
     """
     texto = (texto or "").strip()
     if not texto:
@@ -3639,7 +3743,7 @@ def procesar_mensaje_entrante(
                 ctx0.pop("responder_en_audio", None)
             crepo.set_contexto(conv, ctx0)
             db.commit()
-        crepo.add_mensaje(
+        msg_in = crepo.add_mensaje(
             db,
             org_id,
             conv.id,
@@ -3648,6 +3752,7 @@ def procesar_mensaje_entrante(
             texto=texto,
             meta_message_id=meta_message_id,
         )
+        media_ok = _persistir_adjunto_si_aplica(db, org_id, conv.id, msg_in, adjunto)
     except Exception:
         db.rollback()
         logger.exception(
@@ -3656,6 +3761,20 @@ def procesar_mensaje_entrante(
             (telefono or "")[:20],
         )
         raise
+
+    from app.services.canal_media import es_marcador_media
+
+    solo_archivo = es_marcador_media(texto)
+    if solo_archivo and conv.estado in ("con_agente", "espera_agente"):
+        return {
+            "ok": True,
+            "modo": "agente" if conv.estado == "con_agente" else "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": "",
+            "estado": conv.estado,
+            "ticket_id": conv.ticket_id,
+            "media": media_ok,
+        }
 
     con_agente = _respuesta_si_con_agente(
         db, org_id, conv, texto, canal=canal
@@ -3668,6 +3787,19 @@ def procesar_mensaje_entrante(
         conv = crepo.get_or_create_conversacion(
             db, org_id, telefono=telefono, canal=canal, wa_id=wa_id
         )
+
+    if solo_archivo:
+        resp = _MSG_ARCHIVO_GUARDADO if media_ok else _MSG_ARCHIVO_FALLO
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": conv.ticket_id,
+            "media": media_ok,
+        }
 
     ctx = crepo.get_contexto(conv)
     # Capa de comprensión contextual (aditiva; si falla, sigue el flujo legacy).
@@ -4172,7 +4304,19 @@ def procesar_mensaje_entrante(
                 ctx.pop("menu_paso", None)
                 crepo.set_contexto(conv, ctx)
                 db.commit()
-                return _iniciar_flujo_baja_servicio(
+                intent0 = _intencion_comercial_desde_texto(texto)
+                if es_tramite_admin(intent0):
+                    return _iniciar_flujo_tramite_admin(
+                        db,
+                        org_id,
+                        conv,
+                        abonado,
+                        texto,
+                        canal=canal,
+                        ctx=ctx,
+                        intencion=intent0,
+                    )
+                return _arrancar_intencion_menu(
                     db,
                     org_id,
                     conv,
@@ -4180,6 +4324,9 @@ def procesar_mensaje_entrante(
                     texto,
                     canal=canal,
                     ctx=ctx,
+                    intencion=intent0,
+                    usar_llama=usar_llama,
+                    servicio_abo=servicio_abo,
                 )
             if elec0 in ("internet", "facturacion") and (
                 (elec0 == "internet" and tiene_internet_fijo(servicio_abo))
@@ -4789,8 +4936,8 @@ def procesar_mensaje_entrante(
                 "intencion": "multi_tema",
             }
         intencion = clasificar_intencion(texto, servicio_abo)
-        if intencion == "baja_servicio":
-            return _iniciar_flujo_baja_servicio(
+        if es_tramite_admin(intencion):
+            return _iniciar_flujo_tramite_admin(
                 db,
                 org_id,
                 conv,
@@ -4798,6 +4945,7 @@ def procesar_mensaje_entrante(
                 texto,
                 canal=canal,
                 ctx=ctx,
+                intencion=intencion,
             )
         if _debe_explicar_sin_internet(abonado, texto, intencion):
             ctx["intencion"] = "general"
@@ -5457,7 +5605,7 @@ def procesar_mensaje_entrante(
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
         # Pagos/QR en corte: plantilla fija. Facturación ya va por diagnóstico IA.
-        if usar_llama and intencion != "corte_deuda":
+        if usar_llama and intencion != "corte_deuda" and not es_tramite_admin(intencion):
             pregunta = _redactar_con_llama(
                 pregunta,
                 f"paso={idx} intencion={intencion}",
@@ -5795,7 +5943,7 @@ def procesar_mensaje_entrante(
         "Para seguir ayudándote necesito un poco más de detalle. "
         f"{pregunta}"
     )
-    if usar_llama:
+    if usar_llama and not es_tramite_admin(intencion):
         resp = _redactar_con_llama(
             resp,
             f"paso={paso_idx} intencion={intencion} ambiguo=1",

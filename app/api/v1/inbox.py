@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -120,6 +121,37 @@ def get_inbox_conversation(
         "conversacion": crepo.conversacion_to_dict(c, abonado=abo, tiene_no_leidos=False),
         "mensajes": mensajes,
     }
+
+
+@router.get("/inbox/conversations/{conv_id}/messages/{msg_id}/media")
+def get_inbox_message_media(
+    conv_id: str,
+    msg_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+):
+    """Sirve foto/PDF del hilo. Requiere sesión de consola; no pasa por el LLM."""
+    from app.services.canal_media import MediaRechazado, resolver_path
+
+    m = crepo.get_mensaje(db, _org_id(ctx), conv_id, msg_id)
+    if not m or not (m.media_relpath or "").strip():
+        raise HTTPException(404, "Archivo no encontrado")
+    try:
+        path = resolver_path(m.media_relpath)
+    except FileNotFoundError:
+        raise HTTPException(404, "Archivo no encontrado") from None
+    except MediaRechazado:
+        raise HTTPException(404, "Archivo no encontrado") from None
+    mime = (m.media_mime or "").strip() or "application/octet-stream"
+    filename = (m.media_filename or "").strip() or path.name
+    inline = mime.startswith("image/")
+    return FileResponse(
+        path,
+        media_type=mime,
+        filename=filename,
+        content_disposition_type="inline" if inline else "attachment",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
 
 
 @router.post("/inbox/conversations/{conv_id}/read")

@@ -225,6 +225,8 @@ def test_escape_agente_y_sintoma():
         parse_menu_servicio("Quiero dar de baja todo el internet y sensa")
         == "comercial"
     )
+    assert parse_menu_servicio("quiero cambio de titularidad") == "comercial"
+    assert parse_menu_servicio("me mudo, cambio de domicilio") == "comercial"
     from app.domain.flujos_abonado import resolver_menu_servicio
 
     assert resolver_menu_servicio("No tengo datos en Mar del Plata", "movil") == "movil"
@@ -483,6 +485,15 @@ def test_kb_batan_seed_cubre_servicios_oficiales():
     assert "IMOWI — SMS de verificación (A2P)" in by_title
     assert "IMOWI — FAQ operativa N1" in by_title
     assert "IMOWI — baja o arrepentimiento" in by_title
+    assert "Procedimiento — baja voluntaria" in by_title
+    assert "Procedimiento — cambio de titularidad" in by_title
+    assert "Procedimiento — cambio de domicilio" in by_title
+    baja_proc = by_title["Procedimiento — baja voluntaria"]
+    assert "Plantel" in baja_proc
+    assert "$0" in baja_proc
+    tit = by_title["Procedimiento — cambio de titularidad"]
+    assert "nota firmada" in tit
+    assert "fallecimiento" in tit.lower()
     planes = by_title["Planes IMOWI móvil — vigentes"]
     assert "8GB" in planes
     assert "25GB" in planes
@@ -577,6 +588,11 @@ def test_playbooks_imowi_apn_y_autogestion_batan():
     assert clasificar_intencion("quiero escuchar el correo de voz *333") == "movil_llamadas"
     assert clasificar_intencion("necesito activar la esim imowi") == "movil"
     assert clasificar_intencion("quiero dar de baja imowi") == "baja_servicio"
+    assert clasificar_intencion("quiero un cambio de titularidad") == "cambio_titularidad"
+    assert clasificar_intencion("necesito cambiar el titular del servicio") == "cambio_titularidad"
+    assert clasificar_intencion("me mudo, cambio de domicilio") == "cambio_domicilio"
+    assert clasificar_intencion("quiero mudar el servicio") == "cambio_domicilio"
+    assert clasificar_intencion("el técnico tiene que ir a mi domicilio") != "cambio_domicilio"
 
 
 def test_playbooks_menu_y_portal_mencionan_servicios():
@@ -2375,3 +2391,158 @@ def test_baja_con_deuda_no_empuja_pago_ni_diagnostico():
     assert "qr fiserv" not in resp2
     assert "no reconocés" not in resp2 and "no reconoces" not in resp2
     assert r2.get("intencion") in ("baja_servicio", "aviso_deuda")
+
+
+def test_playbooks_tramites_admin_terminan_en_derivar():
+    from app.domain.flujos_abonado import PLAYBOOKS, es_paso_derivacion, es_tramite_admin
+
+    for key in ("baja_servicio", "cambio_titularidad", "cambio_domicilio"):
+        assert es_tramite_admin(key)
+        pasos = PLAYBOOKS[key]
+        assert len(pasos) >= 2
+        assert es_paso_derivacion(pasos[-1])
+        assert "baja_detalle" not in {p.id for p in PLAYBOOKS["baja_servicio"]}
+        assert PLAYBOOKS["baja_servicio"][0].id == "baja_alcance"
+    baja = PLAYBOOKS["baja_servicio"][0].pregunta.lower()
+    assert "$0" in baja
+    assert "retención" in baja or "retencion" in baja
+    docs = PLAYBOOKS["cambio_titularidad"][1].pregunta.lower()
+    assert "dni" in docs and "nota" in docs
+    assert "fallecimiento" in PLAYBOOKS["cambio_titularidad"][0].pregunta.lower() or (
+        "defunción" in docs or "defuncion" in docs
+    )
+
+
+def test_sync_playbooks_tramites_reemplaza_baja_vieja():
+    import json
+
+    from app.estate.seed import _sync_playbooks_tramites_admin
+
+    stale = json.dumps(
+        {
+            "playbooks": {
+                "baja_servicio": [
+                    {"id": "baja_detalle", "pregunta": "¿Baja total?"}
+                ]
+            }
+        },
+        ensure_ascii=False,
+    )
+    out = _sync_playbooks_tramites_admin(stale)
+    assert out
+    data = json.loads(out)
+    ids = [p["id"] for p in data["playbooks"]["baja_servicio"]]
+    assert "baja_alcance" in ids
+    assert "baja_detalle" not in ids
+    assert data["playbooks"]["cambio_titularidad"][0]["id"] == "titularidad_modalidad"
+    assert data["playbooks"]["cambio_domicilio"][0]["id"] == "domicilio_info"
+
+    fresh = json.dumps(
+        {
+            "playbooks": {
+                "baja_servicio": [
+                    {"id": "baja_alcance", "pregunta": "Custom admin"}
+                ],
+                "cambio_titularidad": [
+                    {"id": "titularidad_modalidad", "pregunta": "Custom"}
+                ],
+                "cambio_domicilio": [
+                    {"id": "domicilio_info", "pregunta": "Custom"}
+                ],
+            }
+        },
+        ensure_ascii=False,
+    )
+    assert _sync_playbooks_tramites_admin(fresh) is None
+
+
+def test_cambio_titularidad_n1_informa_y_no_ticket_en_primer_turno():
+    from sqlalchemy import select
+
+    from app.estate import canal_repo as crepo
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado, ConversacionCanal, Organization
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    tel = "5492235560100"
+    Session = get_session_factory()
+    with Session() as db:
+        org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
+        assert org
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "34964560"))
+        assert abo
+        for c in db.scalars(
+            select(ConversacionCanal).where(ConversacionCanal.telefono.contains(tel[-10:]))
+        ).all():
+            c.estado = "cerrado"
+            c.contexto_json = "{}"
+            c.ticket_id = ""
+            c.agente_id = ""
+            c.abonado_id = ""
+        db.commit()
+        conv = crepo.get_or_create_conversacion(
+            db, org.id, telefono=tel, canal="whatsapp", wa_id=tel
+        )
+        conv.estado = "bot"
+        conv.abonado_id = abo.id
+        conv.ticket_id = ""
+        crepo.set_contexto(conv, {"saludo": True, "identificado": True})
+        db.commit()
+        org_id = org.id
+
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quiero hacer un cambio de titularidad",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r.get("intencion") == "cambio_titularidad"
+    assert not r.get("ticket_id"), r.get("respuesta")
+    resp = (r.get("respuesta") or "").lower()
+    assert "titularidad" in resp
+    assert "presencial" in resp or "virtual" in resp
+    assert "qr fiserv" not in resp
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Virtual, te mando el DNI por acá",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r2.get("intencion") == "cambio_titularidad"
+    assert not r2.get("ticket_id"), r2.get("respuesta")
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "dni" in resp2
+    assert "nota" in resp2 or "firmada" in resp2
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Ya mandé el DNI y la nota firmada",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r3.get("intencion") == "cambio_titularidad"
+    assert not r3.get("ticket_id"), r3.get("respuesta")
+    resp3 = (r3.get("respuesta") or "").lower()
+    assert "derivo" in resp3 or "operador" in resp3
+
+    with Session() as db:
+        r4 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Sí, derivame con un operador",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r4.get("ticket_id"), r4.get("respuesta")
+    assert r4.get("estado") == "espera_agente"

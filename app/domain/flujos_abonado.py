@@ -63,6 +63,8 @@ TAG_POR_INTENCION: dict[str, str] = {
     "ecolan_b2b": "[ECOLAN_B2B]",
     "alta_plan": "[HANDOFF_HUMANO]",
     "baja_servicio": "[HANDOFF_HUMANO]",
+    "cambio_titularidad": "[HANDOFF_HUMANO]",
+    "cambio_domicilio": "[HANDOFF_HUMANO]",
     "portal_tramites": "[HANDOFF_HUMANO]",
     "turno_campo": "[HANDOFF_HUMANO]",
     "general": "[HANDOFF_HUMANO]",
@@ -586,19 +588,52 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
     ],
     "baja_servicio": [
         PasoPlaybook(
-            "baja_detalle",
-            "¿Querés la baja total o solo de internet, Sensa/app, móvil u otro producto?",
+            "baja_alcance",
+            "Entiendo que querés dar de baja. ¿Es baja total o solo de internet, Sensa, "
+            "móvil u otro producto? La cuenta tiene que quedar en $0. Si el motivo es el "
+            "costo, un operador puede ofrecerte las alternativas de retención vigentes "
+            "(no las armo yo).",
         ),
         PasoPlaybook(
-            "requisitos_deuda_equipo",
-            "Con deuda pendiente la baja formal requiere saldo en cero (lo revisa comercial). "
-            "Si tenés fibra, la baja se toma con el equipo en mano; si no podés ir, puede ir "
-            "otra persona con nota firmada del titular. Desenchufar no da de baja el servicio. "
-            "¿Querés que te derive con comercial?",
+            "baja_requisitos",
+            "Para la baja hace falta foto del DNI del titular. "
+            "Fibra o ADSL: hay que devolver el equipo en la Cooperativa; desenchufar no da de baja. "
+            "Internet inalámbrico (BAI): no desmontes, Plantel coordina el retiro. "
+            "Mandá el DNI u otra documentación por este chat.",
         ),
         PasoPlaybook(
             "derivar_comercial",
-            "Te paso con comercial para registrar la baja. ¿Te derivo?",
+            "Un operador completa la baja y, si corresponde, la retención. ¿Te derivo?",
+        ),
+    ],
+    "cambio_titularidad": [
+        PasoPlaybook(
+            "titularidad_modalidad",
+            "El cambio de titularidad puede ser presencial o virtual, y la cuenta no puede "
+            "tener deuda. ¿Es presencial (van ambos a la Cooperativa), virtual, o por fallecimiento?",
+        ),
+        PasoPlaybook(
+            "titularidad_docs",
+            "Presencial: titular actual y nuevo titular van a la Cooperativa con DNI. "
+            "Virtual: el titular manda foto de DNI y una nota firmada (nombres y DNI de ambos, "
+            "voluntad de ceder, firma y fecha); el futuro titular manda foto de DNI, dos teléfonos "
+            "y un mail. Fallecimiento: certificado de defunción, vínculo y DNI de quien asume. "
+            "Mandá esa documentación por este chat.",
+        ),
+        PasoPlaybook(
+            "derivar_comercial",
+            "Un operador revisa la documentación y completa el trámite. ¿Te derivo?",
+        ),
+    ],
+    "cambio_domicilio": [
+        PasoPlaybook(
+            "domicilio_info",
+            "El cambio de domicilio lo gestiona un operador. Si tenés algún comprobante, "
+            "mandalo por este chat.",
+        ),
+        PasoPlaybook(
+            "derivar_comercial",
+            "Te dejo con un operador para el cambio de domicilio. ¿Te derivo?",
         ),
     ],
     "portal_tramites": [
@@ -644,9 +679,14 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# CLASIFICACIÓN / HELPERS
-# ---------------------------------------------------------------------------
+INTENCIONES_TRAMITE_ADMIN = frozenset(
+    {"baja_servicio", "cambio_titularidad", "cambio_domicilio"}
+)
+
+
+def es_tramite_admin(intencion: str) -> bool:
+    return (intencion or "").strip() in INTENCIONES_TRAMITE_ADMIN
+
 
 def tag_para_intencion(intencion: str) -> str:
     return TAG_POR_INTENCION.get((intencion or "").strip(), "[HANDOFF_HUMANO]")
@@ -765,6 +805,56 @@ def solicita_baja_servicio(texto: str) -> bool:
     return False
 
 
+def solicita_cambio_titularidad(texto: str) -> bool:
+    """True si pide ceder o cambiar el titular del servicio."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "cambio de titularidad",
+            "cambiar titularidad",
+            "cambiar la titularidad",
+            "cambio de titular",
+            "cambiar el titular",
+            "cambiar de titular",
+            "ceder el servicio",
+            "ceder la titularidad",
+            "pasar el servicio a nombre",
+            "poner a nombre de",
+            "a nombre de otra persona",
+            "otro titular",
+        )
+    )
+
+
+def solicita_cambio_domicilio(texto: str) -> bool:
+    """True si pide mudanza / cambio de dirección del servicio (no 'en tu domicilio')."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "cambio de domicilio",
+            "cambiar de domicilio",
+            "cambiar el domicilio",
+            "cambiar domicilio",
+            "mudanza",
+            "me mudo",
+            "mudar el servicio",
+            "traslado del servicio",
+            "cambiar la dirección",
+            "cambiar la direccion",
+            "cambio de dirección",
+            "cambio de direccion",
+            "nueva dirección del servicio",
+            "nueva direccion del servicio",
+        )
+    )
+
+
 def cliente_imposibilidad_pago(texto: str) -> bool:
     """No puede / no quiere pagar por costo (no es reclamo de monto)."""
     t = (texto or "").lower().strip()
@@ -847,6 +937,8 @@ def parse_menu_servicio(texto: str) -> str | None:
     if not t:
         return None
     if solicita_baja_servicio(texto):
+        return "comercial"
+    if solicita_cambio_titularidad(texto) or solicita_cambio_domicilio(texto):
         return "comercial"
     # Typos frecuentes: «,ovil», «ovil», «mvil» (móvil)
     compacto = (
@@ -952,7 +1044,7 @@ def resolver_menu_servicio(texto: str, servicio_abonado: str = "") -> str | None
         "movil"
     ):
         return "movil"
-    if intent == "baja_servicio":
+    if intent in ("baja_servicio", "cambio_titularidad", "cambio_domicilio"):
         return "comercial"
     if intent in (
         "internet",
@@ -1045,7 +1137,7 @@ def resolver_menu_tipo_consulta(texto: str, servicio_abonado: str = "") -> str |
         "movil"
     ):
         return "tecnico"
-    if intent in ("alta_plan", "baja_servicio"):
+    if intent in ("alta_plan", "baja_servicio", "cambio_titularidad", "cambio_domicilio"):
         return "comercial"
     if intent in (
         "facturacion",
@@ -1662,6 +1754,12 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
 
     if solicita_baja_servicio(texto):
         return "baja_servicio"
+
+    if solicita_cambio_titularidad(texto):
+        return "cambio_titularidad"
+
+    if solicita_cambio_domicilio(texto):
+        return "cambio_domicilio"
 
     if any(k in t for k in (
         "dar de alta", "alta", "cambio de plan", "cambiar plan", "mejorar plan",
@@ -3817,6 +3915,8 @@ def intencion_desde_tema(tema: str, texto_original: str = "") -> str:
             "portal_tramites",
             "alta_plan",
             "baja_servicio",
+            "cambio_titularidad",
+            "cambio_domicilio",
         ):
             return intent
     return "internet"
@@ -4006,6 +4106,8 @@ def resumen_handoff(
         "reactivacion_pago": "Reactivación por pago",
         "alta_plan": "Alta/plan",
         "baja_servicio": "Baja de servicio",
+        "cambio_titularidad": "Cambio de titularidad",
+        "cambio_domicilio": "Cambio de domicilio",
         "no_tecnico": "No técnico",
         "general": "General",
     }.get(intencion, intencion or "General")

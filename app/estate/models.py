@@ -474,6 +474,10 @@ class MensajeCanal(Base):
     texto: Mapped[str] = mapped_column(Text, default="")
     # wamid de Meta puede superar 80 chars; truncamos al persistir por seguridad
     meta_message_id: Mapped[str] = mapped_column(String(191), default="")
+    media_tipo: Mapped[str] = mapped_column(String(24), default="")  # image|document
+    media_mime: Mapped[str] = mapped_column(String(80), default="")
+    media_filename: Mapped[str] = mapped_column(String(180), default="")
+    media_relpath: Mapped[str] = mapped_column(String(260), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     conversacion: Mapped[ConversacionCanal] = relationship(back_populates="mensajes")

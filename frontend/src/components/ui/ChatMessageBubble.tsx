@@ -1,7 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { InboxMessage } from "@/lib/api-client";
+import { apiBaseUrl } from "@/lib/api-client";
+import { getToken } from "@/lib/storage";
 import { getBranding } from "@/lib/brand";
 import { EkoAvatar } from "@/components/ui/EkoAvatar";
 
@@ -282,6 +284,92 @@ function formatTime(iso?: string): string | null {
   return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function isMediaMarker(texto: string): boolean {
+  const t = texto.trim().toLowerCase();
+  return t === "[image]" || t === "[document]";
+}
+
+function InboxMedia({
+  url,
+  tipo,
+  filename,
+  tenantSlug,
+}: {
+  url: string;
+  tipo: string;
+  filename: string;
+  tenantSlug?: string;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let created: string | null = null;
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+    void (async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl()}${url}`, {
+          credentials: "include",
+          headers,
+        });
+        if (!res.ok) {
+          if (!cancelled) setFailed(true);
+          return;
+        }
+        const blob = await res.blob();
+        const nextUrl = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(nextUrl);
+          return;
+        }
+        created = nextUrl;
+        setObjectUrl(nextUrl);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [url, tenantSlug]);
+
+  if (failed) {
+    return <p className="mt-1 text-xs text-slate-400">No se pudo cargar el archivo.</p>;
+  }
+  if (!objectUrl) {
+    return <p className="mt-1 text-xs text-slate-500">Cargando archivo…</p>;
+  }
+  if (tipo === "image") {
+    return (
+      <a href={objectUrl} target="_blank" rel="noopener noreferrer" className="block mt-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={objectUrl}
+          alt={filename || "Foto enviada por el abonado"}
+          className="max-h-64 max-w-full rounded-lg"
+        />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={objectUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      download={filename || undefined}
+      className="mt-1 inline-flex text-sm font-semibold underline underline-offset-2"
+      style={{ color: "#2ec4d6" }}
+    >
+      {filename || "Documento"}
+    </a>
+  );
+}
+
 function BotBubbleRow({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-end gap-2 mr-auto max-w-[min(90%,28rem)]">
@@ -294,14 +382,29 @@ function BotBubbleRow({ children }: { children: ReactNode }) {
 export function ChatMessageBubble({
   message,
   portal = false,
+  tenantSlug,
 }: {
-  message: Pick<InboxMessage, "autor" | "texto" | "created_at"> & { id?: string };
+  message: Pick<
+    InboxMessage,
+    | "autor"
+    | "texto"
+    | "created_at"
+    | "id"
+    | "media_tipo"
+    | "media_url"
+    | "media_filename"
+  > & { id?: string };
   portal?: boolean;
+  tenantSlug?: string;
 }) {
   const isCliente = message.autor === "cliente";
   const isBot = message.autor === "bot";
   const time = formatTime(message.created_at);
   const origen = originLabel(message.autor, portal);
+  const mediaUrl = !portal && message.media_url ? message.media_url : "";
+  const mediaTipo = message.media_tipo || "";
+  const hideMarker = Boolean(mediaUrl) && isMediaMarker(message.texto || "");
+  const showText = Boolean(message.texto) && !hideMarker;
 
   const bubble = (
     <div
@@ -323,9 +426,19 @@ export function ChatMessageBubble({
           </span>
         )}
       </div>
-      <div className="whitespace-pre-wrap leading-relaxed text-[13px] text-slate-100/95">
-        {renderMessageBody(message.texto || "")}
-      </div>
+      {showText ? (
+        <div className="whitespace-pre-wrap leading-relaxed text-[13px] text-slate-100/95">
+          {renderMessageBody(message.texto || "")}
+        </div>
+      ) : null}
+      {mediaUrl ? (
+        <InboxMedia
+          url={mediaUrl}
+          tipo={mediaTipo}
+          filename={message.media_filename || ""}
+          tenantSlug={tenantSlug}
+        />
+      ) : null}
     </div>
   );
 

@@ -1532,6 +1532,10 @@ export interface InboxMessage {
   texto: string;
   meta_message_id: string;
   created_at: string;
+  media_tipo?: string;
+  media_mime?: string;
+  media_filename?: string;
+  media_url?: string;
 }
 export interface LlmMetricsResponse {
   status: string;

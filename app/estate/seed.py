@@ -1128,6 +1128,66 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
         ),
         KnowledgeArticle(
             organizacion_id=org_id,
+            titulo="Procedimiento — baja voluntaria",
+            categoria="Administración",
+            contenido=(
+                "Cooperativa Batán — baja voluntaria (N1 informa; no ejecuta la baja).\n\n"
+                "EKO explica el procedimiento, pide documentación por el chat y deriva a un "
+                "operador. El operador hace retención si corresponde y completa el trámite. "
+                "N1 no da de baja, no cambia titular y no inventa promociones.\n\n"
+                "Pasos:\n"
+                "1) Identificar el servicio a dar de baja (total, internet, Sensa, móvil u otro).\n"
+                "2) Pedir foto del DNI del titular por este chat.\n"
+                "3) Preguntar el motivo. Si es económico, un operador ofrece las alternativas "
+                "   de retención vigentes ANTES de seguir (N1 no arma descuentos).\n"
+                "4) La cuenta tiene que quedar en $0. Con deuda, comercial revisa el saldo.\n"
+                "5) Rama por tecnología:\n"
+                "   - Fibra (FO) o ADSL: devolver el equipo en la Cooperativa. "
+                "     Desenchufar no da de baja el servicio.\n"
+                "   - Internet inalámbrico (BAI): el socio NO desmonta; Plantel coordina el retiro.\n"
+                "   - Telefonía fija / Sensa: no hay retiro de equipo de acceso.\n"
+                "6) ADSL + reclamo de mal funcionamiento: ofrecer migración a fibra si hay cobertura "
+                "   (lo confirma el operador).\n\n"
+                "N1: no procesar la baja en sistemas. Abrir ticket comercial cuando el socio "
+                "acepte derivación o insista. Documentación (DNI, notas) queda en el hilo; "
+                "el modelo no ve los archivos."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Procedimiento — cambio de titularidad",
+            categoria="Administración",
+            contenido=(
+                "Cooperativa Batán — cambio de titularidad (N1 informa; no cambia el titular).\n\n"
+                "La cuenta no puede tener deuda. EKO explica la modalidad, pide documentación "
+                "por el chat y deriva a un operador. N1 no valida identidad a ojo ni ejecuta "
+                "el cambio en sistemas.\n\n"
+                "Modalidades:\n"
+                "1) Presencial: titular actual y futuro titular van a la Cooperativa con DNI. "
+                "   Ambos (cuenta y futuro titular) sin deuda.\n"
+                "2) Virtual: el titular manda foto de DNI y una nota firmada con: nombres y DNI "
+                "   de ambos, voluntad de ceder el servicio, firma y fecha. El futuro titular "
+                "   manda foto de DNI, dos teléfonos y un mail. Cuenta y futuro titular sin deuda.\n"
+                "3) Fallecimiento: certificado de defunción, documentación que acredite el vínculo "
+                "   y DNI de quien asume. No hace falta autorización del titular anterior.\n\n"
+                "N1: pedir que manden la documentación por este chat y abrir ticket para que un "
+                "operador complete el trámite. Los archivos quedan en el hilo; el modelo no ve "
+                "los bytes."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
+            titulo="Procedimiento — cambio de domicilio",
+            categoria="Administración",
+            contenido=(
+                "Cooperativa Batán — cambio de domicilio del servicio.\n\n"
+                "No es un procedimiento largo de N1: lo gestiona un operador. "
+                "Si el socio tiene algún comprobante, pedirle que lo mande por este chat "
+                "y derivar con ticket. N1 no muda el servicio ni cotiza la mudanza."
+            ),
+        ),
+        KnowledgeArticle(
+            organizacion_id=org_id,
             titulo="Escalamiento a N2 — cuándo y cómo",
             categoria="Procedimiento",
             contenido=(
@@ -1142,6 +1202,58 @@ def _articulos_kb_batan(org_id: str) -> list[KnowledgeArticle]:
             ),
         ),
     ]
+
+
+def _pasos_playbook_a_dicts(pasos) -> list[dict[str, str]]:
+    return [{"id": p.id, "pregunta": p.pregunta} for p in pasos]
+
+
+def _sync_playbooks_tramites_admin(payload_json: str | None) -> str | None:
+    """Si Admin guardó baja vieja o faltan titularidad/domicilio, escribe los defaults.
+
+    Devuelve el JSON nuevo o None si no hay que tocar.
+    """
+    import json
+
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    if not payload_json:
+        return None
+    try:
+        data = json.loads(payload_json)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    pb = data.get("playbooks")
+    if not isinstance(pb, dict) or not pb:
+        return None
+
+    changed = False
+    baja = pb.get("baja_servicio")
+    ids: list[str] = []
+    if isinstance(baja, list):
+        for p in baja:
+            if isinstance(p, dict):
+                ids.append(str(p.get("id") or ""))
+    stale_baja = (
+        not isinstance(baja, list)
+        or not baja
+        or "baja_detalle" in ids
+        or "baja_alcance" not in ids
+    )
+    if stale_baja:
+        pb["baja_servicio"] = _pasos_playbook_a_dicts(PLAYBOOKS["baja_servicio"])
+        changed = True
+    for key in ("cambio_titularidad", "cambio_domicilio"):
+        cur = pb.get(key)
+        if not isinstance(cur, list) or not cur:
+            pb[key] = _pasos_playbook_a_dicts(PLAYBOOKS[key])
+            changed = True
+    if not changed:
+        return None
+    data["playbooks"] = pb
+    return json.dumps(data, ensure_ascii=False)
 
 
 def seed_kb_batan_servicios(db: Session) -> dict:
@@ -1177,6 +1289,10 @@ def seed_kb_batan_servicios(db: Session) -> dict:
         cfg.payload_json = cfg.payload_json.replace(
             "internet.coopbatan.ar", "apn1.catel.org.ar"
         )
+        fixed += 1
+    synced = _sync_playbooks_tramites_admin(cfg.payload_json if cfg else None)
+    if cfg and synced:
+        cfg.payload_json = synced
         fixed += 1
 
     # Líneas demo JSC con APN viejo

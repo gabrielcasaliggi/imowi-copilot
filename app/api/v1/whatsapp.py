@@ -65,7 +65,12 @@ def _extraer_texto_mensaje(msg: dict) -> str:
             if body:
                 return body[:4000]
 
-    # Captions de media
+    # Captions de media (o marcador si no hay pie)
+    if tipo in ("image", "video", "document", "audio"):
+        cap = ((msg.get(tipo) or {}).get("caption") or "").strip()
+        if cap:
+            return cap[:4000]
+        return f"[{tipo}]"
     for key in ("image", "video", "document", "audio"):
         if msg.get(key):
             cap = ((msg.get(key) or {}).get("caption") or "").strip()
@@ -74,6 +79,26 @@ def _extraer_texto_mensaje(msg: dict) -> str:
             return f"[{key}]"
 
     return ""
+
+
+def _adjunto_desde_mensaje(msg: dict) -> dict | None:
+    """Descarga foto o PDF de Cloud API. None si no hay media de este tipo."""
+    tipo = (msg.get("type") or "").strip().lower()
+    if tipo not in ("image", "document"):
+        return None
+    blob = msg.get(tipo) or {}
+    media_id = str(blob.get("id") or "").strip()
+    if not media_id:
+        return None
+    from app.services.whatsapp_client import descargar_media
+
+    raw = descargar_media(media_id)
+    return {
+        "tipo": tipo,
+        "mime": str(blob.get("mime_type") or "").strip(),
+        "filename": str(blob.get("filename") or "").strip(),
+        "bytes": raw,
+    }
 
 
 def _procesar_payload_whatsapp(payload: dict, org_id: str, org_slug: str) -> None:
@@ -196,6 +221,16 @@ def _procesar_payload_whatsapp(payload: dict, org_id: str, org_slug: str) -> Non
                     else:
                         text = _extraer_texto_mensaje(msg)
 
+                    adjunto = None
+                    try:
+                        adjunto = _adjunto_desde_mensaje(msg)
+                    except Exception:
+                        logger.exception(
+                            "WhatsApp no pudo bajar adjunto from=%s type=%s",
+                            from_wa,
+                            tipo,
+                        )
+
                     if not text:
                         omitidos += 1
                         crepo.release_inbound_meta_claim(mid)
@@ -223,6 +258,7 @@ def _procesar_payload_whatsapp(payload: dict, org_id: str, org_slug: str) -> Non
                             meta_message_id=mid,
                             usar_llama=True,
                             entrada_audio=entrada_audio,
+                            adjunto=adjunto,
                         )
                         procesados += 1
                         logger.warning(

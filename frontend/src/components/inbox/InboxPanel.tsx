@@ -829,7 +829,9 @@ export function InboxPanel() {
                 {!mensajes.length ? (
                   <p className="text-sm text-slate-500 text-center py-8">Sin mensajes en este hilo.</p>
                 ) : (
-                  mensajes.map((m) => <ChatMessageBubble key={m.id} message={m} />)
+                  mensajes.map((m) => (
+                    <ChatMessageBubble key={m.id} message={m} tenantSlug={slug} />
+                  ))
                 )}
                 <div ref={bottomRef} />
               </div>
