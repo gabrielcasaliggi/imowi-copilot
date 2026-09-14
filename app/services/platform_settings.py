@@ -603,6 +603,9 @@ def playbooks_as_pasos(db: Session | None = None) -> dict[str, list[PasoPlaybook
     out: dict[str, list[PasoPlaybook]] = {n: list(ps) for n, ps in PLAYBOOKS.items()}
     for nombre, pasos in stored.items():
         out[nombre] = pasos
+    baja = out.get("baja_servicio") or []
+    if "baja_requisitos_sensa" not in {p.id for p in baja}:
+        out["baja_servicio"] = list(PLAYBOOKS["baja_servicio"])
     return out
 
 

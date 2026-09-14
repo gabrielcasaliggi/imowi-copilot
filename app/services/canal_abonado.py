@@ -43,6 +43,7 @@ from app.domain.flujos_abonado import (
     parse_modalidad_titularidad,
     pide_humano,
     pide_humano_en_flujo_activo,
+    pregunta_baja_por_alcance,
     rechaza_derivacion_clara,
     recordatorio_docs_baja,
     recordatorio_docs_titularidad,
@@ -1876,7 +1877,11 @@ def _redactar_con_llama(
         if looks_like_jailbreak(consulta):
             return borrador.strip()
 
-        kb_ctx = strip_instruction_phrases(_kb_fragmento(db, org_id, consulta or contexto, max_chars=600))
+        kb_ctx = ""
+        if not tramite:
+            kb_ctx = strip_instruction_phrases(
+                _kb_fragmento(db, org_id, consulta or contexto, max_chars=600)
+            )
         kb_block = (
             f"\n\nDato de KB (opcional, máximo una frase si aporta):\n"
             f"{wrap_untrusted('KB', kb_ctx, max_chars=600)}"
@@ -2369,7 +2374,7 @@ def _iniciar_flujo_tramite_admin(
             nxt = avanzar_paso_baja(0, texto, pasos)
             ctx["paso_idx"] = nxt
             ctx["baja_alcance"] = alcance
-            pregunta = pasos[nxt].pregunta
+            pregunta = pregunta_baja_por_alcance(alcance) or pasos[nxt].pregunta
         prefijo = _prefijo_deuda_baja(abonado)
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
@@ -5765,6 +5770,13 @@ def procesar_mensaje_entrante(
 
     def _preguntar(idx: int, *, prefijo: str = "", pregunta_override: str = "") -> dict:
         pregunta = pregunta_override or pasos[idx].pregunta
+        if not pregunta_override and intencion == "baja_servicio":
+            alcance = str(ctx.get("baja_alcance") or "")
+            pid = (pasos[idx].id or "") if 0 <= idx < len(pasos) else ""
+            if alcance and "derivar" not in pid:
+                canon = pregunta_baja_por_alcance(alcance)
+                if canon:
+                    pregunta = canon
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
         # Pagos/QR en corte: plantilla fija. Facturación ya va por diagnóstico IA.

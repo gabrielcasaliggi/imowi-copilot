@@ -889,21 +889,24 @@ def parse_alcance_baja(texto: str) -> str | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
-    if any(
-        k in t
-        for k in (
-            "baja total",
-            "total",
-            "todo el servicio",
-            "todos los servicios",
-            "de todo",
-            "dar de baja todo",
-            "baja de todo",
-            "todo internet y",
-            "internet y sensa",
-            "sensa y internet",
+    if (
+        any(
+            k in t
+            for k in (
+                "baja total",
+                "todo el servicio",
+                "todos los servicios",
+                "de todo",
+                "dar de baja todo",
+                "baja de todo",
+                "todo internet y",
+                "internet y sensa",
+                "sensa y internet",
+            )
         )
-    ) or t in ("todo", "todos"):
+        or t in ("todo", "todos")
+        or re.search(r"\btotal\b", t)
+    ):
         return "total"
     hits: list[str] = []
     if any(k in t for k in ("sensa", "ott", "televisión", "television", "la tele")):
@@ -931,6 +934,17 @@ _DOCS_BAJA = {
     "movil": "baja_requisitos_movil",
     "total": "baja_requisitos_total",
 }
+
+
+def pregunta_baja_por_alcance(alcance: str) -> str:
+    """Copy canónica del checklist, ignora playbooks viejos guardados en Admin."""
+    target = _DOCS_BAJA.get((alcance or "").strip().lower())
+    if not target:
+        return ""
+    for p in PLAYBOOKS.get("baja_servicio") or []:
+        if (p.id or "") == target:
+            return p.pregunta
+    return ""
 
 
 def recordatorio_docs_baja(paso_id: str) -> str:
@@ -977,7 +991,10 @@ def avanzar_paso_baja(
             return idx
         target = _DOCS_BAJA[alcance]
         found = _indice_paso_id(pasos, target)
-        return found if found is not None else min(idx + 1, len(pasos) - 1)
+        if found is not None:
+            return found
+        # Playbook viejo sin ramas: no caer al checklist genérico de fibra.
+        return idx
     if pid.startswith("baja_requisitos"):
         if docs_listos:
             found = _indice_paso_id(pasos, "derivar_comercial")

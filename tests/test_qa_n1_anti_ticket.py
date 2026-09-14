@@ -2426,15 +2426,28 @@ def test_alcance_baja_elige_rama_sensa():
     )
 
     assert parse_alcance_baja("Sensa") == "sensa"
+    assert parse_alcance_baja("Quería dar de baja sensa") == "sensa"
     assert parse_alcance_baja("solo internet") == "internet"
     assert parse_alcance_baja("el celular IMOWI") == "movil"
     assert parse_alcance_baja("todo") == "total"
+    assert parse_alcance_baja("totalmente de acuerdo") is None
     pasos = PLAYBOOKS["baja_servicio"]
     idx = avanzar_paso_baja(0, "Sensa", pasos)
     assert pasos[idx].id == "baja_requisitos_sensa"
     assert avanzar_paso_baja(idx, "Si", pasos) == idx
     idx_der = avanzar_paso_baja(idx, "ya mandé el dni", pasos, docs_listos=True)
     assert pasos[idx_der].id == "derivar_comercial"
+
+    from app.domain.flujos_abonado import PasoPlaybook, pregunta_baja_por_alcance
+
+    viejo = [
+        PasoPlaybook("baja_alcance", "¿Total o un producto?"),
+        PasoPlaybook("baja_requisitos", "Si tenés Fibra o ADSL devolvé el equipo."),
+        PasoPlaybook("derivar_comercial", "¿Te derivo?"),
+    ]
+    assert avanzar_paso_baja(0, "Sensa", viejo) == 0
+    canon = pregunta_baja_por_alcance("sensa").lower()
+    assert "dni" in canon and "fibra" not in canon
 
 
 def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
@@ -2485,6 +2498,29 @@ def test_rewrite_tramite_conserva_hechos_y_cae_si_inventa_promo():
     ):
         out2 = _redactar_con_llama(borrador, "intencion=cambio_titularidad", tramite=True)
     assert out2 == borrador
+
+    fibra_llm = (
+        "Hola, entiendo que querés la baja. Mandame DNI. "
+        "Si tenés Fibra o ADSL devolvé el equipo; Plantel retira el BAI."
+    )
+    with patch("app.llm.chat_completion", return_value=fibra_llm) as mock_llm:
+        with patch(
+            "app.services.canal_abonado._kb_fragmento",
+            return_value="Procedimiento baja: Fibra, ADSL, BAI, Plantel, nota firmada.",
+        ) as mock_kb:
+            out3 = _redactar_con_llama(
+                sensa,
+                "intencion=baja_servicio tramite_admin=1",
+                db=object(),
+                org_id="org",
+                consulta="Sensa",
+                tramite=True,
+            )
+    assert out3 == sensa
+    mock_kb.assert_not_called()
+    user_prompt = mock_llm.call_args[0][0][1]["content"]
+    assert "Dato de KB" not in user_prompt
+    assert "Plantel" not in user_prompt
 
 
 def test_playbooks_tramites_admin_terminan_en_derivar():
@@ -2890,4 +2926,61 @@ def test_baja_sensa_pide_dni_sin_fibra_ni_ticket_con_si():
     assert "dni" in resp3
     assert "fibra" not in resp3
     assert "ticket" not in resp3
+
+
+def test_playbooks_as_pasos_reemplaza_baja_sin_rama_sensa():
+    from unittest.mock import patch
+
+    from app.services.platform_settings import playbooks_as_pasos
+
+    stale = {
+        "baja_servicio": [
+            {"id": "baja_alcance", "pregunta": "¿Total o un producto?"},
+            {
+                "id": "baja_requisitos",
+                "pregunta": "Si tenés Fibra o ADSL devolvé el equipo en la Cooperativa.",
+            },
+            {"id": "derivar_comercial", "pregunta": "¿Te derivo?"},
+        ]
+    }
+    with patch("app.services.platform_settings.resolve_playbooks", return_value=stale):
+        out = playbooks_as_pasos(None)
+    ids = [p.id for p in out["baja_servicio"]]
+    assert "baja_requisitos_sensa" in ids
+    assert "baja_requisitos" not in ids
+    sensa = next(p.pregunta for p in out["baja_servicio"] if p.id == "baja_requisitos_sensa")
+    assert "fibra" not in sensa.lower()
+
+
+def test_baja_sensa_desde_el_primer_mensaje_sin_fibra():
+    from app.estate.database import get_session_factory
+    from app.estate.seed import seed_kb_batan_servicios
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    org_id, tel = _reset_conv_titularidad_karina()
+    Session = get_session_factory()
+    with Session() as db:
+        seed_kb_batan_servicios(db)
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quería dar de baja sensa",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r.get("intencion") == "baja_servicio"
+    assert not r.get("ticket_id"), r.get("respuesta")
+    resp = (r.get("respuesta") or "").lower()
+    assert "dni" in resp
+    assert "sensa" in resp
+    assert "fibra" not in resp
+    assert "adsl" not in resp
+    assert "plantel" not in resp
+    assert "bai" not in resp
+    assert "nota firmada" not in resp
+    assert "total o" not in resp
+    assert "producto específico" not in resp
+    assert "producto especifico" not in resp
 
