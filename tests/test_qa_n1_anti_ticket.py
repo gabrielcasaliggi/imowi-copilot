@@ -2427,6 +2427,8 @@ def test_alcance_baja_elige_rama_sensa():
 
     assert parse_alcance_baja("Sensa") == "sensa"
     assert parse_alcance_baja("Quería dar de baja sensa") == "sensa"
+    assert parse_alcance_baja("Quiero sar de baja el servicio de tv") == "sensa"
+    assert parse_alcance_baja("Solo tv") == "sensa"
     assert parse_alcance_baja("solo internet") == "internet"
     assert parse_alcance_baja("el celular IMOWI") == "movil"
     assert parse_alcance_baja("todo") == "total"
@@ -2983,4 +2985,87 @@ def test_baja_sensa_desde_el_primer_mensaje_sin_fibra():
     assert "total o" not in resp
     assert "producto específico" not in resp
     assert "producto especifico" not in resp
+
+
+def test_baja_tv_padron_movil_no_fibra_ni_ticket_con_si():
+    """Regresión Jorge: padrón 'móvil' + baja de TV → Sensa, no Fibra, no ticket con «Sí»."""
+    from sqlalchemy import select
+
+    from app.estate.database import get_session_factory
+    from app.estate.models import Abonado
+    from app.estate.seed import seed_kb_batan_servicios
+    from app.services.canal_abonado import procesar_mensaje_entrante
+
+    org_id, tel = _reset_conv_titularidad_karina()
+    Session = get_session_factory()
+    with Session() as db:
+        seed_kb_batan_servicios(db)
+        abo = db.scalar(select(Abonado).where(Abonado.dni == "34964560"))
+        assert abo
+        abo.servicio = "movil,tv"
+        abo.deuda_monto = "61746.97"
+        db.commit()
+    with Session() as db:
+        r = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Quiero sar de baja el servicio de tv",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert r.get("intencion") == "baja_servicio"
+    assert not r.get("ticket_id"), r.get("respuesta")
+    resp = (r.get("respuesta") or "").lower()
+    assert "dni" in resp
+    assert "sensa" in resp or "tv" in resp
+    assert "fibra" not in resp
+    assert "adsl" not in resp
+    assert "plantel" not in resp
+    assert "bai" not in resp
+    assert "total o" not in resp
+
+    with Session() as db:
+        r2 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Solo tv",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r2.get("ticket_id"), r2.get("respuesta")
+    resp2 = (r2.get("respuesta") or "").lower()
+    assert "fibra" not in resp2
+    assert "dni" in resp2
+
+    with Session() as db:
+        r3 = procesar_mensaje_entrante(
+            db,
+            org_id,
+            telefono=tel,
+            texto="Si",
+            canal="whatsapp",
+            usar_llama=False,
+        )
+    assert not r3.get("ticket_id"), r3.get("respuesta")
+    assert r3.get("estado") == "bot"
+    assert "fibra" not in (r3.get("respuesta") or "").lower()
+
+
+def test_menu_consulta_incluye_sensa_si_figura_en_padron():
+    from app.domain.flujos_abonado import (
+        productos_contratados,
+        texto_menu_consulta,
+        tiene_internet_fijo,
+        tiene_tv_sensa_contratado,
+    )
+
+    assert productos_contratados("movil,tv") == frozenset({"movil", "tv"})
+    assert tiene_tv_sensa_contratado("movil,tv")
+    assert not tiene_internet_fijo("movil,tv")
+    menu = texto_menu_consulta("movil,tv").lower()
+    assert "sensa" in menu or "tv" in menu
+    assert "telefonía móvil" in menu or "telefonia movil" in menu.replace("í", "i")
+    assert "internet," not in menu
 

@@ -462,6 +462,7 @@ SERVICE_TYPE_CONECTIVIDAD = frozenset({"INTFO", "INTBA", "INTINA"})
 SERVICE_TYPE_MOVIL = frozenset(
     {"CEL", "CELU", "MOVIL", "MOVI", "IMOWI", "TELMOV", "TELM", "GSM", "LTE", "MVNO"}
 )
+SERVICE_TYPE_TV = frozenset({"TV", "OTT", "SENSA", "IPTV", "TVOTT", "STREAM"})
 _HINTS_INTERNET = (
     "internet",
     "fibra",
@@ -486,6 +487,15 @@ _HINTS_MOVIL = (
     "telmov",
     "telefonia movil",
     "telefonía móvil",
+)
+_HINTS_TV = (
+    "sensa",
+    "ott",
+    "iptv",
+    "televisión",
+    "television",
+    "tv box",
+    "android tv",
 )
 
 DEFAULT_SERVICES_SQL = """
@@ -710,17 +720,31 @@ def es_servicio_movil_cuenta(svc: Any) -> bool:
     return any(k in blob for k in _HINTS_MOVIL)
 
 
+def es_servicio_tv_cuenta(svc: Any) -> bool:
+    code = str(getattr(svc, "service_type_code", "") or "").strip().upper()
+    if code in SERVICE_TYPE_TV:
+        return True
+    blob = _blob_servicio(svc)
+    return any(k in blob for k in _HINTS_TV)
+
+
 def clasificar_servicios_cuenta(servicios: list[Any]) -> str:
-    """internet | movil | ambos | '' (consultó y no hay match)."""
+    """internet | movil | ambos | tv | CSV (p.ej. movil,tv). '' si no hay match."""
     has_inet = any(es_servicio_internet_cuenta(s) for s in (servicios or []))
     has_mov = any(es_servicio_movil_cuenta(s) for s in (servicios or []))
-    if has_inet and has_mov:
-        return "ambos"
+    has_tv = any(es_servicio_tv_cuenta(s) for s in (servicios or []))
+    parts: list[str] = []
     if has_inet:
-        return "internet"
+        parts.append("internet")
     if has_mov:
-        return "movil"
-    return ""
+        parts.append("movil")
+    if has_tv:
+        parts.append("tv")
+    if parts == ["internet", "movil"]:
+        return "ambos"
+    if len(parts) == 1:
+        return parts[0]
+    return ",".join(parts)
 
 
 def elegir_servicio_principal(servicios: list[Any]) -> Any | None:
@@ -1072,7 +1096,7 @@ def resolver_servicio_contratado(
     *,
     db: Session | None = None,
 ) -> str | None:
-    """internet|movil|ambos|'' si consultó; None si no se pudo leer el padrón."""
+    """internet|movil|ambos|tv|CSV si consultó; None si no se pudo leer el padrón."""
     svcs, ok = lookup_servicios_cuenta_por_dni(dni=dni, db=db)
     if not ok:
         return None

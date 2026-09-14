@@ -364,6 +364,8 @@ def mensaje_saldo_padron(
 
 
 def _etiqueta_servicios(servicio: str) -> str:
+    from app.domain.flujos_abonado import productos_contratados
+
     s = (servicio or "").strip().lower()
     if s == "movil":
         return "móvil IMOWI (sin internet fijo)"
@@ -371,7 +373,23 @@ def _etiqueta_servicios(servicio: str) -> str:
         return "internet fijo (sin móvil IMOWI)"
     if s == "ambos":
         return "internet fijo y móvil IMOWI"
-    return "(sin dato de productos en padrón)"
+    prods = productos_contratados(s)
+    if not prods:
+        return "(sin dato de productos en padrón)"
+    labels: list[str] = []
+    if "internet" in prods:
+        labels.append("internet fijo")
+    if "movil" in prods:
+        labels.append("móvil IMOWI")
+    if "tv" in prods:
+        labels.append("Sensa/TV")
+    if labels == ["móvil IMOWI"]:
+        return "móvil IMOWI (sin internet fijo)"
+    if labels == ["internet fijo"]:
+        return "internet fijo (sin móvil IMOWI)"
+    if len(labels) == 2:
+        return f"{labels[0]} y {labels[1]}"
+    return ", ".join(labels[:-1]) + " y " + labels[-1]
 
 
 def enrich_contexto_desde_integraciones(

@@ -909,7 +909,9 @@ def parse_alcance_baja(texto: str) -> str | None:
     ):
         return "total"
     hits: list[str] = []
-    if any(k in t for k in ("sensa", "ott", "televisión", "television", "la tele")):
+    if _menciona_tv_sensa(t) or any(
+        k in t for k in ("sensa", "ott", "televisión", "television", "la tele")
+    ):
         hits.append("sensa")
     if any(
         k in t
@@ -947,6 +949,52 @@ def pregunta_baja_por_alcance(alcance: str) -> str:
     return ""
 
 
+def inferir_alcance_baja(texto: str, servicio_abonado: str = "") -> str | None:
+    """Producto a dar de baja: lo que dijo el socio, o el único del padrón."""
+    parsed = parse_alcance_baja(texto)
+    if parsed:
+        return parsed
+    prods = productos_contratados(servicio_abonado)
+    opciones: list[str] = []
+    if "internet" in prods:
+        opciones.append("internet")
+    if "tv" in prods:
+        opciones.append("sensa")
+    if "movil" in prods:
+        opciones.append("movil")
+    if len(opciones) == 1:
+        return opciones[0]
+    return None
+
+
+def pregunta_baja_alcance_padron(servicio_abonado: str) -> str:
+    """¿Total o cuál producto? Solo lista lo que figura en BillTrack."""
+    prods = productos_contratados(servicio_abonado)
+    nombres: list[str] = []
+    if "internet" in prods:
+        nombres.append("internet")
+    if "tv" in prods:
+        nombres.append("Sensa/TV")
+    if "movil" in prods:
+        nombres.append("móvil")
+    if not nombres:
+        nombres = ["internet", "Sensa", "móvil"]
+    if len(nombres) == 1:
+        return pregunta_baja_por_alcance(
+            "sensa" if nombres[0].lower().startswith("sensa") else
+            "movil" if "móvil" in nombres[0] else "internet"
+        )
+    if len(nombres) == 2:
+        joined = f"{nombres[0]} o {nombres[1]}"
+    else:
+        joined = f"{', '.join(nombres[:-1])} o {nombres[-1]}"
+    return (
+        f"Entiendo que querés dar de baja. ¿Es baja total o solo de {joined}? "
+        "La cuenta tiene que quedar en $0. Si el motivo es el costo, un operador "
+        "puede ofrecerte las alternativas de retención vigentes (no las armo yo)."
+    )
+
+
 def recordatorio_docs_baja(paso_id: str) -> str:
     """Pedido de DNI si todavía no hay archivo en el chat."""
     pid = (paso_id or "").lower()
@@ -979,6 +1027,7 @@ def avanzar_paso_baja(
     pasos: list[PasoPlaybook],
     *,
     docs_listos: bool = False,
+    servicio_abonado: str = "",
 ) -> int:
     """Salta al checklist del producto; espera DNI antes de derivar."""
     if not pasos:
@@ -986,7 +1035,7 @@ def avanzar_paso_baja(
     idx = max(0, min(paso_idx, len(pasos) - 1))
     pid = pasos[idx].id or ""
     if pid == "baja_alcance":
-        alcance = parse_alcance_baja(texto)
+        alcance = inferir_alcance_baja(texto, servicio_abonado)
         if not alcance:
             return idx
         target = _DOCS_BAJA[alcance]
@@ -1021,33 +1070,74 @@ def destino_n2_canal(intencion: str) -> tuple[str, str]:
     return "cooperativa", "Cooperativa / campo"
 
 
+def productos_contratados(servicio_abonado: str) -> frozenset[str]:
+    """Tokens del padrón: internet, movil, tv. Acepta 'ambos' y CSV."""
+    s = (servicio_abonado or "").strip().lower()
+    if not s:
+        return frozenset()
+    if s == "ambos":
+        return frozenset({"internet", "movil"})
+    out: set[str] = set()
+    for part in s.replace(";", ",").split(","):
+        p = part.strip()
+        if p in ("sensa", "ott", "tv", "television", "televisión"):
+            out.add("tv")
+        elif p == "ambos":
+            out.update({"internet", "movil"})
+        elif p in ("internet", "movil"):
+            out.add(p)
+    return frozenset(out)
+
+
 def tiene_internet_fijo(servicio_abonado: str) -> bool:
     """True si el padrón indica internet fijo (fibra/radio/ADSL)."""
-    return (servicio_abonado or "").strip().lower() in ("internet", "ambos")
+    return "internet" in productos_contratados(servicio_abonado)
 
 
 def tiene_movil_contratado(servicio_abonado: str) -> bool:
     """True si el padrón indica línea móvil IMOWI."""
-    return (servicio_abonado or "").strip().lower() in ("movil", "ambos")
+    return "movil" in productos_contratados(servicio_abonado)
+
+
+def tiene_tv_sensa_contratado(servicio_abonado: str) -> bool:
+    """True si el padrón indica Sensa/TV OTT."""
+    return "tv" in productos_contratados(servicio_abonado)
 
 
 def texto_menu_consulta(servicio_abonado: str) -> str:
     """Menú N1 según servicios contratados (no ofrecer lo que no figura)."""
     s = (servicio_abonado or "").strip().lower()
-    if s == "movil":
+    prods = productos_contratados(s)
+    if prods == {"movil"}:
         return (
             "¿Tu consulta es por el servicio de telefonía móvil o por factura/deuda?"
         )
-    if s == "internet":
+    if prods == {"internet"}:
         return "¿Tu consulta es por internet o por factura/deuda?"
-    if s == "ambos":
+    if prods == {"internet", "movil"}:
         return (
             "¿Tu consulta es por internet, por el servicio de telefonía móvil, "
             "o por factura/deuda?"
         )
+    if not prods:
+        return (
+            "¿En qué te puedo ayudar: internet, telefonía móvil, factura/deuda "
+            "u otra consulta?"
+        )
+    bits: list[str] = []
+    if "internet" in prods:
+        bits.append("internet")
+    if "movil" in prods:
+        bits.append("el servicio de telefonía móvil")
+    if "tv" in prods:
+        bits.append("Sensa/TV")
+    if len(bits) == 1:
+        return f"¿Tu consulta es por {bits[0]} o por factura/deuda?"
+    if len(bits) == 2:
+        return f"¿Tu consulta es por {bits[0]}, por {bits[1]}, o por factura/deuda?"
     return (
-        "¿En qué te puedo ayudar: internet, telefonía móvil, factura/deuda "
-        "u otra consulta?"
+        "¿Tu consulta es por internet, por el servicio de telefonía móvil, "
+        "por Sensa/TV, o por factura/deuda?"
     )
 
 
@@ -1079,6 +1169,7 @@ def solicita_baja_servicio(texto: str) -> bool:
         k in t
         for k in (
             "dar de baja",
+            "sar de baja",
             "dar la baja",
             "quiero la baja",
             "quiero baja",
@@ -1101,6 +1192,8 @@ def solicita_baja_servicio(texto: str) -> bool:
             "internet",
             "fibra",
             "sensa",
+            "tv",
+            "tele",
             "servicio",
             "todo",
             "aplicación",
@@ -1330,6 +1423,8 @@ def parse_menu_servicio(texto: str) -> str | None:
         return "movil"
     if any(k in t for k in ("internet", "fibra", "wifi", "wi-fi", "router", "onu")):
         return "internet"
+    if any(k in t for k in ("sensa", "ott")) or _menciona_tv_sensa(t):
+        return "tv_sensa"
     if any(
         k in t
         for k in (
@@ -1361,6 +1456,8 @@ def resolver_menu_servicio(texto: str, servicio_abonado: str = "") -> str | None
         return "movil"
     if intent in ("baja_servicio", "cambio_titularidad", "cambio_domicilio"):
         return "comercial"
+    if intent == "tv_sensa":
+        return "tv_sensa"
     if intent in (
         "internet",
         "internet_ftth",
@@ -2205,9 +2302,11 @@ def _clasificar_intencion_core(texto: str, servicio_abonado: str = "") -> str:
     )):
         return "no_tecnico"
 
-    if servicio_abonado in ("internet", "ambos"):
+    if tiene_internet_fijo(servicio_abonado):
         return "internet"
-    if servicio_abonado == "movil":
+    if tiene_movil_contratado(servicio_abonado) and not tiene_tv_sensa_contratado(
+        servicio_abonado
+    ):
         return "movil"
     return "general"
 

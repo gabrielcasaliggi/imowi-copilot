@@ -32,6 +32,7 @@ from app.domain.flujos_abonado import (
     es_saludo_solo,
     es_tramite_admin,
     indica_resuelto,
+    inferir_alcance_baja,
     insiste_operador_tramite,
     intencion_desde_tema,
     intencion_es_facturacion,
@@ -39,10 +40,10 @@ from app.domain.flujos_abonado import (
     misma_queja,
     niega_producto_internet,
     parece_consulta_nueva,
-    parse_alcance_baja,
     parse_modalidad_titularidad,
     pide_humano,
     pide_humano_en_flujo_activo,
+    pregunta_baja_alcance_padron,
     pregunta_baja_por_alcance,
     rechaza_derivacion_clara,
     recordatorio_docs_baja,
@@ -2369,18 +2370,21 @@ def _iniciar_flujo_tramite_admin(
     pasos = pb.get(intent) or pb["general"]
     pregunta = pasos[0].pregunta if pasos else "Contame qué necesitás."
     if intent == "baja_servicio" and pasos:
-        alcance = parse_alcance_baja(texto)
+        servicio_abo = _servicio_abonado(abonado)
+        alcance = inferir_alcance_baja(texto, servicio_abo)
         if alcance:
-            nxt = avanzar_paso_baja(0, texto, pasos)
+            nxt = avanzar_paso_baja(0, texto, pasos, servicio_abonado=servicio_abo)
             ctx["paso_idx"] = nxt
             ctx["baja_alcance"] = alcance
             pregunta = pregunta_baja_por_alcance(alcance) or pasos[nxt].pregunta
+        else:
+            pregunta = pregunta_baja_alcance_padron(servicio_abo) or pregunta
         prefijo = _prefijo_deuda_baja(abonado)
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
         crepo.set_contexto(conv, ctx)
         db.commit()
-    if usar_llama:
+    if usar_llama and intent != "baja_servicio":
         pregunta = _redactar_con_llama(
             pregunta,
             f"intencion={intent} tramite_admin=1",
@@ -2517,6 +2521,21 @@ def _manejar_menu_consulta_n1(
                 "estado": conv.estado,
                 "menu_paso": "tipo",
             }
+        if elec == "tv_sensa":
+            ctx.pop("menu_paso", None)
+            ctx.pop("menu_servicio", None)
+            return _arrancar_intencion_menu(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                intencion="tv_sensa",
+                usar_llama=usar_llama,
+                servicio_abo=servicio_abo,
+            )
         # internet / facturacion / comercial → arrancar flujo
         if elec == "comercial":
             intent = _intencion_comercial_desde_texto(texto)
@@ -4497,6 +4516,22 @@ def procesar_mensaje_entrante(
                     usar_llama=usar_llama,
                     servicio_abo=servicio_abo,
                 )
+            if elec0 == "tv_sensa":
+                ctx.pop("menu_paso", None)
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                return _arrancar_intencion_menu(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    texto,
+                    canal=canal,
+                    ctx=ctx,
+                    intencion="tv_sensa",
+                    usar_llama=usar_llama,
+                    servicio_abo=servicio_abo,
+                )
             if elec0 in ("internet", "facturacion") and (
                 (elec0 == "internet" and tiene_internet_fijo(servicio_abo))
                 or elec0 == "facturacion"
@@ -4547,7 +4582,7 @@ def procesar_mensaje_entrante(
         if intencion_ctx == "baja_servicio" and (
             cliente_imposibilidad_pago(texto) or solicita_baja_servicio(texto)
         ):
-            if ctx.get("baja_impago_rep") or acepta_derivacion_clara(texto):
+            if insiste_operador_tramite(texto):
                 ctx.pop("baja_impago_rep", None)
                 crepo.set_contexto(conv, ctx)
                 db.commit()
@@ -5757,7 +5792,8 @@ def procesar_mensaje_entrante(
                 docs_listos=_docs_listos_titularidad(db, conv, texto),
             )
         if intencion == "baja_servicio":
-            alcance = parse_alcance_baja(texto)
+            servicio_abo = _servicio_abonado(abonado)
+            alcance = inferir_alcance_baja(texto, servicio_abo)
             if alcance:
                 ctx["baja_alcance"] = alcance
             return avanzar_paso_baja(
@@ -5765,6 +5801,7 @@ def procesar_mensaje_entrante(
                 texto,
                 pasos,
                 docs_listos=_docs_listos_titularidad(db, conv, texto),
+                servicio_abonado=servicio_abo,
             )
         return idx + 1
 
@@ -5777,10 +5814,13 @@ def procesar_mensaje_entrante(
                 canon = pregunta_baja_por_alcance(alcance)
                 if canon:
                     pregunta = canon
+            elif not alcance and pid == "baja_alcance":
+                pregunta = pregunta_baja_alcance_padron(_servicio_abonado(abonado)) or pregunta
         if prefijo:
             pregunta = f"{prefijo}{pregunta}"
         # Pagos/QR en corte: plantilla fija. Facturación ya va por diagnóstico IA.
-        if usar_llama and intencion != "corte_deuda":
+        # Baja: copy canónica del playbook (el LLM mezclaba Fibra/ADSL).
+        if usar_llama and intencion not in ("corte_deuda", "baja_servicio"):
             pregunta = _redactar_con_llama(
                 pregunta,
                 f"paso={idx} intencion={intencion}",
@@ -5866,6 +5906,9 @@ def procesar_mensaje_entrante(
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
         nonlocal intencion, pasos, paso_idx
+
+        if intencion == "baja_servicio" and not es_paso_derivacion(paso_actual):
+            return _preguntar_o_recordar(max(paso_idx, 0))
 
         # Nunca abrir ticket si el abonado está cerrando (gracias/perfecto/listo)
         if not es_tramite_admin(intencion) and (

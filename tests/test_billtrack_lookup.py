@@ -175,3 +175,12 @@ def test_clasificar_servicios_cuenta_internet_y_movil():
     assert clasificar_servicios_cuenta([movil]) == "movil"
     assert clasificar_servicios_cuenta([fibra, movil]) == "ambos"
     assert clasificar_servicios_cuenta([]) == ""
+    tv = ServicioConectividad(
+        login="",
+        service_type_code="SENSA",
+        service_type_label="TV OTT Sensa",
+        product="Sensa",
+    )
+    assert clasificar_servicios_cuenta([tv]) == "tv"
+    assert clasificar_servicios_cuenta([movil, tv]) == "movil,tv"
+    assert clasificar_servicios_cuenta([fibra, movil, tv]) == "internet,movil,tv"
