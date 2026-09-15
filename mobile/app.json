@@ -30,7 +30,16 @@
         "com.google.android.gms.permission.AD_ID"
       ]
     },
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2298A6",
+          "defaultChannel": "eko"
+        }
+      ]
+    ],
     "extra": {
       "apiUrl": "https://ibot.ecolan.com",
       "orgSlug": "coop-batan",

@@ -1,6 +1,6 @@
 import { Linking, StyleSheet, Text, type StyleProp, type TextStyle } from "react-native";
 
-import { colors } from "./theme";
+import { colors } from "../theme";
 
 const URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
 

@@ -5,6 +5,10 @@ export type InboxAbonado = {
   nombre: string;
   servicio: string;
   estado: string;
+  deuda_monto?: string;
+  plan?: string;
+  client_number?: string;
+  linea_msisdn?: string;
 };
 
 export type InboxConversation = {
@@ -15,6 +19,8 @@ export type InboxConversation = {
   ticket_id: string;
   contexto?: Record<string, unknown>;
   abonado?: InboxAbonado | null;
+  servicio_detectado?: string;
+  updated_at?: string;
 };
 
 export type InboxMessage = {
@@ -35,3 +41,5 @@ export type AuthPayload = {
   mensajes: InboxMessage[];
   contact_masked?: string;
 };
+
+export type AppTab = "home" | "eko" | "activity" | "account";

@@ -29,6 +29,10 @@ export async function clearSession(): Promise<void> {
   await SecureStore.deleteItemAsync(CONV_KEY);
 }
 
+export async function peekDniHint(): Promise<string> {
+  return (await SecureStore.getItemAsync(DNI_KEY)) || "";
+}
+
 export async function getToken(): Promise<string> {
   return (await SecureStore.getItemAsync(TOKEN_KEY)) || "";
 }

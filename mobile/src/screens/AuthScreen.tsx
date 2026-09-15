@@ -1,23 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api";
 import { ORG_SLUG, PRIVACY_URL } from "../config";
-import { saveSession } from "../session";
-import { colors, type Branding } from "../theme";
+import { formatUserError } from "../errors";
+import { peekDniHint, saveSession } from "../session";
+import { colors, layout, radius, sizes, spacing } from "../theme";
+import type { Branding } from "../theme";
 import type { AuthPayload } from "../types";
+import { Avatar } from "../ui/Avatar";
+import { Button } from "../ui/Button";
+import { Text } from "../ui/Text";
+import { TextField } from "../ui/TextField";
 
 type Mode = "dni" | "pin";
 type Step = "auth" | "otp";
@@ -42,12 +45,19 @@ export function AuthScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    void peekDniHint().then((hint) => {
+      if (hint) setDni(hint);
+    });
+  }, []);
+
   const finish = async (payload: AuthPayload) => {
     await saveSession(payload, dni.trim());
     onAuthed(payload);
   };
 
   const onStartDni = async () => {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -57,209 +67,226 @@ export function AuthScreen({
       if (res.debug_otp) setOtp(res.debug_otp);
       setStep("otp");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar");
+      setError(formatUserError(err, "No se pudo enviar el código. Intentá nuevamente."));
     } finally {
       setBusy(false);
     }
   };
 
   const onVerify = async () => {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
       const res = await api.authVerify(challengeId, otp.trim(), ORG_SLUG);
       await finish(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Código incorrecto");
+      setError(formatUserError(err, "No pudimos verificar el código. Intentá nuevamente."));
     } finally {
       setBusy(false);
     }
   };
 
   const onPin = async () => {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
       const res = await api.loginPin(dni.trim(), pin.trim(), ORG_SLUG);
       await finish(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo ingresar");
+      setError(formatUserError(err, "No se pudo ingresar. Revisá DNI y PIN."));
     } finally {
       setBusy(false);
     }
   };
 
+  const title =
+    step === "otp"
+      ? "Ingresá el código"
+      : mode === "pin"
+        ? "Ingresá con tu PIN"
+        : "Primera vez";
+  const subtitle =
+    step === "otp"
+      ? `Enviamos un código a ${contactMasked}`
+      : mode === "pin"
+        ? "Usá el DNI y el PIN de 6 a 8 dígitos."
+        : "Te enviamos un código al email de la cooperativa.";
+
   return (
     <KeyboardAvoidingView
-      style={[styles.wrap, { paddingTop: topPad, paddingBottom: bottomPad }]}
+      style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Image
-        source={require("../../assets/icon.png")}
-        style={styles.logo}
-        accessibilityLabel="Eko"
-      />
-      <Text style={styles.kicker}>{branding.orgHint} · Ecolan + IMOWI</Text>
-      <Text style={styles.title}>
-        {step === "otp" ? "Código de verificación" : "Ingresá a " + branding.productDisplayName}
-      </Text>
-      <Text style={styles.sub}>
-        {step === "otp"
-          ? `Enviamos un código a ${contactMasked}`
-          : "Misma cuenta que el portal. Eko ya ve tu padrón, facturas y servicios."}
-      </Text>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: topPad, paddingBottom: bottomPad },
+        ]}
+      >
+        <View style={styles.logoWrap}>
+          <Avatar size="lg" />
+        </View>
+        <Text variant="kicker" style={styles.kicker}>
+          {branding.orgHint}
+        </Text>
+        <Text variant="greeting" style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text variant="subtitle" style={styles.sub}>
+          {subtitle}
+        </Text>
 
-      {step === "auth" && (
-        <>
-          <View style={styles.tabs}>
-            <Pressable
-              onPress={() => setMode("pin")}
-              style={[styles.tab, mode === "pin" && styles.tabOn]}
-            >
-              <Text style={[styles.tabTxt, mode === "pin" && styles.tabTxtOn]}>DNI + PIN</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setMode("dni")}
-              style={[styles.tab, mode === "dni" && styles.tabOn]}
-            >
-              <Text style={[styles.tabTxt, mode === "dni" && styles.tabTxtOn]}>Primera vez</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.label}>DNI</Text>
-          <TextInput
-            value={dni}
-            onChangeText={setDni}
-            keyboardType="number-pad"
-            placeholder="Solo números"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
-          />
-          {mode === "pin" ? (
-            <>
-              <Text style={styles.label}>PIN</Text>
-              <TextInput
-                value={pin}
-                onChangeText={setPin}
-                keyboardType="number-pad"
-                secureTextEntry
-                placeholder="6–8 dígitos"
-                placeholderTextColor={colors.muted}
-                style={styles.input}
-              />
+        {step === "auth" && (
+          <>
+            <View style={styles.tabs} accessibilityRole="tablist">
               <Pressable
-                onPress={onPin}
-                disabled={busy || !dni || pin.length < 6}
-                style={[styles.btn, busy && styles.btnOff]}
+                onPress={() => {
+                  setMode("pin");
+                  setError("");
+                }}
+                style={[styles.tab, mode === "pin" && styles.tabOn]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mode === "pin" }}
+                accessibilityLabel="DNI y PIN"
               >
-                {busy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.btnTxt}>Ingresar</Text>
-                )}
+                <Text style={[styles.tabTxt, mode === "pin" && styles.tabTxtOn]}>DNI + PIN</Text>
               </Pressable>
-            </>
-          ) : (
-            <Pressable
-              onPress={onStartDni}
-              disabled={busy || !dni}
-              style={[styles.btn, busy && styles.btnOff]}
-            >
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.btnTxt}>Enviar código</Text>
-              )}
-            </Pressable>
-          )}
-        </>
-      )}
-
-      {step === "otp" && (
-        <>
-          <Text style={styles.label}>Código OTP</Text>
-          <TextInput
-            value={otp}
-            onChangeText={setOtp}
-            keyboardType="number-pad"
-            autoComplete="one-time-code"
-            placeholder="Ingresá el código"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
-          />
-          <Pressable
-            onPress={onVerify}
-            disabled={busy || otp.length < 4}
-            style={[styles.btn, busy && styles.btnOff]}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
+              <Pressable
+                onPress={() => {
+                  setMode("dni");
+                  setError("");
+                }}
+                style={[styles.tab, mode === "dni" && styles.tabOn]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mode === "dni" }}
+                accessibilityLabel="Primera vez"
+              >
+                <Text style={[styles.tabTxt, mode === "dni" && styles.tabTxtOn]}>Primera vez</Text>
+              </Pressable>
+            </View>
+            <TextField
+              label="DNI"
+              value={dni}
+              onChangeText={setDni}
+              keyboardType="number-pad"
+              placeholder="Solo números"
+              editable={!busy}
+              maxLength={11}
+              autoComplete="off"
+            />
+            {mode === "pin" ? (
+              <>
+                <TextField
+                  label="PIN"
+                  value={pin}
+                  onChangeText={setPin}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  placeholder="6–8 dígitos"
+                  editable={!busy}
+                  maxLength={8}
+                />
+                <Button
+                  label={busy ? "Ingresando…" : "Ingresar"}
+                  onPress={() => void onPin()}
+                  disabled={busy || !dni || pin.length < 6}
+                  loading={busy}
+                />
+              </>
             ) : (
-              <Text style={styles.btnTxt}>Verificar</Text>
+              <Button
+                label={busy ? "Enviando código…" : "Enviar código"}
+                onPress={() => void onStartDni()}
+                disabled={busy || !dni}
+                loading={busy}
+              />
             )}
-          </Pressable>
-          <Pressable onPress={() => setStep("auth")}>
-            <Text style={styles.link}>Volver</Text>
-          </Pressable>
-        </>
-      )}
+          </>
+        )}
 
-      {error ? <Text style={styles.err}>{error}</Text> : null}
-      <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} hitSlop={8}>
-        <Text style={styles.link}>Política de privacidad</Text>
-      </Pressable>
+        {step === "otp" && (
+          <>
+            <TextField
+              label="Código"
+              value={otp}
+              onChangeText={setOtp}
+              keyboardType="number-pad"
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              placeholder="Ingresá el código"
+              editable={!busy}
+              maxLength={8}
+            />
+            <Button
+              label={busy ? "Verificando…" : "Verificar"}
+              onPress={() => void onVerify()}
+              disabled={busy || otp.length < 4}
+              loading={busy}
+            />
+            <Pressable
+              onPress={() => {
+                if (busy) return;
+                setStep("auth");
+                setError("");
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Volver"
+              style={styles.back}
+            >
+              <Text variant="kicker" style={styles.link}>Volver</Text>
+            </Pressable>
+          </>
+        )}
+
+        {error ? <Text variant="error" style={styles.err}>{error}</Text> : null}
+        <Pressable
+          onPress={() => void Linking.openURL(PRIVACY_URL)}
+          hitSlop={8}
+          accessibilityRole="link"
+          accessibilityLabel="Política de privacidad"
+          style={styles.back}
+        >
+          <Text variant="kicker" style={styles.link}>Política de privacidad</Text>
+        </Pressable>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 24,
+  flex: { flex: 1, backgroundColor: colors.bg },
+  scroll: {
+    flexGrow: 1,
     justifyContent: "center",
-  },
-  logo: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    paddingHorizontal: spacing.xl,
+    width: "100%",
+    maxWidth: layout.maxContent,
     alignSelf: "center",
-    marginBottom: 20,
   },
-  kicker: { color: colors.muted, fontSize: 12, marginBottom: 8 },
-  title: { color: colors.text, fontSize: 24, fontWeight: "700", marginBottom: 8 },
-  sub: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 24 },
-  tabs: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  logoWrap: { alignSelf: "center", marginBottom: spacing.lg },
+  kicker: { marginBottom: spacing.sm },
+  title: { marginBottom: spacing.sm },
+  sub: { marginBottom: spacing.xl },
+  tabs: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
   tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tabOn: { backgroundColor: "rgba(34,152,166,0.18)", borderColor: colors.brand },
-  tabTxt: { color: colors.muted, fontSize: 13 },
-  tabTxtOn: { color: colors.brand, fontWeight: "600" },
-  label: { color: colors.muted, fontSize: 12, marginBottom: 6 },
-  input: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    color: colors.text,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 14,
-  },
-  btn: {
-    backgroundColor: colors.brand,
-    borderRadius: 14,
-    paddingVertical: 14,
+    flex: 1,
+    minHeight: sizes.hit,
     alignItems: "center",
-    marginTop: 4,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  btnOff: { opacity: 0.5 },
-  btnTxt: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  link: { color: colors.muted, textAlign: "center", marginTop: 16 },
-  err: { color: colors.danger, marginTop: 16, fontSize: 13 },
+  tabOn: { backgroundColor: colors.brandMuted, borderColor: colors.brand },
+  tabTxt: { color: colors.muted, fontSize: 13, fontWeight: "600" },
+  tabTxtOn: { color: colors.brand },
+  link: { textAlign: "center", marginTop: spacing.lg },
+  back: { minHeight: sizes.hit, justifyContent: "center", marginTop: spacing.sm },
+  err: { marginTop: spacing.lg },
 });

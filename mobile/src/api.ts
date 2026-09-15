@@ -11,9 +11,27 @@ export class ApiError extends Error {
 }
 
 async function parseError(res: Response): Promise<string> {
-  const err = await res.json().catch(() => ({}));
+  const err = await res.json().catch(() => ({} as { detail?: unknown }));
   if (typeof err.detail === "string") return err.detail;
-  return res.statusText || "Error de red";
+  return "";
+}
+
+async function request(
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    return await fetch(`${API_BASE}${path}`, { ...init, signal: ctrl.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ApiError("", 408);
+    }
+    throw new ApiError("", 0);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
@@ -22,7 +40,7 @@ async function postJson<T>(path: string, body: unknown, token?: string): Promise
     ...CANAL_HEADER,
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await request(path, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -34,7 +52,7 @@ async function postJson<T>(path: string, body: unknown, token?: string): Promise
 export const api = {
   async branding(): Promise<Branding> {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/public/branding`, {
+      const res = await request("/api/v1/public/branding", {
         headers: { Accept: "application/json" },
       });
       if (!res.ok) return defaultBranding;
@@ -101,7 +119,7 @@ export const api = {
   },
 
   async conversation(id: string, token: string) {
-    const res = await fetch(`${API_BASE}/api/v1/portal/conversations/${id}`, {
+    const res = await request(`/api/v1/portal/conversations/${id}`, {
       headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
     });
     if (!res.ok) throw new ApiError(await parseError(res), res.status);
@@ -122,6 +140,24 @@ export const api = {
     );
   },
 
+  async unregisterDevice(
+    token: string,
+    body: { expo_push_token: string; platform?: string; device_name?: string },
+  ) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...CANAL_HEADER,
+      Authorization: `Bearer ${token}`,
+    };
+    const res = await request("/api/v1/portal/devices", {
+      method: "DELETE",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<{ status: string }>;
+  },
+
   async sendAudio(uri: string, token: string) {
     const form = new FormData();
     form.append("file", {
@@ -129,7 +165,7 @@ export const api = {
       name: "voice.m4a",
       type: "audio/mp4",
     } as unknown as Blob);
-    const res = await fetch(`${API_BASE}/api/v1/portal/audio`, {
+    const res = await request("/api/v1/portal/audio", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
