@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { present } from "../present";
+import { labelEstadoAbonado, present } from "../present";
 import { spacing } from "../theme";
 import { Badge } from "./Badge";
 import { Card } from "./Card";
@@ -17,7 +17,7 @@ export function ServiceCard({
 }) {
   const s = present(servicio);
   const p = present(plan);
-  const e = present(estado);
+  const e = labelEstadoAbonado(estado);
   if (!s && !p && !e) return null;
   return (
     <Card>
@@ -30,7 +30,7 @@ export function ServiceCard({
       ) : null}
       {e ? (
         <View style={styles.block}>
-          <Text variant="label">Estado del servicio</Text>
+          <Text variant="label">Estado de la cuenta</Text>
           <Text numberOfLines={3}>{e}</Text>
           <Text variant="meta" style={styles.hint}>
             Dato administrativo de tu cuenta. No es un diagnóstico de conexión.

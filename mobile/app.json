@@ -24,7 +24,7 @@
       },
       "package": "coop.batan.soporte",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 9,
+      "versionCode": 10,
       "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": false,
       "blockedPermissions": [

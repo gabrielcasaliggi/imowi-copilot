@@ -28,7 +28,14 @@ from app.domain.flujos_abonado import texto_menu_consulta
 from app.estate import canal_repo as crepo
 from app.estate import repository as repo
 from app.estate.database import get_db
-from app.estate.models import Abonado, PortalAbonadoLink, PortalDevice, PortalOtpChallenge
+from app.estate.models import (
+    Abonado,
+    ConversacionCanal,
+    PortalAbonadoLink,
+    PortalDevice,
+    PortalOtpChallenge,
+    Ticket,
+)
 from app.estate.security import (
     generate_otp,
     hash_dni,
@@ -949,4 +956,182 @@ async def portal_enviar_audio(
             503,
             "No pudimos procesar el audio ahora. Probá de nuevo en unos segundos.",
         ) from None
+
+
+def _abonado_portal_identificado(payload: dict, db: Session) -> Abonado:
+    if not payload.get("identified"):
+        raise HTTPException(403, "Sesión identificada requerida")
+    abo_id = str(payload.get("abonado_id") or "").strip()
+    if not abo_id:
+        raise HTTPException(403, "Sesión de abonado requerida")
+    abo = db.get(Abonado, abo_id)
+    if not abo or abo.organizacion_id != payload.get("org_id"):
+        raise HTTPException(403, "Sesión de abonado inválida")
+    return abo
+
+
+def _claves_identidad_ticket(db: Session, org_id: str, abo: Abonado) -> set[str]:
+    """Teléfonos / líneas normalizadas con las que se asocian tickets del canal."""
+    keys: set[str] = set()
+    for raw in (abo.linea_msisdn, abo.telefono_e164):
+        s = (raw or "").strip()
+        if s:
+            keys.add(s)
+        n = crepo.normalizar_telefono(s)
+        if n:
+            keys.add(n)
+    for c in db.scalars(
+        select(ConversacionCanal).where(
+            ConversacionCanal.organizacion_id == org_id,
+            ConversacionCanal.abonado_id == abo.id,
+        )
+    ).all():
+        s = (c.telefono or "").strip()
+        if s:
+            keys.add(s)
+        n = crepo.normalizar_telefono(s)
+        if n:
+            keys.add(n)
+    return {k for k in keys if k}
+
+
+def _portal_ticket_out(t: Ticket, *, conversacion_id: str = "") -> dict:
+    return {
+        "id": t.id,
+        "estado": t.estado or "",
+        "categoria": t.categoria or "",
+        "origen": t.origen or "",
+        "created_at": t.created_at.isoformat() if t.created_at else "",
+        "updated_at": t.updated_at.isoformat() if t.updated_at else "",
+        "conversacion_id": conversacion_id or "",
+    }
+
+
+def _conv_ids_por_ticket(db: Session, org_id: str, abo_id: str) -> dict[str, str]:
+    """ticket_id → conversacion_id (la más reciente por updated_at)."""
+    out: dict[str, str] = {}
+    rows = db.scalars(
+        select(ConversacionCanal)
+        .where(
+            ConversacionCanal.organizacion_id == org_id,
+            ConversacionCanal.abonado_id == abo_id,
+            ConversacionCanal.ticket_id != "",
+        )
+        .order_by(ConversacionCanal.updated_at.desc())
+    ).all()
+    for c in rows:
+        tid = (c.ticket_id or "").strip()
+        if tid and tid not in out:
+            out[tid] = c.id
+    return out
+
+
+def _tickets_visibles_abonado(
+    db: Session,
+    org_id: str,
+    abo: Abonado,
+) -> list[tuple[Ticket, str]]:
+    """Tickets del abonado vía conversación.ticket_id y/o coincidencia de línea."""
+    conv_map = _conv_ids_por_ticket(db, org_id, abo.id)
+    ids = set(conv_map.keys())
+    keys = _claves_identidad_ticket(db, org_id, abo)
+
+    tickets: dict[str, Ticket] = {}
+    if ids:
+        for t in db.scalars(select(Ticket).where(Ticket.id.in_(ids), Ticket.organizacion_id == org_id)).all():
+            tickets[t.id] = t
+
+    if keys:
+        # Comparación exacta sobre Ticket.linea (así se persiste en canal_abonado).
+        for t in db.scalars(
+            select(Ticket).where(
+                Ticket.organizacion_id == org_id,
+                Ticket.linea.in_(list(keys)),
+            )
+        ).all():
+            tickets[t.id] = t
+
+    ordered = sorted(
+        tickets.values(),
+        key=lambda t: t.updated_at or t.created_at or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+    return [(t, conv_map.get(t.id, "")) for t in ordered]
+
+
+def _ticket_pertenece_abonado(
+    db: Session,
+    org_id: str,
+    abo: Abonado,
+    ticket: Ticket,
+) -> bool:
+    if ticket.organizacion_id != org_id:
+        return False
+    if any(t.id == ticket.id for t, _ in _tickets_visibles_abonado(db, org_id, abo)):
+        return True
+    return False
+
+
+@router.get("/portal/connectivity")
+def portal_connectivity(
+    service_id: str | None = None,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Estado de conectividad del abonado (C2 Home Status). Sin contexto N1."""
+    from app.services.portal_connectivity import evaluar_conectividad_portal
+
+    abo = _abonado_portal_identificado(payload, db)
+    return evaluar_conectividad_portal(
+        db,
+        org_id=str(payload["org_id"]),
+        abonado=abo,
+        service_id=service_id,
+        request_id=str(payload.get("conversacion_id") or "")[:36],
+    )
+
+
+@router.get("/portal/tickets")
+def portal_list_tickets(
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Lista tickets del abonado autenticado (sin filtros client_id/DNI)."""
+    abo = _abonado_portal_identificado(payload, db)
+    org_id = payload["org_id"]
+    items = [
+        _portal_ticket_out(t, conversacion_id=cid)
+        for t, cid in _tickets_visibles_abonado(db, org_id, abo)
+    ]
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/portal/tickets/{ticket_id}")
+def portal_get_ticket(
+    ticket_id: str,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Detalle mínimo + eventos visibles al cliente, solo si el ticket es del abonado."""
+    abo = _abonado_portal_identificado(payload, db)
+    org_id = payload["org_id"]
+    tid = (ticket_id or "").strip()
+    t = repo.get_ticket(db, org_id, tid)
+    if not t or not _ticket_pertenece_abonado(db, org_id, abo, t):
+        raise HTTPException(404, "Ticket no encontrado")
+    conv_map = _conv_ids_por_ticket(db, org_id, abo.id)
+    eventos = repo.list_ticket_events(db, org_id, tid, solo_visibles=True)
+    return {
+        "ticket": _portal_ticket_out(t, conversacion_id=conv_map.get(tid, "")),
+        "eventos": [
+            {
+                "id": e.id,
+                "titulo": e.titulo or "",
+                "detalle": e.detalle or "",
+                "estado": e.estado or "",
+                "created_at": e.created_at.isoformat() if e.created_at else "",
+            }
+            for e in eventos
+        ],
+    }
 

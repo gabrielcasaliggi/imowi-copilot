@@ -4,7 +4,7 @@ import { Alert, Linking, ScrollView, StyleSheet, View } from "react-native";
 import { api } from "../api";
 import { PRIVACY_URL } from "../config";
 import { formatUserError, isAuthExpired } from "../errors";
-import { present } from "../present";
+import { formatMontoDisplay, labelEstadoAbonado, labelServicio, parseAmount, present } from "../present";
 import { layout, spacing } from "../theme";
 import type { InboxAbonado } from "../types";
 import { Button } from "../ui/Button";
@@ -21,12 +21,14 @@ export function AccountScreen({
   needPin,
   onPinSaved,
   onExit,
+  onQuickAction,
 }: {
   token: string;
   abonado?: InboxAbonado | null;
   needPin: boolean;
   onPinSaved: () => void;
   onExit: () => void;
+  onQuickAction: (texto: string | null) => void;
 }) {
   const [showPin, setShowPin] = useState(needPin);
   const [pin, setPin] = useState("");
@@ -97,8 +99,20 @@ export function AccountScreen({
     present(abonado?.nombre) ||
       present(abonado?.dni) ||
       present(abonado?.telefono_e164) ||
-      present(abonado?.client_number),
+      present(abonado?.client_number) ||
+      present(abonado?.servicio) ||
+      present(abonado?.plan) ||
+      present(abonado?.estado) ||
+      present(abonado?.deuda_monto),
   );
+  const deudaRaw = present(abonado?.deuda_monto);
+  const deudaN = parseAmount(deudaRaw);
+  const deudaPendiente = deudaN !== null && deudaN > 0;
+  const saldoLabel = !deudaRaw
+    ? ""
+    : deudaN === 0
+      ? "Cuenta al día"
+      : formatMontoDisplay(deudaRaw, { absolute: deudaN !== null && deudaN < 0 });
 
   return (
     <Screen safeBottom={false}>
@@ -117,6 +131,27 @@ export function AccountScreen({
             <StatusRow label="DNI" value={abonado?.dni} />
             <StatusRow label="Teléfono" value={abonado?.telefono_e164} />
             <StatusRow label="N° de cliente" value={abonado?.client_number} />
+            <StatusRow label="Servicio" value={labelServicio(abonado?.servicio)} />
+            <StatusRow label="Plan" value={abonado?.plan} />
+            <StatusRow label="Estado de la cuenta" value={labelEstadoAbonado(abonado?.estado)} />
+            <StatusRow
+              label={deudaN !== null && deudaN < 0 ? "Saldo a favor" : "Saldo"}
+              value={saldoLabel}
+            />
+            {deudaPendiente ? (
+              <Button
+                label="Resolver con Eko"
+                onPress={() => onQuickAction("Quiero consultar mi deuda y opciones de pago.")}
+                accessibilityHint="Abre Eko para consultar deuda y opciones de pago"
+              />
+            ) : deudaRaw ? (
+              <Button
+                variant="ghost"
+                label="Consultar con Eko"
+                onPress={() => onQuickAction("¿Cuánto debo?")}
+                accessibilityHint="Abre Eko para consultar el saldo"
+              />
+            ) : null}
           </Card>
         ) : null}
 

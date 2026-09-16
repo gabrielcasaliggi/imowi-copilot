@@ -57,7 +57,10 @@ export function AppShell({
           <HomeScreen
             conv={conv}
             orgHint={branding.orgHint}
+            token={token}
             onQuickAction={onQuickAction}
+            onOpenActivity={() => onTab("activity")}
+            onAuthExpired={onExit}
           />
         </View>
         <View style={[styles.page, tab !== "eko" && styles.hidden]} pointerEvents={tab === "eko" ? "auto" : "none"}>
@@ -75,7 +78,14 @@ export function AppShell({
           ) : null}
         </View>
         <View style={[styles.page, tab !== "activity" && styles.hidden]} pointerEvents={tab === "activity" ? "auto" : "none"}>
-          <ActivityScreen conv={conv} />
+          {tab === "activity" ? (
+            <ActivityScreen
+              conv={conv}
+              token={token}
+              onExit={onExit}
+              onGoEko={() => onTab("eko")}
+            />
+          ) : null}
         </View>
         <View style={[styles.page, tab !== "account" && styles.hidden]} pointerEvents={tab === "account" ? "auto" : "none"}>
           <AccountScreen
@@ -84,6 +94,7 @@ export function AppShell({
             needPin={needPin}
             onPinSaved={onPinSaved}
             onExit={onExit}
+            onQuickAction={onQuickAction}
           />
         </View>
       </View>

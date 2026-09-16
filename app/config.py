@@ -141,6 +141,14 @@ OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6") or "6")
 OTP_TTL_MINUTES = int(os.getenv("OTP_TTL_MINUTES", "10") or "10")
 OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5") or "5")
 
+# Self-service conectividad portal (evaluación cacheada; no ConversacionCanal)
+try:
+    PORTAL_CONNECTIVITY_TTL_SEC = int(
+        os.getenv("PORTAL_CONNECTIVITY_TTL_SEC", "300") or "300"
+    )
+except (TypeError, ValueError):
+    PORTAL_CONNECTIVITY_TTL_SEC = 300
+
 # Login rate-limit / lockout
 AUTH_LOGIN_MAX_FAILURES = int(os.getenv("AUTH_LOGIN_MAX_FAILURES", "5") or "5")
 AUTH_LOGIN_WINDOW_MINUTES = int(os.getenv("AUTH_LOGIN_WINDOW_MINUTES", "15") or "15")

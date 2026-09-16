@@ -1,9 +1,12 @@
 import { API_BASE, CANAL_HEADER } from "./config";
 import type {
   AuthPayload,
+  ConnectivityStatusResponse,
   InboxConversation,
   InboxMessage,
   PortalAudioResult,
+  PortalTicket,
+  PortalTicketDetail,
 } from "./types";
 import { defaultBranding, type Branding } from "./theme";
 
@@ -181,5 +184,33 @@ export const api = {
     }, 60000);
     if (!res.ok) throw new ApiError(await parseError(res), res.status);
     return res.json() as Promise<PortalAudioResult>;
+  },
+
+  async listTickets(token: string) {
+    const res = await request("/api/v1/portal/tickets", {
+      headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<{ items: PortalTicket[]; total: number }>;
+  },
+
+  async getTicket(ticketId: string, token: string) {
+    const id = encodeURIComponent(ticketId);
+    const res = await request(`/api/v1/portal/tickets/${id}`, {
+      headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<PortalTicketDetail>;
+  },
+
+  async getConnectivity(token: string, serviceId?: string) {
+    const q = serviceId
+      ? `?service_id=${encodeURIComponent(serviceId)}`
+      : "";
+    const res = await request(`/api/v1/portal/connectivity${q}`, {
+      headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<ConnectivityStatusResponse>;
   },
 };

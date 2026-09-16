@@ -235,16 +235,27 @@ Registro device: ver M.
 
 # H. Tickets
 
-### H1. API tickets consola — **BACKEND CHANGE REQUIRED** (para abonado)
+### H1. API tickets portal abonado — **READY**
 
-`GET/PUT /api/v1/tickets*`, claim, timeline, notifications, etc. → JWT **consola** (`get_tenant_context`).  
-Portal JWT → 401.  
-**BACKEND CHANGE REQUIRED** para “mis tickets” abonado.
+1. `GET /api/v1/portal/tickets`  
+2. GET  
+3. JWT portal **identificado** (`abonado_id`); guest → 403  
+4. Bearer, `X-Canal: app`  
+5. sin query de `client_id` / DNI (aislamiento por JWT)  
+6. `{ items: [{ id, estado, categoria, origen, created_at, updated_at, conversacion_id }], total }`  
+   Estados reales estate: `Abierto` | `En Revisión` | `Cerrado` (y el valor persistido si hubiera otro).  
+7–9. Lectura `tickets_estate` filtrada por `conversaciones_canal.ticket_id` del abonado y/o `Ticket.linea` ∈ teléfonos/línea del abonado.  
+10. Mobile: sí.  
+**READY**
 
-### H2. `conversacion.ticket_id` — **READY** (referencia opaca)
+Detalle: `GET /api/v1/portal/tickets/{ticket_id}` → `{ ticket, eventos[] }` solo eventos `visible_cliente=Sí`. 404 si no es del abonado.
 
-Campo string en conversación portal. Sin detalle/timeline cliente.  
-**READY** (mostrar “Hay un ticket asociado: {id}” como máximo)
+Consola: `GET/PUT /api/v1/tickets*` sigue siendo JWT consola (`get_tenant_context`). Portal JWT → 401 en esas rutas.
+
+### H2. `conversacion.ticket_id` — **READY** (referencia opaca + lista portal)
+
+Campo string en conversación portal. La app también lista tickets vía H1.
+
 
 ### H3. `CasoConversacion` — **NOT AVAILABLE** (abonado)
 
@@ -403,7 +414,7 @@ TTS existe para otros canales; app no tiene endpoint de audio-out.
 | Enviar nota de voz | audio | **READY** |
 | Abrir link OV | texto mensaje + Linking | **READY** |
 | Cambio Wi‑Fi vía BCM | solo N1 chat (`wifi_bcm`) | **READY** conversacional; REST: **NOT AVAILABLE** |
-| Crear/ver ticket N2 detalle | — | **BACKEND CHANGE REQUIRED** |
+| Crear/ver ticket N2 detalle | `/portal/tickets` | READY (lista + detalle abonado) |
 | Declarar/ver outage NAS (ops) | consola | **BACKEND CHANGE REQUIRED** |
 | Forzar refresh planta sin mensaje | — | **NOT AVAILABLE** / **BACKEND CHANGE REQUIRED** |
 | Branding público | `GET /api/v1/public/branding` | **READY** (sin auth) |
@@ -455,7 +466,8 @@ Integraciones **sin** endpoint abonado: BillTrack RO, Radius, BCM, UISP, OV API 
 | BCM/UISP/Radius REST portal | — | NOT AVAILABLE | Yes | bcm/uisp/radius |
 | Outage masivo (chat) | messages + contexto | READY | No | canal_outage |
 | Outages list/CRUD | `/outages`, `/nas` | BACKEND CHANGE REQUIRED | Yes (auth) | NetworkOutage |
-| Ticket detalle abonado | `/tickets*` | BACKEND CHANGE REQUIRED | Yes (auth) | Ticket |
+| Ticket detalle abonado | `/portal/tickets/{id}` | READY | Yes (auth) | Ticket + eventos visibles |
+| Lista “mis tickets” | `/portal/tickets` | READY | Yes (auth) | Ticket |
 | ticket_id en conv | conversations | READY | No | ConversacionCanal |
 | Account delete / logout | `/portal/account/delete`, `/logout` | READY | No | portal |
 | CasoConversacion | — | NOT AVAILABLE | N/A | motor consola |
@@ -480,7 +492,7 @@ Integraciones **sin** endpoint abonado: BillTrack RO, Radius, BCM, UISP, OV API 
 | Nota de voz | `POST /portal/audio` + mic | READY |
 | Ajustes: PIN, privacidad, borrar datos | set-pin, Linking, account/delete | READY |
 | Historial multi-conversación | Un solo `conversacion_id` en JWT | NOT AVAILABLE |
-| Lista “mis tickets” con timeline | — | BACKEND CHANGE REQUIRED |
+| Lista “mis tickets” con timeline | `/portal/tickets` | READY (eventos visibles en detalle) |
 | Mapa/lista incidentes NAS del barrio | — | BACKEND CHANGE REQUIRED |
 | Catálogo servicios / multi-login selector UI | Solo por chat N1 | READY chat / REST: NOT AVAILABLE |
 | Cambio Wi‑Fi con formulario nativo | Solo lenguaje natural → N1 | READY chat / REST: NOT AVAILABLE |
@@ -491,7 +503,7 @@ Integraciones **sin** endpoint abonado: BillTrack RO, Radius, BCM, UISP, OV API 
 
 **Sin backend nuevo (alto valor):** enriquecer Home con campos `abonado.*` ya en JSON; cablear push y audio; menú de atajos que disparan mensajes N1 (saldo, OV, “no tengo internet”); banners desde `contexto` (outage, encuesta, handoff); consumo defensivo de `bcm_*`/`pppoe_*`/`uisp_*` si existen.
 
-**Exige backend (no inventar en app):** status planta on-demand, mis tickets, outages públicos, lista de servicios, OV links tipados, media portal, refresh padrón explícito.
+**Exige backend (no inventar en app):** status planta on-demand, outages públicos, lista de servicios, OV links tipados, media portal, refresh padrón explícito.
 
 ---
 

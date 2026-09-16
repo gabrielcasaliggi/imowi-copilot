@@ -1,11 +1,13 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import { useConnectivity } from "../hooks/useConnectivity";
 import { firstName, labelServicio, present } from "../present";
 import { layout, spacing } from "../theme";
 import type { InboxConversation } from "../types";
 import { BalanceCard } from "../ui/BalanceCard";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
+import { ConnectivityCard } from "../ui/ConnectivityCard";
 import { QuickAction } from "../ui/QuickAction";
 import { Screen } from "../ui/Screen";
 import { SectionHeader } from "../ui/SectionHeader";
@@ -29,18 +31,30 @@ const ACTIONS: { id: string; label: string; text: string | null; hint: string }[
     id: "saldo",
     label: "Consultar saldo",
     text: "¿Cuánto debo?",
-    hint: "Consulta saldo con Eko",
+    hint: "Consulta el saldo con Eko",
+  },
+  {
+    id: "ov",
+    label: "Oficina virtual",
+    text: "Quiero entrar a la oficina virtual.",
+    hint: "Eko te pasa el acceso a la oficina virtual",
   },
 ];
 
 export function HomeScreen({
   conv,
   orgHint,
+  token,
   onQuickAction,
+  onOpenActivity,
+  onAuthExpired,
 }: {
   conv: InboxConversation;
   orgHint: string;
+  token: string;
   onQuickAction: (texto: string | null) => void;
+  onOpenActivity: () => void;
+  onAuthExpired: () => void;
 }) {
   const abonado = conv.abonado;
   const nombre = firstName(abonado?.nombre);
@@ -48,6 +62,8 @@ export function HomeScreen({
   const encuesta = Boolean(conv.contexto?.encuesta_pendiente);
   const espera = conv.estado === "espera_agente";
   const conAgente = conv.estado === "con_agente";
+
+  const connectivity = useConnectivity({ token, onAuthExpired });
 
   return (
     <Screen safeBottom={false}>
@@ -79,7 +95,13 @@ export function HomeScreen({
           </Banner>
         ) : null}
         {ticketId ? (
-          <Banner tone="ok">{`Hay una referencia de ticket en este chat: ${ticketId}.`}</Banner>
+          <Banner
+            tone="ok"
+            onPress={onOpenActivity}
+            actionLabel="Ver en Actividad"
+          >
+            {`Hay una referencia de ticket en este chat: ${ticketId}.`}
+          </Banner>
         ) : null}
         {encuesta ? (
           <Banner
@@ -97,9 +119,23 @@ export function HomeScreen({
           estado={abonado?.estado}
         />
 
+        <View style={styles.gap}>
+          <ConnectivityCard
+            data={connectivity.data}
+            loading={connectivity.loading}
+            error={connectivity.error}
+            onRetry={connectivity.refresh}
+            onAskEko={onQuickAction}
+            onSelectService={connectivity.selectService}
+          />
+        </View>
+
         {present(abonado?.deuda_monto) ? (
           <View style={styles.gap}>
-            <BalanceCard monto={abonado?.deuda_monto} />
+            <BalanceCard
+              monto={abonado?.deuda_monto}
+              onAskEko={onQuickAction}
+            />
           </View>
         ) : null}
 
