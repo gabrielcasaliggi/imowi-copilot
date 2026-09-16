@@ -68,6 +68,27 @@ def _map_quality_senal(raw: str) -> str:
     return _map_quality_optica(raw)
 
 
+def _link_up_from_phy(
+    *,
+    online: bool | None,
+    quality: str,
+    has_metric: bool,
+) -> bool | None:
+    """Deriva link_up para producto sin afirmar caída por heurísticas ambiguas.
+
+    BCM a veces marca offline (p.ej. uptime 0 / LOS residual) aunque el
+    diagnóstico TR-069 muestre RX óptima. Si hay métrica usable (RX/señal)
+    con calidad buena/aceptable/poor, el enlace físico existe.
+    """
+    if online is True:
+        return True
+    if has_metric and quality in ("good", "acceptable", "poor"):
+        return True
+    if online is False:
+        return False
+    return None
+
+
 def _access_technology(svc: ServiceRef | Any) -> AccessTechnology:
     from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
 
@@ -214,10 +235,13 @@ def _probe_bcm(
         )
     latency_ms = int((time.monotonic() - t0) * 1000)
     logger.info(
-        "portal_connectivity phy=bcm latency_ms=%s found=%s online=%s err=%s",
+        "portal_connectivity phy=bcm latency_ms=%s found=%s online=%s rx=%s "
+        "calidad=%s err=%s",
         latency_ms,
         bool(onu.encontrado),
         onu.online,
+        onu.rx_dbm,
+        onu.calidad_optica,
         bool(onu.error),
     )
     if onu.error and not onu.encontrado:
@@ -234,18 +258,23 @@ def _probe_bcm(
             kind="ftth",
             available=True,
             found=False,
-            link_up=False,
+            link_up=None,
             quality="unknown",
             error="not_found",
             observed_at=now,
         )
-    link_up = onu.online if onu.online is not None else False
+    quality = _map_quality_optica(onu.calidad_optica)
+    link_up = _link_up_from_phy(
+        online=onu.online,
+        quality=quality,
+        has_metric=onu.rx_dbm is not None,
+    )
     return AccessEvidence(
         kind="ftth",
         available=True,
         found=True,
-        link_up=bool(link_up),
-        quality=_map_quality_optica(onu.calidad_optica),  # type: ignore[arg-type]
+        link_up=link_up,
+        quality=quality,  # type: ignore[arg-type]
         error="none",
         observed_at=now,
     )
@@ -275,10 +304,13 @@ def _probe_uisp(db: Session, selected: ServiceRef) -> AccessEvidence:
         )
     latency_ms = int((time.monotonic() - t0) * 1000)
     logger.info(
-        "portal_connectivity phy=uisp latency_ms=%s found=%s online=%s err=%s",
+        "portal_connectivity phy=uisp latency_ms=%s found=%s online=%s signal=%s "
+        "calidad=%s err=%s",
         latency_ms,
         bool(cpe.encontrado),
         cpe.online,
+        cpe.signal_dbm,
+        cpe.calidad_senal,
         bool(cpe.error),
     )
     if cpe.error and not cpe.encontrado:
@@ -295,18 +327,23 @@ def _probe_uisp(db: Session, selected: ServiceRef) -> AccessEvidence:
             kind="radio",
             available=True,
             found=False,
-            link_up=False,
+            link_up=None,
             quality="unknown",
             error="not_found",
             observed_at=now,
         )
-    link_up = cpe.online if cpe.online is not None else False
+    quality = _map_quality_senal(cpe.calidad_senal)
+    link_up = _link_up_from_phy(
+        online=cpe.online,
+        quality=quality,
+        has_metric=cpe.signal_dbm is not None,
+    )
     return AccessEvidence(
         kind="radio",
         available=True,
         found=True,
-        link_up=bool(link_up),
-        quality=_map_quality_senal(cpe.calidad_senal),  # type: ignore[arg-type]
+        link_up=link_up,
+        quality=quality,  # type: ignore[arg-type]
         error="none",
         observed_at=now,
     )

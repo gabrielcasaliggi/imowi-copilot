@@ -226,3 +226,38 @@ def test_other_tech_session_only_operational():
         )
     )
     assert d.status == "operational"
+
+
+def test_ftth_online_flag_false_but_rx_good_is_not_access_down():
+    """Falso offline BCM + RX óptima no debe ser access_link_down."""
+    d = decidir(
+        _bundle(
+            access=AccessEvidence(
+                kind="ftth",
+                available=True,
+                found=True,
+                link_up=True,  # producto ya reconcilió con óptica
+                quality="good",
+            ),
+            session=SessionEvidence(available=True, session_present=True),
+        )
+    )
+    assert d.status == "operational"
+    assert d.reason_code is None
+
+
+def test_ftth_ambiguous_link_up_none_is_unknown_not_impaired():
+    d = decidir(
+        _bundle(
+            access=AccessEvidence(
+                kind="ftth",
+                available=True,
+                found=True,
+                link_up=None,
+                quality="unknown",
+            ),
+            session=SessionEvidence(available=True, session_present=True),
+        )
+    )
+    assert d.status == "unknown"
+    assert d.reason_code != "access_link_down"
