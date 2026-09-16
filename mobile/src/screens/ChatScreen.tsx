@@ -4,10 +4,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useConversation } from "../hooks/useConversation";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { colors, spacing } from "../theme";
 import type { Branding } from "../theme";
 import type { InboxConversation, InboxMessage } from "../types";
@@ -18,6 +20,7 @@ import { CsatBar } from "../ui/CsatBar";
 import { EmptyState } from "../ui/EmptyState";
 import { MessageBubble } from "../ui/MessageBubble";
 import { Text } from "../ui/Text";
+import { VoiceRecorder } from "../ui/VoiceRecorder";
 
 export function ChatScreen({
   branding,
@@ -40,16 +43,22 @@ export function ChatScreen({
 }) {
   const insets = useSafeAreaInsets();
   const [texto, setTexto] = useState("");
+  const [voiceUploading, setVoiceUploading] = useState(false);
   const listRef = useRef<FlatList<InboxMessage>>(null);
   const consumedRef = useRef("");
+  const autoStopRef = useRef(false);
 
-  const { busy, error, send, esperaAgente, conAgente } = useConversation({
+  const { busy, error, setError, send, sendVoice, esperaAgente, conAgente } = useConversation({
     token,
     conv,
     mensajes,
     onChange,
     onAuthExpired: onExit,
   });
+
+  const voice = useVoiceRecorder();
+  const voiceActive = voice.phase === "recording" || voiceUploading;
+  const locked = busy || voiceActive;
 
   const encuestaPendiente = Boolean(conv.contexto?.encuesta_pendiente);
   const nombre = conv.abonado?.nombre?.split(" ")[0] || "";
@@ -62,7 +71,7 @@ export function ChatScreen({
       consumedRef.current = "";
       return;
     }
-    if (consumedRef.current === pending || busy) return;
+    if (consumedRef.current === pending || locked) return;
     consumedRef.current = pending;
     setTexto("");
     void (async () => {
@@ -70,7 +79,24 @@ export function ChatScreen({
       if (!ok) setTexto(pending);
       onInitialTextConsumed?.();
     })();
-  }, [initialText, busy, send, onInitialTextConsumed]);
+  }, [initialText, locked, send, onInitialTextConsumed]);
+
+  const submitVoice = async () => {
+    if (voiceUploading || busy) return;
+    autoStopRef.current = false;
+    const uri = await voice.stop();
+    if (!uri) return;
+    setVoiceUploading(true);
+    await sendVoice(uri);
+    if (voice.error) setError(voice.error);
+    setVoiceUploading(false);
+  };
+
+  useEffect(() => {
+    if (!voice.maxReached || autoStopRef.current) return;
+    autoStopRef.current = true;
+    void submitVoice();
+  }, [voice.maxReached]);
 
   return (
     <KeyboardAvoidingView
@@ -112,33 +138,52 @@ export function ChatScreen({
       />
 
       {encuestaPendiente ? (
-        <CsatBar busy={busy} onPick={(n) => void send(String(n))} />
+        <CsatBar busy={locked} onPick={(n) => void send(String(n))} />
       ) : null}
 
-      {error ? <Text variant="error" style={styles.err}>{error}</Text> : null}
+      {error || voice.error ? (
+        <Text variant="error" style={styles.err}>{error || voice.error}</Text>
+      ) : null}
 
-      <ChatComposer
-        value={texto}
-        onChangeText={setTexto}
-        onSend={() => {
-          if (busy) return;
-          const outgoing = texto;
-          setTexto("");
-          void (async () => {
-            const ok = await send(outgoing);
-            if (!ok) setTexto(outgoing);
-          })();
-        }}
-        busy={busy}
-        paddingBottom={bottomPad}
-        placeholder={
-          encuestaPendiente
-            ? "O respondé del 1 al 5…"
-            : busy
-              ? "Eko está respondiendo…"
-              : "Escribí tu consulta…"
-        }
-      />
+      {voiceActive ? (
+        <View style={{ paddingBottom: bottomPad }}>
+          <VoiceRecorder
+            phase={voiceUploading ? "processing" : voice.phase}
+            seconds={voice.seconds}
+            onStop={() => void submitVoice()}
+            onCancel={() => void voice.cancel()}
+          />
+        </View>
+      ) : (
+        <ChatComposer
+          value={texto}
+          onChangeText={setTexto}
+          onSend={() => {
+            if (locked) return;
+            const outgoing = texto;
+            setTexto("");
+            void (async () => {
+              const ok = await send(outgoing);
+              if (!ok) setTexto(outgoing);
+            })();
+          }}
+          onMic={() => {
+            setError("");
+            voice.setError("");
+            void voice.start();
+          }}
+          busy={busy}
+          voiceBusy={voiceActive}
+          paddingBottom={bottomPad}
+          placeholder={
+            encuestaPendiente
+              ? "O respondé del 1 al 5…"
+              : busy
+                ? "Eko está respondiendo…"
+                : "Escribí tu consulta…"
+          }
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

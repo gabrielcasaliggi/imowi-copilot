@@ -13,18 +13,23 @@ export function ChatComposer({
   value,
   onChangeText,
   onSend,
+  onMic,
   busy,
+  voiceBusy,
   placeholder,
   paddingBottom,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   onSend: () => void;
+  onMic: () => void;
   busy: boolean;
+  voiceBusy: boolean;
   placeholder: string;
   paddingBottom: number;
 }) {
-  const disabled = busy || !value.trim();
+  const locked = busy || voiceBusy;
+  const sendOff = locked || !value.trim();
   return (
     <View style={[styles.composer, { paddingBottom }]}>
       <TextInput
@@ -33,9 +38,9 @@ export function ChatComposer({
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
         style={styles.input}
-        editable={!busy}
+        editable={!locked}
         onSubmitEditing={() => {
-          if (!disabled) onSend();
+          if (!sendOff) onSend();
         }}
         returnKeyType="send"
         blurOnSubmit
@@ -44,12 +49,22 @@ export function ChatComposer({
         accessibilityLabel="Mensaje"
       />
       <Pressable
+        onPress={onMic}
+        disabled={locked}
+        accessibilityRole="button"
+        accessibilityLabel="Mensaje de voz"
+        accessibilityState={{ disabled: locked }}
+        style={[styles.micBtn, locked && styles.off]}
+      >
+        <View style={styles.micGlyph} />
+      </Pressable>
+      <Pressable
         onPress={onSend}
-        disabled={disabled}
+        disabled={sendOff}
         accessibilityRole="button"
         accessibilityLabel="Enviar"
-        accessibilityState={{ disabled }}
-        style={[styles.sendBtn, disabled && styles.off]}
+        accessibilityState={{ disabled: sendOff }}
+        style={[styles.sendBtn, sendOff && styles.off]}
       >
         {busy ? (
           <ActivityIndicator color={colors.onBrand} />
@@ -83,6 +98,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     minHeight: sizes.hit,
     maxHeight: 120,
+  },
+  micBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    minHeight: sizes.hit,
+    minWidth: sizes.hit,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micGlyph: {
+    width: 12,
+    height: 18,
+    borderRadius: 6,
+    backgroundColor: colors.brand,
   },
   sendBtn: {
     backgroundColor: colors.brand,

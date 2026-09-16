@@ -23,7 +23,8 @@
         "backgroundColor": "#2298A6"
       },
       "package": "coop.batan.soporte",
-      "versionCode": 5,
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 9,
       "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": false,
       "blockedPermissions": [
@@ -37,6 +38,12 @@
           "icon": "./assets/icon.png",
           "color": "#2298A6",
           "defaultChannel": "eko"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "EKO usa el micrófono para enviar mensajes de voz a Eko."
         }
       ]
     ],

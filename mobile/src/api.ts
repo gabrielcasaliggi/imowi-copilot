@@ -1,5 +1,10 @@
 import { API_BASE, CANAL_HEADER } from "./config";
-import type { AuthPayload, InboxConversation, InboxMessage } from "./types";
+import type {
+  AuthPayload,
+  InboxConversation,
+  InboxMessage,
+  PortalAudioResult,
+} from "./types";
 import { defaultBranding, type Branding } from "./theme";
 
 export class ApiError extends Error {
@@ -19,9 +24,10 @@ async function parseError(res: Response): Promise<string> {
 async function request(
   path: string,
   init: RequestInit,
+  timeoutMs = 25000,
 ): Promise<Response> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     return await fetch(`${API_BASE}${path}`, { ...init, signal: ctrl.signal });
   } catch (err) {
@@ -172,13 +178,8 @@ export const api = {
         ...CANAL_HEADER,
       },
       body: form,
-    });
+    }, 60000);
     if (!res.ok) throw new ApiError(await parseError(res), res.status);
-    return res.json() as Promise<{
-      ok: boolean;
-      transcripcion?: string;
-      conversacion: InboxConversation | null;
-      mensajes: InboxMessage[];
-    }>;
+    return res.json() as Promise<PortalAudioResult>;
   },
 };

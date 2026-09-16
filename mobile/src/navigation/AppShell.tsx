@@ -61,16 +61,18 @@ export function AppShell({
           />
         </View>
         <View style={[styles.page, tab !== "eko" && styles.hidden]} pointerEvents={tab === "eko" ? "auto" : "none"}>
-          <ChatScreen
-            branding={branding}
-            conv={conv}
-            mensajes={mensajes}
-            token={token}
-            onExit={onExit}
-            onChange={onChange}
-            initialText={pendingChatText}
-            onInitialTextConsumed={onPendingConsumed}
-          />
+          {tab === "eko" ? (
+            <ChatScreen
+              branding={branding}
+              conv={conv}
+              mensajes={mensajes}
+              token={token}
+              onExit={onExit}
+              onChange={onChange}
+              initialText={pendingChatText}
+              onInitialTextConsumed={onPendingConsumed}
+            />
+          ) : null}
         </View>
         <View style={[styles.page, tab !== "activity" && styles.hidden]} pointerEvents={tab === "activity" ? "auto" : "none"}>
           <ActivityScreen conv={conv} />

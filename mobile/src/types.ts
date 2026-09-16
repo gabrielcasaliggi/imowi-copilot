@@ -43,3 +43,12 @@ export type AuthPayload = {
 };
 
 export type AppTab = "home" | "eko" | "activity" | "account";
+
+export type VoicePhase = "idle" | "recording" | "processing";
+
+export type PortalAudioResult = {
+  ok: boolean;
+  transcripcion?: string;
+  conversacion: InboxConversation | null;
+  mensajes: InboxMessage[];
+};

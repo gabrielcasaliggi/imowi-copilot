@@ -23,6 +23,9 @@ export function formatUserError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     if (err.status === 0 || err.status === 408) return MSG_NETWORK;
     if (err.status === 401) return MSG_SESSION;
+    if (err.status === 413) {
+      return "El audio es demasiado largo. Probá con un mensaje más corto.";
+    }
     if (err.status === 422) {
       return looksTechnical(err.message) ? MSG_VALIDATION : err.message.trim();
     }

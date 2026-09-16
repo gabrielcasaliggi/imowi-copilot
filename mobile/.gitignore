@@ -8,7 +8,8 @@ dist/
 *.mobileprovision
 *.orig.*
 web-build/
-google-services.json
 GoogleService-Info.plist
+# google-services.json se versiona: EAS lo necesita para FCM del APK.
+# La service account de FCM V1 no va en git.
 .env
 .env.local

@@ -90,5 +90,27 @@ export function useConversation({
     [busy, conv, mensajes, token, onChange, handleAuthError],
   );
 
-  return { busy, error, setError, send, refresh, esperaAgente, conAgente };
+  const sendVoice = useCallback(
+    async (uri: string) => {
+      if (!uri || busy) return false;
+      setError("");
+      setBusy(true);
+      try {
+        const res = await api.sendAudio(uri, token);
+        onChange(res.conversacion, res.mensajes || []);
+        return true;
+      } catch (err) {
+        if (handleAuthError(err)) return false;
+        setError(
+          formatUserError(err, "No pudimos procesar el audio. Revisá tu conexión e intentá nuevamente."),
+        );
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, token, onChange, handleAuthError],
+  );
+
+  return { busy, error, setError, send, sendVoice, refresh, esperaAgente, conAgente };
 }

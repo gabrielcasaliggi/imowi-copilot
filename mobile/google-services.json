@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "862571099399",
+    "firebase_url": "https://coopbatan-a1ad3.firebaseio.com",
+    "project_id": "coopbatan-a1ad3",
+    "storage_bucket": "coopbatan-a1ad3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:862571099399:android:071753e1848625bb",
+        "android_client_info": {
+          "package_name": "com.coopbatanapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3-5zVY6coUN4jL79juG-gTMD76YjNfso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:862571099399:android:f1852ade13e33c8c1541a2",
+        "android_client_info": {
+          "package_name": "coop.batan.soporte"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3-5zVY6coUN4jL79juG-gTMD76YjNfso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
