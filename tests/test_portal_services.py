@@ -260,7 +260,7 @@ def test_services_omite_sin_id_estable():
 
 
 def test_services_omite_historicos_y_dedupe_por_tipo():
-    """Bajas no salen; varias réplicas del mismo tipo → una (preferir activo)."""
+    """Bajas no salen; Internet colapsa réplicas; móvil conserva líneas distintas."""
     auth = _portal_identified("30111222")
     catalog = [
         _svc(
@@ -276,6 +276,7 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
             service_type_code="INTFO",
             label="Internet",
             product="Fibra 300",
+            login="inet1",
             state="Habilitado",
         ),
         _svc(
@@ -283,6 +284,7 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
             service_type_code="INTBA",
             label="Internet radio",
             product="BAI 20",
+            login="inet2",
             state="Habilitado",
         ),
         _svc(
@@ -304,14 +306,16 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
             id="m1",
             service_type_code="IMOWI",
             label="Móvil",
-            product="",
+            product="Imowi 5 GB",
+            login="2231111001",
             state="Habilitado",
         ),
         _svc(
             id="m2",
             service_type_code="CEL",
             label="Celular",
-            product="IMOWI",
+            product="Imowi 5 GB",
+            login="2231111002",
             state="Habilitado",
         ),
     ]
@@ -328,15 +332,62 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
     types = [s["type"] for s in services]
     assert types.count("internet") == 1
     assert types.count("tv") == 1
-    assert types.count("movil") == 1
+    assert types.count("movil") == 2
     ids = {s["id"] for s in services}
     assert "i-old" not in ids
     assert "t-old" not in ids
-    # Preferencia: primer activo visto tras filtro (BillTrack ordena vigentes primero).
-    by_type = {s["type"]: s["id"] for s in services}
+    assert {"m1", "m2"}.issubset(ids)
+    by_type = {s["type"]: s["id"] for s in services if s["type"] != "movil"}
     assert by_type["internet"] == "i-dup"
     assert by_type["tv"] == "t-ok"
-    assert by_type["movil"] == "m1"
+    moviles = [s for s in services if s["type"] == "movil"]
+    assert {s["msisdn"] for s in moviles} == {"2231111001", "2231111002"}
+
+
+def test_services_cuatro_lineas_imowi():
+    """Cuenta solo móvil+TV: las 4 líneas Imowi salen; Sensa una."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id=f"imowi-{i}",
+            service_type_code="IMOWI",
+            label="Móvil",
+            product="Imowi 5 GB",
+            login=f"223464900{i}",
+            state="Habilitado",
+        )
+        for i in range(1, 5)
+    ] + [
+        _svc(
+            id="sensa-1",
+            service_type_code="SENSA",
+            label="TV",
+            product="Sensa",
+            state="Habilitado",
+        ),
+        _svc(
+            id="sensa-dup",
+            service_type_code="SENSA",
+            label="TV",
+            product="Sensa",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    body = r.json()
+    assert body["status"] == "ok"
+    types = [s["type"] for s in body["services"]]
+    assert types.count("movil") == 4
+    assert types.count("tv") == 1
+    assert types.count("internet") == 0
+    assert "internet" not in {s["type"] for s in body["services"]}
 
 
 def test_services_internet_prefiere_id_con_login_int():

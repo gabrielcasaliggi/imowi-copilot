@@ -32,19 +32,20 @@ export const WIFI_CHANGE_PROMPT =
 
 function ServiceRow({
   item,
-  msisdn,
+  fallbackMsisdn,
   onViewConnectivity,
   onAskEko,
 }: {
   item: PortalServiceItem;
-  msisdn?: string;
+  fallbackMsisdn?: string;
   onViewConnectivity: (serviceId: string) => void;
   onAskEko: (texto: string | null) => void;
 }) {
   const product = present(item.product);
   const label = present(item.label);
   const detail = product || label;
-  const showMsisdn = item.type === "movil" && present(msisdn);
+  const line = present(item.msisdn) || present(fallbackMsisdn);
+  const showMsisdn = item.type === "movil" && line;
 
   return (
     <Card
@@ -59,7 +60,7 @@ function ServiceRow({
       ) : null}
       {showMsisdn ? (
         <Text variant="meta" style={styles.meta}>
-          Línea {present(msisdn)}
+          Línea {line}
         </Text>
       ) : null}
       <Text variant="meta" style={styles.meta}>
@@ -162,7 +163,7 @@ export function ServicesSection({
         <ServiceRow
           key={item.id}
           item={item}
-          msisdn={msisdn}
+          fallbackMsisdn={msisdn}
           onViewConnectivity={onViewConnectivity}
           onAskEko={onAskEko}
         />

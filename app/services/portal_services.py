@@ -134,8 +134,17 @@ def es_historico_catalogo(svc: Any) -> bool:
 
 
 def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
-    """Home: un ítem por tipo canónico (evita 4× Internet / 2× TV por réplicas)."""
-    return str(row.get("type") or ""), ""
+    """Clave de colapso: Internet 1×; móvil/telefonía por línea; TV/otros por producto."""
+    tip = str(row.get("type") or "")
+    if tip == "internet":
+        return tip, ""
+    if tip in ("movil", "telefonia"):
+        line = (row.get("msisdn") or row.get("_login") or row.get("id") or "").strip().lower()
+        return tip, line
+    name = (row.get("product") or row.get("label") or "").strip().lower()
+    if tip == "tv":
+        return tip, name
+    return tip, name or str(row.get("id") or "")
 
 
 def _conn_eligible(svc: Any) -> bool:
@@ -143,6 +152,15 @@ def _conn_eligible(svc: Any) -> bool:
     code = str(getattr(svc, "service_type_code", "") or "").strip().upper()
     login = str(getattr(svc, "login", "") or "").strip()
     return bool(login) and code in bt.SERVICE_TYPE_CONECTIVIDAD and bt.servicio_habilitado(svc)
+
+
+def _msisdn_from_svc(svc: Any) -> str | None:
+    """MSISDN desde identifier/login cuando parece teléfono (IMOWI)."""
+    login = str(getattr(svc, "login", "") or "").strip()
+    digits = "".join(c for c in login if c.isdigit())
+    if len(digits) < 8:
+        return None
+    return digits[-10:] if len(digits) >= 10 else digits
 
 
 def _prefer_row(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
@@ -163,19 +181,24 @@ def _dto(svc: Any) -> dict[str, Any] | None:
     sid = str(getattr(svc, "id", "") or "").strip()
     if not sid:
         return None
+    tip = canonical_service_type(svc)
+    login = str(getattr(svc, "login", "") or "").strip()
+    msisdn = _msisdn_from_svc(svc) if tip in ("movil", "telefonia") else None
     return {
         "id": sid,
-        "type": canonical_service_type(svc),
+        "type": tip,
         "label": _source_label(svc),
         "product": _source_product(svc),
         "active": bool(bt.servicio_habilitado(svc)),
+        "msisdn": msisdn,
         # Solo para dedupe; se elimina antes de responder.
         "_conn": _conn_eligible(svc),
+        "_login": login.lower() if login else "",
     }
 
 
 def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Un ítem por tipo canónico. Prefiere el activo (y con login en internet)."""
+    """Colapsa réplicas; conserva líneas móviles distintas y TV por producto."""
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     order: list[tuple[str, str]] = []
     for row in items:
