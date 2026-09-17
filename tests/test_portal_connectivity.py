@@ -94,7 +94,8 @@ def test_connectivity_requiere_identificado():
     assert r.status_code == 403
 
 
-def test_connectivity_service_id_ajeno_404():
+def test_connectivity_service_id_desconocido_cae_al_default():
+    """Id admin/stale no aborta: con un solo servicio de planta responde 200."""
     ccache.clear()
     auth = _portal_identified()
     r = client.get(
@@ -102,7 +103,9 @@ def test_connectivity_service_id_ajeno_404():
         params={"service_id": "no-existe-xyz"},
         headers=_headers(auth["portal_token"]),
     )
-    assert r.status_code == 404
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("service") or body.get("needs_service_selection") is not None
 
 
 def test_connectivity_single_service_operational_mocked():

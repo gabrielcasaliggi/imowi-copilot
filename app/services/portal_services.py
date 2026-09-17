@@ -138,12 +138,24 @@ def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
     return str(row.get("type") or ""), ""
 
 
+def _conn_eligible(svc: Any) -> bool:
+    """Mismo criterio que portal_connectivity._to_service_ref (login + INT*)."""
+    code = str(getattr(svc, "service_type_code", "") or "").strip().upper()
+    login = str(getattr(svc, "login", "") or "").strip()
+    return bool(login) and code in bt.SERVICE_TYPE_CONECTIVIDAD and bt.servicio_habilitado(svc)
+
+
 def _prefer_row(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
-    """Prefiere activo; a igualdad conserva el primero (BillTrack ya ordena vigentes)."""
+    """Prefiere activo; en internet, el id usable por Connectivity (login+INT*)."""
     if a.get("active") and not b.get("active"):
         return a
     if b.get("active") and not a.get("active"):
         return b
+    if a.get("type") == "internet" or b.get("type") == "internet":
+        if a.get("_conn") and not b.get("_conn"):
+            return a
+        if b.get("_conn") and not a.get("_conn"):
+            return b
     return a
 
 
@@ -157,11 +169,13 @@ def _dto(svc: Any) -> dict[str, Any] | None:
         "label": _source_label(svc),
         "product": _source_product(svc),
         "active": bool(bt.servicio_habilitado(svc)),
+        # Solo para dedupe; se elimina antes de responder.
+        "_conn": _conn_eligible(svc),
     }
 
 
 def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Un ítem por tipo canónico. Prefiere el activo (Home no lista réplicas)."""
+    """Un ítem por tipo canónico. Prefiere el activo (y con login en internet)."""
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     order: list[tuple[str, str]] = []
     for row in items:
@@ -172,7 +186,11 @@ def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             order.append(key)
         else:
             by_key[key] = _prefer_row(prev, row)
-    return [by_key[k] for k in order]
+    out: list[dict[str, Any]] = []
+    for k in order:
+        clean = {kk: vv for kk, vv in by_key[k].items() if not kk.startswith("_")}
+        out.append(clean)
+    return out
 
 
 def evaluar_servicios_portal(

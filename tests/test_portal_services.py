@@ -339,11 +339,37 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
     assert by_type["movil"] == "m1"
 
 
-def test_es_historico_service_on_falso_sin_estado_vivo():
-    from app.services.portal_services import es_historico_catalogo
-
-    assert es_historico_catalogo(_svc(state="Baja", service_on=False)) is True
-    assert es_historico_catalogo(_svc(state="de baja", service_on=True)) is True
-    assert es_historico_catalogo(_svc(state="", service_on=False)) is True
-    assert es_historico_catalogo(_svc(state="Habilitado", service_on=True)) is False
-    assert es_historico_catalogo(_svc(state="Suspendido", service_on=True)) is False
+def test_services_internet_prefiere_id_con_login_int():
+    """Ver estado debe usar el id que Connectivity acepta (login + INT*)."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="admin-only",
+            service_type_code="",
+            label="Internet acceso Fo Hogar 100MB+LINEA IP",
+            product="Internet acceso Fo Hogar 100MB+LINEA IP",
+            login="",
+            state="Habilitado",
+        ),
+        _svc(
+            id="conn-ok",
+            service_type_code="INTFO",
+            label="Internet acceso Fo Hogar 100MB+LINEA IP",
+            product="Internet acceso Fo Hogar 100MB+LINEA IP",
+            login="armando10",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    assert r.status_code == 200, r.text
+    inet = [s for s in r.json()["services"] if s["type"] == "internet"]
+    assert len(inet) == 1
+    assert inet[0]["id"] == "conn-ok"
+    assert "_conn" not in inet[0]

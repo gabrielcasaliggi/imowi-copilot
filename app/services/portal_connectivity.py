@@ -10,7 +10,6 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.estate.models import Abonado
@@ -166,7 +165,16 @@ def _resolve_catalog(
                 selected = s
                 break
         if selected is None:
-            raise HTTPException(404, "Servicio no encontrado")
+            # Id del catálogo admin (sin login / otro producto) o stale:
+            # no 404 — caer al flujo sin sid (elige único o pide selección).
+            if len(services) > 1:
+                return CatalogEvidence(
+                    services=services,
+                    selected=None,
+                    needs_selection=True,
+                    access_technology="unknown",
+                )
+            selected = services[0]
     else:
         selected = services[0]
     tech = _access_technology(selected)
