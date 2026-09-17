@@ -139,3 +139,33 @@ export type ConnectivityStatusResponse = {
   services: ConnectivityServiceOption[] | null;
   reason_code: ConnectivityReasonCode | null;
 };
+
+/** Contrato GET /portal/ov-links — sin secretos ni payload OV crudo. */
+export type OvLinkStatus = "ready" | "partial" | "unavailable" | "unknown";
+
+export type OvLinkId = "pay" | "invoice" | "payment_slip";
+
+export type OvLinkReasonCode =
+  | "ov_unavailable"
+  | "partial"
+  | "insufficient_data";
+
+export type OvLinkItem = {
+  id: OvLinkId;
+  label: string;
+  url: string | null;
+  available: boolean;
+};
+
+export type OvLinksActions = {
+  can_open_chat: boolean;
+  chat_hint?: string;
+};
+
+export type OvLinksResponse = {
+  status: OvLinkStatus;
+  checked_at: string;
+  actions: OvLinksActions;
+  links: OvLinkItem[];
+  reason_code: OvLinkReasonCode | null;
+};

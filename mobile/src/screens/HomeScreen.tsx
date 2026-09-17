@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { useConnectivity } from "../hooks/useConnectivity";
+import { useOvLinks } from "../hooks/useOvLinks";
 import { firstName, labelServicio, present } from "../present";
 import { layout, spacing } from "../theme";
 import type { InboxConversation } from "../types";
@@ -64,6 +65,7 @@ export function HomeScreen({
   const conAgente = conv.estado === "con_agente";
 
   const connectivity = useConnectivity({ token, onAuthExpired });
+  const ov = useOvLinks({ token, onAuthExpired });
 
   return (
     <Screen safeBottom={false}>
@@ -135,6 +137,9 @@ export function HomeScreen({
             <BalanceCard
               monto={abonado?.deuda_monto}
               onAskEko={onQuickAction}
+              ovLinks={ov.data}
+              ovLoading={ov.loading}
+              ovTransportError={ov.error}
             />
           </View>
         ) : null}

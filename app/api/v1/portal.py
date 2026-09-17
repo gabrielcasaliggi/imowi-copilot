@@ -1091,6 +1091,24 @@ def portal_connectivity(
     )
 
 
+@router.get("/portal/ov-links")
+def portal_ov_links(
+    request: Request,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Links tipados de Oficina Virtual (pagar / factura / talón) para el abonado."""
+    from app.services.portal_ov_links import evaluar_ov_links_portal
+
+    abo = _abonado_portal_identificado(payload, db)
+    return evaluar_ov_links_portal(
+        db,
+        abonado=abo,
+        conversacion_id=str(payload.get("conversacion_id") or ""),
+        canal=_canal_desde_request(request, payload),
+    )
+
+
 @router.get("/portal/tickets")
 def portal_list_tickets(
     payload: dict = Depends(_portal_auth),
