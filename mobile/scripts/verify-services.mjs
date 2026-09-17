@@ -144,4 +144,45 @@ assert(mapCode("XYZ") === "other", "unknown→other");
   assert(item.active === true, "active admin");
 }
 
+// --- Ver estado: no descartar tap mientras hay consulta en vuelo ---
+{
+  /** Espejo de pendingSid en useConnectivity.load */
+  function makeLoadQueue(fetchFn) {
+    let inFlight = false;
+    let pending = undefined; // undefined=none; null=reload; string=id
+    const calls = [];
+    async function load(serviceId) {
+      if (inFlight) {
+        pending = serviceId === undefined ? null : serviceId;
+        return;
+      }
+      inFlight = true;
+      calls.push(serviceId === undefined ? null : serviceId);
+      try {
+        await fetchFn(serviceId);
+      } finally {
+        inFlight = false;
+        const next = pending;
+        if (next !== undefined) {
+          pending = undefined;
+          await load(next);
+        }
+      }
+    }
+    return { load, calls };
+  }
+
+  const seen = [];
+  const q = makeLoadQueue(async (sid) => {
+    seen.push(sid ?? null);
+    await new Promise((r) => setTimeout(r, 5));
+  });
+  const p1 = q.load(undefined);
+  const p2 = q.load("svc-internet");
+  await Promise.all([p1, p2]);
+  assert(seen.length === 2, "dos cargas tras cola");
+  assert(seen[0] === null, "primera: reload");
+  assert(seen[1] === "svc-internet", "segunda: Ver estado no se pierde");
+}
+
 console.log("verify-services: ok");

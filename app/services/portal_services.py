@@ -40,6 +40,20 @@ _HINTS_TELEFONIA = (
 
 _TYPE_ORDER = ("internet", "tv", "movil", "telefonia", "other")
 
+# Históricos que no deben listarse en Home (sí se muestran corte/suspendido).
+_ESTADOS_HISTORICOS = frozenset(
+    {
+        "baja",
+        "cancelado",
+        "cancelada",
+        "inactivo",
+        "inactiva",
+        "de baja",
+        "dado de baja",
+        "dada de baja",
+    }
+)
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -92,6 +106,47 @@ def _source_product(svc: Any) -> str | None:
     return val or None
 
 
+def es_historico_catalogo(svc: Any) -> bool:
+    """True si es baja/cancelado: no mostrar en catálogo Home."""
+    st = str(getattr(svc, "state", "") or "").strip().lower()
+    if st in _ESTADOS_HISTORICOS or st.startswith("baja") or "baja" in st:
+        return True
+    # service_on falsy + sin estado vivo → réplica histórica típica en BillTrack
+    if st not in ("habilitado", "activo", "activa", "enabled", "suspendido", "suspendida", "corte", "cortado"):
+        on_raw = getattr(svc, "service_on", True)
+        if isinstance(on_raw, bool):
+            on = on_raw
+        else:
+            on = str(on_raw or "").strip().lower() in (
+                "1",
+                "t",
+                "true",
+                "yes",
+                "on",
+                "si",
+                "sí",
+                "y",
+                "",
+            )
+        if not on:
+            return True
+    return False
+
+
+def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
+    """Home: un ítem por tipo canónico (evita 4× Internet / 2× TV por réplicas)."""
+    return str(row.get("type") or ""), ""
+
+
+def _prefer_row(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Prefiere activo; a igualdad conserva el primero (BillTrack ya ordena vigentes)."""
+    if a.get("active") and not b.get("active"):
+        return a
+    if b.get("active") and not a.get("active"):
+        return b
+    return a
+
+
 def _dto(svc: Any) -> dict[str, Any] | None:
     sid = str(getattr(svc, "id", "") or "").strip()
     if not sid:
@@ -103,6 +158,21 @@ def _dto(svc: Any) -> dict[str, Any] | None:
         "product": _source_product(svc),
         "active": bool(bt.servicio_habilitado(svc)),
     }
+
+
+def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Un ítem por tipo canónico. Prefiere el activo (Home no lista réplicas)."""
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    order: list[tuple[str, str]] = []
+    for row in items:
+        key = _collapse_key(row)
+        prev = by_key.get(key)
+        if prev is None:
+            by_key[key] = row
+            order.append(key)
+        else:
+            by_key[key] = _prefer_row(prev, row)
+    return [by_key[k] for k in order]
 
 
 def evaluar_servicios_portal(
@@ -145,11 +215,15 @@ def evaluar_servicios_portal(
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
     for svc in raw or []:
+        if es_historico_catalogo(svc):
+            continue
         row = _dto(svc)
         if row is None or row["id"] in seen:
             continue
         seen.add(row["id"])
         items.append(row)
+
+    items = _dedupe_catalog(items)
 
     items.sort(
         key=lambda r: (

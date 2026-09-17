@@ -4,6 +4,9 @@ import { ApiError, api } from "../api";
 import { formatUserError, isAuthExpired } from "../errors";
 import type { ConnectivityStatusResponse } from "../types";
 
+/** undefined = sin pendiente; null = reload sin service_id; string = con id. */
+type PendingSid = undefined | null | string;
+
 export function useConnectivity({
   token,
   onAuthExpired,
@@ -16,6 +19,7 @@ export function useConnectivity({
   const [error, setError] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const pendingSid = useRef<PendingSid>(undefined);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -27,7 +31,12 @@ export function useConnectivity({
 
   const load = useCallback(
     async (serviceId?: string | null) => {
-      if (!token || inFlight.current) return;
+      if (!token) return;
+      if (inFlight.current) {
+        // No descartar taps de "Ver estado" mientras hay otra consulta.
+        pendingSid.current = serviceId === undefined ? null : serviceId;
+        return;
+      }
       inFlight.current = true;
       setLoading(true);
       setError("");
@@ -48,8 +57,6 @@ export function useConnectivity({
           return;
         }
         if (err instanceof ApiError && err.status === 404 && sid) {
-          // 404 solo con service_id = servicio ajeno/inexistente.
-          // Sin service_id, un 404 suele ser endpoint ausente (p.ej. API vieja/prod).
           setSelectedServiceId(null);
           setError("No encontramos ese servicio. Elegí otro o reintentá.");
           setData(null);
@@ -65,6 +72,11 @@ export function useConnectivity({
       } finally {
         inFlight.current = false;
         if (mounted.current) setLoading(false);
+        const next = pendingSid.current;
+        if (next !== undefined && mounted.current) {
+          pendingSid.current = undefined;
+          void load(next);
+        }
       }
     },
     [token, onAuthExpired],

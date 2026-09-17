@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { useConnectivity } from "../hooks/useConnectivity";
@@ -77,6 +77,8 @@ export function HomeScreen({
   const services = useServices({ token, onAuthExpired });
   const claim = useCreateClaim({ token, onAuthExpired });
   const [showClaim, setShowClaim] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const connectivityY = useRef(0);
 
   useEffect(() => {
     if (!connectivityRefreshKey) return;
@@ -95,9 +97,23 @@ export function HomeScreen({
     onOpenActivity(res.ticket.id);
   };
 
+  const onViewConnectivity = (serviceId: string) => {
+    connectivity.selectService(serviceId);
+    requestAnimationFrame(() => {
+      const y = Math.max(0, connectivityY.current - 16);
+      scrollRef.current?.scrollTo({ y, animated: true });
+    });
+  };
+
+  const hasCatalog = services.items.length > 0;
+
   return (
     <Screen safeBottom={false}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         <Text variant="kicker">{orgHint}</Text>
         <Text variant="greeting" style={styles.hello} numberOfLines={2}>
           {nombre ? `Hola, ${nombre}` : "Hola"}
@@ -155,9 +171,12 @@ export function HomeScreen({
           </View>
         ) : null}
 
-        {/* Cuenta admin: plan/estado. No usar abonado.servicio como catálogo. */}
+        {/* Plan solo si aún no hay catálogo; con lista evita repetir Internet. */}
         <View style={styles.gap}>
-          <ServiceCard plan={abonado?.plan} estado={abonado?.estado} />
+          <ServiceCard
+            plan={hasCatalog ? undefined : abonado?.plan}
+            estado={abonado?.estado}
+          />
         </View>
 
         <View style={styles.gap}>
@@ -168,19 +187,24 @@ export function HomeScreen({
             unavailable={services.unavailable}
             msisdn={abonado?.linea_msisdn}
             onRetry={services.refresh}
-            onViewConnectivity={connectivity.selectService}
+            onViewConnectivity={onViewConnectivity}
             onAskEko={onQuickAction}
           />
         </View>
 
-        <View style={styles.gap}>
+        <View
+          style={styles.gap}
+          onLayout={(e) => {
+            connectivityY.current = e.nativeEvent.layout.y;
+          }}
+        >
           <ConnectivityCard
             data={connectivity.data}
             loading={connectivity.loading}
             error={connectivity.error}
             onRetry={connectivity.refresh}
             onAskEko={onQuickAction}
-            onSelectService={connectivity.selectService}
+            onSelectService={onViewConnectivity}
             onCreateClaim={showClaim ? undefined : () => setShowClaim(true)}
           />
         </View>

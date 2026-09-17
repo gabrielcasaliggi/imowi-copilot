@@ -257,3 +257,93 @@ def test_services_omite_sin_id_estable():
         )
     ids = [s["id"] for s in r.json()["services"]]
     assert ids == ["ok"]
+
+
+def test_services_omite_historicos_y_dedupe_por_tipo():
+    """Bajas no salen; varias réplicas del mismo tipo → una (preferir activo)."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="i-old",
+            service_type_code="INTFO",
+            label="Internet Fibra",
+            product="Fibra 100",
+            state="Baja",
+            service_on=False,
+        ),
+        _svc(
+            id="i-dup",
+            service_type_code="INTFO",
+            label="Internet",
+            product="Fibra 300",
+            state="Habilitado",
+        ),
+        _svc(
+            id="i-ok",
+            service_type_code="INTBA",
+            label="Internet radio",
+            product="BAI 20",
+            state="Habilitado",
+        ),
+        _svc(
+            id="t-old",
+            service_type_code="SENSA",
+            label="TV",
+            product="Sensa",
+            state="de baja",
+            service_on=False,
+        ),
+        _svc(
+            id="t-ok",
+            service_type_code="OTT",
+            label="TV OTT",
+            product="Sensa Plus",
+            state="Habilitado",
+        ),
+        _svc(
+            id="m1",
+            service_type_code="IMOWI",
+            label="Móvil",
+            product="",
+            state="Habilitado",
+        ),
+        _svc(
+            id="m2",
+            service_type_code="CEL",
+            label="Celular",
+            product="IMOWI",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    assert r.status_code == 200, r.text
+    services = r.json()["services"]
+    types = [s["type"] for s in services]
+    assert types.count("internet") == 1
+    assert types.count("tv") == 1
+    assert types.count("movil") == 1
+    ids = {s["id"] for s in services}
+    assert "i-old" not in ids
+    assert "t-old" not in ids
+    # Preferencia: primer activo visto tras filtro (BillTrack ordena vigentes primero).
+    by_type = {s["type"]: s["id"] for s in services}
+    assert by_type["internet"] == "i-dup"
+    assert by_type["tv"] == "t-ok"
+    assert by_type["movil"] == "m1"
+
+
+def test_es_historico_service_on_falso_sin_estado_vivo():
+    from app.services.portal_services import es_historico_catalogo
+
+    assert es_historico_catalogo(_svc(state="Baja", service_on=False)) is True
+    assert es_historico_catalogo(_svc(state="de baja", service_on=True)) is True
+    assert es_historico_catalogo(_svc(state="", service_on=False)) is True
+    assert es_historico_catalogo(_svc(state="Habilitado", service_on=True)) is False
+    assert es_historico_catalogo(_svc(state="Suspendido", service_on=True)) is False
