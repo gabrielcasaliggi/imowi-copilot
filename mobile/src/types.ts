@@ -169,3 +169,26 @@ export type OvLinksResponse = {
   links: OvLinkItem[];
   reason_code: OvLinkReasonCode | null;
 };
+
+/** Contrato GET /portal/services — catálogo administrativo (no operativo). */
+export type PortalServiceType =
+  | "internet"
+  | "tv"
+  | "movil"
+  | "telefonia"
+  | "other";
+
+export type PortalServiceItem = {
+  id: string;
+  type: PortalServiceType;
+  label: string;
+  product: string | null;
+  active: boolean;
+};
+
+export type PortalServicesResponse = {
+  status: "ok" | "unavailable";
+  checked_at: string;
+  services: PortalServiceItem[];
+  reason_code: string | null;
+};

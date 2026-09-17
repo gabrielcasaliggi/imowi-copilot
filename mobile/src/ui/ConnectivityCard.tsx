@@ -19,6 +19,7 @@ export function ConnectivityCard({
   onRetry,
   onAskEko,
   onSelectService,
+  onCreateClaim,
 }: {
   data: ConnectivityStatusResponse | null;
   loading: boolean;
@@ -26,6 +27,8 @@ export function ConnectivityCard({
   onRetry: () => void;
   onAskEko: (texto: string | null) => void;
   onSelectService: (serviceId: string) => void;
+  /** Acción explícita: no crea ticket solo. */
+  onCreateClaim?: () => void;
 }) {
   if (loading && !data) {
     return (
@@ -147,6 +150,15 @@ export function ConnectivityCard({
             )
           }
           accessibilityHint={chatHint}
+          style={styles.cta}
+        />
+      ) : null}
+      {onCreateClaim ? (
+        <Button
+          label="Crear reclamo"
+          variant="ghost"
+          onPress={onCreateClaim}
+          accessibilityHint="Abrí el formulario para generar un reclamo"
           style={styles.cta}
         />
       ) : null}

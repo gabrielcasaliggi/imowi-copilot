@@ -11,6 +11,7 @@ import {
   consumeInitialPushResponse,
   registerPush,
   unregisterPush,
+  type PushOpenIntent,
 } from "./src/push";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { colors, layout, spacing } from "./src/theme";
@@ -41,43 +42,55 @@ export default function App() {
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState("");
+  const [connectivityRefreshKey, setConnectivityRefreshKey] = useState(0);
   const authedRef = useRef(false);
-  const pendingTabRef = useRef<AppTab | null>(null);
+  const pendingIntentRef = useRef<PushOpenIntent | null>(null);
 
   const authed = Boolean(conv && token);
   authedRef.current = authed;
 
-  const applyPushTab = (next: AppTab) => {
+  const applyPushIntent = (intent: PushOpenIntent) => {
     if (authedRef.current) {
-      setTab(next);
+      setTab(intent.tab);
+      if (intent.refreshConnectivity) {
+        setConnectivityRefreshKey((k) => k + 1);
+      }
       return;
     }
-    pendingTabRef.current = next;
+    pendingIntentRef.current = intent;
   };
 
   useEffect(() => {
-    return attachPushListeners(applyPushTab);
+    return attachPushListeners(applyPushIntent, applyPushIntent);
   }, []);
 
   useEffect(() => {
-    void consumeInitialPushResponse().then((next) => {
-      if (next) applyPushTab(next);
+    void consumeInitialPushResponse().then((intent) => {
+      if (intent) applyPushIntent(intent);
     });
   }, []);
 
   useEffect(() => {
     if (!authed || !token) return;
     void registerPush(token);
-    if (pendingTabRef.current) {
-      setTab(pendingTabRef.current);
-      pendingTabRef.current = null;
+    if (pendingIntentRef.current) {
+      const intent = pendingIntentRef.current;
+      pendingIntentRef.current = null;
+      setTab(intent.tab);
+      if (intent.refreshConnectivity) {
+        setConnectivityRefreshKey((k) => k + 1);
+      }
     }
   }, [authed, token]);
 
   const handleAuthed = (payload: Parameters<typeof onAuthed>[0]) => {
     onAuthed(payload);
-    setTab(pendingTabRef.current || "home");
-    pendingTabRef.current = null;
+    const intent = pendingIntentRef.current;
+    pendingIntentRef.current = null;
+    setTab(intent?.tab || "home");
+    if (intent?.refreshConnectivity) {
+      setConnectivityRefreshKey((k) => k + 1);
+    }
     setPendingChatText("");
     setPinGate(payload.has_pin === false);
     setPin("");
@@ -161,6 +174,7 @@ export default function App() {
               tab={tab}
               onTab={setTab}
               pendingChatText={pendingChatText}
+              connectivityRefreshKey={connectivityRefreshKey}
               onQuickAction={(texto) => {
                 setTab("eko");
                 setPendingChatText(texto || "");

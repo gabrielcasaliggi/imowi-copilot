@@ -102,6 +102,13 @@ class PortalDeviceIn(BaseModel):
     device_name: str = Field(default="", max_length=80)
 
 
+class PortalTicketCreateIn(BaseModel):
+    """Reclamo explícito desde portal/app. Solo campos del contrato de tickets."""
+
+    motivo: str = Field(..., min_length=1, max_length=120)
+    descripcion: str = Field(..., min_length=1, max_length=2000)
+
+
 def _org_slug(raw: str) -> str:
     return (raw or "").strip() or WHATSAPP_DEFAULT_ORG_SLUG or "coop-batan"
 
@@ -1109,6 +1116,40 @@ def portal_ov_links(
     )
 
 
+@router.get("/portal/services")
+def portal_list_services(
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Catálogo tipado de servicios (administrativo). Sin diagnóstico operativo."""
+    from app.services.portal_services import evaluar_servicios_portal
+
+    abo = _abonado_portal_identificado(payload, db)
+    return evaluar_servicios_portal(db, abonado=abo)
+
+
+def _portal_ticket_eventos_out(db: Session, org_id: str, ticket_id: str) -> list[dict]:
+    eventos = repo.list_ticket_events(db, org_id, ticket_id, solo_visibles=True)
+    return [
+        {
+            "id": e.id,
+            "titulo": e.titulo or "",
+            "detalle": e.detalle or "",
+            "estado": e.estado or "",
+            "created_at": e.created_at.isoformat() if e.created_at else "",
+        }
+        for e in eventos
+    ]
+
+
+def _origen_reclamo_portal(canal: str) -> str:
+    if canal == "app":
+        return "App"
+    if canal == "web":
+        return "Portal"
+    return "Portal"
+
+
 @router.get("/portal/tickets")
 def portal_list_tickets(
     payload: dict = Depends(_portal_auth),
@@ -1122,6 +1163,72 @@ def portal_list_tickets(
         for t, cid in _tickets_visibles_abonado(db, org_id, abo)
     ]
     return {"items": items, "total": len(items)}
+
+
+@router.post("/portal/tickets", status_code=201)
+def portal_create_ticket(
+    body: PortalTicketCreateIn,
+    request: Request,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Crea un reclamo explícito del abonado (no automático por incidentes)."""
+    from app.services import ticket_bridge
+
+    abo = _abonado_portal_identificado(payload, db)
+    org_id = payload["org_id"]
+    canal = _canal_desde_request(request, payload)
+    motivo = (body.motivo or "").strip()
+    descripcion = (body.descripcion or "").strip()
+    if not motivo or not descripcion:
+        raise HTTPException(422, "Motivo y descripción son obligatorios")
+
+    linea = (
+        (abo.linea_msisdn or "").strip()
+        or (abo.telefono_e164 or "").strip()
+        or str(payload.get("telefono") or "").strip()
+    )
+    if not linea:
+        raise HTTPException(400, "No hay línea asociada para registrar el reclamo")
+
+    t = ticket_bridge.crear_ticket(
+        db,
+        org_id,
+        linea=linea,
+        dispositivo="App Eko" if canal == "app" else "Portal web",
+        descripcion_falla=descripcion[:2000],
+        origen=_origen_reclamo_portal(canal),
+        categoria=motivo[:120],
+        creado_por=f"portal:{abo.id}",
+        nivel="N2",
+        destino="cooperativa",
+        motivo_escalamiento=motivo[:500],
+        evidencia="",
+        acciones_n1_realizadas="Reclamo creado por el abonado desde el portal/app.",
+        regla_clasificacion="portal_reclamo_controlado",
+    )
+
+    conv_id = ""
+    raw_conv = str(payload.get("conversacion_id") or "").strip()
+    if raw_conv:
+        conv = db.get(ConversacionCanal, raw_conv)
+        if (
+            conv
+            and conv.organizacion_id == org_id
+            and conv.abonado_id == abo.id
+            and not (conv.ticket_id or "").strip()
+        ):
+            conv.ticket_id = t.id
+            db.commit()
+            conv_id = conv.id
+        elif conv and conv.organizacion_id == org_id and conv.abonado_id == abo.id:
+            # Ya hay ticket en la conversación: no sobrescribir; el nuevo es visible por línea.
+            conv_id = ""
+
+    return {
+        "ticket": _portal_ticket_out(t, conversacion_id=conv_id),
+        "eventos": _portal_ticket_eventos_out(db, org_id, t.id),
+    }
 
 
 @router.get("/portal/tickets/{ticket_id}")
@@ -1138,18 +1245,8 @@ def portal_get_ticket(
     if not t or not _ticket_pertenece_abonado(db, org_id, abo, t):
         raise HTTPException(404, "Ticket no encontrado")
     conv_map = _conv_ids_por_ticket(db, org_id, abo.id)
-    eventos = repo.list_ticket_events(db, org_id, tid, solo_visibles=True)
     return {
         "ticket": _portal_ticket_out(t, conversacion_id=conv_map.get(tid, "")),
-        "eventos": [
-            {
-                "id": e.id,
-                "titulo": e.titulo or "",
-                "detalle": e.detalle or "",
-                "estado": e.estado or "",
-                "created_at": e.created_at.isoformat() if e.created_at else "",
-            }
-            for e in eventos
-        ],
+        "eventos": _portal_ticket_eventos_out(db, org_id, tid),
     }
 

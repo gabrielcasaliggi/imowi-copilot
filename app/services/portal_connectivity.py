@@ -16,17 +16,22 @@ from sqlalchemy.orm import Session
 from app.estate.models import Abonado
 from app.services import billtrack as bt
 from app.services import connectivity_cache as ccache
-from app.services.connectivity_copy import CHAT_HINT_DEFAULT, mensaje_para
 from app.services.connectivity_decision import decidir
 from app.services.connectivity_evidence import (
     AccessEvidence,
     AccessTechnology,
     CatalogEvidence,
     ConnectivityBundle,
+    ConnectivityDecision,
+    Freshness,
     IncidentEvidence,
     ServiceRef,
     SessionEvidence,
+    classify_provider_error,
+    link_up_from_phy,
+    map_calidad_to_quality,
 )
+from app.services.connectivity_result import build_technical_self_service_result
 
 logger = logging.getLogger("operations_hub")
 
@@ -36,36 +41,15 @@ def _now() -> datetime:
 
 
 def _classify_provider_error(err: str) -> str:
-    e = (err or "").strip().lower()
-    if not e:
-        return "none"
-    if "timeout" in e or "timed out" in e:
-        return "timeout"
-    if (
-        "no configurad" in e
-        or "not configured" in e
-        or "disabled" in e
-        or "no configurada" in e
-    ):
-        return "unavailable"
-    if "vacío" in e or "vacio" in e or "empty" in e:
-        return "unavailable"
-    return "other"
+    return classify_provider_error(err)
 
 
 def _map_quality_optica(raw: str) -> str:
-    v = (raw or "").strip().lower()
-    if v == "buena":
-        return "good"
-    if v == "aceptable":
-        return "acceptable"
-    if v == "mala":
-        return "poor"
-    return "unknown"
+    return map_calidad_to_quality(raw)
 
 
 def _map_quality_senal(raw: str) -> str:
-    return _map_quality_optica(raw)
+    return map_calidad_to_quality(raw)
 
 
 def _link_up_from_phy(
@@ -80,13 +64,7 @@ def _link_up_from_phy(
     diagnóstico TR-069 muestre RX óptima. Si hay métrica usable (RX/señal)
     con calidad buena/aceptable/poor, el enlace físico existe.
     """
-    if online is True:
-        return True
-    if has_metric and quality in ("good", "acceptable", "poor"):
-        return True
-    if online is False:
-        return False
-    return None
+    return link_up_from_phy(online=online, quality=quality, has_metric=has_metric)
 
 
 def _access_technology(svc: ServiceRef | Any) -> AccessTechnology:
@@ -466,22 +444,6 @@ def _resolve_incident(
     )
 
 
-def _incident_dto(inc: IncidentEvidence) -> dict[str, Any] | None:
-    if not inc.matched:
-        return None
-    scope = "partial" if inc.alcance == "parcial" else "area"
-    eta_minutes = inc.eta_minutos if inc.eta_validada else None
-    return {
-        "id": inc.outage_id,
-        "started_at": inc.started_at.isoformat() if inc.started_at else "",
-        "eta_minutes": eta_minutes,
-        "eta_confirmed": bool(inc.eta_validada and eta_minutes),
-        "eta_at": None,
-        "message": (inc.mensaje or "").strip(),
-        "scope": scope,
-    }
-
-
 def _service_option(ref: ServiceRef) -> dict[str, str]:
     return {
         "id": ref.id,
@@ -490,32 +452,51 @@ def _service_option(ref: ServiceRef) -> dict[str, str]:
     }
 
 
+def _incident_from_tss(tss) -> dict[str, Any] | None:
+    """Proyección customer-safe. eta_at se conserva vacío (contrato Mobile)."""
+    inc = tss.incident
+    if inc is None:
+        return None
+    return {
+        "id": inc.id,
+        "started_at": inc.started_at.isoformat() if inc.started_at else "",
+        "eta_minutes": inc.eta_minutes,
+        "eta_confirmed": inc.eta_confirmed,
+        "eta_at": None,
+        "message": inc.message,
+        "scope": inc.scope,
+    }
+
+
 def _build_response(
     *,
-    decision,
-    catalog: CatalogEvidence,
-    incident: IncidentEvidence,
-    freshness: str,
+    decision: ConnectivityDecision,
+    bundle: ConnectivityBundle,
+    freshness: Freshness,
     checked_at: datetime,
 ) -> dict[str, Any]:
-    msg = mensaje_para(
-        decision.message_key,
-        incident_message=incident.mensaje if incident.matched else "",
+    """DTO portal = TSS + metadatos de catálogo. No reinterpreta evidencia."""
+    tss = build_technical_self_service_result(
+        decision,
+        bundle,
+        freshness=freshness,
+        checked_at=checked_at,
     )
+    catalog = bundle.catalog
     selected = catalog.selected
-    body: dict[str, Any] = {
-        "status": decision.status,
-        "freshness": freshness,
-        "checked_at": checked_at.isoformat(),
-        "message": msg,
-        "access_technology": catalog.access_technology,
+    return {
+        "status": tss.diagnosis.status,
+        "freshness": tss.freshness.freshness,
+        "checked_at": tss.freshness.checked_at.isoformat(),
+        "message": tss.copy.customer_message,
+        "access_technology": tss.subject.access_technology,
         "service": (
             {"id": selected.id, "label": selected.label} if selected else None
         ),
-        "incident": _incident_dto(incident),
+        "incident": _incident_from_tss(tss),
         "actions": {
             "can_open_chat": True,
-            "chat_hint": CHAT_HINT_DEFAULT,
+            "chat_hint": tss.copy.chat_hint,
         },
         "needs_service_selection": bool(catalog.needs_selection),
         "services": (
@@ -523,9 +504,17 @@ def _build_response(
             if catalog.needs_selection
             else None
         ),
-        "reason_code": decision.reason_code,
+        "reason_code": tss.diagnosis.reason_code,
+        "evidence": {
+            "session_present": tss.evidence_safe.session_present,
+            "access_link_up": tss.evidence_safe.access_link_up,
+            "access_quality": tss.evidence_safe.access_quality,
+        },
+        "recommendation": {
+            "recommended_action": tss.recommendation.recommended_action,
+            "available_actions": list(tss.recommendation.available_actions),
+        },
     }
-    return body
 
 
 def evaluar_conectividad_portal(
@@ -562,18 +551,15 @@ def evaluar_conectividad_portal(
     catalog = _resolve_catalog(services, sid_q or None)
 
     if catalog.needs_selection:
-        decision = decidir(
-            ConnectivityBundle(
-                catalog=catalog,
-                access=AccessEvidence(),
-                session=SessionEvidence(),
-                incident=IncidentEvidence(),
-            )
+        bundle = ConnectivityBundle(
+            catalog=catalog,
+            access=AccessEvidence(),
+            session=SessionEvidence(),
+            incident=IncidentEvidence(),
         )
         body = _build_response(
-            decision=decision,
-            catalog=catalog,
-            incident=IncidentEvidence(),
+            decision=decidir(bundle),
+            bundle=bundle,
             freshness="none",
             checked_at=checked_at,
         )
@@ -586,18 +572,15 @@ def evaluar_conectividad_portal(
         return body
 
     if not catalog.selected:
-        decision = decidir(
-            ConnectivityBundle(
-                catalog=catalog,
-                access=AccessEvidence(available=False, error="unavailable"),
-                session=SessionEvidence(available=False, error="unavailable"),
-                incident=IncidentEvidence(),
-            )
+        bundle = ConnectivityBundle(
+            catalog=catalog,
+            access=AccessEvidence(available=False, error="unavailable"),
+            session=SessionEvidence(available=False, error="unavailable"),
+            incident=IncidentEvidence(),
         )
         return _build_response(
-            decision=decision,
-            catalog=catalog,
-            incident=IncidentEvidence(),
+            decision=decidir(bundle),
+            bundle=bundle,
             freshness="none",
             checked_at=checked_at,
         )
@@ -626,8 +609,7 @@ def evaluar_conectividad_portal(
     decision = decidir(bundle)
     body = _build_response(
         decision=decision,
-        catalog=catalog,
-        incident=incident,
+        bundle=bundle,
         freshness="live",
         checked_at=checked_at,
     )

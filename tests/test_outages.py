@@ -377,6 +377,8 @@ def test_interceptor_responde_sin_ticket(db, monkeypatch):
     assert resp["ok"] is True
     assert "incidencia" in resp["respuesta"].lower()
     assert "validó" in resp["respuesta"].lower()
+    assert ctx.get("tss_reason_code") == "incident_active"
+    assert ctx.get("tss_incident_id") == ctx.get("outage_id")
     assert resp["outage_nas"] == "apposada"
     assert "ticket_id" not in resp
     assert sent.get("texto")

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -32,6 +33,7 @@ export function AppShell({
   onChange,
   onPinSaved,
   onExit,
+  connectivityRefreshKey = 0,
 }: {
   branding: Branding;
   conv: InboxConversation;
@@ -46,9 +48,17 @@ export function AppShell({
   onChange: (conv: InboxConversation | null, mensajes?: InboxMessage[]) => void;
   onPinSaved: () => void;
   onExit: () => void;
+  connectivityRefreshKey?: number;
 }) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 8);
+  const [focusTicketId, setFocusTicketId] = useState("");
+
+  const openActivity = (ticketId?: string) => {
+    const tid = (ticketId || "").trim();
+    if (tid) setFocusTicketId(tid);
+    onTab("activity");
+  };
 
   return (
     <View style={styles.root}>
@@ -59,8 +69,9 @@ export function AppShell({
             orgHint={branding.orgHint}
             token={token}
             onQuickAction={onQuickAction}
-            onOpenActivity={() => onTab("activity")}
+            onOpenActivity={openActivity}
             onAuthExpired={onExit}
+            connectivityRefreshKey={connectivityRefreshKey}
           />
         </View>
         <View style={[styles.page, tab !== "eko" && styles.hidden]} pointerEvents={tab === "eko" ? "auto" : "none"}>
@@ -84,6 +95,8 @@ export function AppShell({
               token={token}
               onExit={onExit}
               onGoEko={() => onTab("eko")}
+              focusTicketId={focusTicketId}
+              onFocusConsumed={() => setFocusTicketId("")}
             />
           ) : null}
         </View>

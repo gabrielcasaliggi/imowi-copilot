@@ -38,6 +38,7 @@ def _talvez_mensaje_pppoe(
     abonado: Abonado | None,
     ctx: dict,
     intencion: str,
+    org_id: str = "",
 ) -> str | None:
     """Consulta Radius una vez por conversación en reclamos de internet."""
     from app.domain.flujos_abonado import tiene_internet_fijo
@@ -167,6 +168,24 @@ def _talvez_mensaje_pppoe(
         bcm_ok = "onu_ftth_enlace_ok" in str(ctx.get("bcm_triage") or "")
         uisp_ok = "cpe_radio_enlace_ok" in str(ctx.get("uisp_triage") or "")
 
+        try:
+            from app.services.connectivity_eko import (
+                aplicar_resultado_a_ctx,
+                evaluar_desde_sondas_eko,
+            )
+
+            tss = evaluar_desde_sondas_eko(
+                estado_pppoe=estado,
+                onu=onu,
+                cpe=cpe,
+                es_ftth=bool(es_ftth or (onu is not None and onu.encontrado)),
+                es_radio=es_radio,
+                es_adsl=es_adsl,
+            )
+            aplicar_resultado_a_ctx(ctx, tss)
+        except Exception:
+            logger.exception("diagnóstico común falló en canal")
+
         from app.services.pre_triaje_acceso import mensaje_pre_triaje_acceso
 
         msg = mensaje_pre_triaje_acceso(
@@ -192,7 +211,11 @@ def _talvez_mensaje_pppoe(
         elif uisp_ok and cpe is not None and cpe.encontrado and cpe.signal_dbm is not None:
             barra = bloque_senal_antena(cpe.signal_dbm)
 
-        if uisp_ok or bcm_ok:
+        tss_status = str(ctx.get("tss_status") or "")
+        if tss_status == "operational":
+            ctx["pppoe_rama"] = "wifi_lan"
+            _marcar_pasos_rama_pppoe(ctx)
+        elif not tss_status and (uisp_ok or bcm_ok):
             ctx["pppoe_rama"] = "wifi_lan"
             _marcar_pasos_rama_pppoe(ctx)
 

@@ -7,7 +7,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:push": "node scripts/verify-push-incidente.mjs",
+    "test:claim": "node scripts/verify-create-claim.mjs",
+    "test:services": "node scripts/verify-services.mjs"
   },
   "dependencies": {
     "expo": "~54.0.0",

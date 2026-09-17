@@ -3,7 +3,14 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 import { api } from "./api";
+import {
+  intentFromPushData,
+  type PushOpenIntent,
+} from "./pushIncidente";
 import type { AppTab } from "./types";
+
+export type { PushOpenIntent } from "./pushIncidente";
+export { intentFromPushData, parseIncidentePush } from "./pushIncidente";
 
 const PUSH_TOKEN_KEY = "expo_push_token";
 const CHANNEL_ID = "eko";
@@ -43,20 +50,9 @@ function easProjectId(): string {
   );
 }
 
-function dataRecord(raw: unknown): Record<string, unknown> {
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  return {};
-}
-
-/** Navegación según data real de app_push: conversacion_id / tipo. */
+/** Compat: solo tab (CREATE/RESOLVE/updated → home; agente → eko). */
 export function tabFromPushData(raw: unknown): AppTab {
-  const data = dataRecord(raw);
-  const tipo = String(data.tipo || "");
-  const convId = String(data.conversacion_id || "").trim();
-  if (tipo === "mensaje_agente" || convId) return "eko";
-  return "home";
+  return intentFromPushData(raw).tab;
 }
 
 async function ensureHandler(N: NotificationsModule): Promise<void> {
@@ -183,7 +179,10 @@ export async function unregisterPush(portalToken: string): Promise<void> {
   }
 }
 
-export function attachPushListeners(onOpen: (tab: AppTab) => void): () => void {
+export function attachPushListeners(
+  onOpen: (intent: PushOpenIntent) => void,
+  onForegroundIncidente?: (intent: PushOpenIntent) => void,
+): () => void {
   if (!pushSupported()) return () => {};
 
   let removeReceived: (() => void) | undefined;
@@ -194,11 +193,15 @@ export function attachPushListeners(onOpen: (tab: AppTab) => void): () => void {
     const N = await getNotifications();
     if (!N || cancelled) return;
     await ensureHandler(N);
-    const received = N.addNotificationReceivedListener(() => {
-      // Foreground: el handler muestra el banner. No insertar mensajes en Eko.
+    const received = N.addNotificationReceivedListener((notification) => {
+      // Foreground: banner del sistema. Si es incidente, refrescar Connectivity.
+      const intent = intentFromPushData(notification.request.content.data);
+      if (intent.refreshConnectivity) {
+        onForegroundIncidente?.(intent);
+      }
     });
     const response = N.addNotificationResponseReceivedListener((res) => {
-      onOpen(tabFromPushData(res.notification.request.content.data));
+      onOpen(intentFromPushData(res.notification.request.content.data));
     });
     removeReceived = () => received.remove();
     removeResponse = () => response.remove();
@@ -211,7 +214,7 @@ export function attachPushListeners(onOpen: (tab: AppTab) => void): () => void {
   };
 }
 
-export async function consumeInitialPushResponse(): Promise<AppTab | null> {
+export async function consumeInitialPushResponse(): Promise<PushOpenIntent | null> {
   if (!pushSupported()) return null;
   try {
     const N = await getNotifications();
@@ -223,7 +226,7 @@ export async function consumeInitialPushResponse(): Promise<AppTab | null> {
     } catch {
       /* SDK sin clear */
     }
-    return tabFromPushData(res.notification.request.content.data);
+    return intentFromPushData(res.notification.request.content.data);
   } catch {
     return null;
   }

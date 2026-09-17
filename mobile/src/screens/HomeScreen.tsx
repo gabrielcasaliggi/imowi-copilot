@@ -1,18 +1,23 @@
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { useConnectivity } from "../hooks/useConnectivity";
+import { useCreateClaim } from "../hooks/useCreateClaim";
 import { useOvLinks } from "../hooks/useOvLinks";
-import { firstName, labelServicio, present } from "../present";
+import { useServices } from "../hooks/useServices";
+import { firstName, present } from "../present";
 import { layout, spacing } from "../theme";
 import type { InboxConversation } from "../types";
 import { BalanceCard } from "../ui/BalanceCard";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { ConnectivityCard } from "../ui/ConnectivityCard";
+import { CreateClaimForm } from "../ui/CreateClaimForm";
 import { QuickAction } from "../ui/QuickAction";
 import { Screen } from "../ui/Screen";
 import { SectionHeader } from "../ui/SectionHeader";
 import { ServiceCard } from "../ui/ServiceCard";
+import { ServicesSection } from "../ui/ServicesSection";
 import { Text } from "../ui/Text";
 
 const ACTIONS: { id: string; label: string; text: string | null; hint: string }[] = [
@@ -49,13 +54,16 @@ export function HomeScreen({
   onQuickAction,
   onOpenActivity,
   onAuthExpired,
+  connectivityRefreshKey = 0,
 }: {
   conv: InboxConversation;
   orgHint: string;
   token: string;
   onQuickAction: (texto: string | null) => void;
-  onOpenActivity: () => void;
+  onOpenActivity: (ticketId?: string) => void;
   onAuthExpired: () => void;
+  /** Incrementa tras push de incidente → reconsultar Connectivity (verdad actual). */
+  connectivityRefreshKey?: number;
 }) {
   const abonado = conv.abonado;
   const nombre = firstName(abonado?.nombre);
@@ -66,6 +74,26 @@ export function HomeScreen({
 
   const connectivity = useConnectivity({ token, onAuthExpired });
   const ov = useOvLinks({ token, onAuthExpired });
+  const services = useServices({ token, onAuthExpired });
+  const claim = useCreateClaim({ token, onAuthExpired });
+  const [showClaim, setShowClaim] = useState(false);
+
+  useEffect(() => {
+    if (!connectivityRefreshKey) return;
+    connectivity.refresh();
+    // Solo cuando cambia la key del push (no en cada render de refresh).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional
+  }, [connectivityRefreshKey]);
+
+  const submitClaim = async (input: {
+    motivo: string;
+    descripcion: string;
+  }) => {
+    const res = await claim.create(input);
+    if (!res?.ticket?.id) return;
+    setShowClaim(false);
+    onOpenActivity(res.ticket.id);
+  };
 
   return (
     <Screen safeBottom={false}>
@@ -99,7 +127,7 @@ export function HomeScreen({
         {ticketId ? (
           <Banner
             tone="ok"
-            onPress={onOpenActivity}
+            onPress={() => onOpenActivity()}
             actionLabel="Ver en Actividad"
           >
             {`Hay una referencia de ticket en este chat: ${ticketId}.`}
@@ -115,11 +143,35 @@ export function HomeScreen({
           </Banner>
         ) : null}
 
-        <ServiceCard
-          servicio={labelServicio(abonado?.servicio)}
-          plan={abonado?.plan}
-          estado={abonado?.estado}
-        />
+        {present(abonado?.deuda_monto) ? (
+          <View style={styles.gap}>
+            <BalanceCard
+              monto={abonado?.deuda_monto}
+              onAskEko={onQuickAction}
+              ovLinks={ov.data}
+              ovLoading={ov.loading}
+              ovTransportError={ov.error}
+            />
+          </View>
+        ) : null}
+
+        {/* Cuenta admin: plan/estado. No usar abonado.servicio como catálogo. */}
+        <View style={styles.gap}>
+          <ServiceCard plan={abonado?.plan} estado={abonado?.estado} />
+        </View>
+
+        <View style={styles.gap}>
+          <ServicesSection
+            items={services.items}
+            loading={services.loading}
+            error={services.error}
+            unavailable={services.unavailable}
+            msisdn={abonado?.linea_msisdn}
+            onRetry={services.refresh}
+            onViewConnectivity={connectivity.selectService}
+            onAskEko={onQuickAction}
+          />
+        </View>
 
         <View style={styles.gap}>
           <ConnectivityCard
@@ -129,17 +181,23 @@ export function HomeScreen({
             onRetry={connectivity.refresh}
             onAskEko={onQuickAction}
             onSelectService={connectivity.selectService}
+            onCreateClaim={showClaim ? undefined : () => setShowClaim(true)}
           />
         </View>
 
-        {present(abonado?.deuda_monto) ? (
+        {showClaim ? (
           <View style={styles.gap}>
-            <BalanceCard
-              monto={abonado?.deuda_monto}
-              onAskEko={onQuickAction}
-              ovLinks={ov.data}
-              ovLoading={ov.loading}
-              ovTransportError={ov.error}
+            <CreateClaimForm
+              busy={claim.busy}
+              error={claim.error}
+              onSubmit={(input) => {
+                void submitClaim(input);
+              }}
+              onCancel={() => {
+                if (claim.busy) return;
+                setShowClaim(false);
+                claim.clearError();
+              }}
             />
           </View>
         ) : null}

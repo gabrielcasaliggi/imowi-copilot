@@ -124,3 +124,101 @@ def test_portal_tickets_no_ve_ajenos():
 
     d = client.get(f"/api/v1/portal/tickets/{tid}", headers=_headers(token_b))
     assert d.status_code == 404
+
+
+def test_portal_create_ticket_requiere_jwt():
+    client.cookies.clear()
+    r = client.post(
+        "/api/v1/portal/tickets",
+        headers={"X-Canal": "app"},
+        json={"motivo": "Internet", "descripcion": "Sin servicio en casa"},
+    )
+    assert r.status_code == 401
+
+
+def test_portal_create_ticket_exitoso_y_visible():
+    sess = _portal_identified("30111222")
+    token = sess["portal_token"]
+    headers = _headers(token)
+
+    created = client.post(
+        "/api/v1/portal/tickets",
+        headers=headers,
+        json={
+            "motivo": "Internet sin servicio",
+            "descripcion": "Desde ayer no tengo acceso en mi domicilio.",
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    tid = body["ticket"]["id"]
+    assert tid
+    assert body["ticket"]["estado"] == "Abierto"
+    assert body["ticket"]["categoria"] == "Internet sin servicio"
+    assert body["ticket"]["origen"] == "App"
+    assert isinstance(body["eventos"], list)
+    assert body["eventos"], "debe haber evento de creación visible"
+
+    listed = client.get("/api/v1/portal/tickets", headers=headers)
+    assert listed.status_code == 200, listed.text
+    assert any(i["id"] == tid for i in listed.json()["items"])
+
+    detail = client.get(f"/api/v1/portal/tickets/{tid}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["ticket"]["id"] == tid
+
+
+def test_portal_create_ticket_validacion():
+    sess = _portal_identified("30111222")
+    headers = _headers(sess["portal_token"])
+    r = client.post(
+        "/api/v1/portal/tickets",
+        headers=headers,
+        json={"motivo": "", "descripcion": "x"},
+    )
+    assert r.status_code == 422
+
+
+def test_portal_create_ticket_no_vincula_si_conversacion_ya_tiene_ticket():
+    sess = _portal_identified("30111222")
+    token = sess["portal_token"]
+    conv = sess["conversacion"]
+    tid_prev = f"TK-PREV-{uuid.uuid4().hex[:8]}"
+
+    db = get_session_factory()()
+    try:
+        c = db.get(ConversacionCanal, conv["id"])
+        assert c is not None
+        t = add_ticket(
+            db,
+            c.organizacion_id,
+            id=tid_prev,
+            estado="Abierto",
+            categoria="Previo",
+            linea=(c.telefono or "2235550000"),
+        )
+        c.ticket_id = t.id
+        db.commit()
+    finally:
+        db.close()
+
+    created = client.post(
+        "/api/v1/portal/tickets",
+        headers=_headers(token),
+        json={
+            "motivo": "Segundo reclamo",
+            "descripcion": "Otro caso distinto del ticket previo.",
+        },
+    )
+    assert created.status_code == 201, created.text
+    tid_new = created.json()["ticket"]["id"]
+    assert tid_new != tid_prev
+    assert created.json()["ticket"]["conversacion_id"] == ""
+
+    db = get_session_factory()()
+    try:
+        c = db.get(ConversacionCanal, conv["id"])
+        assert c is not None
+        assert c.ticket_id == tid_prev
+    finally:
+        db.close()

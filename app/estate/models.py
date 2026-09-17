@@ -139,6 +139,14 @@ class NetworkOutage(Base):
     created_by: Mapped[str] = mapped_column(String(120), default="")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # E′2: timestamps de intento de push (idempotencia). NULL = aún no procesado.
+    # No implica entrega Expo al dispositivo.
+    push_declared_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    push_resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 

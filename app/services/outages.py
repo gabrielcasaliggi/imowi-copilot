@@ -68,6 +68,85 @@ def _eta_validada_flag(value: str | None) -> bool:
     return (value or "").strip().lower() in ("sí", "si", "yes", "1", "true")
 
 
+def outage_update_es_material(
+    *,
+    prev_mensaje_cliente: str,
+    new_mensaje_cliente: str,
+    prev_eta_minutos: int,
+    new_eta_minutos: int,
+    prev_eta_validada: str,
+    new_eta_validada: str,
+    prev_alcance: str,
+    new_alcance: str,
+    touched_comentario: bool = False,
+    touched_alcance: bool = False,
+    touched_eta_minutos: bool = False,
+    touched_eta_validada: bool = False,
+    touched_tipo: bool = False,
+) -> bool:
+    """E′3: ¿el PATCH amerita push `updated`?
+
+    Material:
+      - mensaje_cliente cambia por drivers de cliente (p.ej. alcance), no solo comentario;
+      - ETA validada cambia de minutos, o pasa a validada.
+    No material:
+      - solo comentario interno;
+      - ETA no validada (aunque regenere plantilla);
+      - tipo / campos admin;
+      - valores idénticos.
+    """
+    _ = touched_tipo  # admin; nunca dispara por sí solo
+    prev_msg = (prev_mensaje_cliente or "").strip()
+    new_msg = (new_mensaje_cliente or "").strip()
+    prev_eta = int(prev_eta_minutos or 0)
+    new_eta = int(new_eta_minutos or 0)
+    eta_was = _eta_validada_flag(prev_eta_validada)
+    eta_now = _eta_validada_flag(new_eta_validada)
+    alcance_changed = (prev_alcance or "").strip().lower() != (
+        new_alcance or ""
+    ).strip().lower()
+
+    # ETA comunicable al cliente
+    if eta_now and prev_eta != new_eta:
+        return True
+    if (not eta_was) and eta_now:
+        return True
+
+    if prev_msg == new_msg:
+        return False
+
+    # mensaje regenerado solo por comentario → no push
+    if (
+        touched_comentario
+        and not touched_alcance
+        and not touched_eta_minutos
+        and not touched_eta_validada
+    ):
+        return False
+
+    # ETA no validada: cambio de minutos (y regeneración asociada) → no push
+    if (
+        not eta_now
+        and touched_eta_minutos
+        and not touched_alcance
+        and not touched_eta_validada
+    ):
+        return False
+
+    # alcance cambia el copy al cliente
+    if touched_alcance and alcance_changed:
+        return True
+
+    # mensaje cambió con driver de ETA validada u otros no excluidos
+    if eta_now and (touched_eta_minutos or touched_eta_validada):
+        return True
+
+    # Conservador: mensaje distinto sin exclusiones admin anteriores
+    if touched_alcance or (touched_eta_validada and eta_now):
+        return True
+    return False
+
+
 def formatear_hora_validacion(dt: datetime | None) -> str:
     """Hora local Argentina de la declaración/carga del incidente."""
     if dt is None:
@@ -296,6 +375,78 @@ def resolver_nas_abonado(db: Session, abonado: Abonado | None) -> str:
     if estado.sesion and estado.sesion.nas:
         return (estado.sesion.nas or "").strip()
     return ""
+
+
+def abonado_afectado_por_nas(
+    db: Session,
+    abonado: Abonado | None,
+    nas_outage: str,
+    *,
+    nas_ip_outage: str = "",
+) -> bool:
+    """True si algún servicio del abonado resuelve al NAS del outage.
+
+    Misma pila que N1/Connectivity (BillTrack logins + Radius sesión).
+    Sin evidencia NAS → False (preferir false-negative en push E′1).
+    """
+    targets = {
+        k
+        for k in (
+            normalizar_nas_key(nas_outage),
+            normalizar_nas_key(nas_ip_outage),
+        )
+        if k
+    }
+    if abonado is None or not targets:
+        return False
+
+    dni = str(getattr(abonado, "dni", "") or "").strip()
+    client_number = str(getattr(abonado, "client_number", "") or "").strip()
+    if not dni and not client_number:
+        return False
+
+    from app.services import billtrack as bt
+    from app.services.conexion_pppoe import resolve_radius_client
+
+    client = resolve_radius_client(db)
+    if client is None:
+        return False
+
+    servicios = []
+    try:
+        if client_number:
+            servicios = bt.lookup_servicios_conectividad(
+                client_number=client_number, db=db
+            )
+        elif dni:
+            servicios = bt.lookup_servicios_conectividad_por_dni(dni=dni, db=db)
+    except Exception:
+        logger.exception("abonado_afectado_por_nas: billtrack falló")
+        return False
+
+    logins: list[str] = []
+    for s in servicios or []:
+        login = str(getattr(s, "login", "") or "").strip()
+        if login and login not in logins:
+            logins.append(login)
+
+    if not logins:
+        # Fallback: mismo criterio que resolver_nas_abonado (servicio principal).
+        nas = resolver_nas_abonado(db, abonado)
+        return bool(nas) and normalizar_nas_key(nas) in targets
+
+    for login in logins:
+        try:
+            sesion = client.sesion_para_login(login)
+        except Exception:
+            logger.debug(
+                "abonado_afectado_por_nas: sesión login falló", exc_info=True
+            )
+            continue
+        nas = str(getattr(sesion, "nas", "") or "").strip() if sesion else ""
+        if nas and normalizar_nas_key(nas) in targets:
+            return True
+    return False
 
 
 def outage_activo_para_nas(

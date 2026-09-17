@@ -20,6 +20,8 @@ logger = logging.getLogger("operations_hub")
 
 def _limpiar_ctx_outage(ctx: dict, *, preservar_resuelto_avisado: bool = False) -> None:
     avisado = ctx.get("outage_resuelto_avisado")
+    from app.services.connectivity_eko import limpiar_tss_de_ctx
+
     for k in (
         "outage_id",
         "outage_nas",
@@ -29,6 +31,8 @@ def _limpiar_ctx_outage(ctx: dict, *, preservar_resuelto_avisado: bool = False) 
         "outage_resuelto_avisado",
     ):
         ctx.pop(k, None)
+    if str(ctx.get("tss_reason_code") or "") == "incident_active":
+        limpiar_tss_de_ctx(ctx)
     if preservar_resuelto_avisado and avisado:
         ctx["outage_resuelto_avisado"] = avisado
 
@@ -173,6 +177,12 @@ def _talvez_respuesta_outage(
     ctx["outage_nas"] = nas or outage.nas_shortname
     ctx["outage_interceptado"] = True
     ctx.pop("outage_resuelto_avisado", None)
+    try:
+        from app.services.connectivity_eko import stamp_incident_activo_en_ctx
+
+        stamp_incident_activo_en_ctx(ctx, outage)
+    except Exception:
+        logger.exception("diagnóstico común (outage) falló en canal")
 
     # Primer aviso
     if not ya:

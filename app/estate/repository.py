@@ -6,7 +6,7 @@ import json
 import re
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import ANOMALY_TTL_MINUTES, TICKET_ID_PREFIX
@@ -2122,3 +2122,37 @@ def resolve_network_outage(db: Session, outage: NetworkOutage) -> NetworkOutage:
     db.commit()
     db.refresh(outage)
     return outage
+
+
+def claim_outage_push_declared(db: Session, outage_id: str) -> bool:
+    """Marca declared como procesado si aún no lo estaba. True = este caller gana el envío.
+
+    Semántica: el timestamp indica intento reclamado (no entrega Expo).
+    UPDATE condicional → un solo ganador ante concurrencia.
+    """
+    now = datetime.now(UTC)
+    result = db.execute(
+        update(NetworkOutage)
+        .where(
+            NetworkOutage.id == outage_id,
+            NetworkOutage.push_declared_at.is_(None),
+        )
+        .values(push_declared_at=now, updated_at=now)
+    )
+    db.commit()
+    return int(result.rowcount or 0) == 1
+
+
+def claim_outage_push_resolved(db: Session, outage_id: str) -> bool:
+    """Marca resolved como procesado si aún no lo estaba. True = este caller gana el envío."""
+    now = datetime.now(UTC)
+    result = db.execute(
+        update(NetworkOutage)
+        .where(
+            NetworkOutage.id == outage_id,
+            NetworkOutage.push_resolved_at.is_(None),
+        )
+        .values(push_resolved_at=now, updated_at=now)
+    )
+    db.commit()
+    return int(result.rowcount or 0) == 1

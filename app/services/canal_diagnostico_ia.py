@@ -351,7 +351,7 @@ def _aplicar_diagnostico_ia(
         return cierre_no
 
     # Primer turno de internet: informar estado PPPoE real (no depender del LLM).
-    pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion)
+    pppoe_msg = _talvez_mensaje_pppoe(db, abonado, ctx, intencion, org_id=org_id)
     if pppoe_msg:
         turnos = int(ctx.get("diag_turnos") or 0)
         ctx["diag_turnos"] = turnos + 1

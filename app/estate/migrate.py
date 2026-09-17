@@ -63,6 +63,8 @@ _ABONADO_COLUMNS: dict[str, str] = {
 
 _NETWORK_OUTAGE_COLUMNS: dict[str, str] = {
     "eta_validada": "VARCHAR(8) DEFAULT 'Sí'",
+    "push_declared_at": "DATETIME",
+    "push_resolved_at": "DATETIME",
 }
 
 _SLA_COLUMNS: dict[str, str] = {

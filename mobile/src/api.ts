@@ -6,6 +6,7 @@ import type {
   InboxMessage,
   OvLinksResponse,
   PortalAudioResult,
+  PortalServicesResponse,
   PortalTicket,
   PortalTicketDetail,
 } from "./types";
@@ -204,6 +205,13 @@ export const api = {
     return res.json() as Promise<PortalTicketDetail>;
   },
 
+  async createTicket(
+    token: string,
+    body: { motivo: string; descripcion: string },
+  ) {
+    return postJson<PortalTicketDetail>("/api/v1/portal/tickets", body, token);
+  },
+
   async getConnectivity(token: string, serviceId?: string) {
     const q = serviceId
       ? `?service_id=${encodeURIComponent(serviceId)}`
@@ -221,5 +229,13 @@ export const api = {
     });
     if (!res.ok) throw new ApiError(await parseError(res), res.status);
     return res.json() as Promise<OvLinksResponse>;
+  },
+
+  async getServices(token: string) {
+    const res = await request("/api/v1/portal/services", {
+      headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<PortalServicesResponse>;
   },
 };

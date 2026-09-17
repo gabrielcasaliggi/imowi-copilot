@@ -38,6 +38,53 @@ MessageKey = Literal[
 ]
 
 
+def map_calidad_to_quality(raw: str) -> AccessQuality:
+    """BCM/UISP 'buena|aceptable|mala' → quality canónica del motor."""
+    v = (raw or "").strip().lower()
+    if v == "buena":
+        return "good"
+    if v == "aceptable":
+        return "acceptable"
+    if v == "mala":
+        return "poor"
+    return "unknown"
+
+
+def link_up_from_phy(
+    *,
+    online: bool | None,
+    quality: str,
+    has_metric: bool,
+) -> bool | None:
+    """Misma regla que Portal: métrica usable implica enlace físico."""
+    if online is True:
+        return True
+    if has_metric and quality in ("good", "acceptable", "poor"):
+        return True
+    if online is False:
+        return False
+    return None
+
+
+def classify_provider_error(err: str) -> AccessError:
+    """Timeout / no configurado / vacío → error canónico del motor."""
+    e = (err or "").strip().lower()
+    if not e:
+        return "none"
+    if "timeout" in e or "timed out" in e:
+        return "timeout"
+    if (
+        "no configurad" in e
+        or "not configured" in e
+        or "disabled" in e
+        or "no configurada" in e
+    ):
+        return "unavailable"
+    if "vacío" in e or "vacio" in e or "empty" in e:
+        return "unavailable"
+    return "other"
+
+
 @dataclass
 class ServiceRef:
     """Referencia interna a un servicio de conectividad BillTrack."""

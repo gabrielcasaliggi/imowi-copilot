@@ -32,7 +32,8 @@ mobile/
     ├── session.ts          # SecureStore token/conv/dni
     ├── theme.ts            # colors + Branding defaults
     ├── types.ts            # AuthPayload, Inbox*
-    ├── push.ts             # stub vacío (sin FCM)
+    ├── push.ts             # registro FCM/Expo + listeners (nativo; no-op en Expo Go)
+    ├── pushIncidente.ts    # parse declared/updated/resolved → intent Home + refresh
     ├── MessageText.tsx     # links clickeables en burbujas
     └── screens/
         ├── AuthScreen.tsx  # DNI+PIN | OTP primera vez
@@ -72,7 +73,7 @@ booting (spinner)
 | Auth | `AuthScreen.tsx` | DNI+PIN, primera vez (OTP email), link privacidad |
 | Chat | `ChatScreen.tsx` | Header Eko, banners handoff, FlatList mensajes, composer, estrellas CSAT |
 | Set PIN (overlay) | dentro de `ChatScreen` | Si `has_pin === false` post-OTP |
-| (stub) Push | `push.ts` | No-op documentado |
+| Push | `push.ts` + `pushIncidente.ts` | Registro device, FG/BG/cold start; incidente → Home + refresh connectivity |
 
 ---
 
@@ -246,11 +247,13 @@ Sin AsyncStorage de historial, sin cache de imágenes HTTP, sin SQLite.
 
 ## 13. Push notifications
 
-- Backend listo: `POST/DELETE /portal/devices` + `PortalDevice` + `app_push`.
-- App: `push.ts` es stub (comentario: crasheaba Samsung sin `google-services.json`).
-- `api.registerDevice` existe; **nadie llama** `registerPush` ni `registerDevice`.
-- README: push vuelve con Firebase + `expo-notifications`.
-- Dependencias: **sin** `expo-notifications` / FCM en `package.json`.
+- Backend: `POST/DELETE /portal/devices` + `PortalDevice` + `app_push` (CREATE / UPDATE / RESOLVE, segmentación por NAS).
+- App: `push.ts` implementado (`expo-notifications`, canal `eko`, `google-services.json` versionado).
+- `registerPush` / `unregisterPush` cableados desde `App.tsx` tras login/logout.
+- `pushIncidente.ts`: parse `tipo=incidente` + event → intent Home + `refreshConnectivity`.
+- Foreground: banner + refresh Connectivity; background / cold start: `getLastNotificationResponseAsync`.
+- No-op en Expo Go (`pushSupported()`); APK/AAB nativo sí registra.
+- **Pendiente RC:** validación E2E en Android físico (FG / BG / cold start).
 
 ---
 
@@ -294,8 +297,8 @@ CI: job `mobile` → `npm ci` + `npm run lint` (`tsc --noEmit`).
 
 ## 17. Deuda técnica evidente
 
-1. Push y voz documentados como producto pero stub/muertos en código.
-2. `registerPush` / `sendAudio` / `registerDevice` dead code o semi-muerto.
+1. Push implementado (backend + mobile); falta validación E2E en Android físico.
+2. Voz: `expo-av` + `sendAudio` presentes; cobertura E2E física pendiente.
 3. `dni_hint` incompleto (no prefill, no clear al salir).
 4. Sin logout forzado en 401 durante chat.
 5. Polling 4s solo en handoff; en estado `bot` no hay sync si el agente actúa por otro canal (aceptable hoy).
@@ -347,8 +350,8 @@ Orden sugerido **dentro de Expo actual** (sin Next, sin nuevo framework):
 1. Extraer UI kit mínimo (`Button`, `TextField`, `Banner`, `Bubble`) sobre `theme.ts`.
 2. Partir `ChatScreen` (Header / MessageList / Composer / PinGate / CsatBar).
 3. Capa sesión: clear completo de keys; prefill DNI; handler 401 → exit.
-4. Activar push detrás de flag + Firebase cuando haya `google-services.json` (reusar `registerDevice`).
-5. Voz detrás de flag + `expo-av` cableando `sendAudio` existente.
+4. Validar push E2E en Android físico (FG / BG / cold start) antes de producción.
+5. Validar voz E2E en Android físico (`expo-av` + Whisper).
 6. Tests smoke: `api` parseError / MessageText URLs / session roundtrip (mock SecureStore).
 7. Alinear tipos con contrato FE (copiar contrato o generar desde OpenAPI futuro; sin monorepo obligatorio).
 8. Navegación ligera solo si vNext suma pantallas reales (perfil, historial); hoy conditional render alcanza.
@@ -365,14 +368,14 @@ Este archivo es **`mobile/CURRENT_STATE.md`**.
 
 | Prio | Problema | Impacto | Esfuerzo relativo |
 |:----:|----------|---------|-------------------|
-| P0 | Push documentado / backend listo pero stub; sin registro de device | Cortes NAS / handoff no llegan al móvil | Medio (FCM + cablear) |
+| P0 | Push implementado pero sin E2E en Android físico | Riesgo de regresión FG/BG/cold start en RC | Medio (device) |
 | P0 | Sin tests; ChatScreen monolítico | Rediseño UI frágil | Bajo–medio |
 | P1 | Voz en README/API client sin UI ni deps | Paridad portal incompleta | Medio |
 | P1 | Sesión: DNI hint huérfano; 401 en send no cierra sesión | UX/seguridad menor | Bajo |
 | P1 | Header acciones (Salir/Privacidad/Eliminar) poco usable | Fricción abonado | Bajo (UI) |
 | P2 | Design system = solo colors; estilos duplicados | Inconsistencia en rediseño incremental | Bajo |
 | P2 | Tipos/contrato no compartidos con FE | Drift portal web vs app | Bajo |
-| P2 | Dead code `sendAudio`/`registerDevice`/`push` stub | Confusión para agentes | Bajo |
+| P2 | `CURRENT_STATE` / README parcialmente desactualizados vs shell Home/tabs | Confusión documental | Bajo |
 | P3 | Sin offline / retry | Fallas red rurales | Medio |
 | P3 | `debug_otp` auto-fill | Riesgo config | Bajo |
 | P3 | New Architecture off / sin plugins | Deuda Expo a medio plazo | Bajo |

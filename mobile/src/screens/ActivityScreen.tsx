@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -31,11 +31,16 @@ export function ActivityScreen({
   token,
   onExit,
   onGoEko,
+  focusTicketId = "",
+  onFocusConsumed,
 }: {
   conv: InboxConversation;
   token: string;
   onExit: () => void;
   onGoEko: () => void;
+  /** Tras crear reclamo: abrir detalle de este ticket. */
+  focusTicketId?: string;
+  onFocusConsumed?: () => void;
 }) {
   const {
     items,
@@ -55,6 +60,24 @@ export function ActivityScreen({
     Boolean(detail?.ticket.conversacion_id) &&
     detail?.ticket.conversacion_id === conv.id;
 
+  useEffect(() => {
+    const tid = (focusTicketId || "").trim();
+    if (!tid) return;
+    setSelectedId(tid);
+    refresh();
+    void openDetail(tid).finally(() => {
+      onFocusConsumed?.();
+    });
+    // Solo al llegar un focus nuevo desde crear reclamo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional
+  }, [focusTicketId]);
+
+  const listData = useMemo(() => {
+    if (!detail?.ticket) return items;
+    if (items.some((i) => i.id === detail.ticket.id)) return items;
+    return [detail.ticket, ...items];
+  }, [items, detail]);
+
   const onSelect = (item: PortalTicket) => {
     if (selectedId === item.id && detail?.ticket.id === item.id) {
       setSelectedId("");
@@ -68,7 +91,7 @@ export function ActivityScreen({
   return (
     <Screen safeBottom={false}>
       <FlatList
-        data={items}
+        data={listData}
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
@@ -80,7 +103,7 @@ export function ActivityScreen({
         }
         contentContainerStyle={[
           styles.scroll,
-          items.length === 0 && !loading ? styles.grow : null,
+          listData.length === 0 && !loading ? styles.grow : null,
         ]}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -112,7 +135,7 @@ export function ActivityScreen({
           loading ? null : (
             <EmptyState
               title="No tenés tickets"
-              description="Cuando Eko derive un caso a un ticket, vas a verlo acá con su estado."
+              description="Cuando generes un reclamo o Eko derive un caso, vas a verlo acá con su estado."
             />
           )
         }
@@ -128,8 +151,16 @@ export function ActivityScreen({
               <Card style={styles.detail}>
                 <Text variant="label">Detalle</Text>
                 <Text variant="meta" style={styles.detailLine}>
+                  Ticket {detail.ticket.id}
+                </Text>
+                <Text variant="meta" style={styles.detailLine}>
                   Estado: {labelTicketEstado(detail.ticket.estado)}
                 </Text>
+                {present(detail.ticket.categoria) ? (
+                  <Text variant="meta" style={styles.detailLine}>
+                    Motivo: {detail.ticket.categoria}
+                  </Text>
+                ) : null}
                 {present(detail.ticket.origen) ? (
                   <Text variant="meta" style={styles.detailLine}>
                     Origen: {detail.ticket.origen}

@@ -225,6 +225,11 @@ def _cliente_reporta_corte_total(texto: str) -> bool:
 
 def _linea_acceso_ok_ctx(ctx: dict | None) -> bool:
     """Radius/BCM ya vieron enlace de acceso OK: el resto es LAN/Wi‑Fi, no ONT."""
+    from app.services.connectivity_eko import linea_acceso_ok_desde_tss
+
+    tss_ok = linea_acceso_ok_desde_tss(ctx)
+    if tss_ok is not None:
+        return tss_ok
     c = ctx or {}
     if str(c.get("pppoe_rama") or "") in ("wifi_lan", "recien_conectado"):
         return True
@@ -1641,6 +1646,8 @@ def _cliente_salir_aviso_deuda(texto: str) -> bool:
 
 def _reset_ctx_diagnostico(ctx: dict) -> None:
     """Limpia intención/pasos de un flujo N1 previo (p. ej. post-incidente masivo)."""
+    from app.services.connectivity_eko import limpiar_tss_de_ctx
+
     for k in (
         "intencion",
         "intencion_tecnica_pendiente",
@@ -1656,6 +1663,7 @@ def _reset_ctx_diagnostico(ctx: dict) -> None:
         "prioridad_elegida",
     ):
         ctx.pop(k, None)
+    limpiar_tss_de_ctx(ctx)
 
 
 def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:

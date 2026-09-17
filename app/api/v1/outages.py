@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -13,6 +15,7 @@ from app.estate.database import get_db
 from app.services import outages as outage_svc
 
 router = APIRouter(tags=["Outages"])
+logger = logging.getLogger("operations_hub")
 
 
 class OutageCreate(BaseModel):
@@ -153,10 +156,15 @@ def create_outage(
             ctx.organizacion_id,
             title="Corte en la red",
             body=mensaje,
-            data={"tipo": "incidente", "outage_id": o.id, "nas": shortname},
+            outage_id=str(o.id),
+            nas_shortname=shortname,
+            nas_ip=str(o.nas_ip or nas_ip or ""),
         )
     except Exception:
-        pass
+        logger.exception(
+            "outage_push declared falló outage_id=%s (CRUD ok)",
+            str(o.id)[:36],
+        )
     return {"status": "creado", "outage": outage_svc.outage_to_dict(o)}
 
 
@@ -172,6 +180,11 @@ def update_outage(
         raise HTTPException(404, "Incidente no encontrado")
     if o.estado != "activo":
         raise HTTPException(400, "Solo se pueden editar incidentes activos")
+
+    prev_mensaje = str(o.mensaje_cliente or "")
+    prev_eta = int(o.eta_minutos or 0)
+    prev_eta_flag = str(o.eta_validada or "")
+    prev_alcance = str(o.alcance or "")
 
     alcance = body.alcance if body.alcance is not None else o.alcance
     comentario = body.comentario if body.comentario is not None else o.comentario
@@ -208,6 +221,40 @@ def update_outage(
         eta_minutos=body.eta_minutos,
         eta_validada=eta_flag if body.eta_validada is not None else None,
     )
+
+    try:
+        material = outage_svc.outage_update_es_material(
+            prev_mensaje_cliente=prev_mensaje,
+            new_mensaje_cliente=str(o.mensaje_cliente or ""),
+            prev_eta_minutos=prev_eta,
+            new_eta_minutos=int(o.eta_minutos or 0),
+            prev_eta_validada=prev_eta_flag,
+            new_eta_validada=str(o.eta_validada or ""),
+            prev_alcance=prev_alcance,
+            new_alcance=str(o.alcance or ""),
+            touched_comentario=body.comentario is not None,
+            touched_alcance=body.alcance is not None,
+            touched_eta_minutos=body.eta_minutos is not None,
+            touched_eta_validada=body.eta_validada is not None,
+            touched_tipo=body.tipo is not None,
+        )
+        if material:
+            from app.services.app_push import notificar_incidente_actualizado_app
+
+            notificar_incidente_actualizado_app(
+                db,
+                ctx.organizacion_id,
+                outage_id=str(o.id),
+                nas_shortname=str(o.nas_shortname or ""),
+                nas_ip=str(o.nas_ip or ""),
+                body=str(o.mensaje_cliente or "").strip(),
+            )
+    except Exception:
+        logger.exception(
+            "outage_push updated falló outage_id=%s (CRUD ok)",
+            str(o.id)[:36],
+        )
+
     return {"status": "actualizado", "outage": outage_svc.outage_to_dict(o)}
 
 
@@ -220,7 +267,25 @@ def resolve_outage(
     o = repo.get_network_outage(db, ctx.organizacion_id, outage_id)
     if not o:
         raise HTTPException(404, "Incidente no encontrado")
-    if o.estado == "resuelto":
-        return {"status": "ya_resuelto", "outage": outage_svc.outage_to_dict(o)}
-    o = repo.resolve_network_outage(db, o)
-    return {"status": "resuelto", "outage": outage_svc.outage_to_dict(o)}
+    status = "ya_resuelto"
+    if o.estado != "resuelto":
+        o = repo.resolve_network_outage(db, o)
+        status = "resuelto"
+    # Push resolved (idempotente). También intenta si quedó resuelto sin claim
+    # (p.ej. crash entre resolve y push).
+    try:
+        from app.services.app_push import notificar_incidente_resuelto_app
+
+        notificar_incidente_resuelto_app(
+            db,
+            ctx.organizacion_id,
+            outage_id=str(o.id),
+            nas_shortname=str(o.nas_shortname or ""),
+            nas_ip=str(o.nas_ip or ""),
+        )
+    except Exception:
+        logger.exception(
+            "outage_push resolved falló outage_id=%s (CRUD ok)",
+            str(o.id)[:36],
+        )
+    return {"status": status, "outage": outage_svc.outage_to_dict(o)}
