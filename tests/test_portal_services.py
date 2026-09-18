@@ -260,7 +260,7 @@ def test_services_omite_sin_id_estable():
 
 
 def test_services_omite_historicos_y_dedupe_por_tipo():
-    """Bajas no salen; Internet colapsa réplicas; móvil conserva líneas distintas."""
+    """Bajas no salen; Internet por login; móvil por línea; TV por producto."""
     auth = _portal_identified("30111222")
     catalog = [
         _svc(
@@ -285,6 +285,14 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
             label="Internet radio",
             product="BAI 20",
             login="inet2",
+            state="Habilitado",
+        ),
+        _svc(
+            id="i-admin",
+            service_type_code="",
+            label="Internet",
+            product="Fibra 300",
+            login="",
             state="Habilitado",
         ),
         _svc(
@@ -330,18 +338,50 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
     assert r.status_code == 200, r.text
     services = r.json()["services"]
     types = [s["type"] for s in services]
-    assert types.count("internet") == 1
+    assert types.count("internet") == 2
     assert types.count("tv") == 1
     assert types.count("movil") == 2
     ids = {s["id"] for s in services}
     assert "i-old" not in ids
+    assert "i-admin" not in ids
     assert "t-old" not in ids
-    assert {"m1", "m2"}.issubset(ids)
-    by_type = {s["type"]: s["id"] for s in services if s["type"] != "movil"}
-    assert by_type["internet"] == "i-dup"
-    assert by_type["tv"] == "t-ok"
+    assert {"i-dup", "i-ok", "m1", "m2"}.issubset(ids)
     moviles = [s for s in services if s["type"] == "movil"]
     assert {s["msisdn"] for s in moviles} == {"2231111001", "2231111002"}
+
+
+def test_services_varios_internet_verificables():
+    """Dos accesos con login distinto → dos tarjetas, ambas con id de planta."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="casa",
+            service_type_code="INTFO",
+            label="Fibra casa",
+            product="Fibra 300",
+            login="casa10",
+            state="Habilitado",
+        ),
+        _svc(
+            id="local",
+            service_type_code="INTFO",
+            label="Fibra local",
+            product="Fibra 100",
+            login="local20",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    inet = [s for s in r.json()["services"] if s["type"] == "internet"]
+    assert len(inet) == 2
+    assert {s["id"] for s in inet} == {"casa", "local"}
 
 
 def test_services_cuatro_lineas_imowi():

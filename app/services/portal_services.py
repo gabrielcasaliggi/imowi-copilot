@@ -134,10 +134,14 @@ def es_historico_catalogo(svc: Any) -> bool:
 
 
 def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
-    """Clave de colapso: Internet 1×; móvil/telefonía por línea; TV/otros por producto."""
+    """Clave de colapso: internet/móvil por línea (login); TV/otros por producto."""
     tip = str(row.get("type") or "")
     if tip == "internet":
-        return tip, ""
+        login = (row.get("_login") or "").strip()
+        if login:
+            return tip, f"login:{login}"
+        name = (row.get("product") or row.get("label") or "").strip().lower()
+        return tip, f"name:{name}" if name else f"id:{row.get('id') or ''}"
     if tip in ("movil", "telefonia"):
         line = (row.get("msisdn") or row.get("_login") or row.get("id") or "").strip().lower()
         return tip, line
@@ -148,7 +152,7 @@ def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
 
 
 def _conn_eligible(svc: Any) -> bool:
-    """Mismo criterio que portal_connectivity._to_service_ref (login + INT*)."""
+    """Verificable en Connectivity: login + código INT* (vigente)."""
     code = str(getattr(svc, "service_type_code", "") or "").strip().upper()
     login = str(getattr(svc, "login", "") or "").strip()
     return bool(login) and code in bt.SERVICE_TYPE_CONECTIVIDAD and bt.servicio_habilitado(svc)
@@ -191,14 +195,22 @@ def _dto(svc: Any) -> dict[str, Any] | None:
         "product": _source_product(svc),
         "active": bool(bt.servicio_habilitado(svc)),
         "msisdn": msisdn,
-        # Solo para dedupe; se elimina antes de responder.
+        # Solo para dedupe/prune; se elimina antes de responder.
         "_conn": _conn_eligible(svc),
         "_login": login.lower() if login else "",
     }
 
 
+def _prune_internet_admin_replicas(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Si hay Internet verificable (login+INT*), oculta réplicas admin sin login."""
+    has_conn = any(r.get("type") == "internet" and r.get("_conn") for r in items)
+    if not has_conn:
+        return items
+    return [r for r in items if r.get("type") != "internet" or r.get("_conn")]
+
+
 def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Colapsa réplicas; conserva líneas móviles distintas y TV por producto."""
+    """Colapsa réplicas; conserva varios Internet/móvil con login distinto."""
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     order: list[tuple[str, str]] = []
     for row in items:
@@ -209,9 +221,11 @@ def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             order.append(key)
         else:
             by_key[key] = _prefer_row(prev, row)
+    merged = [by_key[k] for k in order]
+    merged = _prune_internet_admin_replicas(merged)
     out: list[dict[str, Any]] = []
-    for k in order:
-        clean = {kk: vv for kk, vv in by_key[k].items() if not kk.startswith("_")}
+    for row in merged:
+        clean = {kk: vv for kk, vv in row.items() if not kk.startswith("_")}
         out.append(clean)
     return out
 
