@@ -175,7 +175,7 @@ def line_msisdn_from_svc(svc: Any, *, tip: CanonicalType) -> str | None:
 
 
 def _prefer_row(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
-    """Prefiere activo; en internet, el id usable por Connectivity (login+INT*)."""
+    """Prefiere activo; internet con Connectivity; móvil con line_msisdn."""
     if a.get("active") and not b.get("active"):
         return a
     if b.get("active") and not a.get("active"):
@@ -184,6 +184,11 @@ def _prefer_row(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
         if a.get("_conn") and not b.get("_conn"):
             return a
         if b.get("_conn") and not a.get("_conn"):
+            return b
+    if a.get("type") == "movil" or b.get("type") == "movil":
+        if a.get("line_msisdn") and not b.get("line_msisdn"):
+            return a
+        if b.get("line_msisdn") and not a.get("line_msisdn"):
             return b
     return a
 
@@ -215,6 +220,20 @@ def _prune_internet_admin_replicas(items: list[dict[str, Any]]) -> list[dict[str
     return [r for r in items if r.get("type") != "internet" or r.get("_conn")]
 
 
+def _prune_movil_sin_linea(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Si hay móvil con line_msisdn contractual, oculta réplicas sin línea (admin)."""
+    has_line = any(
+        r.get("type") == "movil" and r.get("line_msisdn") for r in items
+    )
+    if not has_line:
+        return items
+    return [
+        r
+        for r in items
+        if r.get("type") != "movil" or r.get("line_msisdn")
+    ]
+
+
 def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Colapsa réplicas; conserva varios Internet/móvil con login distinto."""
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
@@ -229,6 +248,7 @@ def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             by_key[key] = _prefer_row(prev, row)
     merged = [by_key[k] for k in order]
     merged = _prune_internet_admin_replicas(merged)
+    merged = _prune_movil_sin_linea(merged)
     out: list[dict[str, Any]] = []
     for row in merged:
         clean = {kk: vv for kk, vv in row.items() if not kk.startswith("_")}

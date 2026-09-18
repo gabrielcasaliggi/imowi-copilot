@@ -549,6 +549,100 @@ def test_line_msisdn_seguridad_no_expone_campos_internos():
     assert body["services"][0]["line_msisdn"] == "2212345643"
 
 
+def test_prune_movil_replicas_sin_line_msisdn():
+    """Réplicas admin sin identifier se ocultan si hay líneas contractuales."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="admin-15",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 1.5 GB",
+            login="",
+            state="Habilitado",
+        ),
+        _svc(
+            id="admin-3a",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 3 GB",
+            login="",
+            state="Habilitado",
+        ),
+        _svc(
+            id="admin-3b",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 3 GB",
+            login="",
+            state="Habilitado",
+        ),
+        _svc(
+            id="admin-5",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="",
+            state="Habilitado",
+        ),
+        _svc(
+            id="line-15",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 1.5 GB",
+            login="2212341500",
+            state="Habilitado",
+        ),
+        _svc(
+            id="line-5",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="2212342690",
+            state="Habilitado",
+        ),
+        _svc(
+            id="line-3a",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 3 GB",
+            login="2212344199",
+            state="Habilitado",
+        ),
+        _svc(
+            id="line-3b",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 3 GB",
+            login="2212341947",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    moviles = [s for s in r.json()["services"] if s["type"] == "movil"]
+    assert len(moviles) == 4
+    assert all(s["line_msisdn"] for s in moviles)
+    assert {s["line_msisdn"] for s in moviles} == {
+        "2212341500",
+        "2212342690",
+        "2212344199",
+        "2212341947",
+    }
+    assert {s["id"] for s in moviles} == {
+        "line-15",
+        "line-5",
+        "line-3a",
+        "line-3b",
+    }
+
+
 def test_services_varios_internet_verificables():
     """Dos accesos con login distinto → dos tarjetas, ambas con id de planta."""
     auth = _portal_identified("30111222")
