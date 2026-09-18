@@ -185,7 +185,6 @@ export function HomeScreen({
             loading={services.loading}
             error={services.error}
             unavailable={services.unavailable}
-            msisdn={abonado?.linea_msisdn}
             onRetry={services.refresh}
             onViewConnectivity={onViewConnectivity}
             onAskEko={onQuickAction}

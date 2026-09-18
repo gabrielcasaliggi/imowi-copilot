@@ -1,4 +1,5 @@
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { present } from "../present";
 import { colors, spacing } from "../theme";
@@ -8,12 +9,47 @@ import { Card } from "./Card";
 import { SectionHeader } from "./SectionHeader";
 import { Text } from "./Text";
 
-function typeTitle(type: PortalServiceType): string {
+const TYPE_ORDER: PortalServiceType[] = [
+  "internet",
+  "tv",
+  "movil",
+  "telefonia",
+  "other",
+];
+
+const CANONICAL = new Set<string>(TYPE_ORDER);
+
+export function typeTitle(type: PortalServiceType): string {
   if (type === "internet") return "Internet";
   if (type === "tv") return "TV";
   if (type === "movil") return "Móvil";
   if (type === "telefonia") return "Telefonía";
   return "Otros servicios";
+}
+
+export function servicesCountLabel(n: number): string {
+  if (n <= 0) return "0 servicios";
+  if (n === 1) return "1 servicio";
+  return `${n} servicios`;
+}
+
+/** Agrupa para UI sin mutar ni filtrar el array del backend. */
+export function groupServicesByType(
+  items: PortalServiceItem[],
+): { type: PortalServiceType; items: PortalServiceItem[] }[] {
+  const buckets = new Map<PortalServiceType, PortalServiceItem[]>();
+  for (const item of items) {
+    const tip = (CANONICAL.has(item.type) ? item.type : "other") as PortalServiceType;
+    const list = buckets.get(tip);
+    if (list) list.push(item);
+    else buckets.set(tip, [item]);
+  }
+  const out: { type: PortalServiceType; items: PortalServiceItem[] }[] = [];
+  for (const tip of TYPE_ORDER) {
+    const list = buckets.get(tip);
+    if (list?.length) out.push({ type: tip, items: list });
+  }
+  return out;
 }
 
 function adminStatus(active: boolean): string {
@@ -30,44 +66,29 @@ function ekoPrompt(type: PortalServiceType): string {
 export const WIFI_CHANGE_PROMPT =
   "Quiero cambiar la contraseña o el nombre de mi Wi-Fi.";
 
-function ServiceRow({
+function ServiceInstance({
   item,
-  fallbackMsisdn,
   onViewConnectivity,
   onAskEko,
 }: {
   item: PortalServiceItem;
-  fallbackMsisdn?: string;
   onViewConnectivity: (serviceId: string) => void;
   onAskEko: (texto: string | null) => void;
 }) {
   const product = present(item.product);
   const label = present(item.label);
-  const detail = product || label;
-  const line = present(item.msisdn) || present(fallbackMsisdn);
-  const showMsisdn = item.type === "movil" && line;
+  const detail = product || label || "Servicio";
 
   return (
-    <Card
-      accessibilityLabel={`${typeTitle(item.type)}, ${detail || "servicio"}, ${adminStatus(item.active)}`}
-      style={styles.card}
+    <View
+      accessibilityLabel={`${detail}, ${adminStatus(item.active)}`}
+      style={styles.instance}
     >
-      <Text variant="label">{typeTitle(item.type)}</Text>
-      {detail ? (
-        <Text variant="title" style={styles.product} numberOfLines={3}>
-          {detail}
-        </Text>
-      ) : null}
-      {showMsisdn ? (
-        <Text variant="meta" style={styles.meta}>
-          Línea {line}
-        </Text>
-      ) : null}
-      <Text variant="meta" style={styles.meta}>
-        {item.active ? "Contratado · Activo" : "Contratado · No activo"}
+      <Text variant="title" style={styles.product} numberOfLines={3}>
+        {detail}
       </Text>
-      <Text variant="meta" style={styles.hint}>
-        Dato administrativo de tu cuenta. No es un diagnóstico técnico.
+      <Text variant="meta" style={styles.meta}>
+        {item.active ? "Activo" : "No activo"}
       </Text>
       {item.type === "internet" ? (
         <>
@@ -95,6 +116,69 @@ function ServiceRow({
           style={styles.cta}
         />
       )}
+    </View>
+  );
+}
+
+function ServiceTypeGroup({
+  type,
+  items,
+  expanded,
+  onToggle,
+  onViewConnectivity,
+  onAskEko,
+}: {
+  type: PortalServiceType;
+  items: PortalServiceItem[];
+  expanded: boolean;
+  onToggle: () => void;
+  onViewConnectivity: (serviceId: string) => void;
+  onAskEko: (texto: string | null) => void;
+}) {
+  const title = typeTitle(type);
+  const activeN = items.filter((i) => i.active).length;
+  const summary =
+    activeN === items.length
+      ? `${servicesCountLabel(items.length)} activos`
+      : `${servicesCountLabel(items.length)} · ${activeN} activos`;
+
+  return (
+    <Card style={styles.groupCard}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${title}, ${summary}`}
+        accessibilityHint={expanded ? "Ocultar detalle" : "Ver servicios de este tipo"}
+        style={styles.groupHeader}
+      >
+        <View style={styles.groupHeaderText}>
+          <Text variant="title" style={styles.groupTitle}>
+            {title}
+          </Text>
+          <Text variant="meta" style={styles.meta}>
+            {summary}
+          </Text>
+        </View>
+        <Text variant="meta" style={styles.chevron}>
+          {expanded ? "▾" : "›"}
+        </Text>
+      </Pressable>
+      {expanded ? (
+        <View style={styles.instances}>
+          <Text variant="meta" style={styles.hint}>
+            Dato administrativo de tu cuenta. No es un diagnóstico técnico.
+          </Text>
+          {items.map((item) => (
+            <ServiceInstance
+              key={item.id}
+              item={item}
+              onViewConnectivity={onViewConnectivity}
+              onAskEko={onAskEko}
+            />
+          ))}
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -104,7 +188,6 @@ export function ServicesSection({
   loading,
   error,
   unavailable,
-  msisdn,
   onRetry,
   onViewConnectivity,
   onAskEko,
@@ -113,11 +196,26 @@ export function ServicesSection({
   loading: boolean;
   error: string;
   unavailable: boolean;
-  msisdn?: string;
   onRetry: () => void;
   onViewConnectivity: (serviceId: string) => void;
   onAskEko: (texto: string | null) => void;
 }) {
+  const groups = useMemo(() => groupServicesByType(items), [items]);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const toggle = (type: PortalServiceType) => {
+    setExpanded((prev) => ({ ...prev, [type]: !prev[type] }));
+  };
+
+  const expandAll = () => {
+    const next: Record<string, boolean> = {};
+    for (const g of groups) next[g.type] = true;
+    setExpanded(next);
+  };
+
+  const allExpanded =
+    groups.length > 0 && groups.every((g) => expanded[g.type]);
+
   return (
     <View style={styles.wrap}>
       <SectionHeader title="Tus servicios" />
@@ -159,26 +257,60 @@ export function ServicesSection({
           <Text>No encontramos servicios asociados a tu cuenta.</Text>
         </Card>
       ) : null}
-      {items.map((item) => (
-        <ServiceRow
-          key={item.id}
-          item={item}
-          fallbackMsisdn={msisdn}
+      {groups.map((g) => (
+        <ServiceTypeGroup
+          key={g.type}
+          type={g.type}
+          items={g.items}
+          expanded={Boolean(expanded[g.type])}
+          onToggle={() => toggle(g.type)}
           onViewConnectivity={onViewConnectivity}
           onAskEko={onAskEko}
         />
       ))}
+      {groups.length > 1 && !allExpanded ? (
+        <Button
+          label="Ver todos"
+          variant="ghost"
+          onPress={expandAll}
+          accessibilityHint="Expande todos los tipos de servicio"
+          style={styles.cta}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
-  card: { marginBottom: spacing.sm },
-  product: { marginTop: spacing.xs, fontSize: 18 },
+  groupCard: { marginBottom: spacing.sm },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    minHeight: 44,
+  },
+  groupHeaderText: { flex: 1, gap: spacing.xs },
+  groupTitle: { fontSize: 18 },
+  chevron: { fontSize: 22, color: colors.muted, paddingHorizontal: spacing.xs },
+  instances: {
+    marginTop: spacing.md,
+    gap: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  instance: {
+    gap: spacing.xs,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  product: { fontSize: 17 },
   meta: { marginTop: spacing.xs },
   hint: { marginTop: spacing.xs },
-  cta: { marginTop: spacing.md },
+  cta: { marginTop: spacing.sm },
   loading: {
     flexDirection: "row",
     alignItems: "center",
