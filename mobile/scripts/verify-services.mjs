@@ -34,13 +34,33 @@ function normalizeItem(raw) {
     productRaw === null || productRaw === undefined || String(productRaw).trim() === ""
       ? null
       : String(productRaw).trim();
+  let line_msisdn = null;
+  if (raw?.line_msisdn !== undefined && raw?.line_msisdn !== null) {
+    const digits = String(raw.line_msisdn).replace(/\D/g, "");
+    line_msisdn = digits.length === 10 ? digits : null;
+  }
   return {
     id,
     type,
     label: String(raw?.label || "").trim(),
     product,
     active: Boolean(raw?.active),
+    line_msisdn,
   };
+}
+
+/** Espejo de maskLineMsisdn en ServicesSection.tsx */
+function maskLineMsisdn(line) {
+  const digits = String(line || "").replace(/\D/g, "");
+  if (digits.length !== 10) return null;
+  return `····${digits.slice(-4)}`;
+}
+
+/** UI: solo item.line_msisdn contractual; sin fallbacks. */
+function lineLabelForDisplay(item) {
+  if (item?.type !== "movil") return null;
+  const masked = maskLineMsisdn(item.line_msisdn);
+  return masked ? `Línea ${masked}` : null;
 }
 
 function parseServicesResponse(body) {
@@ -208,13 +228,6 @@ assert(mapCode("XYZ") === "other", "unknown→other");
     if (n === 1) return "1 servicio";
     return `${n} servicios`;
   }
-  /** UI: no mostrar "Línea" (ni msisdn heurístico ni fallback de cuenta). */
-  function lineLabelForDisplay(item, accountMsisdn) {
-    void item;
-    void accountMsisdn;
-    return null;
-  }
-
   // Caso 1: 1 Internet → un grupo
   {
     const g = groupServicesByType([
@@ -248,14 +261,40 @@ assert(mapCode("XYZ") === "other", "unknown→other");
     assert(g[0].items.map((i) => i.id).join(",") === "A,B", "caso3 ids");
   }
 
-  // Caso 4: sin msisdn / con fallback cuenta → no "Línea"
+  // Caso A: line_msisdn → Línea ····XXXX
   {
-    const item = { id: "m1", type: "movil", product: "Imowi 5 GB", msisdn: null };
-    assert(lineLabelForDisplay(item, "2234649025") === null, "caso4 sin línea");
-    assert(lineLabelForDisplay({ ...item, msisdn: "2231111001" }, "2234649025") === null, "caso4 ignora heurística");
+    const item = {
+      id: "140053",
+      type: "movil",
+      product: "Imowi 5 GB",
+      line_msisdn: "2212345643",
+      active: true,
+    };
+    assert(maskLineMsisdn(item.line_msisdn) === "····5643", "casoA mask");
+    assert(lineLabelForDisplay(item) === "Línea ····5643", "casoA label");
   }
 
-  // Caso 5: varios tipos → un grupo por tipo
+  // Caso B: mismo plan, dos líneas → ambas visibles y diferenciadas
+  {
+    const items = [
+      { id: "100", type: "movil", product: "Imowi 5 GB", line_msisdn: "2212345643", active: true },
+      { id: "200", type: "movil", product: "Imowi 5 GB", line_msisdn: "2212345650", active: true },
+    ];
+    const g = groupServicesByType(items);
+    assert(g[0].items.length === 2, "casoB dos instancias");
+    assert(lineLabelForDisplay(items[0]) === "Línea ····5643", "casoB 5643");
+    assert(lineLabelForDisplay(items[1]) === "Línea ····5650", "casoB 5650");
+  }
+
+  // Caso C: line_msisdn=null → no "Línea"; ignora msisdn/id/cuenta
+  {
+    const item = { id: "m1", type: "movil", product: "Imowi 5 GB", line_msisdn: null };
+    assert(lineLabelForDisplay(item) === null, "casoC sin línea");
+    assert(lineLabelForDisplay({ ...item, msisdn: "2231111001" }) === null, "casoC ignora msisdn");
+    assert(maskLineMsisdn(null) === null, "casoC mask null");
+  }
+
+  // Caso D / Caso 5: varios tipos → agrupación intacta
   {
     const g = groupServicesByType([
       { id: "i", type: "internet", product: "Fibra", active: true },
@@ -263,8 +302,8 @@ assert(mapCode("XYZ") === "other", "unknown→other");
       { id: "m2", type: "movil", product: "10GB", active: true },
       { id: "t", type: "tv", product: "Sensa", active: true },
     ]);
-    assert(g.map((x) => x.type).join(",") === "internet,tv,movil", "caso5 orden");
-    assert(g.find((x) => x.type === "movil").items.length === 2, "caso5 movil");
+    assert(g.map((x) => x.type).join(",") === "internet,tv,movil", "casoD orden");
+    assert(g.find((x) => x.type === "movil").items.length === 2, "casoD movil");
   }
 
   // Caso C — Internet×1, IMOWI×4, TV×2

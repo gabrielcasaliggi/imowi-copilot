@@ -143,7 +143,9 @@ def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
         name = (row.get("product") or row.get("label") or "").strip().lower()
         return tip, f"name:{name}" if name else f"id:{row.get('id') or ''}"
     if tip in ("movil", "telefonia"):
-        line = (row.get("msisdn") or row.get("_login") or row.get("id") or "").strip().lower()
+        line = (
+            row.get("line_msisdn") or row.get("_login") or row.get("id") or ""
+        ).strip().lower()
         return tip, line
     name = (row.get("product") or row.get("label") or "").strip().lower()
     if tip == "tv":
@@ -158,13 +160,18 @@ def _conn_eligible(svc: Any) -> bool:
     return bool(login) and code in bt.SERVICE_TYPE_CONECTIVIDAD and bt.servicio_habilitado(svc)
 
 
-def _msisdn_from_svc(svc: Any) -> str | None:
-    """MSISDN desde identifier/login cuando parece teléfono (IMOWI)."""
+def line_msisdn_from_svc(svc: Any, *, tip: CanonicalType) -> str | None:
+    """Línea móvil contractual: identifier con exactamente 10 dígitos (audit BillTrack).
+
+    Solo para type=movil. No usar heurística >=8 ni account_name/contacto.
+    """
+    if tip != "movil":
+        return None
     login = str(getattr(svc, "login", "") or "").strip()
     digits = "".join(c for c in login if c.isdigit())
-    if len(digits) < 8:
+    if len(digits) != 10:
         return None
-    return digits[-10:] if len(digits) >= 10 else digits
+    return digits
 
 
 def _prefer_row(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
@@ -187,14 +194,13 @@ def _dto(svc: Any) -> dict[str, Any] | None:
         return None
     tip = canonical_service_type(svc)
     login = str(getattr(svc, "login", "") or "").strip()
-    msisdn = _msisdn_from_svc(svc) if tip in ("movil", "telefonia") else None
     return {
         "id": sid,
         "type": tip,
         "label": _source_label(svc),
         "product": _source_product(svc),
         "active": bool(bt.servicio_habilitado(svc)),
-        "msisdn": msisdn,
+        "line_msisdn": line_msisdn_from_svc(svc, tip=tip),
         # Solo para dedupe/prune; se elimina antes de responder.
         "_conn": _conn_eligible(svc),
         "_login": login.lower() if login else "",

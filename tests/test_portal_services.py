@@ -102,9 +102,11 @@ def test_services_internet_y_movil_mock_default():
         assert "label" in s
         assert "product" in s
         assert isinstance(s["active"], bool)
+        assert "line_msisdn" in s
         # No filtrar contrato de producto desde tokens libres.
         assert "abonado.servicio" not in str(s)
         assert "login" not in s
+        assert "msisdn" not in s
         assert "service_type_code" not in s
 
 
@@ -347,7 +349,204 @@ def test_services_omite_historicos_y_dedupe_por_tipo():
     assert "t-old" not in ids
     assert {"i-dup", "i-ok", "m1", "m2"}.issubset(ids)
     moviles = [s for s in services if s["type"] == "movil"]
-    assert {s["msisdn"] for s in moviles} == {"2231111001", "2231111002"}
+    assert {s["line_msisdn"] for s in moviles} == {"2231111001", "2231111002"}
+    for s in services:
+        assert "msisdn" not in s
+
+
+def test_line_msisdn_telm_identifier_10_digitos():
+    """TELM + identifier exactamente 10 dígitos → line_msisdn."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="140053",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="2212345643",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    assert r.status_code == 200, r.text
+    s = r.json()["services"][0]
+    assert s["id"] == "140053"
+    assert s["type"] == "movil"
+    assert s["line_msisdn"] == "2212345643"
+
+
+def test_line_msisdn_mismo_plan_distinta_instancia():
+    """Dos Imowi mismo product → dos ids y dos line_msisdn (sin dedupe)."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="100",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="2212345643",
+            state="Habilitado",
+        ),
+        _svc(
+            id="200",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="2212345650",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    moviles = [s for s in r.json()["services"] if s["type"] == "movil"]
+    assert len(moviles) == 2
+    assert {s["id"] for s in moviles} == {"100", "200"}
+    assert {s["line_msisdn"] for s in moviles} == {"2212345643", "2212345650"}
+
+
+def test_line_msisdn_identifier_vacio():
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="m-empty",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    assert r.json()["services"][0]["line_msisdn"] is None
+
+
+def test_line_msisdn_identifier_longitud_distinta_de_10():
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="m-short",
+            service_type_code="IMOWI",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="2231111",
+            state="Habilitado",
+        ),
+        _svc(
+            id="m-iccid",
+            service_type_code="IMOWI",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="8956123450001234567",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    by_id = {s["id"]: s for s in r.json()["services"]}
+    assert by_id["m-short"]["line_msisdn"] is None
+    assert by_id["m-iccid"]["line_msisdn"] is None
+
+
+def test_line_msisdn_null_en_no_movil():
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="inet",
+            service_type_code="INTFO",
+            label="Fibra",
+            product="Fibra 300",
+            login="casa10",
+            state="Habilitado",
+        ),
+        _svc(
+            id="tv1",
+            service_type_code="SENSA",
+            label="TV",
+            product="Sensa",
+            login="2235551234",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    for s in r.json()["services"]:
+        assert s["line_msisdn"] is None
+
+
+def test_line_msisdn_seguridad_no_expone_campos_internos():
+    """Endpoint no filtra login/NAS/IP/MAC/serial/ICCID/IMSI/credenciales."""
+    auth = _portal_identified("30111222")
+    catalog = [
+        _svc(
+            id="140053",
+            service_type_code="TELM",
+            label="Imowi",
+            product="Imowi 5 GB",
+            login="2212345643",
+            state="Habilitado",
+        ),
+    ]
+    with patch(
+        "app.services.billtrack.lookup_servicios_cuenta_por_dni",
+        return_value=(catalog, True),
+    ):
+        r = client.get(
+            "/api/v1/portal/services",
+            headers=_headers(auth["portal_token"]),
+        )
+    body = r.json()
+    for s in body["services"]:
+        assert "login" not in s
+        assert "msisdn" not in s
+        assert "nas" not in s
+        assert "mac" not in s
+        assert "serial" not in s
+        assert "iccid" not in s
+        assert "imsi" not in s
+        assert "password" not in s
+        assert "_login" not in s
+        assert "_conn" not in s
+        assert set(s.keys()) <= {
+            "id",
+            "type",
+            "label",
+            "product",
+            "active",
+            "line_msisdn",
+        }
+    assert body["services"][0]["line_msisdn"] == "2212345643"
 
 
 def test_services_varios_internet_verificables():

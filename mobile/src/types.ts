@@ -184,8 +184,8 @@ export type PortalServiceItem = {
   label: string;
   product: string | null;
   active: boolean;
-  /** MSISDN de la línea (móvil); null si BillTrack no lo trae en identifier. */
-  msisdn?: string | null;
+  /** Línea móvil contractual (10 dígitos). Solo desde backend; no heurística local. */
+  line_msisdn?: string | null;
 };
 
 export type PortalServicesResponse = {

@@ -2,7 +2,7 @@
   "expo": {
     "name": "EKO-Asistente",
     "slug": "soporte-batan",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -24,7 +24,7 @@
       },
       "package": "coop.batan.soporte",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 14,
+      "versionCode": 15,
       "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": false,
       "blockedPermissions": [

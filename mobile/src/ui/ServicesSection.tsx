@@ -33,6 +33,13 @@ export function servicesCountLabel(n: number): string {
   return `${n} servicios`;
 }
 
+/** Últimos 4 dígitos de line_msisdn contractual; null si no hay dato. */
+export function maskLineMsisdn(line: string | null | undefined): string | null {
+  const digits = String(line || "").replace(/\D/g, "");
+  if (digits.length !== 10) return null;
+  return `····${digits.slice(-4)}`;
+}
+
 /** Agrupa para UI sin mutar ni filtrar el array del backend. */
 export function groupServicesByType(
   items: PortalServiceItem[],
@@ -78,15 +85,22 @@ function ServiceInstance({
   const product = present(item.product);
   const label = present(item.label);
   const detail = product || label || "Servicio";
+  const lineMasked =
+    item.type === "movil" ? maskLineMsisdn(item.line_msisdn) : null;
 
   return (
     <View
-      accessibilityLabel={`${detail}, ${adminStatus(item.active)}`}
+      accessibilityLabel={`${detail}${lineMasked ? `, Línea ${lineMasked}` : ""}, ${adminStatus(item.active)}`}
       style={styles.instance}
     >
       <Text variant="title" style={styles.product} numberOfLines={3}>
         {detail}
       </Text>
+      {lineMasked ? (
+        <Text variant="meta" style={styles.meta}>
+          Línea {lineMasked}
+        </Text>
+      ) : null}
       <Text variant="meta" style={styles.meta}>
         {item.active ? "Activo" : "No activo"}
       </Text>
