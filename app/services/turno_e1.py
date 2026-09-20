@@ -271,10 +271,9 @@ def ejecutar_lectura_forzada_e1(
                 tech = "internet_radio"
                 veredicto = alt
 
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "lectura_forzada_e1" not in cub:
-        cub.append("lectura_forzada_e1")
-    ctx["pasos_cubiertos"] = cub
+    from app.domain.conversation_state import mark_covers
+
+    mark_covers(ctx, "lectura_forzada_e1")
 
     if veredicto == "acceso_malo":
         msg, motivo = _mensaje_escalar(ctx, tech)

@@ -2402,6 +2402,119 @@ PASOS_DIAGNOSTICO_WIFI = frozenset(
     }
 )
 
+_IDS_WIFI_REPETIDOR = frozenset(
+    {
+        "repetidor_wifi",
+        "repetidor_ubicacion",
+        "repetidor_cable_ap",
+    }
+)
+
+IDS_LUCES_FTTH = (
+    "energia_ont",
+    "luces_los",
+    "luces_ont",
+)
+
+
+def ids_paso_wifi_incompatibles(hechos: dict | None) -> set[str]:
+    """Pasos WiFi que contradicen hechos ya adquiridos (tablet/alcance uno)."""
+    h = hechos if isinstance(hechos, dict) else {}
+    out: set[str] = set()
+    if h.get("dispositivo_sin_ethernet"):
+        out.add("conexion_cableada")
+    if h.get("alcance_wifi") == "uno" and h.get("dispositivo_sin_ethernet"):
+        out |= set(_IDS_WIFI_REPETIDOR)
+    return out
+
+
+def siguiente_paso_pendiente(
+    pasos: list,
+    idx_actual: int,
+    cubiertos: list[str] | None = None,
+    *,
+    extra_omitir: set[str] | frozenset[str] | None = None,
+) -> int:
+    """Cursor: próximo índice cuyo id no está cubierto. No aplica baja/titularidad.
+
+    Si no queda ninguno, devuelve len(pasos) (agotado).
+    """
+    done = {str(x) for x in (cubiertos or []) if str(x).strip()}
+    if extra_omitir:
+        done |= {str(x) for x in extra_omitir if str(x).strip()}
+    start = max(int(idx_actual) + 1, 0)
+    for i in range(start, len(pasos or [])):
+        pid = str(getattr(pasos[i], "id", "") or "").strip()
+        if pid and pid in done:
+            continue
+        return i
+    return len(pasos or [])
+
+
+def primer_paso_pendiente(
+    pasos: list,
+    cubiertos: list[str] | None = None,
+    *,
+    extra_omitir: set[str] | frozenset[str] | None = None,
+) -> int:
+    """Primer paso no cubierto del playbook (desde el inicio)."""
+    return siguiente_paso_pendiente(pasos, -1, cubiertos, extra_omitir=extra_omitir)
+
+
+def es_pregunta_howto_o_causal(texto: str) -> bool:
+    """How-to / causal determinístico. No es un clasificador LLM ni un sí/no de paso."""
+    raw = texto or ""
+    t = raw.lower().strip()
+    if len(t) < 8:
+        return False
+    if respuesta_paso_ok(texto) is True:
+        return False
+    tiene_preg = "?" in raw or "¿" in raw
+    if any(
+        k in t
+        for k in (
+            "por qué",
+            "porqué",
+            "por que sub",
+            "por qué sub",
+        )
+    ):
+        return True
+    if tiene_preg and any(k in t for k in ("porque ", "por que ")):
+        return True
+    if any(
+        k in t
+        for k in (
+            "cómo ",
+            "cómo se",
+            "cómo configuro",
+            "cómo hago",
+            "cómo actualizo",
+            "cómo conecto",
+        )
+    ):
+        return True
+    if tiene_preg and any(
+        k in t
+        for k in (
+            "como ",
+            "como se",
+            "como configuro",
+            "como hago",
+            "como actualizo",
+            "como conecto",
+            "apn",
+            "fast.com",
+            "sensa",
+            "configuro",
+            "actualizo",
+            "subió",
+            "subio",
+        )
+    ):
+        return True
+    return False
+
 _DISPOSITIVOS_SIN_ETHERNET = (
     "tablet",
     "tablets",
@@ -2528,6 +2641,20 @@ def interpreta_alcance_dispositivos(texto: str) -> str | None:
         r"no\s+solo\s+en\s+(ese|esa|eso|este|esta|uno|un|la|el)\b",
         t,
     ) or re.search(r"no\s+solamente\s+(en\s+)?(ese|esa|eso|este|esta)\b", t):
+        return "todos"
+    if re.search(
+        r"tambi[eé]n\s+(falla\s+|anda\s+mal\s+|en\s+)?(la\s+|el\s+)?(notebook|pc|computadora|celular|otro)",
+        t,
+    ):
+        return "todos"
+    if re.search(
+        r"\bningun[oa]?\b.{0,24}\b(funciona|anda|conecta)\b",
+        t,
+    ) or "ninguno funciona" in t:
+        return "todos"
+    if "me referia a todos" in t or "me refería a todos" in t:
+        return "todos"
+    if "todos los equipos" in t or "todos los dispositivo" in t:
         return "todos"
     if any(
         k in t
@@ -3373,6 +3500,65 @@ def contexto_diagnostico_wifi(historial, *, intencion: str = "") -> bool:
     ):
         return True
     return False
+
+
+_MARCADORES_CONSULTA_CABLE_MOVIL = (
+    "cómo conecto",
+    "como conecto",
+    "cómo lo conecto",
+    "como lo conecto",
+    "cómo se conecta",
+    "como se conecta",
+    "cómo hago",
+    "como hago",
+    "conectar",
+    "conecto",
+)
+
+
+def consulta_cable_dispositivo_movil(mensaje: str) -> bool:
+    """True si el abonado pregunta cómo cablear el equipo (how-to), no un sí/no de paso."""
+    t = (mensaje or "").lower()
+    if not any(k in t for k in ("cable", "ethernet", "adaptador", "rj45")):
+        return False
+    if any(k in t for k in _MARCADORES_CONSULTA_CABLE_MOVIL):
+        return True
+    return "?" in (mensaje or "")
+
+
+def respuesta_guardrail_cable_dispositivo_movil(
+    mensaje_cliente: str,
+    *,
+    historial=None,
+    hechos: dict | None = None,
+    intencion: str = "",
+) -> dict[str, str] | None:
+    """Tablet/celular sin Ethernet: responder el how-to y no avanzar el playbook.
+
+    hechos y pasos_cubiertos son conocimiento adquirido; paso_idx es solo un cursor
+    y no puede invalidar un dispositivo_sin_ethernet ya conocido.
+    """
+    hechos = hechos or {}
+    sin_eth_hecho = bool(hechos.get("dispositivo_sin_ethernet"))
+    sin_eth_txt = bool(
+        dispositivo_sin_puerto_ethernet(mensaje_cliente, historial)
+    )
+    if not (sin_eth_hecho or sin_eth_txt):
+        return None
+    if not consulta_cable_dispositivo_movil(mensaje_cliente):
+        return None
+    if not sin_eth_hecho:
+        wifi = contexto_diagnostico_wifi(historial, intencion=intencion) or (
+            (intencion or "").strip() in ("wifi", "internet_lento")
+        )
+        if not wifi:
+            return None
+    return {
+        "accion": "ask",
+        "mensaje": MSG_WIFI_SIN_CABLE_MOVIL,
+        "paso_cubierto": "conexion_cableada",
+        "motivo": "bloqueado_cable_en_dispositivo_movil",
+    }
 
 
 def parece_pregunta_interferencia_wifi(mensaje: str) -> bool:

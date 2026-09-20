@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import time
@@ -14,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.domain.canales import CANALES_PROPIOS, es_canal_propio
 from app.domain.canales import canal_display as etiqueta_canal
 from app.estate.models import Abonado, ConversacionCanal, MensajeCanal
+
+logger = logging.getLogger("operations_hub")
 
 _ULTIMO_MSG_PREVIEW_LEN = 120
 _ESTADOS_UNREAD = frozenset({"espera_agente", "con_agente"})
@@ -139,6 +142,13 @@ def get_contexto(conv: ConversacionCanal) -> dict:
 
 
 def set_contexto(conv: ConversacionCanal, ctx: dict) -> None:
+    # Fase 6: dual-write shadow ConversationState. No cambia campos legacy.
+    try:
+        from app.domain.conversation_state import write_shadow_into_ctx
+
+        write_shadow_into_ctx(ctx, conversacion_id=getattr(conv, "id", "") or "")
+    except Exception:
+        logger.exception("cs_shadow_set_contexto_failed")
     conv.contexto_json = json.dumps(ctx, ensure_ascii=False)
 
 

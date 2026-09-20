@@ -12,6 +12,7 @@ from app.branding_assistant import frase_soy_eko, saludo_identificacion_dni
 from app.config import BOT_DISPLAY_NAME_SHORT
 from app.domain.canales import enviar_externo as _enviar_externo
 from app.domain.flujos_abonado import (
+    IDS_LUCES_FTTH,
     acepta_derivacion_clara,
     ajustar_intencion_a_padron,
     avanzar_paso_baja,
@@ -28,9 +29,11 @@ from app.domain.flujos_abonado import (
     es_cambio_tema_claro,
     es_escape_agente,
     es_paso_derivacion,
+    es_pregunta_howto_o_causal,
     es_saludo_corto,
     es_saludo_solo,
     es_tramite_admin,
+    ids_paso_wifi_incompatibles,
     indica_resuelto,
     inferir_alcance_baja,
     insiste_operador_tramite,
@@ -45,6 +48,7 @@ from app.domain.flujos_abonado import (
     pide_humano_en_flujo_activo,
     pregunta_baja_alcance_padron,
     pregunta_baja_por_alcance,
+    primer_paso_pendiente,
     rechaza_derivacion_clara,
     recordatorio_docs_baja,
     recordatorio_docs_titularidad,
@@ -56,6 +60,7 @@ from app.domain.flujos_abonado import (
     resolver_prioridad_tema,
     respuesta_paso_ok,
     resumen_handoff,
+    siguiente_paso_pendiente,
     solicita_baja_servicio,
     tag_para_intencion,
     texto_menu_consulta,
@@ -85,6 +90,21 @@ from app.services.telegram_client import enviar_texto as enviar_texto_tg
 from app.services.whatsapp_client import enviar_texto as enviar_texto_wa
 
 logger = logging.getLogger("operations_hub")
+
+
+def _reset_pasos_cubiertos(ctx: dict) -> None:
+    """Gate 12: limpia covers canónicos + proyección legacy."""
+    from app.domain.conversation_state import replace_covers
+
+    replace_covers(ctx, [])
+
+
+def _note_pasos_cubiertos(ctx: dict, *steps: str) -> None:
+    """Gate 12: cover B en CS canónico + proyección legacy."""
+    from app.domain.conversation_state import mark_covers
+
+    mark_covers(ctx, *steps)
+
 
 # Reexport compat: plantilla de pagos Fiserv (único origen: eco_voice).
 
@@ -289,10 +309,7 @@ def _responder_confirmacion_mejora_wifi(
     if not pregunta_confirmacion_mejora_senal_wifi(texto, historial, intencion=intencion):
         return None
     msg = mensaje_confirmacion_mejora_senal_wifi(texto, historial)
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "confirmacion_mejora_wifi" not in cub:
-        cub.append("confirmacion_mejora_wifi")
-    ctx["pasos_cubiertos"] = cub
+    _note_pasos_cubiertos(ctx, "confirmacion_mejora_wifi")
     ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
     ctx["ultima_diag_motivo"] = "confirmacion_mejora_senal_wifi"
     if (intencion or "").strip() == "internet":
@@ -336,10 +353,7 @@ def _responder_paso_diagnostico_wifi(
     if not indica_paso_diagnostico_completado(texto, historial, intencion=intencion):
         return None
     msg = mensaje_confirmacion_paso_diagnostico_wifi(texto, historial)
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "confirmacion_paso_wifi" not in cub:
-        cub.append("confirmacion_paso_wifi")
-    ctx["pasos_cubiertos"] = cub
+    _note_pasos_cubiertos(ctx, "confirmacion_paso_wifi")
     ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
     ctx["ultima_diag_motivo"] = "confirmacion_paso_diagnostico_wifi"
     if (intencion or "").strip() == "internet":
@@ -357,6 +371,608 @@ def _responder_paso_diagnostico_wifi(
         "estado": conv.estado,
         "intencion": intencion,
         "diagnostico_ia": True,
+    }
+
+
+def _pide_contacto_comercial(texto: str) -> bool:
+    t = (texto or "").lower()
+    if "comercial" not in t:
+        return False
+    return any(
+        k in t
+        for k in (
+            "pasame",
+            "pásame",
+            "pasa me",
+            "deriva",
+            "contacto",
+            "con comercial",
+        )
+    )
+
+
+def _ofrecer_contacto_alta_comercial(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    *,
+    canal: str,
+    ctx: dict,
+) -> dict:
+    """Contacto comercial idempotente: no resetear a general ni borrar pasos."""
+    from app.domain.flujos_abonado import mensaje_contacto_alta_comercial
+
+    resp = mensaje_contacto_alta_comercial()
+    ctx["intencion"] = "alta_plan"
+    ctx["contacto_comercial_ofrecido"] = True
+    pb = _playbooks(db)
+    pasos = pb.get("alta_plan") or []
+    for i, p in enumerate(pasos):
+        if (p.id or "") == "derivar_comercial":
+            ctx["paso_idx"] = i
+            break
+    _note_pasos_cubiertos(ctx, "derivar_comercial")
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "intencion": "alta_plan",
+    }
+
+
+def _resolver_consulta_con_hechos(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+) -> dict | None:
+    """How-to o pedido ya satisfecho: resolver con hechos antes de avanzar el playbook.
+
+    hechos y pasos_cubiertos representan conocimiento adquirido de la conversación.
+    paso_idx es solamente un cursor del playbook: nunca invalida un hecho ya conocido.
+    """
+    from app.domain.flujos_abonado import respuesta_guardrail_cable_dispositivo_movil
+
+    if _pide_contacto_comercial(texto) and (
+        ctx.get("contacto_comercial_ofrecido")
+        or str(ctx.get("intencion") or "") == "alta_plan"
+    ):
+        return _ofrecer_contacto_alta_comercial(
+            db, org_id, conv, canal=canal, ctx=ctx
+        )
+
+    intent = str(ctx.get("intencion") or "")
+    hechos = ctx.get("hechos") if isinstance(ctx.get("hechos"), dict) else {}
+    guard = respuesta_guardrail_cable_dispositivo_movil(
+        texto,
+        historial=crepo.list_mensajes(db, conv.id),
+        hechos=hechos,
+        intencion=intent,
+    )
+    if not guard:
+        return _resolver_pregunta_howto(
+            db, org_id, conv, texto, canal=canal, ctx=ctx
+        )
+    paso = str(guard.get("paso_cubierto") or "").strip()
+    if paso:
+        _note_pasos_cubiertos(ctx, paso)
+    ctx["ultima_diag_motivo"] = str(guard.get("motivo") or "")[:200]
+    if not intent or intent == "general":
+        ctx["intencion"] = "wifi"
+    from app.domain.conversation_motor import stamp_pending_user
+
+    stamp_pending_user(
+        ctx,
+        act="ASK_HOW_TO",
+        text=texto,
+        referent="conexion_cableada_tablet",
+        step_id="conexion_cableada",
+    )
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(
+        db, org_id, conv, guard["mensaje"], enviar_externo=_enviar_externo(canal)
+    )
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": guard["mensaje"],
+        "estado": conv.estado,
+        "intencion": ctx.get("intencion"),
+    }
+
+
+def _pregunta_de_paso(pasos: list, step_id: str | None):
+    sid = str(step_id or "").strip()
+    if not sid:
+        return None
+    for i, paso in enumerate(pasos or []):
+        if str(getattr(paso, "id", "") or "") == sid:
+            return i, paso
+    return None
+
+
+def _aplicar_lifecycle_dominio(
+    ctx: dict,
+    texto: str,
+    *,
+    playbook_hint: str = "",
+):
+    """Señal de dominio → ConversationState. No decide el texto."""
+    from app.domain.domain_adapter import apply_lifecycle_to_ctx
+
+    try:
+        return apply_lifecycle_to_ctx(ctx, texto, playbook_hint=playbook_hint)
+    except Exception:
+        logger.exception("domain_lifecycle_failed")
+        return None
+
+
+def _responder_acto_restante_dominio(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    usar_llama: bool,
+    trans=None,
+) -> dict | None:
+    """Tras DomainSelection: ASK_CAUSE / ASK_HOW_TO sobre el dominio activo."""
+    from app.domain.conversation_motor import (
+        USER_ASK_CAUSE,
+        USER_ASK_HOW_TO,
+        apply_cs_to_legacy,
+        interpret_turn,
+        process_turn,
+        stamp_pending_user,
+    )
+    from app.domain.conversation_state import hydrate_conversation_state
+
+    try:
+        cs = hydrate_conversation_state(ctx)
+        interp = interpret_turn(texto, cs, ctx)
+    except Exception:
+        logger.exception("domain_act_interpret_failed")
+        return None
+    if trans is not None and getattr(trans, "secondary_kind", None):
+        if interp.user_act in (USER_ASK_CAUSE, USER_ASK_HOW_TO):
+            return None
+    if interp.user_act not in (USER_ASK_CAUSE, USER_ASK_HOW_TO):
+        return None
+    if trans is None or not getattr(trans, "changed", False):
+        stamp_pending_user(
+            ctx,
+            act=interp.user_act,
+            text=interp.user_question or texto,
+            referent=(interp.referenced or {}).get("referent"),
+            step_id=(interp.referenced or {}).get("step_id"),
+        )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return None
+    result = process_turn(cs, interp, ctx)
+    apply_cs_to_legacy(ctx, result.state)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    intencion = str(ctx.get("intencion") or "")
+    diag = _aplicar_diagnostico_ia(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion=intencion,
+        usar_llama=usar_llama,
+    )
+    if diag is not None:
+        return diag
+    return _resolver_pregunta_howto(
+        db, org_id, conv, texto, canal=canal, ctx=ctx
+    )
+
+
+def _seleccionar_dominio_antes_discurso(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    usar_llama: bool,
+) -> dict | None:
+    """Lifecycle antes de howto/discurso. Evita SWITCH-02."""
+    trans = _aplicar_lifecycle_dominio(ctx, texto)
+    if trans and trans.changed:
+        out = _respuesta_tras_transicion_dominio(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            usar_llama=usar_llama,
+            trans=trans,
+        )
+        if out is not None:
+            return out
+    return _responder_acto_restante_dominio(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        usar_llama=usar_llama,
+        trans=trans,
+    )
+
+
+def _respuesta_tras_transicion_dominio(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    usar_llama: bool,
+    trans,
+) -> dict | None:
+    """Después de create/resume: motor Fase 7 + primer paso realmente pendiente."""
+    if trans is None or not trans.changed:
+        return None
+    if trans.refined and not trans.resumed and not trans.created:
+        return None
+    intencion = str(ctx.get("intencion") or trans.playbook or "")
+    if trans.created and _intencion_es_tecnica(intencion):
+        if (
+            abonado
+            and _deuda_positiva(abonado)
+            and not ctx.get("aviso_deuda_ofrecido")
+            and intencion != "corte_deuda"
+        ):
+            ctx["intencion"] = "aviso_deuda"
+            ctx["intencion_tecnica_pendiente"] = intencion
+            ctx["aviso_deuda_ofrecido"] = True
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = _texto_aviso_deuda_tecnico(abonado, intencion)
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": "aviso_deuda",
+            }
+    acto = _responder_acto_restante_dominio(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        usar_llama=usar_llama,
+        trans=trans,
+    )
+    if acto is not None:
+        return acto
+    conv.servicio_detectado = intencion or conv.servicio_detectado
+    pasos = _playbooks(db).get(intencion) or _playbooks(db).get("general") or []
+    pending = None
+    try:
+        from app.domain.conversation_state import hydrate_conversation_state
+
+        cs = hydrate_conversation_state(ctx)
+        pending = cs.pending_bot
+        if trans.resumed and cs.active_slot() is not None:
+            pending = cs.pending_bot or cs.active_slot().pending_bot
+    except Exception:
+        pending = None
+    step_id = str(getattr(pending, "step_id", "") or "")
+    found = _pregunta_de_paso(pasos, step_id) if step_id else None
+    if found is None and pasos:
+        idx = primer_paso_pendiente(
+            pasos, ctx.get("pasos_cubiertos"), extra_omitir=_omitir_por_hechos(ctx)
+        )
+        if idx < len(pasos):
+            found = (idx, pasos[idx])
+            step_id = str(getattr(pasos[idx], "id", "") or "")
+    if found:
+        from app.domain.conversation_motor import stamp_bot_question
+
+        pregunta = found[1].pregunta
+        stamp_bot_question(
+            ctx, step_id=step_id, pregunta=pregunta, intencion=intencion
+        )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(
+            db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal)
+        )
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": pregunta,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+    diag = _aplicar_diagnostico_ia(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion=intencion,
+        usar_llama=usar_llama,
+    )
+    if diag is not None:
+        return diag
+    pb = _playbooks(db)
+    pasos = pb.get(intencion) or pb["general"]
+    idx = primer_paso_pendiente(
+        pasos, ctx.get("pasos_cubiertos"), extra_omitir=_omitir_por_hechos(ctx)
+    )
+    if idx >= len(pasos):
+        idx = max(len(pasos) - 1, 0)
+    pregunta = pasos[idx].pregunta if pasos else "Contame qué te pasa con el servicio."
+    if trans.resumed and pasos:
+        pregunta = pasos[idx].pregunta
+    _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": pregunta,
+        "estado": conv.estado,
+        "intencion": intencion,
+    }
+
+
+def _respuesta_discurso(db, org_id, conv, canal: str, ctx: dict, intencion: str, mensaje: str) -> dict:
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": mensaje,
+        "estado": conv.estado,
+        "intencion": intencion,
+    }
+
+
+def _aplicar_discurso_cs(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+    intencion: str,
+    pasos: list | None = None,
+) -> dict | None:
+    """Motor común: pending/anáfora antes del cursor. None = seguir legacy."""
+    from app.domain.conversation_motor import (
+        ACT_ANSWER_USER,
+        ACT_ASK_NEXT_STEP,
+        ACT_DEFER,
+        ACT_RESTATE_PENDING,
+        DISCOURSE_INTERCEPT_ACTS,
+        DISCURSO_INTENCIONES,
+        USER_CORRECT_FACT,
+        USER_REPORT_FACT,
+        USER_SIGNAL_DOMAIN,
+        apply_cs_to_legacy,
+        interpret_turn,
+        process_turn,
+        stamp_bot_question,
+    )
+    from app.domain.conversation_state import hydrate_conversation_state
+    from app.domain.flujos_abonado import MSG_WIFI_SIN_CABLE_MOVIL
+
+    if intencion not in DISCURSO_INTENCIONES:
+        return None
+    cs = hydrate_conversation_state(ctx)
+    interp = interpret_turn(texto, cs, ctx)
+    if pasos is None:
+        pasos = _playbooks(db).get(intencion) or []
+    if interp.user_act not in DISCOURSE_INTERCEPT_ACTS:
+        if interp.user_act in (USER_CORRECT_FACT, USER_REPORT_FACT, USER_SIGNAL_DOMAIN):
+            result = process_turn(cs, interp, ctx, playbook_steps=pasos)
+            paso_idx_prev = ctx.get("paso_idx")
+            apply_cs_to_legacy(ctx, result.state)
+            ctx["paso_idx"] = paso_idx_prev
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+        return None
+    result = process_turn(cs, interp, ctx, playbook_steps=pasos)
+    apply_cs_to_legacy(ctx, result.state)
+    action = result.action
+    if action.type == ACT_DEFER:
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return None
+    if action.type == ACT_RESTATE_PENDING:
+        found = _pregunta_de_paso(pasos, action.step_id)
+        if not found:
+            from app.domain.flujos_abonado import PLAYBOOKS as _PB
+
+            found = _pregunta_de_paso(_PB.get(intencion) or [], action.step_id)
+        pregunta = found[1].pregunta if found else ""
+        step_id = str(action.step_id or "")
+        if found and not step_id:
+            step_id = str(found[1].id or "")
+        if not pregunta:
+            pregunta = "Te lo aclaro: ¿pudiste hacer lo que te pedí recién?"
+        stamp_bot_question(
+            ctx,
+            step_id=step_id,
+            pregunta=pregunta,
+            intencion=intencion,
+        )
+        return _respuesta_discurso(db, org_id, conv, canal, ctx, intencion, pregunta)
+    if action.type == ACT_ASK_NEXT_STEP:
+        found = _pregunta_de_paso(pasos, action.step_id)
+        if not found:
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return None
+        _idx, paso = found
+        pregunta = paso.pregunta
+        stamp_bot_question(
+            ctx, step_id=str(paso.id or ""), pregunta=pregunta, intencion=intencion
+        )
+        return _respuesta_discurso(db, org_id, conv, canal, ctx, intencion, pregunta)
+    if action.type == ACT_ANSWER_USER:
+        if action.referent == "conexion_cableada_tablet":
+            msg = MSG_WIFI_SIN_CABLE_MOVIL
+        else:
+            found = _pregunta_de_paso(pasos, action.step_id)
+            msg = found[1].pregunta if found else MSG_WIFI_SIN_CABLE_MOVIL
+        from app.domain.conversation_motor import stamp_pending_user
+
+        if interp.user_act != "ASK_FOLLOWUP":
+            stamp_pending_user(
+                ctx,
+                act=interp.user_act,
+                text=texto,
+                referent=action.referent,
+                step_id=action.step_id,
+            )
+        return _respuesta_discurso(db, org_id, conv, canal, ctx, intencion, msg)
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    return None
+
+
+def _mensaje_reporta_luces_ont(texto: str) -> bool:
+    from app.services.diagnostico_n1 import (
+        _cliente_confirma_pon_verde,
+        _cliente_reporta_los_apagada_ok,
+        detectar_enlace_optico_ok,
+    )
+
+    if _cliente_confirma_pon_verde(texto) or _cliente_reporta_los_apagada_ok(texto):
+        return True
+    return bool(detectar_enlace_optico_ok(texto, None))
+
+
+def _enriquecer_cubiertos_luces(ctx: dict, pasos: list, texto: str) -> list[str]:
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    if not _mensaje_reporta_luces_ont(texto):
+        return cub
+    ids_play = {str(getattr(p, "id", "") or "") for p in (pasos or [])}
+    to_add = [pid for pid in IDS_LUCES_FTTH if pid in ids_play and pid not in cub]
+    if to_add:
+        _note_pasos_cubiertos(ctx, *to_add)
+    ctx["enlace_optico_ok"] = True
+    return [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+
+
+def _preservar_cubiertos_subplaybook(ctx: dict, pasos_nuevos: list, texto: str) -> list[str]:
+    """Al refinar internet → FTTH/radio/ADSL, conservar cubiertos aún válidos."""
+    from app.domain.conversation_state import replace_covers
+
+    prev = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    ids_nuevos = {str(getattr(p, "id", "") or "") for p in (pasos_nuevos or [])}
+    keep = [c for c in prev if c in ids_nuevos]
+    replace_covers(ctx, keep)
+    return _enriquecer_cubiertos_luces(ctx, pasos_nuevos, texto)
+
+
+def _omitir_por_hechos(ctx: dict) -> set[str]:
+    hechos = ctx.get("hechos") if isinstance(ctx.get("hechos"), dict) else {}
+    return ids_paso_wifi_incompatibles(hechos)
+
+
+def _mensaje_cubre_dato_requerido(texto: str, paso, ctx: dict) -> bool:
+    """True si el turno ya trae el dato (no es reiteración vacía del síntoma)."""
+    if _mensaje_reporta_luces_ont(texto):
+        return True
+    pid = str(getattr(paso, "id", "") or "")
+    cub = {str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()}
+    if pid and pid in cub:
+        return True
+    if respuesta_paso_ok(texto) is True:
+        return True
+    return False
+
+
+def _resolver_pregunta_howto(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+) -> dict | None:
+    """How-to/causal: responder con copy ya conocida y no mover el cursor."""
+    if not es_pregunta_howto_o_causal(texto):
+        return None
+    intent = str(ctx.get("intencion") or "")
+    if not intent or intent == "general":
+        return None
+    pb = _playbooks(db)
+    pasos = pb.get(intent) or []
+    if not pasos:
+        return None
+    paso_idx = int(ctx.get("paso_idx") or 0)
+    paso_idx = max(0, min(paso_idx, len(pasos) - 1))
+    paso = pasos[paso_idx]
+    tl = (texto or "").lower()
+    resp = ""
+    if "apn" in tl and intent.startswith("movil"):
+        from app.services.diagnostico_n1 import (
+            _MSG_APN_ANDROID,
+            _MSG_APN_IOS,
+            detectar_so_movil,
+        )
+
+        so = detectar_so_movil(texto, crepo.list_mensajes(db, conv.id))
+        resp = _MSG_APN_IOS if so == "ios" else _MSG_APN_ANDROID
+    else:
+        # No inventar: reponer la instrucción del paso actual.
+        resp = paso.pregunta
+    ctx["paso_idx"] = paso_idx
+    ctx["ultima_diag_motivo"] = "howto_sin_avanzar_cursor"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "intencion": intent,
     }
 
 
@@ -399,10 +1015,7 @@ def _sincronizar_login_desde_mensaje(
         return login
     sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
     ctx.pop("multi_cuenta_pendiente", None)
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "login_seleccionado" not in cub:
-        cub.append("login_seleccionado")
-    ctx["pasos_cubiertos"] = cub
+    _note_pasos_cubiertos(ctx, "login_seleccionado")
     return login
 
 
@@ -446,10 +1059,7 @@ def _responder_seleccion_cuenta_internet(
 
     msg = bt.mensaje_seleccion_cuenta_internet(servicios, repregunta=pendiente and not indica_multi)
     ctx["multi_cuenta_pendiente"] = True
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "seleccion_cuenta_internet" not in cub:
-        cub.append("seleccion_cuenta_internet")
-    ctx["pasos_cubiertos"] = cub
+    _note_pasos_cubiertos(ctx, "seleccion_cuenta_internet")
     ctx["ultima_diag_motivo"] = "seleccion_cuenta_internet"
     crepo.set_contexto(conv, ctx)
     db.commit()
@@ -543,10 +1153,7 @@ def _responder_consulta_potencia_onu(
                     calidad_optica=str(ctx.get("bcm_calidad_optica") or ""),
                 )
     aplicar_bcm_a_ctx(ctx, onu)
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "consulta_potencia_onu" not in cub:
-        cub.append("consulta_potencia_onu")
-    ctx["pasos_cubiertos"] = cub
+    _note_pasos_cubiertos(ctx, "consulta_potencia_onu")
     ctx["ultima_diag_motivo"] = "consulta_potencia_onu_bcm"
     ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
     crepo.set_contexto(conv, ctx)
@@ -674,8 +1281,6 @@ def _responder_confirmacion_lectura_acceso(
     if not msg:
         return None
 
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    ctx["pasos_cubiertos"] = cub
     ctx["ultima_diag_motivo"] = "confirmacion_lectura_acceso"
     ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
     try:
@@ -780,10 +1385,7 @@ def _responder_consulta_senal_antena(
         }
 
     cpe = sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if "consulta_senal_antena" not in cub:
-        cub.append("consulta_senal_antena")
-    ctx["pasos_cubiertos"] = cub
+    _note_pasos_cubiertos(ctx, "consulta_senal_antena")
     ctx["ultima_diag_motivo"] = "consulta_senal_antena_uisp"
     ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0) + 1
     crepo.set_contexto(conv, ctx)
@@ -1157,6 +1759,8 @@ def _deberia_priorizar_corte_deuda(
     if _pide_pago_o_reactivar(texto):
         return True
     estado = (abonado.estado or "").lower()
+    if intencion_clasificada == "facturacion_reclamo":
+        return False
     if estado in ("corte", "suspendido") and (
         intencion_es_facturacion(intencion_clasificada)
         or intencion_clasificada in ("", "general")
@@ -1272,10 +1876,8 @@ def _respuesta_cambio_wifi_bcm(
         return None
     resp = out_wifi.get("mensaje") or ""
     paso = out_wifi.get("paso_cubierto") or ""
-    cub = list(ctx.get("pasos_cubiertos") or [])
-    if paso and paso not in cub:
-        cub.append(paso)
-    ctx["pasos_cubiertos"] = cub
+    if paso:
+        _note_pasos_cubiertos(ctx, paso)
     if paso:
         ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
     ctx["intencion"] = "cambio_clave_wifi"
@@ -1348,7 +1950,8 @@ def _responder_consulta_saldo(
         pagar_url=pagar,
         ov_url=my,
     )
-    ctx["intencion"] = "facturacion"
+    _aplicar_lifecycle_dominio(ctx, "¿Cuánto debo?", playbook_hint="facturacion")
+    ctx["intencion"] = str(ctx.get("intencion") or "facturacion")
     ctx["saludo"] = True
     ctx.pop("invitado", None)
     ctx.pop("pppoe_informado", None)
@@ -1415,7 +2018,7 @@ def _responder_pendiente_pago_o_corte(
     ctx["saludo"] = True
     ctx["paso_idx"] = 0
     ctx["diag_turnos"] = 0
-    ctx["pasos_cubiertos"] = []
+    _reset_pasos_cubiertos(ctx)
     ctx.pop("pppoe_informado", None)
     ctx.pop("intencion_tecnica_pendiente", None)
     crepo.set_contexto(conv, ctx)
@@ -2368,7 +2971,7 @@ def _iniciar_flujo_tramite_admin(
     ctx["intencion"] = intent
     ctx["paso_idx"] = 0
     ctx["diag_turnos"] = 0
-    ctx["pasos_cubiertos"] = []
+    _reset_pasos_cubiertos(ctx)
     ctx["ultima_respuesta_libre"] = (texto or "")[:240]
     ctx.pop("intencion_tecnica_pendiente", None)
     ctx.pop("aviso_deuda_ofrecido", None)
@@ -2662,10 +3265,14 @@ def _arrancar_intencion_menu(
             intencion=intencion,
             usar_llama=usar_llama,
         )
-    ctx["intencion"] = intencion
-    ctx["paso_idx"] = 0
-    ctx["diag_turnos"] = 0
-    ctx["pasos_cubiertos"] = []
+    trans = _aplicar_lifecycle_dominio(ctx, texto, playbook_hint=intencion)
+    intencion = str(ctx.get("intencion") or intencion)
+    if not (trans and trans.resumed):
+        ctx["intencion"] = intencion
+        ctx["paso_idx"] = 0
+        ctx["diag_turnos"] = 0
+        if not (trans and trans.created):
+            _reset_pasos_cubiertos(ctx)
     if intencion in (
         "internet",
         "internet_radio",
@@ -2761,6 +3368,13 @@ def _arrancar_intencion_menu(
             org_id=org_id,
             consulta=texto,
         )
+    from app.domain.conversation_motor import DISCURSO_INTENCIONES, stamp_bot_question
+
+    paso0 = pasos[0].id if pasos else ""
+    if intencion in DISCURSO_INTENCIONES:
+        stamp_bot_question(ctx, step_id=str(paso0 or ""), pregunta=pregunta, intencion=intencion)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
     _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
@@ -3997,6 +4611,15 @@ def procesar_mensaje_entrante(
             }
 
     ctx = crepo.get_contexto(conv)
+    # Fase 6: un incremento de cs.turn por mensaje de usuario N1 (no CSAT/duplicado).
+    try:
+        from app.domain.conversation_state import increment_user_turn
+
+        increment_user_turn(ctx)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+    except Exception:
+        logger.exception("cs_shadow_turn_increment_failed")
     # Capa de comprensión contextual (aditiva; si falla, sigue el flujo legacy).
     try:
         from app.services.comprension_abonado import preparar_turno_comprension
@@ -4118,10 +4741,7 @@ def procesar_mensaje_entrante(
             from app.services.diagnostico_n1 import mensaje_guia_cambio_clave_wifi
 
             resp = mensaje_guia_cambio_clave_wifi()
-            cub = list(ctx.get("pasos_cubiertos") or [])
-            if "clave_wifi_etiqueta" not in cub:
-                cub.append("clave_wifi_etiqueta")
-            ctx["pasos_cubiertos"] = cub
+            _note_pasos_cubiertos(ctx, "clave_wifi_etiqueta")
             ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
             crepo.set_contexto(conv, ctx)
             db.commit()
@@ -4190,6 +4810,39 @@ def procesar_mensaje_entrante(
         if menu_out is not None:
             return menu_out
 
+    # Fase 9B: Domain Selection antes de howto/discurso (SWITCH-02).
+    sel_out = _seleccionar_dominio_antes_discurso(
+        db,
+        org_id,
+        conv,
+        abonado,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        usar_llama=usar_llama,
+    )
+    if sel_out is not None:
+        return sel_out
+
+    # How-to / pedido ya satisfecho: hechos mandan sobre el cursor del playbook.
+    hechos_out = _resolver_consulta_con_hechos(
+        db, org_id, conv, texto, canal=canal, ctx=ctx
+    )
+    if hechos_out is not None:
+        return hechos_out
+
+    discurso = _aplicar_discurso_cs(
+        db,
+        org_id,
+        conv,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion=str(ctx.get("intencion") or conv.servicio_detectado or ""),
+    )
+    if discurso is not None:
+        return discurso
+
     # Frustración / reiteración: solo tras avance N1 real (paso_idx ≥ 2)
     # No aplicar a mensajes que son solo un DNI.
     if not _es_solo_dni(texto) and detecta_frustracion(texto, ctx):
@@ -4240,11 +4893,27 @@ def procesar_mensaje_entrante(
         and not pide_humano(texto)
         and intent_actual != "aviso_deuda"
         and _elige_pago_o_tecnico(texto) is None
+        and not (
+            ctx.get("contacto_comercial_ofrecido") and _pide_contacto_comercial(texto)
+        )
     )
     ctx = registrar_queja(ctx, texto)
     crepo.set_contexto(conv, ctx)
     db.commit()
 
+    if reiteracion_temprana:
+        intent = str(ctx.get("intencion") or "")
+        pb = _playbooks(db)
+        paso_reiter = None
+        if intent and intent in pb:
+            pasos_re = pb[intent]
+            idx_re = max(0, min(int(ctx.get("paso_idx") or 0), len(pasos_re) - 1))
+            paso_reiter = pasos_re[idx_re] if pasos_re else None
+            _enriquecer_cubiertos_luces(ctx, pasos_re, texto)
+        if _mensaje_cubre_dato_requerido(texto, paso_reiter, ctx):
+            reiteracion_temprana = False
+            crepo.set_contexto(conv, ctx)
+            db.commit()
     if reiteracion_temprana:
         intent = str(ctx.get("intencion") or "")
         pb = _playbooks(db)
@@ -4256,15 +4925,7 @@ def procesar_mensaje_entrante(
             pasos_i = pb[intent]
             idx_tipo, cubiertos_skip = _saltar_triaje_sintoma_internet(pasos_i)
             if cubiertos_skip and idx_tipo < len(pasos_i):
-                cubiertos = [
-                    str(x)
-                    for x in (ctx.get("pasos_cubiertos") or [])
-                    if str(x).strip()
-                ]
-                for pid in ("sintoma_internet", "alcance_internet"):
-                    if pid not in cubiertos:
-                        cubiertos.append(pid)
-                ctx["pasos_cubiertos"] = cubiertos
+                _note_pasos_cubiertos(ctx, "sintoma_internet", "alcance_internet")
                 ctx["paso_idx"] = idx_tipo
                 crepo.set_contexto(conv, ctx)
                 db.commit()
@@ -4704,7 +5365,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = "facturacion"
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = int(ctx.get("diag_turnos") or 0)
-            ctx["pasos_cubiertos"] = list(ctx.get("pasos_cubiertos") or [])
+            # noop: preservar covers canónicos (solo tip de intención)
             crepo.set_contexto(conv, ctx)
             db.commit()
             diag_ov = _aplicar_diagnostico_ia(
@@ -4766,10 +5427,11 @@ def procesar_mensaje_entrante(
         resp = _mensaje_informar_pago_n1(
             texto, abonado=abonado, db=db, seguir_tecnico=seguir
         )
-        ctx["intencion"] = "facturacion_informar_pago"
-        ctx["paso_idx"] = 0
+        _aplicar_lifecycle_dominio(
+            ctx, texto, playbook_hint="facturacion_informar_pago"
+        )
+        ctx["intencion"] = str(ctx.get("intencion") or "facturacion_informar_pago")
         ctx["diag_turnos"] = 0
-        ctx["pasos_cubiertos"] = []
         crepo.set_contexto(conv, ctx)
         db.commit()
         _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
@@ -4837,7 +5499,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = "facturacion_informar_pago"
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             if seguir:
                 ctx["intencion_tecnica_pendiente"] = pendiente
             else:
@@ -4905,7 +5567,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = "corte_deuda"
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             # Conservar el tema técnico por si vuelve después
             ctx["temas_pendientes"] = list(
                 dict.fromkeys(
@@ -4952,7 +5614,7 @@ def procesar_mensaje_entrante(
         ctx["intencion"] = intencion
         ctx["paso_idx"] = 0
         ctx["diag_turnos"] = 0
-        ctx["pasos_cubiertos"] = []
+        _reset_pasos_cubiertos(ctx)
         ctx.pop("intencion_tecnica_pendiente", None)
         conv.servicio_detectado = intencion
         # «Se me acabaron los datos»: ir directo a bono OV (no reinicio/modelo)
@@ -4966,7 +5628,8 @@ def procesar_mensaje_entrante(
         if intencion in ("movil", "movil_datos") and datos_agotados_abono(
             texto, hist_bono
         ):
-            ctx["pasos_cubiertos"] = ["datos_activados", "consumo_paquete"]
+            from app.domain.conversation_state import replace_covers as _rc_covers
+            _rc_covers(ctx, ["datos_activados", "consumo_paquete"])
             ctx["paso_idx"] = 2
             crepo.set_contexto(conv, ctx)
             db.commit()
@@ -5050,7 +5713,7 @@ def procesar_mensaje_entrante(
         ctx["temas_pendientes"] = pendientes
         ctx["paso_idx"] = 0
         ctx["diag_turnos"] = 0
-        ctx["pasos_cubiertos"] = []
+        _reset_pasos_cubiertos(ctx)
         conv.servicio_detectado = intent
         crepo.set_contexto(conv, ctx)
         db.commit()
@@ -5100,7 +5763,7 @@ def procesar_mensaje_entrante(
             ctx["texto_multi_tema"] = texto[:500]
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             crepo.set_contexto(conv, ctx)
             db.commit()
             resp = (
@@ -5139,7 +5802,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = "general"
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             crepo.set_contexto(conv, ctx)
             db.commit()
             return _responder_sin_internet_fijo(
@@ -5167,7 +5830,11 @@ def procesar_mensaje_entrante(
         ctx["intencion"] = intencion
         ctx["paso_idx"] = paso_inicial
         ctx["diag_turnos"] = 0
-        ctx["pasos_cubiertos"] = cubiertos_inicial
+        from app.domain.conversation_state import replace_covers as _rc_init
+
+        _rc_init(ctx, cubiertos_inicial)
+        _aplicar_lifecycle_dominio(ctx, texto, playbook_hint=intencion)
+        intencion = str(ctx.get("intencion") or intencion)
         conv.servicio_detectado = (
             intencion
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")
@@ -5278,7 +5945,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = "general"
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             crepo.set_contexto(conv, ctx)
             db.commit()
             return _responder_sin_internet_fijo(
@@ -5298,7 +5965,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             ctx["correccion_solo_movil"] = True
             conv.servicio_detectado = "movil"
             crepo.set_contexto(conv, ctx)
@@ -5338,6 +6005,28 @@ def procesar_mensaje_entrante(
                 "estado": conv.estado,
                 "intencion": intencion,
             }
+
+    # Fase 8B: cambio de dominio antes de continuar el playbook activo.
+    if intencion and intencion not in ("multi_tema", "aviso_deuda"):
+        trans_early = _aplicar_lifecycle_dominio(ctx, texto)
+        if trans_early and trans_early.changed:
+            intencion = str(ctx.get("intencion") or intencion)
+            ctx.pop("ultima_diag_motivo", None)
+            ctx.pop("ultima_queja", None)
+            ctx["reiteracion_queja"] = 0
+            out_early = _respuesta_tras_transicion_dominio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                usar_llama=usar_llama,
+                trans=trans_early,
+            )
+            if out_early is not None:
+                return out_early
 
     if abonado:
         _sincronizar_login_desde_mensaje(db, abonado, ctx, texto)
@@ -5381,26 +6070,29 @@ def procesar_mensaje_entrante(
     tech_nueva = refinar_intencion_internet(texto)
     if tech_nueva and intencion in ("internet_intermitente", "internet_lento", "wifi"):
         ctx["tecnologia_acceso"] = tech_nueva
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "tipo_acceso" not in cub:
-            cub.append("tipo_acceso")
-        ctx["pasos_cubiertos"] = cub
+        _note_pasos_cubiertos(ctx, "tipo_acceso")
         crepo.set_contexto(conv, ctx)
         db.commit()
 
     if intencion == "internet":
         refinada = refinar_playbook_internet(texto)
         if refinada:
-            intencion = refinada
+            _aplicar_lifecycle_dominio(ctx, texto, playbook_hint=refinada)
+            intencion = str(ctx.get("intencion") or refinada)
             ctx["intencion"] = intencion
-            ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
             conv.servicio_detectado = intencion
-            crepo.set_contexto(conv, ctx)
-            db.commit()
             pb = _playbooks(db)
             pasos = pb.get(intencion) or pb["general"]
+            _preservar_cubiertos_subplaybook(ctx, pasos, texto)
+            idx0 = primer_paso_pendiente(
+                pasos, ctx.get("pasos_cubiertos"), extra_omitir=_omitir_por_hechos(ctx)
+            )
+            if idx0 >= len(pasos):
+                idx0 = max(len(pasos) - 1, 0)
+            ctx["paso_idx"] = idx0
+            crepo.set_contexto(conv, ctx)
+            db.commit()
             diag = _aplicar_diagnostico_ia(
                 db,
                 org_id,
@@ -5414,7 +6106,9 @@ def procesar_mensaje_entrante(
             )
             if diag is not None:
                 return diag
-            pregunta = pasos[0].pregunta
+            pregunta = pasos[idx0].pregunta if pasos else (
+                "¿Tenés fibra (cajita blanca), antena en el techo, o internet por teléfono (ADSL)?"
+            )
             if usar_llama:
                 pregunta = _redactar_con_llama(
                     pregunta,
@@ -5441,7 +6135,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             conv.servicio_detectado = intencion
             crepo.set_contexto(conv, ctx)
             db.commit()
@@ -5521,7 +6215,7 @@ def procesar_mensaje_entrante(
             ctx["intencion"] = intencion
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
+            _reset_pasos_cubiertos(ctx)
             if (
                 abonado
                 and _deuda_positiva(abonado)
@@ -5608,9 +6302,27 @@ def procesar_mensaje_entrante(
         }
 
     # Consulta nueva / cambio de dominio a mitad de flujo.
-    # No seguir diagnostico Sensa/factura/etc. si el abonado abrió otro servicio.
-    # Nunca degradar a "general" (eso reinicia con el saludo del menú).
+    # Fase 8B: lifecycle decide create/pause/resume; no resetear cubiertos.
     if intencion and intencion != "general":
+        trans_dom = _aplicar_lifecycle_dominio(ctx, texto)
+        if trans_dom and trans_dom.changed:
+            intencion = str(ctx.get("intencion") or intencion)
+            ctx.pop("ultima_diag_motivo", None)
+            ctx.pop("ultima_queja", None)
+            ctx["reiteracion_queja"] = 0
+            out_dom = _respuesta_tras_transicion_dominio(
+                db,
+                org_id,
+                conv,
+                abonado,
+                texto,
+                canal=canal,
+                ctx=ctx,
+                usar_llama=usar_llama,
+                trans=trans_dom,
+            )
+            if out_dom is not None:
+                return out_dom
         nueva = None
         if parece_consulta_nueva(texto):
             candidata = clasificar_intencion(texto, servicio_abo)
@@ -5619,12 +6331,30 @@ def procesar_mensaje_entrante(
         if not nueva:
             nueva = es_cambio_tema_claro(texto, intencion, servicio_abo)
         if nueva:
+            trans_nueva = _aplicar_lifecycle_dominio(ctx, texto, playbook_hint=nueva)
+            if trans_nueva and trans_nueva.changed:
+                ctx.pop("ultima_diag_motivo", None)
+                ctx.pop("ultima_queja", None)
+                ctx["reiteracion_queja"] = 0
+                out_nueva = _respuesta_tras_transicion_dominio(
+                    db,
+                    org_id,
+                    conv,
+                    abonado,
+                    texto,
+                    canal=canal,
+                    ctx=ctx,
+                    usar_llama=usar_llama,
+                    trans=trans_nueva,
+                )
+                if out_nueva is not None:
+                    return out_nueva
             intencion = _intencion_compatible_padron(nueva, abonado, texto)
             if intencion and intencion != "general":
                 ctx["intencion"] = intencion
                 ctx["paso_idx"] = 0
                 ctx["diag_turnos"] = 0
-                ctx["pasos_cubiertos"] = []
+                _reset_pasos_cubiertos(ctx)
                 ctx.pop("ultima_diag_motivo", None)
                 ctx.pop("ultima_queja", None)
                 ctx["reiteracion_queja"] = 0
@@ -5665,7 +6395,9 @@ def procesar_mensaje_entrante(
                 ):
                     ctx["intencion"] = "movil_datos"
                     intencion = "movil_datos"
-                    ctx["pasos_cubiertos"] = ["datos_activados", "consumo_paquete"]
+                    from app.domain.conversation_state import replace_covers as _rc_covers
+
+                    _rc_covers(ctx, ["datos_activados", "consumo_paquete"])
                     ctx["paso_idx"] = 2
                     crepo.set_contexto(conv, ctx)
                     db.commit()
@@ -5811,7 +6543,12 @@ def procesar_mensaje_entrante(
                 docs_listos=_docs_listos_titularidad(db, conv, texto),
                 servicio_abonado=servicio_abo,
             )
-        return idx + 1
+        return siguiente_paso_pendiente(
+            pasos,
+            idx,
+            ctx.get("pasos_cubiertos"),
+            extra_omitir=_omitir_por_hechos(ctx),
+        )
 
     def _preguntar(idx: int, *, prefijo: str = "", pregunta_override: str = "") -> dict:
         pregunta = pregunta_override or pasos[idx].pregunta
@@ -5850,10 +6587,7 @@ def procesar_mensaje_entrante(
             )
             pregunta = g["mensaje"] or pregunta
             if g.get("paso_cubierto"):
-                cub = list(ctx.get("pasos_cubiertos") or [])
-                if g["paso_cubierto"] not in cub:
-                    cub.append(g["paso_cubierto"])
-                    ctx["pasos_cubiertos"] = cub
+                _note_pasos_cubiertos(ctx, g["paso_cubierto"])
             if g.get("accion") == "escalate":
                 from app.services.diagnostico_n1 import (
                     _MSG_BONO_OV,
@@ -5886,10 +6620,18 @@ def procesar_mensaje_entrante(
         if g_wifi.get("motivo"):
             pregunta = g_wifi["mensaje"] or pregunta
             if g_wifi.get("paso_cubierto"):
-                cub = list(ctx.get("pasos_cubiertos") or [])
-                if g_wifi["paso_cubierto"] not in cub:
-                    cub.append(g_wifi["paso_cubierto"])
-                    ctx["pasos_cubiertos"] = cub
+                _note_pasos_cubiertos(ctx, g_wifi["paso_cubierto"])
+        from app.domain.conversation_motor import DISCURSO_INTENCIONES, stamp_bot_question
+
+        paso_id = ""
+        if 0 <= idx < len(pasos):
+            paso_id = str(getattr(pasos[idx], "id", "") or "")
+        if intencion in DISCURSO_INTENCIONES:
+            stamp_bot_question(
+                ctx, step_id=paso_id, pregunta=pregunta, intencion=intencion
+            )
+            crepo.set_contexto(conv, ctx)
+            db.commit()
         _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
@@ -5942,15 +6684,21 @@ def procesar_mensaje_entrante(
             if refinada and (pb2.get(refinada) or []):
                 intencion = refinada
                 ctx["intencion"] = intencion
-                ctx["paso_idx"] = 0
                 ctx["diag_turnos"] = 0
-                ctx["pasos_cubiertos"] = []
                 conv.servicio_detectado = intencion
+                pasos = pb2.get(intencion) or pb2["general"]
+                _preservar_cubiertos_subplaybook(ctx, pasos, texto)
+                paso_idx = primer_paso_pendiente(
+                    pasos,
+                    ctx.get("pasos_cubiertos"),
+                    extra_omitir=_omitir_por_hechos(ctx),
+                )
+                if paso_idx >= len(pasos):
+                    paso_idx = max(len(pasos) - 1, 0)
+                ctx["paso_idx"] = paso_idx
                 crepo.set_contexto(conv, ctx)
                 db.commit()
-                pasos = pb2.get(intencion) or pb2["general"]
-                paso_idx = 0
-                return _preguntar(0)
+                return _preguntar(paso_idx)
             idx = min(max(len(pasos) - 1, 0), max(paso_idx, 0))
             ctx["paso_idx"] = idx
             crepo.set_contexto(conv, ctx)
@@ -5974,24 +6722,9 @@ def procesar_mensaje_entrante(
                 return contenido
         # Alta comercial: contacto Batán, sin ticket técnico N2
         if intencion == "alta_plan":
-            from app.domain.flujos_abonado import mensaje_contacto_alta_comercial
-
-            resp = mensaje_contacto_alta_comercial()
-            ctx["intencion"] = "general"
-            ctx["paso_idx"] = 0
-            ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _ofrecer_contacto_alta_comercial(
+                db, org_id, conv, canal=canal, ctx=ctx
+            )
         tid = _crear_ticket_n2(
             db,
             org_id,
@@ -6036,6 +6769,12 @@ def procesar_mensaje_entrante(
     if paso_wifi is not None:
         return paso_wifi
 
+    conf_wifi_seq = _responder_confirmacion_mejora_wifi(
+        db, org_id, conv, texto, canal=canal, ctx=ctx, intencion=intencion
+    )
+    if conf_wifi_seq is not None:
+        return conf_wifi_seq
+
     # El abonado dice que ya quedó resuelto (no en trámites: un «ok» no cierra)
     if not es_tramite_admin(intencion) and (
         indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto)
@@ -6056,24 +6795,9 @@ def procesar_mensaje_entrante(
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
     if veredicto is True and es_paso_derivacion(paso_actual):
         if acepta_derivacion_clara(texto) and intencion == "alta_plan":
-            from app.domain.flujos_abonado import mensaje_contacto_alta_comercial
-
-            resp = mensaje_contacto_alta_comercial()
-            ctx["intencion"] = "general"
-            ctx["paso_idx"] = 0
-            ctx["diag_turnos"] = 0
-            ctx["pasos_cubiertos"] = []
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "general",
-            }
+            return _ofrecer_contacto_alta_comercial(
+                db, org_id, conv, canal=canal, ctx=ctx
+            )
         if acepta_derivacion_clara(texto):
             return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
         # «si tengo» / señal: no es aceptar ticket — seguir N1
@@ -6118,6 +6842,10 @@ def procesar_mensaje_entrante(
         )
     # Sigue fallando → siguiente paso de diagnóstico (no escalar en el primero)
     if veredicto is False:
+        if misma_queja(texto, ctx) or es_pregunta_howto_o_causal(texto):
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return _preguntar_o_recordar(paso_idx)
         if paso_idx >= len(pasos) - 1:
             if es_paso_derivacion(paso_actual):
                 # Última pregunta de derivación respondida con "no"
@@ -6144,6 +6872,10 @@ def procesar_mensaje_entrante(
                 f"Playbook {intencion} agotado sin resolución en paso {paso_idx}"
             )
         nxt = _avanzar_idx(paso_idx)
+        if nxt >= len(pasos):
+            return _escalar(
+                f"Playbook {intencion} agotado sin resolución en paso {paso_idx}"
+            )
         ctx["paso_idx"] = nxt
         crepo.set_contexto(conv, ctx)
         db.commit()
@@ -6151,8 +6883,12 @@ def procesar_mensaje_entrante(
             return _preguntar_o_recordar(nxt, incomprendido=True)
         return _preguntar(nxt)
 
-    # Afirmación / paso cumplido → avanzar en el playbook
+    # Afirmación / paso cumplido → avanzar al siguiente pendiente
     if veredicto is True:
+        if paso_actual and (paso_actual.id or "") not in (
+            list(ctx.get("pasos_cubiertos") or [])
+        ):
+            _note_pasos_cubiertos(ctx, paso_actual.id)
         nxt = _avanzar_idx(paso_idx)
         ctx["paso_idx"] = nxt
         crepo.set_contexto(conv, ctx)
@@ -6179,38 +6915,50 @@ def procesar_mensaje_entrante(
             return _preguntar_o_recordar(nxt, incomprendido=True)
         return _preguntar(nxt)
 
-    # Respuesta informativa / ambigua: avanzar si no es sí/no cerrado,
-    # para recolectar datos; nunca escalar solo por estar en el último paso.
-    if paso_idx < len(pasos) - 1 and not es_paso_derivacion(paso_actual):
-        nxt = _avanzar_idx(paso_idx)
+    # How-to / causal / respuesta no reconocida: nunca idx+1 ciego.
+    _enriquecer_cubiertos_luces(ctx, pasos, texto)
+    cub_now = list(ctx.get("pasos_cubiertos") or [])
+    extra_now = _omitir_por_hechos(ctx)
+    pid_actual = (paso_actual.id if paso_actual else "") or ""
+    if pid_actual and (
+        pid_actual in cub_now or pid_actual in extra_now
+    ) and intencion not in ("cambio_titularidad", "baja_servicio"):
+        nxt = siguiente_paso_pendiente(
+            pasos, paso_idx, cub_now, extra_omitir=extra_now
+        )
+        if nxt >= len(pasos):
+            last = max(len(pasos) - 1, 0)
+            ctx["paso_idx"] = last
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            if pasos and es_paso_derivacion(pasos[last]):
+                return _preguntar(last)
+            return _escalar(
+                f"Playbook {intencion} agotado (pasos cubiertos) en paso {paso_idx}"
+            )
         ctx["paso_idx"] = nxt
-        # Guardar pista del mensaje para el contexto
         ctx["ultima_respuesta_libre"] = (texto or "")[:240]
         crepo.set_contexto(conv, ctx)
         db.commit()
-        if nxt == paso_idx:
-            return _preguntar_o_recordar(nxt, incomprendido=True)
         return _preguntar(nxt)
 
-    pregunta = pasos[min(paso_idx, len(pasos) - 1)].pregunta
-    resp = (
-        "Para seguir ayudándote necesito un poco más de detalle. "
-        f"{pregunta}"
-    )
-    if usar_llama:
-        resp = _redactar_con_llama(
-            resp,
-            f"paso={paso_idx} intencion={intencion} ambiguo=1",
-            db=db,
-            org_id=org_id,
-            consulta=texto,
-            tramite=es_tramite_admin(intencion),
-        )
-    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-    return {
-        "ok": True,
-        "modo": "bot",
-        "conversacion_id": conv.id,
-        "respuesta": resp,
-        "estado": conv.estado,
-    }
+    # Baja / titularidad: el avance custom interpreta texto libre (alcance, modalidad).
+    if intencion in ("cambio_titularidad", "baja_servicio"):
+        if paso_idx < len(pasos) - 1 and not es_paso_derivacion(paso_actual):
+            nxt = _avanzar_idx(paso_idx)
+            ctx["paso_idx"] = nxt
+            ctx["ultima_respuesta_libre"] = (texto or "")[:240]
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            if nxt == paso_idx:
+                return _preguntar_o_recordar(nxt, incomprendido=True)
+            if nxt >= len(pasos):
+                return _preguntar(max(len(pasos) - 1, 0))
+            return _preguntar(nxt)
+
+    ctx["ultima_respuesta_libre"] = (texto or "")[:240]
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    if es_pregunta_howto_o_causal(texto):
+        return _preguntar(paso_idx)
+    return _preguntar(paso_idx)

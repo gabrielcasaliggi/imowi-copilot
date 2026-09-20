@@ -479,8 +479,32 @@ def fusionar_comprension_en_ctx(ctx: dict, comp: ComprensionTurnoAbonado) -> dic
     """Persiste hechos confirmados sin pisar política existente."""
     hechos = dict(ctx.get("hechos") or {})
     for clave, valor in (comp.hechos_nuevos or {}).items():
-        if valor is not None:
-            hechos[clave] = valor
+        if valor is None:
+            continue
+        # No pisar alcance=uno con un "todos" ambiguo (p. ej. «por los dos»).
+        # Sí permitir corrección explícita (también / ninguno / me refería a todos).
+        if (
+            clave == "alcance_wifi"
+            and hechos.get("alcance_wifi") == "uno"
+            and valor == "todos"
+        ):
+            txt = f"{comp.texto_para_reglas or ''} {comp.texto_original or ''}".lower()
+            explicita = any(
+                k in txt
+                for k in (
+                    "también",
+                    "tambien",
+                    "ninguno",
+                    "ningún",
+                    "me refería a todos",
+                    "me referia a todos",
+                    "todos los equipos",
+                    "todos los dispositivo",
+                )
+            )
+            if not explicita:
+                continue
+        hechos[clave] = valor
     ctx["hechos"] = hechos
 
     tech = hechos.get("tecnologia_acceso")
@@ -492,28 +516,24 @@ def fusionar_comprension_en_ctx(ctx: dict, comp: ComprensionTurnoAbonado) -> dic
         ctx["intencion_tecnica_pendiente"] = pend
 
     if hechos.get("interferencias_descartadas"):
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "canal_interferencia" not in cub:
-            cub.append("canal_interferencia")
-            ctx["pasos_cubiertos"] = cub
+        from app.domain.conversation_state import mark_covers
+
+        mark_covers(ctx, "canal_interferencia")
 
     if hechos.get("dispositivo_sin_ethernet"):
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "conexion_cableada" not in cub:
-            cub.append("conexion_cableada")
-            ctx["pasos_cubiertos"] = cub
+        from app.domain.conversation_state import mark_covers
+
+        mark_covers(ctx, "conexion_cableada")
 
     if hechos.get("alcance_wifi") in ("uno", "todos"):
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "otros_dispositivos_wifi" not in cub:
-            cub.append("otros_dispositivos_wifi")
-            ctx["pasos_cubiertos"] = cub
+        from app.domain.conversation_state import mark_covers
+
+        mark_covers(ctx, "otros_dispositivos_wifi")
 
     if hechos.get("zona_wifi"):
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "zona_wifi" not in cub:
-            cub.append("zona_wifi")
-            ctx["pasos_cubiertos"] = cub
+        from app.domain.conversation_state import mark_covers
+
+        mark_covers(ctx, "zona_wifi")
         intent = str(ctx.get("intencion") or "")
         if intent.startswith("internet") or not intent:
             ctx["intencion"] = "wifi"

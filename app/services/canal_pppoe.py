@@ -13,13 +13,15 @@ logger = logging.getLogger("operations_hub")
 
 def _marcar_pasos_rama_pppoe(ctx: dict) -> None:
     """La sesión Radius cubre pasos del playbook: no volver a preguntarlos."""
+    from app.domain.conversation_state import replace_covers
     from app.services.conexion_pppoe import enriquecer_pasos_por_pppoe
 
-    ctx["pasos_cubiertos"] = enriquecer_pasos_por_pppoe(
+    enriched = enriquecer_pasos_por_pppoe(
         list(ctx.get("pasos_cubiertos") or []),
         str(ctx.get("pppoe_triage") or ""),
         rama=str(ctx.get("pppoe_rama") or ""),
     )
+    replace_covers(ctx, enriched)
 
 
 _INTENCIONES_PPPOE = frozenset({
@@ -73,10 +75,9 @@ def _talvez_mensaje_pppoe(
             )
             if pb_tech:
                 ctx["tecnologia_acceso"] = pb_tech
-                cub = list(ctx.get("pasos_cubiertos") or [])
-                if "tipo_acceso" not in cub:
-                    cub.append("tipo_acceso")
-                ctx["pasos_cubiertos"] = cub
+                from app.domain.conversation_state import mark_covers
+
+                mark_covers(ctx, "tipo_acceso")
 
         rama = clasificar_rama_pppoe(estado)
         ctx["pppoe_rama"] = rama

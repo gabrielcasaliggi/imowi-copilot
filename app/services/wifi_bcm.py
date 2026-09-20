@@ -396,10 +396,9 @@ def _abonado_id(abonado: Any | None) -> str:
 
 
 def _marcar_paso(ctx: dict, paso: str) -> None:
-    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-    if paso and paso not in cub:
-        cub.append(paso)
-    ctx["pasos_cubiertos"] = cub
+    from app.domain.conversation_state import mark_covers
+
+    mark_covers(ctx, paso)
 
 
 def _etiqueta_banda(banda: str) -> str:

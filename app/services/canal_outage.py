@@ -128,7 +128,9 @@ def _talvez_respuesta_outage(
                 ctx["intencion"] = "internet"
                 ctx["paso_idx"] = 0
                 ctx["diag_turnos"] = 0
-                ctx["pasos_cubiertos"] = []
+                from app.domain.conversation_state import replace_covers
+
+                replace_covers(ctx, [])
                 ctx["post_outage_n1"] = True
                 if hasattr(conv, "servicio_detectado"):
                     conv.servicio_detectado = "internet"

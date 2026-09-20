@@ -2750,6 +2750,7 @@ def diagnosticar_turno(
         mensaje_confirmacion_mejora_senal_wifi,
         mensaje_confirmacion_paso_diagnostico_wifi,
         pregunta_confirmacion_mejora_senal_wifi,
+        respuesta_guardrail_cable_dispositivo_movil,
     )
 
     if contexto_diagnostico_wifi(
@@ -2780,25 +2781,13 @@ def diagnosticar_turno(
             "motivo": "confirmacion_paso_diagnostico_wifi",
         }
 
-    if contexto_diagnostico_wifi(
-        historial_mensajes, intencion=intencion
-    ) and dispositivo_sin_puerto_ethernet(mensaje_cliente):
-        tcli = (mensaje_cliente or "").lower()
-        if any(
-            k in tcli
-            for k in (
-                "cable",
-                "cómo conecto",
-                "como conecto",
-                "adaptador",
-            )
-        ):
-            return {
-                "accion": "ask",
-                "mensaje": MSG_WIFI_SIN_CABLE_MOVIL,
-                "paso_cubierto": "conexion_cableada",
-                "motivo": "bloqueado_cable_en_dispositivo_movil",
-            }
+    guard_cable = respuesta_guardrail_cable_dispositivo_movil(
+        mensaje_cliente,
+        historial=historial_mensajes,
+        intencion=intencion,
+    )
+    if guard_cable:
+        return guard_cable
 
     wifi_ctx = contexto_diagnostico_wifi(
         historial_mensajes, intencion=intencion
@@ -3021,7 +3010,13 @@ def diagnosticar_turno(
             accion = "ask"
         mensaje = str(data.get("mensaje") or "").strip()
         paso = str(data.get("paso_cubierto") or "").strip()
-        motivo = str(data.get("motivo") or "ia").strip()[:200]
+        from app.domain.action_proposal import sanitize_llm_claimed_motivo
+
+        # Gate 13: motivo del JSON LLM no puede fingir planta/humano.
+        # Heurísticas/guardrails posteriores sí pueden asignar motivos B reales.
+        motivo = sanitize_llm_claimed_motivo(
+            str(data.get("motivo") or "ia").strip()[:200]
+        )
         forzar_optico = bool(
             aplica_optica
             and (

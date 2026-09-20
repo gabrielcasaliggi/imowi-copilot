@@ -71,6 +71,18 @@ def _aplicar_diagnostico_ia(
     if not es_intencion_diagnostico(intencion):
         return None
 
+    discurso = c._aplicar_discurso_cs(
+        db,
+        org_id,
+        conv,
+        texto,
+        canal=canal,
+        ctx=ctx,
+        intencion=intencion,
+    )
+    if discurso is not None:
+        return discurso
+
     # Cambio clave/SSID: NUNCA LLM (inventa IP/router). Remoto BCM o guía fija.
     from app.domain.flujos_abonado import es_pedido_cambio_clave_wifi
     from app.services.diagnostico_n1 import mensaje_guia_cambio_clave_wifi
@@ -136,10 +148,9 @@ def _aplicar_diagnostico_ia(
         turnos = int(ctx.get("diag_turnos") or 0)
         ctx["diag_turnos"] = turnos + 1
         ctx["wifi_bcm"] = "0"
-        cub = list(ctx.get("pasos_cubiertos") or [])
-        if "clave_wifi_etiqueta" not in cub:
-            cub.append("clave_wifi_etiqueta")
-        ctx["pasos_cubiertos"] = cub
+        from app.domain.conversation_state import mark_covers
+
+        mark_covers(ctx, "clave_wifi_etiqueta")
         ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), 1)
         crepo.set_contexto(conv, ctx)
         db.commit()
@@ -386,8 +397,9 @@ def _aplicar_diagnostico_ia(
         ctx["enlace_optico_ok"] = True
         intencion = "wifi"
         ctx["intencion"] = "wifi"
-        cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
-        for pid in (
+        from app.domain.conversation_state import mark_covers
+
+        rama_covers = [
             "wifi_vs_cable_ftth",
             "luces_los",
             "cable_fibra",
@@ -395,16 +407,17 @@ def _aplicar_diagnostico_ia(
             "enlace_optico",
             "energia_ont",
             "servicio_tras_optica",
-        ):
-            if pid not in cubiertos:
-                cubiertos.append(pid)
+        ]
+        cubiertos_now = {
+            str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()
+        }
         if _cliente_cable_ok(texto):
             msg = (
                 "Si por cable anda bien, el acceso está OK y el problema es el Wi‑Fi. "
                 "¿Les pasa a todos los equipos Wi‑Fi o solo a uno?"
             )
-            if "otros_dispositivos_wifi" not in cubiertos:
-                cubiertos.append("zona_wifi")
+            if "otros_dispositivos_wifi" not in cubiertos_now:
+                rama_covers.append("zona_wifi")
         elif _cliente_indica_solo_wifi(texto):
             msg = (
                 "Dale, entonces el acceso anda y el tema es el Wi‑Fi. "
@@ -416,8 +429,9 @@ def _aplicar_diagnostico_ia(
                 "¿No te anda en ningún dispositivo o solo por Wi‑Fi? "
                 "Si podés, conectá un cable al router y fijate si navega."
             )
+        mark_covers(ctx, *rama_covers)
+        cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
         turnos = int(ctx.get("diag_turnos") or 0)
-        ctx["pasos_cubiertos"] = cubiertos
         ctx["diag_turnos"] = turnos + 1
         ctx["paso_idx"] = len(cubiertos)
         ctx["ultima_diag_motivo"] = "rama_wifi_post_pppoe"
@@ -521,21 +535,38 @@ def _aplicar_diagnostico_ia(
 
     accion = result.get("accion") or "ask"
     mensaje = (result.get("mensaje") or "").strip()
-    paso = (result.get("paso_cubierto") or "").strip()
-    if paso and paso not in cubiertos:
-        cubiertos.append(paso)
-    # PON verde: capa óptica OK → no seguir al chequeo del cable amarillo
-    if (result.get("motivo") or "") == "pon_verde_enlace_ok":
+    # Fase 10B: paso_cubierto del diagnóstico IA es sugerencia, no mutación.
+    # Solo el Conversation Motor cubre pasos (CONFIRM / PERSISTENCE / FACT).
+    from app.domain.conversation_motor import interpretation_from_ia
+    from app.domain.conversation_state import hydrate_conversation_state
+
+    cs_ia = hydrate_conversation_state(ctx)
+    interp_ia = interpretation_from_ia(result, texto, cs_ia, ctx)
+    if interp_ia.ia_suggested_step:
+        ctx["ia_suggested_step"] = interp_ia.ia_suggested_step
+    if interp_ia.ia_suggested_action:
+        ctx["ia_suggested_action"] = interp_ia.ia_suggested_action
+    # PON verde: solo con evidencia del abonado (B), no por motivo forjado en JSON LLM.
+    plant_cover = False
+    from app.services.diagnostico_n1 import detectar_enlace_optico_ok
+
+    pon_ok_evidencia = bool(detectar_enlace_optico_ok(texto, historial))
+    if (result.get("motivo") or "") == "pon_verde_enlace_ok" and pon_ok_evidencia:
+        from app.domain.conversation_state import mark_covers
+
         for pid in ("luces_los", "cable_fibra", "reinicio_ont"):
             if pid not in cubiertos:
-                cubiertos.append(pid)
-    ctx["pasos_cubiertos"] = cubiertos
+                plant_cover = True
+        mark_covers(ctx, "luces_los", "cable_fibra", "reinicio_ont")
+        cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     ctx["diag_turnos"] = turnos + 1
     ctx["e1_turnos_sin_resolucion"] = ctx["diag_turnos"]
-    ctx["paso_idx"] = min(len(cubiertos), max(len(checklist) - 1, 0))
+    # paso_idx: no avanzar por cover sugerido por IA; solo si planta mutó cubiertos.
+    if plant_cover:
+        ctx["paso_idx"] = min(len(cubiertos), max(len(checklist) - 1, 0))
     ctx["ultima_diag_motivo"] = (result.get("motivo") or "")[:200]
     ctx["intencion"] = intencion
-    if (result.get("motivo") or "") == "pon_verde_enlace_ok":
+    if (result.get("motivo") or "") == "pon_verde_enlace_ok" and pon_ok_evidencia:
         ctx["enlace_optico_ok"] = True
     crepo.set_contexto(conv, ctx)
     db.commit()
@@ -553,15 +584,27 @@ def _aplicar_diagnostico_ia(
             if refinada:
                 intencion = refinada
                 ctx["intencion"] = refinada
-                ctx["paso_idx"] = 0
-                ctx["pasos_cubiertos"] = []
+                pasos_i = _playbooks(db).get(intencion) or []
+                c._preservar_cubiertos_subplaybook(ctx, pasos_i, texto)
+                from app.domain.flujos_abonado import primer_paso_pendiente
+
+                idx0 = primer_paso_pendiente(
+                    pasos_i,
+                    ctx.get("pasos_cubiertos"),
+                    extra_omitir=c._omitir_por_hechos(ctx),
+                )
+                if idx0 >= len(pasos_i):
+                    idx0 = 0
+                ctx["paso_idx"] = idx0
                 conv.servicio_detectado = refinada
             accion = "ask"
             result = dict(result)
             result["accion"] = "ask"
             pasos_i = _playbooks(db).get(intencion) or []
+            idx_ask = int(ctx.get("paso_idx") or 0)
+            idx_ask = max(0, min(idx_ask, max(len(pasos_i) - 1, 0)))
             mensaje = (
-                pasos_i[0].pregunta
+                pasos_i[idx_ask].pregunta
                 if pasos_i
                 else "¿Tenés fibra (cajita blanca), antena en el techo, o internet por teléfono (ADSL)?"
             )
@@ -615,16 +658,18 @@ def _aplicar_diagnostico_ia(
         elif datos_agotados_abono(texto, historial):
             accion = "ask"
             mensaje = _MSG_BONO_OV
-            if "consumo_paquete" not in cubiertos:
-                cubiertos.append("consumo_paquete")
-                ctx["pasos_cubiertos"] = cubiertos
+            from app.domain.conversation_state import mark_covers
+
+            mark_covers(ctx, "consumo_paquete")
+            cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
         elif es_solo_modelo_celular(texto):
             accion = "ask"
             so_m = detectar_so_movil(texto, historial)
             mensaje = _MSG_APN_ANDROID if so_m != "ios" else _MSG_APN_IOS
-            if "so_dispositivo" not in cubiertos:
-                cubiertos.append("so_dispositivo")
-                ctx["pasos_cubiertos"] = cubiertos
+            from app.domain.conversation_state import mark_covers
+
+            mark_covers(ctx, "so_dispositivo")
+            cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
 
     if accion == "escalate":
         from app.services.diagnostico_n1 import _cierra_consulta_facturacion
@@ -647,53 +692,126 @@ def _aplicar_diagnostico_ia(
         )
         if contenido_b2b is not None:
             return contenido_b2b
-        tid = _crear_ticket_n2(
-            db,
-            org_id,
-            conv,
-            abonado,
-            f"Diagnóstico N1 IA: {result.get('motivo') or 'escalate'} ({intencion})",
+        # Gate 11C: LLM/heurística/planta proponen; policy+Motor autorizan;
+        # el canal solo efectúa ticket si ACT_ESCALATE. No cover (10B).
+        from app.domain.action_proposal import proposal_from_diag_result
+        from app.domain.conversation_motor import ACT_ESCALATE, authorize_escalate
+        from app.domain.conversation_state import hydrate_conversation_state
+
+        proposal = proposal_from_diag_result(result, message=mensaje)
+        cs_esc = hydrate_conversation_state(ctx)
+        active_before = cs_esc.active_domain_id
+        cub_before = list(ctx.get("pasos_cubiertos") or [])
+        auth = authorize_escalate(
+            cs_esc,
+            proposal,
+            texto,
+            ctx,
+            turnos_diagnostico=int(ctx.get("diag_turnos") or 0),
             intencion=intencion,
-            paso_idx=int(ctx.get("paso_idx") or 0),
-            ctx=ctx,
         )
-        mensaje = _mensaje_cierre_escalamiento(
-            tid,
-            motivo=str(result.get("motivo") or ""),
-            mensaje_ia=mensaje,
-            nota_temas=_nota_temas_pendientes(ctx),
-            intencion=intencion,
-        )
-        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
-        return {
-            "ok": True,
-            "modo": "espera_agente",
-            "conversacion_id": conv.id,
-            "respuesta": mensaje,
-            "estado": conv.estado,
-            "ticket_id": tid,
-            "intencion": intencion,
-            "diagnostico_ia": True,
-        }
+        if list(ctx.get("pasos_cubiertos") or []) != cub_before:
+            from app.domain.conversation_state import replace_covers
+
+            replace_covers(ctx, cub_before)
+        if hydrate_conversation_state(ctx).active_domain_id != active_before:
+            pass
+        if auth.allow and auth.action.type == ACT_ESCALATE:
+            tid = _crear_ticket_n2(
+                db,
+                org_id,
+                conv,
+                abonado,
+                f"Diagnóstico N1 IA: {result.get('motivo') or 'escalate'} ({intencion})",
+                intencion=intencion,
+                paso_idx=int(ctx.get("paso_idx") or 0),
+                ctx=ctx,
+            )
+            mensaje = _mensaje_cierre_escalamiento(
+                tid,
+                motivo=str(result.get("motivo") or ""),
+                mensaje_ia=auth.message or mensaje,
+                nota_temas=_nota_temas_pendientes(ctx),
+                intencion=intencion,
+            )
+            _enviar_respuesta(
+                db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal)
+            )
+            return {
+                "ok": True,
+                "modo": "espera_agente",
+                "conversacion_id": conv.id,
+                "respuesta": mensaje,
+                "estado": conv.estado,
+                "ticket_id": tid,
+                "intencion": intencion,
+                "diagnostico_ia": True,
+                "escalate_authorized": True,
+                "escalate_source": auth.proposal_source,
+                "escalate_reason": auth.reason,
+            }
+        # DENY → ASK: no ticket, no espera_agente, no notificación de escalación.
+        accion = "ask"
+        if auth.message:
+            mensaje = auth.message
+        ctx["ultima_diag_motivo"] = (auth.reason or "escalate_deny")[:200]
+        crepo.set_contexto(conv, ctx)
+        db.commit()
 
     if accion == "resolved":
-        conv.estado = "cerrado"
+        # Gate 11A etapa 1: LLM/heurística proponen; policy+Motor autorizan;
+        # el canal solo efectúa CLOSE. No cover (10B).
+        from app.domain.action_proposal import proposal_from_diag_result
+        from app.domain.conversation_motor import ACT_CLOSE, authorize_resolved
+        from app.domain.conversation_state import hydrate_conversation_state
+
+        proposal = proposal_from_diag_result(result, message=mensaje)
+        cs_res = hydrate_conversation_state(ctx)
+        active_before = cs_res.active_domain_id
+        cub_before = list(ctx.get("pasos_cubiertos") or [])
+        auth = authorize_resolved(cs_res, proposal, texto, ctx)
+        # Defensa: proposal/step_hint nunca mutan covers ni dominio.
+        if list(ctx.get("pasos_cubiertos") or []) != cub_before:
+            from app.domain.conversation_state import replace_covers
+
+            replace_covers(ctx, cub_before)
+        if hydrate_conversation_state(ctx).active_domain_id != active_before:
+            # no debería ocurrir; no reescribimos CS acá
+            pass
+        if auth.allow and auth.action.type == ACT_CLOSE:
+            if not mensaje or result.get("cierre_calido"):
+                mensaje = auth.message or _mensaje_cierre_calido(
+                    _primer_nombre_cliente(abonado)
+                )
+            else:
+                mensaje = auth.message or mensaje
+            conv.estado = "cerrado"
+            db.commit()
+            _enviar_respuesta(
+                db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal)
+            )
+            enviar_encuesta_cierre(
+                db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
+            )
+            return {
+                "ok": True,
+                "modo": "cerrado",
+                "conversacion_id": conv.id,
+                "respuesta": mensaje,
+                "estado": conv.estado,
+                "intencion": intencion,
+                "diagnostico_ia": True,
+                "resolved_authorized": True,
+                "resolved_source": auth.proposal_source,
+                "resolved_reason": auth.reason,
+            }
+        # DENY → ASK: no cerrar, no encuesta.
+        accion = "ask"
+        if auth.message:
+            mensaje = auth.message
+        ctx["ultima_diag_motivo"] = (auth.reason or "resolved_deny")[:200]
+        crepo.set_contexto(conv, ctx)
         db.commit()
-        if not mensaje or result.get("cierre_calido"):
-            mensaje = _mensaje_cierre_calido(_primer_nombre_cliente(abonado))
-        _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
-        enviar_encuesta_cierre(
-            db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
-        )
-        return {
-            "ok": True,
-            "modo": "cerrado",
-            "conversacion_id": conv.id,
-            "respuesta": mensaje,
-            "estado": conv.estado,
-            "intencion": intencion,
-            "diagnostico_ia": True,
-        }
 
     if not mensaje:
         mensaje = "Contame un poco más del problema para seguir el diagnóstico."
@@ -714,12 +832,43 @@ def _aplicar_diagnostico_ia(
     if g_wifi.get("motivo"):
         mensaje = g_wifi["mensaje"] or mensaje
         if g_wifi.get("paso_cubierto"):
-            cubiertos = list(ctx.get("pasos_cubiertos") or [])
-            if g_wifi["paso_cubierto"] not in cubiertos:
-                cubiertos.append(g_wifi["paso_cubierto"])
-                ctx["pasos_cubiertos"] = cubiertos
-                crepo.set_contexto(conv, ctx)
-                db.commit()
+            from app.domain.conversation_state import mark_covers
+
+            mark_covers(ctx, g_wifi["paso_cubierto"])
+            cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+    from app.domain.conversation_motor import DISCURSO_INTENCIONES, stamp_bot_question
+    from app.domain.conversation_state import hydrate_conversation_state as _hydrate_cs
+
+    if intencion in DISCURSO_INTENCIONES:
+        cub_set = set(cubiertos)
+        # R6: no mover pending por un cover sugerido por IA. Si ya hay un
+        # pending autorizado aún no cubierto, se conserva su step_id.
+        paso_stamp = ""
+        cs_stamp = _hydrate_cs(ctx)
+        existing_pb = cs_stamp.pending_bot
+        if (
+            existing_pb
+            and existing_pb.step_id
+            and existing_pb.step_id not in cub_set
+            and (
+                not existing_pb.domain_id
+                or existing_pb.domain_id == cs_stamp.active_domain_id
+            )
+        ):
+            paso_stamp = str(existing_pb.step_id)
+        if not paso_stamp:
+            for p in checklist:
+                pid = str(getattr(p, "id", "") or "")
+                if pid and pid not in cub_set:
+                    paso_stamp = pid
+                    break
+        stamp_bot_question(
+            ctx, step_id=paso_stamp, pregunta=mensaje, intencion=intencion
+        )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
     _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
