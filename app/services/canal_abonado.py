@@ -4870,7 +4870,23 @@ def procesar_mensaje_entrante(
         for k in ("dni", "documento", "número de socio", "numero de socio", "nro de socio")
     )
     _no_reinterpretar_dni = es_diagnostico_tecnico_sin_facturacion(_intent_ahora)
-    if abonado and _es_solo_dni(texto) and not (_no_reinterpretar_dni and not _dni_explicito):
+    # Mid-playbook que pide DNI (reclamo, trámites): no pivotar a saldo/aviso de pago.
+    _flujo_pide_dni = (
+        _intent_ahora
+        in (
+            "facturacion_reclamo",
+            "facturacion_factura",
+            "facturacion_estado_cuenta",
+        )
+        or es_tramite_admin(_intent_ahora)
+        or _espera_docs_tramite(db, conv)
+    )
+    if (
+        abonado
+        and _es_solo_dni(texto)
+        and not _flujo_pide_dni
+        and not (_no_reinterpretar_dni and not _dni_explicito)
+    ):
         from app.services.eco_voice import texto_monto_ars, texto_ov_aviso_pago
 
         deuda = str(abonado.deuda_monto or "0").strip() or "0"

@@ -518,8 +518,8 @@ def _texto_responde_ask_fact(texto: str) -> bool:
     ok = respuesta_paso_ok(raw)
     if ok is True:
         return True
-    if ok is False:
-        return False
+    # ok is False (p.ej. «sigue igual») sigue siendo respuesta sustantiva al ASK_FACT:
+    # el cover avanza al siguiente paso. La reiteración de síntoma ya se filtró arriba.
     tokens = [w for w in t.split() if w not in {"si", "sí", "no", "ok", "dale"}]
     return len(tokens) >= 2
 
