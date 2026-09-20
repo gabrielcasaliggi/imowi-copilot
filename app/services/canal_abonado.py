@@ -205,6 +205,140 @@ def _saltar_triaje_sintoma_internet(pasos: list) -> tuple[int, list[str]]:
     return 0, []
 
 
+def _aplicar_salto_triaje_corte_total(
+    ctx: dict, texto: str, *, db: Session | None = None
+) -> bool:
+    """Internet + corte total → cubrir síntoma/alcance y cursor en tipo_acceso.
+
+    El lifecycle temprano (Domain Selection) puede proyectar ``intencion=internet``
+    sin pasar por el arranque de playbook; sin este salto el bot re-pregunta el
+    triaje aunque el usuario ya dijo «no tengo internet».
+    """
+    intent = str(ctx.get("intencion") or "").strip()
+    if intent not in ("internet", "internet_ftth"):
+        return False
+    if not _cliente_reporta_corte_total(texto):
+        return False
+    if db is not None:
+        pasos = _playbooks(db).get("internet") or _playbooks(db).get(intent) or []
+    else:
+        from app.domain.flujos_abonado import PLAYBOOKS
+
+        pasos = PLAYBOOKS.get("internet") or PLAYBOOKS.get(intent) or []
+    idx, skip = _saltar_triaje_sintoma_internet(pasos)
+    if not skip:
+        return False
+    cubiertos = {str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()}
+    if not all(s in cubiertos for s in skip):
+        from app.domain.conversation_state import mark_covers
+
+        mark_covers(ctx, *skip)
+    ctx["paso_idx"] = max(int(ctx.get("paso_idx") or 0), idx)
+    # Refine deja pending en síntoma; invalidarlo si ya está cubierto.
+    try:
+        from app.domain.conversation_state import CS_KEY, hydrate_conversation_state
+
+        cs = hydrate_conversation_state(ctx)
+        slot = cs.active_slot()
+        if slot is not None:
+            slot.cursor = int(ctx["paso_idx"])
+            skip_set = set(skip)
+            if slot.pending_bot and str(slot.pending_bot.step_id or "") in skip_set:
+                slot.pending_bot = None
+            if cs.pending_bot and str(cs.pending_bot.step_id or "") in skip_set:
+                cs.pending_bot = None
+            ctx["pasos_cubiertos"] = list(slot.covered_steps)
+        ctx[CS_KEY] = cs.to_dict()
+    except Exception:
+        logger.exception("salto_triaje_pending_sync_failed")
+    return True
+
+
+def _aplicar_cover_respuesta_ask_fact(ctx: dict, texto: str) -> bool:
+    """Si hay pending ASK_FACT/SYMPTOM y el usuario aportó el dato, cubrir vía Motor.
+
+    Aplica a cualquier playbook (incl. ecolan/facturación fuera de DISCURSO_INTENCIONES).
+    No usa sugerencias LLM.
+    """
+    from app.domain.conversation_motor import (
+        BOT_ASK_FACT,
+        BOT_ASK_SYMPTOM,
+        _texto_responde_ask_fact,
+        classify_step_act,
+    )
+    from app.domain.conversation_state import (
+        CS_KEY,
+        hydrate_conversation_state,
+        mark_covers,
+    )
+    from app.domain.flujos_abonado import PLAYBOOKS, primer_paso_pendiente
+
+    if not _texto_responde_ask_fact(texto):
+        return False
+    try:
+        cs = hydrate_conversation_state(ctx)
+        slot = cs.active_slot()
+        pb = cs.pending_bot
+        if pb is None and slot is not None:
+            pb = slot.pending_bot
+        covered = list(slot.covered_steps) if slot is not None else list(
+            ctx.get("pasos_cubiertos") or []
+        )
+        sid = ""
+        if (
+            pb is not None
+            and pb.act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM)
+            and pb.step_id
+            and str(pb.step_id) not in covered
+        ):
+            sid = str(pb.step_id)
+        if not sid:
+            last = cs.last_bot_act or (slot.last_bot_act if slot else None)
+            cand = str(getattr(last, "step_id", "") or "")
+            if cand and cand not in covered:
+                act = classify_step_act(cand, "")
+                if act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM):
+                    sid = cand
+        if not sid:
+            intent = str(
+                ctx.get("intencion") or (slot.playbook if slot else "") or ""
+            )
+            pasos = PLAYBOOKS.get(intent) or []
+            idx = primer_paso_pendiente(pasos, covered)
+            if idx < len(pasos):
+                nxt = pasos[idx]
+                cand = str(getattr(nxt, "id", "") or "")
+                act = classify_step_act(
+                    cand, str(getattr(nxt, "pregunta", "") or "")
+                )
+                if act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM):
+                    sid = cand
+        if not sid or sid in covered:
+            return False
+        mark_covers(ctx, sid)
+        cs = hydrate_conversation_state(ctx)
+        slot = cs.active_slot()
+        if slot is not None:
+            slot.cursor = primer_paso_pendiente(
+                PLAYBOOKS.get(slot.playbook) or PLAYBOOKS.get(
+                    str(ctx.get("intencion") or "")
+                )
+                or [],
+                slot.covered_steps,
+            )
+            if slot.pending_bot and str(slot.pending_bot.step_id or "") == sid:
+                slot.pending_bot = None
+            ctx["pasos_cubiertos"] = list(slot.covered_steps)
+            ctx["paso_idx"] = int(slot.cursor)
+        if cs.pending_bot and str(cs.pending_bot.step_id or "") == sid:
+            cs.pending_bot = None
+        ctx[CS_KEY] = cs.to_dict()
+        return True
+    except Exception:
+        logger.exception("cover_ask_fact_failed")
+        return False
+
+
 def _cliente_reporta_corte_total(texto: str) -> bool:
     """Sigue sin servicio en general (no acotó a «solo Wi‑Fi»)."""
     t = (texto or "").lower().strip()
@@ -640,31 +774,33 @@ def _respuesta_tras_transicion_dominio(
     """Después de create/resume: motor Fase 7 + primer paso realmente pendiente."""
     if trans is None or not trans.changed:
         return None
+    intencion = str(ctx.get("intencion") or trans.playbook or "")
+    # Aviso deuda al entrar a técnico (create o refine general→internet, etc.).
+    if (
+        _intencion_es_tecnica(intencion)
+        and (trans.created or trans.refined or trans.resumed)
+        and abonado
+        and _deuda_positiva(abonado)
+        and not ctx.get("aviso_deuda_ofrecido")
+        and intencion != "corte_deuda"
+    ):
+        ctx["intencion"] = "aviso_deuda"
+        ctx["intencion_tecnica_pendiente"] = intencion
+        ctx["aviso_deuda_ofrecido"] = True
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = _texto_aviso_deuda_tecnico(abonado, intencion)
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": "aviso_deuda",
+        }
     if trans.refined and not trans.resumed and not trans.created:
         return None
-    intencion = str(ctx.get("intencion") or trans.playbook or "")
-    if trans.created and _intencion_es_tecnica(intencion):
-        if (
-            abonado
-            and _deuda_positiva(abonado)
-            and not ctx.get("aviso_deuda_ofrecido")
-            and intencion != "corte_deuda"
-        ):
-            ctx["intencion"] = "aviso_deuda"
-            ctx["intencion_tecnica_pendiente"] = intencion
-            ctx["aviso_deuda_ofrecido"] = True
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "aviso_deuda",
-            }
     acto = _responder_acto_restante_dominio(
         db,
         org_id,
@@ -679,6 +815,8 @@ def _respuesta_tras_transicion_dominio(
     if acto is not None:
         return acto
     conv.servicio_detectado = intencion or conv.servicio_detectado
+    _aplicar_salto_triaje_corte_total(ctx, texto, db=db)
+    intencion = str(ctx.get("intencion") or intencion)
     pasos = _playbooks(db).get(intencion) or _playbooks(db).get("general") or []
     pending = None
     try:
@@ -808,7 +946,9 @@ def _aplicar_discurso_cs(
             result = process_turn(cs, interp, ctx, playbook_steps=pasos)
             paso_idx_prev = ctx.get("paso_idx")
             apply_cs_to_legacy(ctx, result.state)
-            ctx["paso_idx"] = paso_idx_prev
+            # Si el Motor cubrió un ASK_FACT, conservar el cursor derivado.
+            if not interp.proposed_covers:
+                ctx["paso_idx"] = paso_idx_prev
             crepo.set_contexto(conv, ctx)
             db.commit()
         return None
@@ -922,6 +1062,19 @@ def _mensaje_cubre_dato_requerido(texto: str, paso, ctx: dict) -> bool:
         return True
     if respuesta_paso_ok(texto) is True:
         return True
+    try:
+        from app.domain.conversation_motor import (
+            BOT_ASK_FACT,
+            BOT_ASK_SYMPTOM,
+            _texto_responde_ask_fact,
+            classify_step_act,
+        )
+
+        act = classify_step_act(pid, str(getattr(paso, "pregunta", "") or ""))
+        if act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM) and _texto_responde_ask_fact(texto):
+            return True
+    except Exception:
+        pass
     return False
 
 
@@ -4823,6 +4976,12 @@ def procesar_mensaje_entrante(
     )
     if sel_out is not None:
         return sel_out
+    # Lifecycle puede haber proyectado intencion=internet sin salto de triaje.
+    _aplicar_salto_triaje_corte_total(ctx, texto, db=db)
+    # Respuestas a ASK_FACT fuera de DISCURSO_INTENCIONES (ecolan, factura, …).
+    if _aplicar_cover_respuesta_ask_fact(ctx, texto):
+        crepo.set_contexto(conv, ctx)
+        db.commit()
 
     # How-to / pedido ya satisfecho: hechos mandan sobre el cursor del playbook.
     hechos_out = _resolver_consulta_con_hechos(
@@ -4912,6 +5071,9 @@ def procesar_mensaje_entrante(
             _enriquecer_cubiertos_luces(ctx, pasos_re, texto)
         if _mensaje_cubre_dato_requerido(texto, paso_reiter, ctx):
             reiteracion_temprana = False
+            pid_re = str(getattr(paso_reiter, "id", "") or "")
+            if pid_re:
+                _note_pasos_cubiertos(ctx, pid_re)
             crepo.set_contexto(conv, ctx)
             db.commit()
     if reiteracion_temprana:
@@ -5823,18 +5985,16 @@ def procesar_mensaje_entrante(
             k in texto.lower() for k in ("sin tono", "no tiene tono", "no hay tono")
         ):
             paso_inicial = 1
-        cubiertos_inicial: list[str] = []
-        if intencion == "internet" and _cliente_reporta_corte_total(texto):
-            pasos_i = (_playbooks(db).get("internet") or [])
-            paso_inicial, cubiertos_inicial = _saltar_triaje_sintoma_internet(pasos_i)
         ctx["intencion"] = intencion
         ctx["paso_idx"] = paso_inicial
         ctx["diag_turnos"] = 0
         from app.domain.conversation_state import replace_covers as _rc_init
 
-        _rc_init(ctx, cubiertos_inicial)
+        _rc_init(ctx, [])
         _aplicar_lifecycle_dominio(ctx, texto, playbook_hint=intencion)
         intencion = str(ctx.get("intencion") or intencion)
+        if _aplicar_salto_triaje_corte_total(ctx, texto, db=db):
+            paso_inicial = int(ctx.get("paso_idx") or paso_inicial)
         conv.servicio_detectado = (
             intencion
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")

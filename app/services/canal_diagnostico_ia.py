@@ -838,32 +838,35 @@ def _aplicar_diagnostico_ia(
             cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
             crepo.set_contexto(conv, ctx)
             db.commit()
-    from app.domain.conversation_motor import DISCURSO_INTENCIONES, stamp_bot_question
+    from app.domain.conversation_motor import stamp_bot_question
     from app.domain.conversation_state import hydrate_conversation_state as _hydrate_cs
 
-    if intencion in DISCURSO_INTENCIONES:
-        cub_set = set(cubiertos)
-        # R6: no mover pending por un cover sugerido por IA. Si ya hay un
-        # pending autorizado aún no cubierto, se conserva su step_id.
-        paso_stamp = ""
-        cs_stamp = _hydrate_cs(ctx)
-        existing_pb = cs_stamp.pending_bot
-        if (
-            existing_pb
-            and existing_pb.step_id
-            and existing_pb.step_id not in cub_set
-            and (
-                not existing_pb.domain_id
-                or existing_pb.domain_id == cs_stamp.active_domain_id
-            )
-        ):
-            paso_stamp = str(existing_pb.step_id)
-        if not paso_stamp:
-            for p in checklist:
-                pid = str(getattr(p, "id", "") or "")
-                if pid and pid not in cub_set:
-                    paso_stamp = pid
-                    break
+    # Stamp pending para todo diagnóstico (no solo DISCURSO_INTENCIONES):
+    # ecolan/factura/sensa también necesitan ASK_FACT cubierta por el Motor.
+    cub_set = set(cubiertos)
+    paso_stamp = ""
+    cs_stamp = _hydrate_cs(ctx)
+    existing_pb = cs_stamp.pending_bot
+    slot_stamp = cs_stamp.active_slot()
+    if existing_pb is None and slot_stamp is not None:
+        existing_pb = slot_stamp.pending_bot
+    if (
+        existing_pb
+        and existing_pb.step_id
+        and existing_pb.step_id not in cub_set
+        and (
+            not existing_pb.domain_id
+            or existing_pb.domain_id == cs_stamp.active_domain_id
+        )
+    ):
+        paso_stamp = str(existing_pb.step_id)
+    if not paso_stamp:
+        for p in checklist:
+            pid = str(getattr(p, "id", "") or "")
+            if pid and pid not in cub_set:
+                paso_stamp = pid
+                break
+    if paso_stamp or mensaje:
         stamp_bot_question(
             ctx, step_id=paso_stamp, pregunta=mensaje, intencion=intencion
         )

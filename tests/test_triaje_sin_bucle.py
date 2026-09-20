@@ -69,6 +69,7 @@ def _identified_portal(dni: str = "30111222") -> str:
                 "reiteracion_queja",
                 "ultima_queja",
                 "wifi_rama_activada",
+                "cs",
             ):
                 ctx.pop(k, None)
             crepo.set_contexto(c, ctx)

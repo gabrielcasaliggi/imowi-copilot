@@ -24,6 +24,7 @@ from app.domain.conversation_state import (
 from app.domain.flujos_abonado import (
     PLAYBOOKS,
     es_pregunta_howto_o_causal,
+    es_saludo_corto,
     ids_paso_wifi_incompatibles,
     interpreta_alcance_dispositivos,
     primer_paso_pendiente,
@@ -431,12 +432,83 @@ def interpret_turn(
         return interp
 
     if cs.pending_bot:
+        pb = cs.pending_bot
+        # Respuesta sustantiva a ASK_FACT: el Motor cubre el step (no el LLM).
+        # Evitar meta-continuaciones ("dale, seguimos…") que no aportan el dato.
+        if (
+            pb.act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM)
+            and pb.step_id
+            and _texto_responde_ask_fact(raw)
+        ):
+            interp.user_act = USER_REPORT_FACT
+            interp.referenced = _ref_from_pending_bot(cs)
+            interp.proposed_covers = [str(pb.step_id)]
+            return interp
         interp.user_act = USER_ANSWER
         interp.referenced = _ref_from_pending_bot(cs)
         return interp
 
     interp.user_act = USER_ANSWER
     return interp
+
+
+def _texto_responde_ask_fact(texto: str) -> bool:
+    """True si el turno aporta un dato (no saludo ni 'seguí vos')."""
+    raw = (texto or "").strip()
+    if not raw or es_saludo_corto(raw):
+        return False
+    if es_pregunta_howto_o_causal(raw):
+        return False
+    t = _norm(raw)
+    if t.startswith("seguimos") or " seguimos " in f" {t} ":
+        return False
+    # Queja de corte / reiteración de síntoma ≠ respuesta al ASK_FACT pendiente.
+    if any(
+        k in t
+        for k in (
+            "no tengo internet",
+            "no hay internet",
+            "sin internet",
+            "dejo de funcionar",
+            "dejó de funcionar",
+            "me dejo de funcionar",
+            "me dejó de funcionar",
+            "internet dejo de",
+            "internet dejó de",
+            "sigo sin",
+            "sigue sin",
+        )
+    ):
+        return False
+    meta = (
+        "segui vos",
+        "seguí vos",
+        "dale, seguí",
+        "dale segui",
+        "dale, sigue",
+        "contame que",
+        "contame qué",
+        "decime el proximo",
+        "decime el próximo",
+        "que mas necesit",
+        "qué más necesit",
+        "abramos visita",
+        "probemos reiniciar",
+        "prefiero seguir",
+        "seguir aca",
+        "seguir acá",
+        "un poco mas",
+        "un poco más",
+    )
+    if any(m in t for m in meta):
+        return False
+    from app.domain.flujos_abonado import respuesta_paso_ok
+
+    ok = respuesta_paso_ok(raw)
+    if ok is True:
+        return True
+    tokens = [w for w in t.split() if w not in {"si", "sí", "no", "ok", "dale"}]
+    return len(tokens) >= 2
 
 
 def interpretation_from_ia(
@@ -681,6 +753,9 @@ def process_turn(
         )
         if covered_pending:
             cs.pending_bot = None
+            slot = cs.active_slot()
+            if slot is not None:
+                slot.pending_bot = None
             action = _action_next(cs, playbook_steps, ctx)
         else:
             action = BotAction(type=ACT_DEFER, domain_id=cs.active_domain_id)

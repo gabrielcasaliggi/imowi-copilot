@@ -1286,6 +1286,7 @@ def _reset_hilo_n1(conv_id: str) -> None:
             "lectura_forzada_e1",
             "lectura_forzada_e1_veredicto",
             "e1_turnos_sin_resolucion",
+            "cs",
         ):
             ctx.pop(k, None)
         ctx["identificado"] = True

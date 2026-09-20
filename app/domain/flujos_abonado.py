@@ -2931,12 +2931,12 @@ def _token_en_texto(texto: str, token: str) -> bool:
     if not t:
         return False
     # Frases multi-palabra: substring alcanza
-    if " " in t or len(t) > 4:
-        return t in texto
+    if " " in t:
+        return t in (texto or "").lower()
     return bool(
         re.search(
             rf"(?<![a-záéíóúüñ0-9]){re.escape(t)}(?![a-záéíóúüñ0-9])",
-            texto,
+            texto or "",
             flags=re.IGNORECASE,
         )
     )
@@ -3318,7 +3318,7 @@ def respuesta_paso_ok(texto: str) -> bool | None:
         ):
             return None
         return False
-    if any(_token_en_texto(t, p) if len(p) <= 4 else p in t for p in palabras_ok):
+    if any(_token_en_texto(t, p) for p in palabras_ok):
         return True
     return None
 
