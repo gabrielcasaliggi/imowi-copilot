@@ -62,6 +62,8 @@ from app.domain.flujos_abonado import (
     resumen_handoff,
     siguiente_paso_pendiente,
     solicita_baja_servicio,
+    solicita_cambio_domicilio,
+    solicita_cambio_titularidad,
     tag_para_intencion,
     texto_menu_consulta,
     texto_menu_tipo_consulta,
@@ -271,9 +273,15 @@ def _aplicar_cover_respuesta_ask_fact(ctx: dict, texto: str) -> bool:
         hydrate_conversation_state,
         mark_covers,
     )
-    from app.domain.flujos_abonado import PLAYBOOKS, primer_paso_pendiente
+    from app.domain.flujos_abonado import PLAYBOOKS, misma_queja, primer_paso_pendiente
 
+    # Reiterar el síntoma no cubre el dato pendiente.
+    if misma_queja(texto, ctx):
+        return False
     if not _texto_responde_ask_fact(texto):
+        return False
+    # Trámites admin: el avance lo hace avanzar_paso_* (modalidad/alcance/docs).
+    if es_tramite_admin(str(ctx.get("intencion") or "")):
         return False
     try:
         cs = hydrate_conversation_state(ctx)
@@ -775,14 +783,32 @@ def _respuesta_tras_transicion_dominio(
     if trans is None or not trans.changed:
         return None
     intencion = str(ctx.get("intencion") or trans.playbook or "")
-    # Aviso deuda al entrar a técnico (create o refine general→internet, etc.).
+    # Trámite comercial: primer mensaje con alcance/modalidad (no copy genérica del paso 0).
+    if es_tramite_admin(intencion) and (trans.created or trans.resumed):
+        return _iniciar_flujo_tramite_admin(
+            db,
+            org_id,
+            conv,
+            abonado,
+            texto,
+            canal=canal,
+            ctx=ctx,
+            intencion=intencion,
+            usar_llama=usar_llama,
+        )
+    # Aviso deuda solo al entrar a técnico por síntoma (create/refine), nunca en
+    # baja/titularidad ni al retomar un dominio técnico por una respuesta corta.
     if (
         _intencion_es_tecnica(intencion)
-        and (trans.created or trans.refined or trans.resumed)
+        and (trans.created or (trans.refined and not trans.resumed))
         and abonado
         and _deuda_positiva(abonado)
         and not ctx.get("aviso_deuda_ofrecido")
         and intencion != "corte_deuda"
+        and not solicita_baja_servicio(texto)
+        and not solicita_cambio_titularidad(texto)
+        and not solicita_cambio_domicilio(texto)
+        and not es_tramite_admin(str(ctx.get("intencion_previa") or ""))
     ):
         ctx["intencion"] = "aviso_deuda"
         ctx["intencion_tecnica_pendiente"] = intencion
@@ -1054,6 +1080,8 @@ def _omitir_por_hechos(ctx: dict) -> set[str]:
 
 def _mensaje_cubre_dato_requerido(texto: str, paso, ctx: dict) -> bool:
     """True si el turno ya trae el dato (no es reiteración vacía del síntoma)."""
+    if misma_queja(texto, ctx):
+        return False
     if _mensaje_reporta_luces_ont(texto):
         return True
     pid = str(getattr(paso, "id", "") or "")
@@ -2878,6 +2906,9 @@ def _hilo_tiene_adjunto_cliente(db: Session, conv_id: str) -> bool:
 
 
 def _docs_listos_titularidad(db: Session, conv: ConversacionCanal, texto: str) -> bool:
+    # Elegir modalidad + «te mando el DNI» no cuenta como documentación ya enviada.
+    if parse_modalidad_titularidad(texto):
+        return _hilo_tiene_adjunto_cliente(db, conv.id) or insiste_operador_tramite(texto)
     return (
         _hilo_tiene_adjunto_cliente(db, conv.id)
         or declara_envio_docs_tramite(texto)

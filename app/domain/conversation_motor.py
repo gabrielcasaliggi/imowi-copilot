@@ -477,6 +477,17 @@ def _texto_responde_ask_fact(texto: str) -> bool:
             "internet dejó de",
             "sigo sin",
             "sigue sin",
+            "anda mal",
+            "anda lento",
+            "internet anda",
+            "wifi anda",
+            "wi-fi anda",
+            "no anda",
+            "no funciona",
+            "mal el internet",
+            "mal el wifi",
+            "internet mal",
+            "wifi mal",
         )
     ):
         return False
@@ -507,6 +518,8 @@ def _texto_responde_ask_fact(texto: str) -> bool:
     ok = respuesta_paso_ok(raw)
     if ok is True:
         return True
+    if ok is False:
+        return False
     tokens = [w for w in t.split() if w not in {"si", "sí", "no", "ok", "dale"}]
     return len(tokens) >= 2
 

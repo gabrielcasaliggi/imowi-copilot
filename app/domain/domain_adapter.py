@@ -14,6 +14,7 @@ from app.domain.conversation_state import (
     KIND_COMERCIAL,
     KIND_TECNICO,
     ConversationState,
+    DomainSlot,
     hydrate_conversation_state,
     map_playbook_to_kind,
 )
@@ -190,6 +191,60 @@ def _log_transition(
     )
 
 
+def _tramite_comercial_desde_texto(texto: str) -> str | None:
+    """Baja/titularidad/domicilio mandan sobre spans técnicos («internet» en la frase)."""
+    try:
+        from app.domain.flujos_abonado import (
+            solicita_baja_servicio,
+            solicita_cambio_domicilio,
+            solicita_cambio_titularidad,
+        )
+    except Exception:
+        return None
+    if solicita_baja_servicio(texto):
+        return "baja_servicio"
+    if solicita_cambio_titularidad(texto):
+        return "cambio_titularidad"
+    if solicita_cambio_domicilio(texto):
+        return "cambio_domicilio"
+    return None
+
+
+def _respuesta_en_tramite_comercial(previous: DomainSlot | None, texto: str) -> bool:
+    """Producto/modalidad cortos dentro de baja/titularidad: no saltar a técnico."""
+    if previous is None or previous.kind != KIND_COMERCIAL:
+        return False
+    pb = (previous.playbook or "").strip()
+    if pb not in ("baja_servicio", "cambio_titularidad", "cambio_domicilio"):
+        return False
+    try:
+        from app.domain.flujos_abonado import (
+            parse_alcance_baja,
+            parse_modalidad_titularidad,
+        )
+    except Exception:
+        return False
+    if pb == "baja_servicio" and parse_alcance_baja(texto):
+        return True
+    if pb == "cambio_titularidad" and parse_modalidad_titularidad(texto):
+        return True
+    t = (texto or "").strip().lower()
+    if pb == "baja_servicio" and t in {
+        "sensa",
+        "tv",
+        "tele",
+        "internet",
+        "fibra",
+        "móvil",
+        "movil",
+        "total",
+        "todo",
+        "todos",
+    }:
+        return True
+    return False
+
+
 def apply_turn_domain(
     cs: ConversationState,
     texto: str,
@@ -206,10 +261,26 @@ def apply_turn_domain(
 
     spans = domain_spans_in_order(texto)
     secondary_kind = spans[1] if len(spans) > 1 else None
-    kind = spans[0] if spans else kind_from_user_signal(texto)
-    playbook = hint or (
-        _playbook_for_kind(texto, kind, hint) if kind else _playbook_from_text(texto)
-    )
+    tramite_pb = _tramite_comercial_desde_texto(texto)
+    if tramite_pb:
+        kind = KIND_COMERCIAL
+        playbook = hint if hint and map_playbook_to_kind(hint) == KIND_COMERCIAL else tramite_pb
+        # «internet»/«sensa» en la baja no abren técnico secundario.
+        secondary_kind = None
+    elif _respuesta_en_tramite_comercial(previous, texto):
+        return DomainTransitionResult(
+            cs=cs,
+            previous_active_id=prev_id,
+            active_domain_id=cs.active_domain_id,
+            playbook=(previous.playbook if previous else "") or "",
+            reason="noop",
+            secondary_kind=None,
+        )
+    else:
+        kind = spans[0] if spans else kind_from_user_signal(texto)
+        playbook = hint or (
+            _playbook_for_kind(texto, kind, hint) if kind else _playbook_from_text(texto)
+        )
     if kind is None:
         kind_tema, pb_tema = _kind_from_cambio_tema(cs, texto)
         if kind_tema:
