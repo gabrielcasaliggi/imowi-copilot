@@ -2195,8 +2195,6 @@ def _responder_consulta_saldo(
                 pay_u = str(links.get("pay") or "")
                 my_u = str(links.get("invoice") or "")
                 if pay_u or my_u:
-                    from app.services.eco_voice import mensaje_saldo_padron
-
                     amount = str((ar.data or {}).get("amount") or _billing_amount_str(abonado))
                     nota_baja = (
                         "La cuenta figura «de baja» en el sistema."
