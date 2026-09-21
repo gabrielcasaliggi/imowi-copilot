@@ -37,6 +37,7 @@ from app.config import (
     OV_BATAN_ENABLED,
     OV_BATAN_PUBLIC_URL,
     OV_BATAN_TIMEOUT,
+    OV_HANDOFF_V2,
     RADIUS_API_BASE_URL,
     RADIUS_API_ENABLED,
     RADIUS_API_KEY,
@@ -167,9 +168,11 @@ def _default_payload() -> dict[str, Any]:
             "user": OV_BATAN_API_USER,
             "password": OV_BATAN_API_PASSWORD,
             "timeout": OV_BATAN_TIMEOUT,
+            "handoff_v2": OV_HANDOFF_V2,
             "nota": (
-                "Oficina Virtual Batán (API): deep-links autenticados por celular "
-                "(/ov/link?celular=&path=). Mismo patrón jsat-get-link-ov. "
+                "Oficina Virtual Batán (API). Identidad canónica Eko = DNI. "
+                "GET /ov/link (celular+tsid) es legado — no es handoff seguro. "
+                "POST /ov/handoff (handoff_v2) queda off hasta que JSAT lo publique. "
                 "Usuario técnico de servicio; no pegar secretos en código."
             ),
         },
@@ -525,6 +528,10 @@ def resolve_ov_batan(db: Session | None = None) -> dict[str, Any]:
     if not public_url:
         public_url = OV_BATAN_PUBLIC_URL
 
+    handoff_v2 = _as_bool(s.get("handoff_v2"), OV_HANDOFF_V2)
+    if OV_HANDOFF_V2:
+        handoff_v2 = True
+
     return {
         "enabled": enabled,
         "api_url": api_url,
@@ -532,6 +539,7 @@ def resolve_ov_batan(db: Session | None = None) -> dict[str, Any]:
         "user": user,
         "password": password,
         "timeout": timeout,
+        "handoff_v2": handoff_v2,
         "nota": str(s.get("nota") or ""),
     }
 

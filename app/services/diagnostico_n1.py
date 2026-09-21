@@ -1947,33 +1947,43 @@ def _celulares_ov_desde_contexto(contexto_abonado: str) -> list[str]:
     return out
 
 
+def _ov_url_desde_contexto(contexto_abonado: str, key: str) -> str:
+    m = re.search(rf"^- ov_url_{re.escape(key)}:\s*(\S+)", contexto_abonado or "", flags=re.M | re.I)
+    return (m.group(1) if m else "").strip()
+
+
+def _ov_handoff_mode_desde_contexto(contexto_abonado: str) -> str:
+    m = re.search(r"^- ov_handoff_mode:\s*(\S+)", contexto_abonado or "", flags=re.M | re.I)
+    return (m.group(1) if m else "").strip().lower()
+
+
 def _urls_ov_desde_contexto(
     contexto_abonado: str,
     *,
     solo_key: str | None = None,
 ) -> dict[str, str]:
-    """Deep-links OV por celular del padrón/WA o hash público.
+    """URLs OV: precomputadas (DNI/handoff) o hash público.
 
-    ``solo_key``: un solo path (pagar/my/…) como Botmaker.
-    Sin ``solo_key``: solo ``pagar`` + ``my`` (dos pedidos), nunca pack/talón/
-    portabilidad de más — varios /ov/link seguidos reusaban tsid huérfano.
+    No hace round-robin de celulares. Un ``tsid`` en contexto no implica AUTH.
     """
-    from app.services.ov_batan import public_url, url_ov_para_key
+    from app.services.ov_batan import public_url
+    from app.services.ov_handoff import DEFAULT_AUDIENCE
 
-    cels = _celulares_ov_desde_contexto(contexto_abonado)
-    cel0 = cels[0] if cels else ""
-    home = "https://ov.batan.coop"
+    home = DEFAULT_AUDIENCE
+    pre_pagar = _ov_url_desde_contexto(contexto_abonado, "pagar")
+    pre_my = _ov_url_desde_contexto(contexto_abonado, "my")
     if solo_key:
-        link = url_ov_para_key(solo_key, cel0, celulares=cels)
+        pre = _ov_url_desde_contexto(contexto_abonado, solo_key) or (
+            pre_my if solo_key == "my" else pre_pagar if solo_key == "pagar" else ""
+        )
+        link = pre or public_url(solo_key)
         return {solo_key: link, "home": home}
-    pagar = url_ov_para_key("pagar", cel0, celulares=cels)
-    my = url_ov_para_key("my", cel0, celulares=cels)
     return {
-        "pagar": pagar,
-        "my": my,
-        "talon": public_url("talon-de-pago?useCustomer=true"),
-        "pack": public_url("comprar-pack?userCustomer=true"),
-        "portabilidad": public_url("portabilidad?useCustomer=true"),
+        "pagar": pre_pagar or public_url("pagar"),
+        "my": pre_my or public_url("my"),
+        "talon": public_url("talon-de-pago"),
+        "pack": public_url("comprar-pack"),
+        "portabilidad": public_url("portabilidad"),
         "home": home,
     }
 
@@ -1994,16 +2004,15 @@ def _mensaje_envio_factura_ov(*, saldo: str | None, contexto_abonado: str = "") 
     pref = ""
     if saldo is not None:
         pref = mensaje_saldo_padron(saldo, incluir_ov=False) + "\n"
-    if _celular_ov_desde_contexto(contexto_abonado):
+    auth = _ov_handoff_mode_desde_contexto(contexto_abonado) == "authenticated"
+    if auth:
         return (
             f"{pref}"
             "Las facturas también suelen llegar por correo al mail registrado.\n"
-            "Para verlas y descargarlas en la oficina virtual (acceso con tu celular "
-            "de la cuenta):\n"
+            "Para verlas y descargarlas en la oficina virtual:\n"
             f"{ov_link}\n"
             "Por este chat no te adjunto el PDF.\n"
-            "¿Pudiste entrar? Si no tenés correo registrado, avisame y te derivo "
-            "con un agente."
+            "¿Pudiste abrirla?"
         )
     return (
         f"{pref}"
@@ -2011,10 +2020,10 @@ def _mensaje_envio_factura_ov(*, saldo: str | None, contexto_abonado: str = "") 
         "registrado para eso.\n"
         "También las podés ver y descargar en la oficina virtual:\n"
         f"{ov_link}\n"
-        "Entrá autenticándote con ese mismo correo (el registrado para recibir "
-        "las facturas). Por este chat no te adjunto el PDF.\n"
-        "¿Pudiste entrar con ese mail? Si no tenés ningún correo registrado, "
-        "avisame y te derivo con un agente para dejarlo cargado en el sistema."
+        "Ahí vas a identificarte (DNI o usuario de Oficina Virtual). "
+        "Por este chat no te adjunto el PDF.\n"
+        "¿Pudiste entrar? Si no tenés correo registrado, avisame y te derivo "
+        "con un agente para dejarlo cargado en el sistema."
     )
 
 

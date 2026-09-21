@@ -63,7 +63,11 @@ def clasificar_cuenta(
             return "corte"
         if svc.service_on is False:
             return "baja"
-    est = str(getattr(abonado, "estado", "") or "").strip().lower() if abonado else ""
+    est = ""
+    if abonado is not None:
+        from app.services.eko_context import account_status, build_eko_facts
+
+        est = account_status(build_eko_facts(abonado))
     if est in ("baja",):
         return "baja"
     if est in ("corte", "cortado", "suspendido", "suspendida"):
@@ -360,9 +364,11 @@ def decidir_mensaje_mesa(
     if cuenta in ("baja", "corte"):
         return mensaje_comercial(cuenta)
 
-    if not svc and not str(getattr(abonado, "servicio", "") or "").strip():
+    from app.services.eko_context import build_eko_facts, servicio_agregado
+
+    serv_abo = servicio_agregado(build_eko_facts(abonado)) if abonado else ""
+    if not svc and not serv_abo:
         return None
-    serv_abo = str(getattr(abonado, "servicio", "") or "").strip().lower() if abonado else ""
     if not svc and serv_abo not in ("internet", "ambos"):
         return None
 

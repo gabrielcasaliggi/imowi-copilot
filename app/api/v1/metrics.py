@@ -1,4 +1,4 @@
-"""Métricas operativas (LLM)."""
+"""Métricas operativas (LLM + Journeys Fase 7)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 
 from app.auth import UsuarioSesion, requiere_admin
 from app.llm_metrics import history_llm_metrics, snapshot_llm_metrics
+from app.services.eko_journey_observability import snapshot_journey_metrics
 
 router = APIRouter(tags=["Metrics"])
 
@@ -41,3 +42,12 @@ def metrics_llm(
         "live": live,
         "history": history,
     }
+
+
+@router.get("/metrics/eko-journeys")
+def metrics_eko_journeys(
+    _: UsuarioSesion = Depends(requiere_admin),
+):
+    """Contadores in-process de Journeys (sin PII). Vacíos tras restart de proceso."""
+    snap = snapshot_journey_metrics()
+    return {"status": "ok", **snap}

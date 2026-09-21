@@ -192,6 +192,48 @@ BILLTRACK_ENABLED = os.getenv("BILLTRACK_ENABLED", "false").strip().lower() in (
     "on",
 )
 
+# Action Runtime (Agentic Ops 4C) — cableado progresivo. Off por defecto.
+# ACTION_RUNTIME_ACTIONS: lista CSV; vacío = set por defecto (read-only + OV + diag).
+# Mutantes (create_ticket, update_ticket, escalate_human, close_conversation) NO
+# están en el set por defecto: hay que listarlas explícitamente cuando el gate esté listo.
+ACTION_RUNTIME_ENABLED = os.getenv(
+    "ACTION_RUNTIME_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+_raw_ar_actions = os.getenv("ACTION_RUNTIME_ACTIONS", "").strip()
+if _raw_ar_actions:
+    ACTION_RUNTIME_ACTIONS = frozenset(
+        a.strip() for a in _raw_ar_actions.split(",") if a.strip()
+    )
+else:
+    ACTION_RUNTIME_ACTIONS = frozenset(
+        {
+            "show_balance",
+            "show_ticket",
+            "send_message",
+            "request_account_selection",
+            "open_OV",
+            "run_diagnostic_pppoe",
+            "run_diagnostic_bcm",
+            "run_diagnostic_uisp",
+        }
+    )
+
+# Journey Orchestration (Fase 5/7) — off por defecto; orquesta capabilities existentes.
+# Rollout controlado (Fase 7): allowlists opcionales. Si estánías → todo el tráfico
+# cuando el master está ON (no preferido en prod). Para activación acotada setear
+# EKO_JOURNEYS_CHANNELS y/o EKO_JOURNEYS_ORG_IDS (CSV).
+EKO_JOURNEYS_ENABLED = os.getenv(
+    "EKO_JOURNEYS_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+_raw_eko_j_channels = os.getenv("EKO_JOURNEYS_CHANNELS", "").strip()
+EKO_JOURNEYS_CHANNELS = frozenset(
+    c.strip().lower() for c in _raw_eko_j_channels.split(",") if c.strip()
+)
+_raw_eko_j_orgs = os.getenv("EKO_JOURNEYS_ORG_IDS", "").strip()
+EKO_JOURNEYS_ORG_IDS = frozenset(
+    o.strip() for o in _raw_eko_j_orgs.split(",") if o.strip()
+)
+
 # Radius / NAS API (Batan) — estado PPPoE para el bot
 RADIUS_API_BASE_URL = os.getenv(
     "RADIUS_API_BASE_URL", "https://radius.api.batan.coop"
@@ -270,6 +312,13 @@ try:
     OV_BATAN_TIMEOUT = float(os.getenv("OV_BATAN_TIMEOUT", "20") or "20")
 except (TypeError, ValueError):
     OV_BATAN_TIMEOUT = 20.0
+# POST /ov/handoff (JSAT v2). Off por default: no pegar a un endpoint inexistente.
+OV_HANDOFF_V2 = os.getenv("OV_HANDOFF_V2", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 
 try:
     BCM_TIMEOUT = float(os.getenv("BCM_TIMEOUT", "12") or "12")

@@ -74,6 +74,8 @@ def _shape_ok(body: dict) -> None:
         else:
             assert link["url"] is None
     assert "reason_code" in body
+    assert body.get("authenticated") in (True, False)
+    assert body.get("mode") in ("authenticated", "public", "failed")
 
 
 def test_ov_links_requiere_jwt():
@@ -98,19 +100,26 @@ def test_ov_links_requiere_identificado():
 
 
 def test_ov_links_ready_mocked():
+    """ready + authenticated solo con JSAT v2 (POST /ov/handoff)."""
+    from app.services.ov_handoff import MODE_AUTHENTICATED, HandoffOutcome
+
     auth = _portal_identified()
     token = auth["portal_token"]
 
-    def _fake_url(key, celular="", *, db=None, celulares=None):
-        return f"https://ov.example/jsat?tsid=abc&key={key}"
+    def _fake_resolve(intent, abonado, **_kw):
+        dest = {"pay": "pagar", "invoice": "my", "payment_slip": "talon-de-pago"}[intent]
+        return HandoffOutcome(
+            mode=MODE_AUTHENTICATED,
+            url=f"https://ov.batan.coop/handoff?c=opaque-{intent}",
+            destination=dest,
+            intent=intent,
+            reason="",
+            expires_in=60,
+        )
 
     with (
         patch("app.services.ov_batan.ov_configurado", return_value=True),
-        patch(
-            "app.services.ov_batan.candidatos_celular_ov",
-            return_value=["5492235402690"],
-        ),
-        patch("app.services.ov_batan.url_ov_para_key", side_effect=_fake_url),
+        patch("app.services.portal_ov_links.resolve_handoff", side_effect=_fake_resolve),
     ):
         r = client.get("/api/v1/portal/ov-links", headers=_headers(token))
 
@@ -119,26 +128,40 @@ def test_ov_links_ready_mocked():
     _shape_ok(body)
     _assert_no_secret_leak(body)
     assert body["status"] == "ready"
+    assert body["authenticated"] is True
+    assert body["mode"] == "authenticated"
     assert body["reason_code"] is None
     assert all(x["available"] and x["url"] for x in body["links"])
+    assert '"sid":' not in str(body)
 
 
 def test_ov_links_partial_one_missing():
+    from app.services.ov_handoff import MODE_AUTHENTICATED, MODE_FAILED, HandoffOutcome
+
     auth = _portal_identified()
     token = auth["portal_token"]
 
-    def _fake_url(key, celular="", *, db=None, celulares=None):
-        if key == "talon":
-            return ""
-        return f"https://ov.example/jsat?tsid=abc&key={key}"
+    def _fake_resolve(intent, abonado, **_kw):
+        if intent == "payment_slip":
+            return HandoffOutcome(
+                mode=MODE_FAILED,
+                url="",
+                destination="talon-de-pago",
+                intent=intent,
+                reason="jsat_down",
+            )
+        dest = {"pay": "pagar", "invoice": "my"}[intent]
+        return HandoffOutcome(
+            mode=MODE_AUTHENTICATED,
+            url=f"https://ov.batan.coop/handoff?c=opaque-{intent}",
+            destination=dest,
+            intent=intent,
+            reason="",
+        )
 
     with (
         patch("app.services.ov_batan.ov_configurado", return_value=True),
-        patch(
-            "app.services.ov_batan.candidatos_celular_ov",
-            return_value=["5492235402690"],
-        ),
-        patch("app.services.ov_batan.url_ov_para_key", side_effect=_fake_url),
+        patch("app.services.portal_ov_links.resolve_handoff", side_effect=_fake_resolve),
     ):
         r = client.get("/api/v1/portal/ov-links", headers=_headers(token))
 
@@ -146,7 +169,7 @@ def test_ov_links_partial_one_missing():
     body = r.json()
     _shape_ok(body)
     assert body["status"] == "partial"
-    assert body["reason_code"] == "partial"
+    assert body["authenticated"] is False
     by_id = {x["id"]: x for x in body["links"]}
     assert by_id["pay"]["available"] is True
     assert by_id["invoice"]["available"] is True
@@ -154,7 +177,8 @@ def test_ov_links_partial_one_missing():
     assert by_id["payment_slip"]["url"] is None
 
 
-def test_ov_links_unavailable_not_configured():
+def test_ov_links_publico_sin_credenciales_api():
+    """OV-04R: hashes públicos no dependen de login técnico JSAT."""
     auth = _portal_identified()
     token = auth["portal_token"]
 
@@ -165,9 +189,14 @@ def test_ov_links_unavailable_not_configured():
     body = r.json()
     _shape_ok(body)
     _assert_no_secret_leak(body)
-    assert body["status"] == "unavailable"
-    assert body["reason_code"] == "ov_unavailable"
-    assert all(not x["available"] and x["url"] is None for x in body["links"])
+    assert body["status"] == "partial"
+    assert body["authenticated"] is False
+    assert body["mode"] == "public"
+    assert all(x["available"] and x["url"] for x in body["links"])
+    for x in body["links"]:
+        assert x["url"].startswith("https://ov.batan.coop/#/")
+        assert "tsid=" not in x["url"].lower()
+        assert "sid=" not in x["url"].lower()
 
 
 def test_ov_links_unavailable_on_exception():
@@ -177,7 +206,7 @@ def test_ov_links_unavailable_on_exception():
     with (
         patch("app.services.ov_batan.ov_configurado", return_value=True),
         patch(
-            "app.services.ov_batan.candidatos_celular_ov",
+            "app.services.portal_ov_links.resolve_handoff",
             side_effect=TimeoutError("OV timeout"),
         ),
     ):
@@ -188,49 +217,53 @@ def test_ov_links_unavailable_on_exception():
     _shape_ok(body)
     _assert_no_secret_leak(body)
     assert body["status"] == "unavailable"
+    assert body["authenticated"] is False
     assert body["reason_code"] == "ov_unavailable"
     assert "timeout" not in str(body).lower()
     assert "OV timeout" not in str(body)
 
 
 def test_ov_links_insufficient_data_public_only():
-    """Sin celular usable → hashes públicos → partial + insufficient_data."""
+    """Sin JSAT v2 → hashes públicos → partial, no ready, no authenticated."""
     auth = _portal_identified()
     token = auth["portal_token"]
 
-    def _fake_url(key, celular="", *, db=None, celulares=None):
-        return f"https://ov.batan.coop/#/{key}"
-
-    with (
-        patch("app.services.ov_batan.ov_configurado", return_value=True),
-        patch("app.services.ov_batan.candidatos_celular_ov", return_value=[]),
-        patch("app.services.ov_batan.url_ov_para_key", side_effect=_fake_url),
-    ):
+    with patch("app.services.ov_batan.ov_configurado", return_value=True):
         r = client.get("/api/v1/portal/ov-links", headers=_headers(token))
 
     assert r.status_code == 200
     body = r.json()
     _shape_ok(body)
+    _assert_no_secret_leak(body)
     assert body["status"] == "partial"
+    assert body["authenticated"] is False
+    assert body["mode"] == "public"
     assert body["reason_code"] == "insufficient_data"
     assert all(x["available"] for x in body["links"])
+    assert all("tsid=" not in (x["url"] or "").lower() for x in body["links"])
 
 
 def test_ov_links_ignora_query_abonado_ajeno():
     """No hay query de account/subscriber; identidad solo del JWT."""
+    from app.services.ov_handoff import MODE_PUBLIC, HandoffOutcome
+
     auth = _portal_identified()
     token = auth["portal_token"]
+    seen: list[str] = []
+
+    def _fake_resolve(intent, abonado, **_kw):
+        seen.append(str(getattr(abonado, "dni", "") or ""))
+        return HandoffOutcome(
+            mode=MODE_PUBLIC,
+            url="https://ov.batan.coop/#/pagar",
+            destination="pagar",
+            intent=intent,
+            reason="legacy_link",
+        )
 
     with (
         patch("app.services.ov_batan.ov_configurado", return_value=True),
-        patch(
-            "app.services.ov_batan.candidatos_celular_ov",
-            return_value=["5492235402690"],
-        ) as mock_cels,
-        patch(
-            "app.services.ov_batan.url_ov_para_key",
-            return_value="https://ov.example/jsat?tsid=x",
-        ),
+        patch("app.services.portal_ov_links.resolve_handoff", side_effect=_fake_resolve),
     ):
         r = client.get(
             "/api/v1/portal/ov-links",
@@ -239,6 +272,6 @@ def test_ov_links_ignora_query_abonado_ajeno():
         )
 
     assert r.status_code == 200
-    assert r.json()["status"] == "ready"
-    # candidatos se invocó con el abonado del JWT, no con params
-    assert mock_cels.called
+    assert r.json()["authenticated"] is False
+    assert seen
+    assert all(d == "30111222" for d in seen)

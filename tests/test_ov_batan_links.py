@@ -144,21 +144,22 @@ def test_candidatos_app_usa_wa_hermano(monkeypatch):
     assert cels == ["5492235402690"]
 
 
-def test_urls_ov_desde_contexto_no_pide_cinco_paths(monkeypatch):
-    """Saldo/plantilla solo piden pagar+my (no talón/pack/portabilidad)."""
+def test_urls_ov_desde_contexto_no_pide_cinco_paths():
+    """Saldo/plantilla usan URLs precomputadas o hash público; no /ov/link."""
     from app.services import diagnostico_n1 as d
-    from app.services import ov_batan as ov
 
-    keys: list[str] = []
-
-    def _fake(key, celular="", db=None, celulares=None):
-        keys.append(key)
-        return f"https://ov.fast/{key}?tsid=1&user=549"
-
-    monkeypatch.setattr(ov, "url_ov_para_key", _fake)
-    out = d._urls_ov_desde_contexto("- celular_ov: 5492235402690\n")
-    assert "tsid=1" in out["pagar"] and "tsid=1" in out["my"]
-    assert keys == ["pagar", "my"]
+    out = d._urls_ov_desde_contexto(
+        "- ov_url_pagar: https://ov.batan.coop/#/pagar\n"
+        "- ov_url_my: https://ov.batan.coop/#/my\n"
+    )
+    assert out["pagar"].endswith("#/pagar")
+    assert out["my"].endswith("#/my")
+    assert "tsid=" not in out["pagar"]
+    ctx_auth = d._urls_ov_desde_contexto(
+        "- ov_url_pagar: https://ov.batan.coop/handoff?c=opaque\n"
+        "- ov_handoff_mode: authenticated\n"
+    )
+    assert ctx_auth["pagar"] == "https://ov.batan.coop/handoff?c=opaque"
 
 
 def test_resolver_celular_wa_prioriza_hilo_botmaker():
@@ -203,7 +204,8 @@ def test_urls_sin_api_son_publicas(monkeypatch):
     assert "#/talon-de-pago" in urls["talon"]
 
 
-def test_fast_or_public_prueba_549_primero(monkeypatch):
+def test_fast_or_public_un_solo_celular(monkeypatch):
+    """LEGADO: un MSISDN, sin round-robin de variantes ni de otros números."""
     from app.services import ov_batan as ov
 
     clear_sid_cache()
@@ -211,22 +213,21 @@ def test_fast_or_public_prueba_549_primero(monkeypatch):
 
     def _fake_link(path, celular, db=None):
         tried.append(celular)
-        if celular == "5492235551234":
-            return (
-                "https://ov.batan.coop/#/pagar?useCustomer=true"
-                f"&tsid=x&user={celular}"
-            )
-        # Simula el tsid huérfano si se pide sin 54
         return (
             "https://ov.batan.coop/#/pagar?useCustomer=true"
-            "&tsid=orphan&user=5492235551234"
+            f"&tsid=x&user={celular}"
         )
 
     monkeypatch.setattr(ov, "ov_configurado", lambda db=None: True)
     monkeypatch.setattr(ov, "get_fast_link", _fake_link)
-    link = fast_or_public(PATH_PAGAR, "5492235551234", db=None)
+    link = fast_or_public(
+        PATH_PAGAR,
+        "5492235551234",
+        db=None,
+        celulares=["5491111111111", "5492222222222"],
+    )
     assert "tsid=x" in link
-    assert tried[0] == "5492235551234"
+    assert tried == ["5492235551234"]
 
 
 def test_resolve_ov_abre_db_si_session_none(monkeypatch):
@@ -280,30 +281,38 @@ def test_mensaje_saldo_usa_urls_dinamicas():
     assert "#/my?tsid=1" in msg
 
 
-def test_mensaje_factura_usa_my_cuando_hay_celular(monkeypatch):
-    from app.services import ov_batan as ov
+def test_mensaje_factura_publico_pide_identificarse():
     from app.services.diagnostico_n1 import _mensaje_envio_factura_ov
 
-    def _fake(key, celular="", db=None, celulares=None):
-        return f"https://ov.batan.coop/fast/{key}"
-
-    monkeypatch.setattr(ov, "url_ov_para_key", _fake)
     msg = _mensaje_envio_factura_ov(
         saldo=None,
-        contexto_abonado="CONTEXTO\n- celular_ov: 5492235551234\n",
+        contexto_abonado="CONTEXTO\n- ov_url_my: https://ov.batan.coop/#/my\n",
     )
-    assert "https://ov.batan.coop/fast/my" in msg or "https://ov.batan.coop/fast/pagar" in msg
-    assert "acceso con tu celular" in msg.lower()
+    assert "https://ov.batan.coop/#/my" in msg
+    assert "identificarte" in msg.lower()
+    assert "acceso con tu celular" not in msg.lower()
 
 
-def test_plantilla_pago_ctx_inyecta_pagar(monkeypatch):
-    from app.services import ov_batan as ov
+def test_mensaje_factura_auth_no_vende_celular():
+    from app.services.diagnostico_n1 import _mensaje_envio_factura_ov
+
+    msg = _mensaje_envio_factura_ov(
+        saldo=None,
+        contexto_abonado=(
+            "CONTEXTO\n- ov_url_my: https://ov.batan.coop/handoff?c=opaque\n"
+            "- ov_handoff_mode: authenticated\n"
+        ),
+    )
+    assert "https://ov.batan.coop/handoff?c=opaque" in msg
+    assert "acceso con tu celular" not in msg.lower()
+
+
+def test_plantilla_pago_ctx_inyecta_pagar():
     from app.services.diagnostico_n1 import _plantilla_pago_ctx
 
-    def _fake(key, celular="", db=None, celulares=None):
-        return f"https://ov.batan.coop/fast/{key}-x"
-
-    monkeypatch.setattr(ov, "url_ov_para_key", _fake)
-    txt = _plantilla_pago_ctx("- celular_ov: 5492235551234\n")
+    txt = _plantilla_pago_ctx(
+        "- ov_url_pagar: https://ov.batan.coop/fast/pagar-x\n"
+        "- ov_url_my: https://ov.batan.coop/fast/my-x\n"
+    )
     assert "https://ov.batan.coop/fast/pagar-x" in txt
     assert "https://ov.batan.coop/fast/my-x" in txt

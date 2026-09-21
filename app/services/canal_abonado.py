@@ -118,22 +118,29 @@ def _plantilla_pago_ov(
     *,
     canal: str,
 ) -> str:
-    """Plantilla de pago con deep-link OV por celular del padrón (todo canal)."""
+    """Plantilla de pago. Hash público de OV; el abonado se identifica allá."""
+    from app.estate import canal_repo as crepo
     from app.services.eco_voice import PLANTILLA_PAGO_QR, plantilla_pago_qr
-    from app.services.ov_batan import candidatos_celular_ov, url_ov_para_key
+    from app.services.ov_handoff import resolve_handoff
 
     try:
-        cels = candidatos_celular_ov(
+        ctx = crepo.get_contexto(conv)
+        cands = ctx.get("phone_candidates")
+        pay = resolve_handoff(
+            "pay",
             abonado,
-            canal=canal,
-            wa_id=getattr(conv, "wa_id", "") or "",
-            telefono_hilo=getattr(conv, "telefono", "") or "",
             db=db,
+            canal=canal,
+            phone_candidates=cands,
         )
-        # Un path autenticado (pagar) + my aparte — mismo criterio WA/portal/app.
-        pagar = url_ov_para_key("pagar", cels[0] if cels else "", db=db, celulares=cels)
-        my = url_ov_para_key("my", cels[0] if cels else "", db=db, celulares=cels)
-        return plantilla_pago_qr(pagar_url=pagar, ov_url=my)
+        inv = resolve_handoff(
+            "invoice",
+            abonado,
+            db=db,
+            canal=canal,
+            phone_candidates=cands,
+        )
+        return plantilla_pago_qr(pagar_url=pay.url, ov_url=inv.url)
     except Exception:
         logger.debug("plantilla_pago_ov: fallback público", exc_info=True)
         return PLANTILLA_PAGO_QR
@@ -1900,14 +1907,40 @@ def _intentar_identificar_por_dni(
     return crepo.find_abonado_por_dni(db, org_id, dni)
 
 
-def _deuda_positiva(abonado: Abonado) -> bool:
-    """True si el padrón indica deuda. BillTrack: balance positivo = debe."""
-    from app.services.eco_voice import parse_monto
+def _eko_facts(abonado: Abonado | None) -> dict:
+    """Vista factual canónica (Eko Facts). Sin probes técnicos."""
+    from app.services.eko_context import build_eko_facts
 
-    m = parse_monto(getattr(abonado, "deuda_monto", None))
-    if m is None:
-        return abonado.estado in ("corte", "suspendido")
-    return m > 0
+    return build_eko_facts(abonado)
+
+
+def _deuda_positiva(abonado: Abonado | None) -> bool:
+    """True si Facts.billing indica deuda. BillTrack: balance positivo = debe."""
+    if abonado is None:
+        return False
+    from app.services.eko_context import has_positive_debt
+
+    return has_positive_debt(_eko_facts(abonado))
+
+
+def _billing_amount_str(abonado: Abonado | None) -> str:
+    """Monto para mensajes N1 desde Facts. unavailable → no inventa $0 en callers."""
+    if abonado is None:
+        return "0"
+    from app.services.eko_context import billing_amount_str
+
+    amount = billing_amount_str(_eko_facts(abonado))
+    return amount if amount is not None else "0"
+
+
+def _account_status(abonado: Abonado | None) -> str:
+    """Estado comercial desde Facts (≠ conectividad técnica)."""
+    if abonado is None:
+        return ""
+    from app.services.eko_context import account_status
+
+    return account_status(_eko_facts(abonado))
+
 
 def _pide_pago_o_reactivar(texto: str) -> bool:
     t = (texto or "").lower()
@@ -1939,7 +1972,7 @@ def _deberia_priorizar_corte_deuda(
         return False
     if _pide_pago_o_reactivar(texto):
         return True
-    estado = (abonado.estado or "").lower()
+    estado = _account_status(abonado)
     if intencion_clasificada == "facturacion_reclamo":
         return False
     if estado in ("corte", "suspendido") and (
@@ -1993,13 +2026,12 @@ def _cliente_informa_pago(texto: str) -> bool:
 def _abonado_cortado_por_deuda(abonado: Abonado | None) -> bool:
     if abonado is None:
         return False
-    estado = (abonado.estado or "").strip().lower()
-    if estado in ("corte", "cortado", "suspendido", "suspendida"):
-        return True
-    from app.services.eco_voice import parse_monto
+    from app.services.eko_context import has_positive_debt, is_commercially_cut
 
-    m = parse_monto(getattr(abonado, "deuda_monto", None))
-    return bool(m and m > 0)
+    facts = _eko_facts(abonado)
+    if is_commercially_cut(facts):
+        return True
+    return has_positive_debt(facts)
 
 
 def _abonado_conectado_radius(
@@ -2097,6 +2129,34 @@ def _mensaje_informar_pago_n1(
     )
 
 
+def _cliente_consulta_ticket_propio(texto: str) -> bool:
+    t = (texto or "").lower()
+    return any(
+        k in t
+        for k in (
+            "estado del ticket",
+            "estado de mi ticket",
+            "mi ticket",
+            "cómo va el ticket",
+            "como va el ticket",
+            "cómo va mi ticket",
+            "como va mi ticket",
+            "seguimiento del ticket",
+            "novedad del ticket",
+        )
+    )
+
+
+def _extraer_ticket_id_de_texto(texto: str) -> str:
+    import re
+
+    m = re.search(r"\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b", texto or "", re.I)
+    if m:
+        return m.group(1)
+    m2 = re.search(r"\bticket\s*[#:]?\s*([A-Za-z0-9_-]{6,})\b", texto or "", re.I)
+    return (m2.group(1) if m2 else "").strip()
+
+
 def _responder_consulta_saldo(
     db: Session,
     org_id: str,
@@ -2107,30 +2167,81 @@ def _responder_consulta_saldo(
     canal: str,
 ) -> dict:
     """Saldo/deuda del padrón — sin empujar QR si no hay deuda."""
-    from app.services.ov_batan import candidatos_celular_ov, url_ov_para_key
+    from app.estate import canal_repo as crepo
+    from app.services.eko_action_bridge import action_runtime_covers, dispatch_runtime
+    from app.services.eko_context import load_ov_facts
 
-    deuda = str(abonado.deuda_monto or "0").strip() or "0"
-    nota_baja = (
-        "La cuenta figura «de baja» en el sistema."
-        if (abonado.estado or "").lower() == "baja"
-        else ""
-    )
-    cels = candidatos_celular_ov(
-        abonado,
-        canal=canal,
-        wa_id=getattr(conv, "wa_id", "") or "",
-        telefono_hilo=getattr(conv, "telefono", "") or "",
-        db=db,
-    )
-    cel0 = cels[0] if cels else ""
-    pagar = url_ov_para_key("pagar", cel0, db=db, celulares=cels)
-    my = url_ov_para_key("my", cel0, db=db, celulares=cels)
-    resp = mensaje_saldo_padron(
-        deuda,
-        nota_extra=nota_baja,
-        pagar_url=pagar,
-        ov_url=my,
-    )
+    ctx = crepo.get_contexto(conv)
+    resp = ""
+
+    # Runtime path (Facts.billing) — una sola ejecución, sin Legacy paralelo.
+    if action_runtime_covers("show_balance"):
+        ar = dispatch_runtime(
+            "show_balance",
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            decision_name="consulta_saldo",
+        )
+        if ar is not None and ar.status == "success":
+            resp = ar.user_message or ""
+            # OV links públicos (no JSAT) — navegación allowlisted
+            if action_runtime_covers("open_OV"):
+                ov = load_ov_facts(db=db)
+                links = ov.get("links") or {}
+                pay_u = str(links.get("pay") or "")
+                my_u = str(links.get("invoice") or "")
+                if pay_u or my_u:
+                    from app.services.eco_voice import mensaje_saldo_padron
+
+                    amount = str((ar.data or {}).get("amount") or _billing_amount_str(abonado))
+                    nota_baja = (
+                        "La cuenta figura «de baja» en el sistema."
+                        if _account_status(abonado) == "baja"
+                        else ""
+                    )
+                    resp = mensaje_saldo_padron(
+                        amount,
+                        nota_extra=nota_baja,
+                        pagar_url=pay_u,
+                        ov_url=my_u,
+                    )
+            elif not resp:
+                resp = ar.user_message
+        elif ar is not None and ar.status == "unavailable":
+            resp = ar.user_message or "No puedo consultar el saldo en este momento."
+        elif ar is not None:
+            resp = ar.user_message or "No pude consultar el saldo."
+        else:
+            # covers() True pero dispatch None — sin Legacy (XOR)
+            resp = "No pude consultar el saldo."
+    else:
+        # Legacy path
+        from app.services.ov_handoff import resolve_handoff
+
+        deuda = _billing_amount_str(abonado)
+        nota_baja = (
+            "La cuenta figura «de baja» en el sistema."
+            if _account_status(abonado) == "baja"
+            else ""
+        )
+        cands = ctx.get("phone_candidates")
+        pay = resolve_handoff(
+            "pay", abonado, db=db, canal=canal, phone_candidates=cands
+        )
+        inv = resolve_handoff(
+            "invoice", abonado, db=db, canal=canal, phone_candidates=cands
+        )
+        resp = mensaje_saldo_padron(
+            deuda,
+            nota_extra=nota_baja,
+            pagar_url=pay.url,
+            ov_url=inv.url,
+        )
+
     _aplicar_lifecycle_dominio(ctx, "¿Cuánto debo?", playbook_hint="facturacion")
     ctx["intencion"] = str(ctx.get("intencion") or "facturacion")
     ctx["saludo"] = True
@@ -2163,8 +2274,8 @@ def _responder_pendiente_pago_o_corte(
     from app.services.eco_voice import texto_monto_ars
 
     nombre = _primer_nombre_cliente(abonado)
-    deuda = str(abonado.deuda_monto or "0").strip() or "0"
-    estado = (abonado.estado or "").lower()
+    deuda = _billing_amount_str(abonado)
+    estado = _account_status(abonado)
     nota_baja = (
         "La cuenta figura «de baja» en el sistema."
         if estado == "baja"
@@ -2185,7 +2296,7 @@ def _responder_pendiente_pago_o_corte(
         intencion = "facturacion"
     else:
         if cortado:
-            intro += f" Tu cuenta figura «{abonado.estado}»."
+            intro += f" Tu cuenta figura «{estado}»."
         elif tiene_deuda:
             intro += f" Tenés saldo pendiente {texto_monto_ars(deuda)}."
         resp = (
@@ -2453,7 +2564,7 @@ def _reset_ctx_diagnostico(ctx: dict) -> None:
 def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
     from app.services.eco_voice import texto_monto_ars
 
-    monto = texto_monto_ars(getattr(abonado, "deuda_monto", None))
+    monto = texto_monto_ars(_billing_amount_str(abonado))
     if (intencion_tecnica or "").startswith("movil"):
         tema = "del móvil"
     elif (intencion_tecnica or "").startswith("wifi"):
@@ -2467,7 +2578,12 @@ def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
 
 
 def _servicio_abonado(abonado: Abonado | None) -> str:
-    return str(getattr(abonado, "servicio", "") or "").strip().lower() if abonado else ""
+    """Servicio agregado comercial desde Eko Facts (no ORM directo)."""
+    if abonado is None:
+        return ""
+    from app.services.eko_context import servicio_agregado
+
+    return servicio_agregado(_eko_facts(abonado))
 
 
 def _intencion_compatible_padron(intencion: str, abonado: Abonado | None, texto: str = "") -> str:
@@ -2778,7 +2894,7 @@ def _crear_ticket_n2(
     evidencia = "\n".join(f"[{m.autor}] {m.texto}" for m in mensajes[-12:])
     nombre = abonado.nombre if abonado else conv.telefono
     linea = (abonado.linea_msisdn if abonado else "") or conv.telefono
-    intent = intencion or conv.servicio_detectado or (abonado.servicio if abonado else "general")
+    intent = intencion or conv.servicio_detectado or (_servicio_abonado(abonado) or "general")
     tag = tag_para_intencion(str(intent))
     handoff = resumen_handoff(
         abonado=abonado,
@@ -2832,6 +2948,163 @@ def _crear_ticket_n2(
     except Exception:
         logger.warning("Fallo notify handoff tras ticket N2", exc_info=True)
     return t.id
+
+
+def _ticket_via_runtime_o_legacy(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    motivo: str,
+    *,
+    intencion: str = "",
+    paso_idx: int = 0,
+    ctx: dict,
+    canal: str = "",
+    texto: str = "",
+    decision_name: str = "create_ticket",
+) -> tuple[str | None, str | None]:
+    """(ticket_id, pending_user_message).
+
+    Si Runtime cubre create_ticket y falta confirmación → (None, prompt).
+    Si Runtime ejecuta → (tid, None) y el caller NO debe llamar Legacy.
+    Si feature off → Legacy _crear_ticket_n2 → (tid, None).
+    """
+    from app.services.eko_action_bridge import (
+        action_runtime_covers,
+        apply_needs_confirmation_to_ctx,
+        dispatch_runtime,
+    )
+
+    if not action_runtime_covers("create_ticket"):
+        tid = _crear_ticket_n2(
+            db,
+            org_id,
+            conv,
+            abonado,
+            motivo,
+            intencion=intencion,
+            paso_idx=paso_idx,
+            ctx=ctx,
+        )
+        return tid, None
+
+    mensajes = crepo.list_mensajes(db, conv.id)
+    historial = [
+        {"rol": "usuario" if m.autor == "abonado" else "asistente", "contenido": m.texto or ""}
+        for m in mensajes
+    ]
+    ar = dispatch_runtime(
+        "create_ticket",
+        db=db,
+        org_id=org_id,
+        conv=conv,
+        abonado=abonado,
+        ctx=ctx,
+        canal=canal or str(conv.canal or ""),
+        decision_name=decision_name,
+        parameters={"motivo": motivo, "intencion": intencion},
+        historial=historial,
+        texto=texto,
+    )
+    # covers() era True: NUNCA Legacy mutante (ni si dispatch devolviera None).
+    if ar is None:
+        return None, "No pude generar el ticket ahora."
+    if ar.status == "needs_confirmation":
+        return None, apply_needs_confirmation_to_ctx(ctx, ar)
+    if ar.status == "already_done":
+        return str((ar.data or {}).get("ticket_id") or conv.ticket_id or ""), None
+    if ar.status == "success":
+        return str((ar.data or {}).get("ticket_id") or ""), None
+    # denied/failed/unavailable — UX no-mutante; sin Legacy fallback
+    return None, ar.user_message or "No pude generar el ticket ahora."
+
+
+def _talvez_runtime_confirmation_pending(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+) -> dict | None:
+    """Completa create_ticket pendiente tras «sí»/«no» del usuario (trusted)."""
+    from app.services.eko_action_bridge import (
+        action_runtime_covers,
+        resolve_user_confirmation,
+    )
+    from app.services.eko_action_runtime import get_action_state, set_action_state
+
+    st = get_action_state(ctx)
+    if st.get("status") != "confirmation_pending":
+        return None
+    action = str(st.get("action") or "")
+    if action not in ("create_ticket", "escalate_human", "close_conversation"):
+        return None
+    if not action_runtime_covers(action):
+        return None
+    rec, rej = resolve_user_confirmation(
+        ctx=ctx, action=action, texto=texto, intencion=str(ctx.get("intencion") or "")
+    )
+    if rej:
+        set_action_state(ctx, action=action, status="rejected")
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        resp = "Perfecto, no avanzo con eso. ¿En qué más te ayudo?"
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+        }
+    if not rec:
+        return None
+    if action == "create_ticket":
+        tid, pending = _ticket_via_runtime_o_legacy(
+            db,
+            org_id,
+            conv,
+            abonado,
+            "Cliente confirmó escalamiento / ticket",
+            intencion=str(ctx.get("intencion") or "general"),
+            paso_idx=int(ctx.get("paso_idx") or 0),
+            ctx=ctx,
+            canal=canal,
+            texto=texto,
+            decision_name="create_ticket_confirmed",
+        )
+        if pending:
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, pending, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pending,
+                "estado": conv.estado,
+            }
+        if tid:
+            resp = (
+                f"Dale, te derivo con un agente y le paso lo que charlamos. "
+                f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
+            )
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "espera_agente",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "ticket_id": tid,
+            }
+    return None
 
 
 def _nota_temas_pendientes(ctx: dict | None) -> str:
@@ -3131,7 +3404,7 @@ def _prefijo_deuda_baja(abonado: Abonado | None) -> str:
         return ""
     from app.services.eco_voice import texto_monto_ars
 
-    monto = str(getattr(abonado, "deuda_monto", "") or "").strip()
+    monto = _billing_amount_str(abonado)
     return (
         f"En tu cuenta figura un saldo pendiente de {texto_monto_ars(monto)}. "
         "Para la baja formal la cuenta tiene que quedar en cero; eso lo revisa un operador. "
@@ -3247,7 +3520,7 @@ def _manejar_menu_consulta_n1(
     paso = str(ctx.get("menu_paso") or "").strip()
     if not paso or not abonado:
         return None
-    servicio_abo = abonado.servicio if abonado else ""
+    servicio_abo = _servicio_abonado(abonado)
 
     if paso == "servicio":
         elec = resolver_menu_servicio(texto, servicio_abo)
@@ -3726,9 +3999,9 @@ def _respuesta_tras_identificar_por_telefono(
 ) -> dict:
     """Respuesta corta al vincular por MSISDN (misma línea que DNI temprano)."""
     nombre = (abonado.nombre or "").split()[0].title() or "ahí"
-    estado = (abonado.estado or "").lower()
+    estado = _account_status(abonado)
     pedi_saldo = _mensaje_pedi_saldo_reciente(db, conv.id)
-    deuda = str(abonado.deuda_monto or "0").strip() or "0"
+    deuda = _billing_amount_str(abonado)
     if pedi_saldo:
         baja_nota = (
             "La cuenta figura «de baja» en el sistema."
@@ -3752,8 +4025,8 @@ def _respuesta_tras_identificar_por_telefono(
         from app.services.eco_voice import texto_monto_ars
 
         resp = (
-            f"Te ubiqué por este WhatsApp, {nombre}: la cuenta figura «{abonado.estado}». "
-            f"Saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
+            f"Te ubiqué por este WhatsApp, {nombre}: la cuenta figura «{estado}». "
+            f"Saldo pendiente {texto_monto_ars(deuda)}. "
             "¿Es por reactivar, pagar, o por otra consulta?"
         )
     else:
@@ -3907,15 +4180,15 @@ def _mensaje_identificado_en_cola(nombre: str, abonado: Abonado) -> str:
     from app.services.eco_voice import texto_monto_ars
 
     nom = (nombre or "").strip() or "ahí"
-    estado = (abonado.estado or "").lower()
+    estado = _account_status(abonado)
     msg = (
         f"Listo {nom}, ya te identifiqué y vinculé tu cuenta. "
         "Seguís en cola con un agente; cuando te respondan ya van a ver tu ficha en el sistema."
     )
     if estado in ("corte", "cortado", "suspendido", "suspendida"):
         msg += (
-            f" La cuenta figura «{abonado.estado}» "
-            f"(saldo {texto_monto_ars(abonado.deuda_monto)})."
+            f" La cuenta figura «{estado}» "
+            f"(saldo {texto_monto_ars(_billing_amount_str(abonado))})."
         )
     return msg
 
@@ -4623,9 +4896,9 @@ def _identificar_por_dni_si_aplica(
     crepo.set_contexto(conv, ctx)
     db.commit()
     nombre = (abonado.nombre or "").split()[0].title() or "ahí"
-    estado = (abonado.estado or "").lower()
+    estado = _account_status(abonado)
     pedi_saldo = _mensaje_pedi_saldo_reciente(db, conv.id)
-    deuda = str(abonado.deuda_monto or "0").strip() or "0"
+    deuda = _billing_amount_str(abonado)
     if pedi_saldo:
         baja_nota = (
             "La cuenta figura «de baja» en el sistema."
@@ -4650,14 +4923,14 @@ def _identificar_por_dni_si_aplica(
         from app.services.eco_voice import texto_monto_ars
 
         resp = (
-            f"Te ubiqué, {nombre}: la cuenta figura «{abonado.estado}». "
-            f"Saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
+            f"Te ubiqué, {nombre}: la cuenta figura «{estado}». "
+            f"Saldo pendiente {texto_monto_ars(deuda)}. "
             "¿Es por reactivar, pagar, o por otra consulta?"
         )
     else:
         resp = (
             f"Listo {nombre}, ya te identifiqué. "
-            f"{texto_menu_consulta(abonado.servicio)}"
+            f"{texto_menu_consulta(_servicio_abonado(abonado))}"
         )
     if not pedi_saldo:
         ctx["saludo"] = True
@@ -4820,6 +5093,13 @@ def procesar_mensaje_entrante(
     if conv.abonado_id:
         abonado = db.get(Abonado, conv.abonado_id)
 
+    # Action Runtime: completar create_ticket tras confirmación trusted (sí/no).
+    pending_rt = _talvez_runtime_confirmation_pending(
+        db, org_id, conv, abonado, texto, canal=canal, ctx=ctx
+    )
+    if pending_rt is not None:
+        return pending_rt
+
     # WhatsApp: auth por MSISDN (BillTrack) antes del soft-match local / DNI.
     if (canal or "") == "whatsapp" and not abonado:
         eleccion = _resolver_eleccion_cuenta_telefono(
@@ -4838,6 +5118,28 @@ def procesar_mensaje_entrante(
 
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
+
+    # Fase 5: Journey orchestration (capabilities existentes; flag off = Legacy N1).
+    try:
+        from app.services.eko_journeys import (
+            journey_turn_to_response,
+            maybe_handle_journey_turn,
+        )
+
+        jturn = maybe_handle_journey_turn(
+            db, org_id, conv, abonado, texto, canal=canal, ctx=ctx
+        )
+        if jturn is not None and jturn.handled:
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            resp = jturn.user_message or ""
+            if resp:
+                _enviar_respuesta(
+                    db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+                )
+            return journey_turn_to_response(jturn, conv=conv, ctx=ctx)
+    except Exception:
+        logger.exception("eko_journeys: turno no aplicado; continúa Legacy")
 
     # Cierre temprano: tras QR/pago o factura, "perfecto/gracias" no debe abrir ticket.
     # No aplica en aviso_deuda (elección pagar vs diagnóstico): ahí «no entiendo» ≠ cierre.
@@ -4889,11 +5191,11 @@ def procesar_mensaje_entrante(
     ):
         from app.services.eco_voice import texto_monto_ars, texto_ov_aviso_pago
 
-        deuda = str(abonado.deuda_monto or "0").strip() or "0"
+        deuda = _billing_amount_str(abonado)
         nombre = (abonado.nombre or "").split()[0].title() or "ahí"
         dni_abo = re.sub(r"\D", "", abonado.dni or "")
         dni_msg = re.sub(r"\D", "", texto or "")
-        estado = (abonado.estado or "").lower()
+        estado = _account_status(abonado)
         cortado = estado in ("corte", "cortado", "suspendido", "suspendida")
         aviso = texto_ov_aviso_pago(cortado=cortado)
         if dni_abo and dni_msg and dni_abo != dni_msg:
@@ -4977,7 +5279,7 @@ def procesar_mensaje_entrante(
     ):
         from app.domain.flujos_abonado import clasificar_intencion as _clasif_menu
 
-        if _clasif_menu(texto, abonado.servicio if abonado else "") == "cambio_clave_wifi":
+        if _clasif_menu(texto, _servicio_abonado(abonado)) == "cambio_clave_wifi":
             ctx.pop("menu_paso", None)
             ctx.pop("menu_servicio", None)
             out_clave = _respuesta_cambio_wifi_bcm(
@@ -4995,7 +5297,7 @@ def procesar_mensaje_entrante(
                 ctx=ctx,
                 intencion="cambio_clave_wifi",
                 usar_llama=usar_llama,
-                servicio_abo=abonado.servicio if abonado else "",
+                servicio_abo=_servicio_abonado(abonado),
             )
         menu_out = _manejar_menu_consulta_n1(
             db,
@@ -5191,7 +5493,7 @@ def procesar_mensaje_entrante(
         )
     ):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
-        tid = _crear_ticket_n2(
+        tid, pending = _ticket_via_runtime_o_legacy(
             db,
             org_id,
             conv,
@@ -5200,11 +5502,39 @@ def procesar_mensaje_entrante(
             intencion=intent,
             paso_idx=int(ctx.get("paso_idx") or ctx.get("diag_turnos") or 0),
             ctx=ctx,
+            canal=canal,
+            texto=texto,
+            decision_name="escape_agente",
         )
+        if pending:
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, pending, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pending,
+                "estado": conv.estado,
+            }
+        if not tid:
+            resp = pending or "No pude generar el ticket ahora."
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+            }
         resp = (
             f"Dale, te derivo con un agente y le paso lo que charlamos. "
             f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
         )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
         _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
         return {
             "ok": True,
@@ -5344,7 +5674,7 @@ def procesar_mensaje_entrante(
             ctx.pop("invitado", None)
             ctx.pop("visitante", None)
             ctx.pop("cola_prioridad", None)
-            servicio_abo = abonado.servicio or ""
+            servicio_abo = _servicio_abonado(abonado)
             # Si el 1.er mensaje ya trae el síntoma, no preguntar el menú
             elec0 = resolver_menu_servicio(texto, servicio_abo)
             if elec0 == "movil" and tiene_movil_contratado(servicio_abo):
@@ -5434,12 +5764,12 @@ def procesar_mensaje_entrante(
             db.commit()
             saludo = (
                 f"Hola {abonado.nombre.split()[0]}, te identifiqué correctamente. "
-                f"{texto_menu_consulta(abonado.servicio)}"
+                f"{texto_menu_consulta(_servicio_abonado(abonado))}"
             )
             if usar_llama:
                 saludo = _redactar_con_llama(
                     saludo,
-                    f"abonado={abonado.nombre} estado={abonado.estado} deuda={abonado.deuda_monto}",
+                    f"abonado={abonado.nombre} estado={_account_status(abonado)} deuda={_billing_amount_str(abonado)}",
                     db=db,
                     org_id=org_id,
                     consulta=texto,
@@ -5512,10 +5842,10 @@ def procesar_mensaje_entrante(
         )
         from app.services.ov_intencion import clasificar_gesto_ov
 
-        deuda = str(abonado.deuda_monto or "0").strip() or "0"
+        deuda = _billing_amount_str(abonado)
         nota_baja = (
             "La cuenta figura «de baja» en el sistema."
-            if (abonado.estado or "").lower() == "baja"
+            if _account_status(abonado) == "baja"
             else ""
         )
         gesto_ov = clasificar_gesto_ov(texto)
@@ -5526,6 +5856,39 @@ def procesar_mensaje_entrante(
                 db, org_id, conv, abonado, ctx, canal=canal
             )
 
+        # Consulta de ticket propio vía Runtime (ownership obligatorio).
+        if _cliente_consulta_ticket_propio(texto):
+            from app.services.eko_action_bridge import action_runtime_covers, dispatch_runtime
+
+            if action_runtime_covers("show_ticket"):
+                tid = (conv.ticket_id or "").strip() or _extraer_ticket_id_de_texto(texto)
+                ar = dispatch_runtime(
+                    "show_ticket",
+                    db=db,
+                    org_id=org_id,
+                    conv=conv,
+                    abonado=abonado,
+                    ctx=ctx,
+                    canal=canal,
+                    decision_name="consulta_ticket",
+                    parameters={"ticket_id": tid} if tid else {},
+                    texto=texto,
+                )
+                if ar is not None:
+                    resp = ar.user_message or "No pude consultar ese ticket."
+                    crepo.set_contexto(conv, ctx)
+                    db.commit()
+                    _enviar_respuesta(
+                        db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+                    )
+                    return {
+                        "ok": True,
+                        "modo": "bot",
+                        "conversacion_id": conv.id,
+                        "respuesta": resp,
+                        "estado": conv.estado,
+                    }
+
         if gesto_ov is None and _cliente_pendiente_pago_o_corte(texto):
             return _responder_pendiente_pago_o_corte(
                 db, org_id, conv, abonado, ctx, canal=canal
@@ -5534,8 +5897,71 @@ def procesar_mensaje_entrante(
         if gesto_ov is None and (
             _cliente_pide_oficina_virtual(texto) or _cliente_pide_pagar(texto)
         ):
+            from app.services.eko_action_bridge import action_runtime_covers, dispatch_runtime
+
+            if action_runtime_covers("open_OV"):
+                dest = "pagar" if _cliente_pide_pagar(texto) else "my"
+                ar = dispatch_runtime(
+                    "open_OV",
+                    db=db,
+                    org_id=org_id,
+                    conv=conv,
+                    abonado=abonado,
+                    ctx=ctx,
+                    canal=canal,
+                    decision_name="gesto_ov",
+                    parameters={"destination": dest},
+                    texto=texto,
+                )
+                if ar is not None and ar.status == "success":
+                    deuda_txt = mensaje_saldo_padron(
+                        deuda, incluir_ov=False, nota_extra=nota_baja
+                    )
+                    if _deuda_positiva(abonado) or _account_status(abonado) in (
+                        "corte",
+                        "cortado",
+                        "suspendido",
+                        "suspendida",
+                    ):
+                        resp = f"{deuda_txt}\n{ar.user_message}"
+                    else:
+                        resp = (
+                            f"{deuda_txt}\n"
+                            "No hace falta que abones: no tenés deuda pendiente en este momento.\n"
+                            f"{ar.user_message}"
+                        )
+                    ctx["intencion"] = "facturacion"
+                    crepo.set_contexto(conv, ctx)
+                    db.commit()
+                    _enviar_respuesta(
+                        db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+                    )
+                    return {
+                        "ok": True,
+                        "modo": "bot",
+                        "conversacion_id": conv.id,
+                        "respuesta": resp,
+                        "estado": conv.estado,
+                        "intencion": "facturacion",
+                    }
+                # Runtime denied/unavailable → no Legacy OV side-effect paralelo;
+                # caer a mensaje sin handoff JSAT.
+                if ar is not None:
+                    resp = ar.user_message or "No pude abrir la oficina virtual ahora."
+                    _enviar_respuesta(
+                        db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+                    )
+                    return {
+                        "ok": True,
+                        "modo": "bot",
+                        "conversacion_id": conv.id,
+                        "respuesta": resp,
+                        "estado": conv.estado,
+                        "intencion": "facturacion",
+                    }
+
             plantilla = _plantilla_pago_ov(db, abonado, conv, canal=canal)
-            if _deuda_positiva(abonado) or (abonado.estado or "").lower() in (
+            if _deuda_positiva(abonado) or _account_status(abonado) in (
                 "corte",
                 "cortado",
                 "suspendido",
@@ -5593,7 +6019,7 @@ def procesar_mensaje_entrante(
 
     # Corte por deuda automático si aplica
     intencion = ctx.get("intencion") or ""
-    servicio_abo = abonado.servicio if abonado else ""
+    servicio_abo = _servicio_abonado(abonado)
 
     if intencion == "corte_deuda" and (
         solicita_baja_servicio(texto) or cliente_imposibilidad_pago(texto)
@@ -5768,7 +6194,7 @@ def procesar_mensaje_entrante(
                 "intencion": "aviso_deuda",
             }
         if eleccion == "pago":
-            deuda = str(abonado.deuda_monto or "0") if abonado else "0"
+            deuda = _billing_amount_str(abonado) if abonado else "0"
             resp = (
                 f"{mensaje_saldo_padron(deuda, incluir_ov=False)}\n"
                 f"{_plantilla_pago_ov(db, abonado, conv, canal=canal)}"
@@ -6092,8 +6518,8 @@ def procesar_mensaje_entrante(
                 from app.services.eco_voice import texto_monto_ars
 
                 pregunta = (
-                    f"Tu cuenta figura con estado «{abonado.estado}» "
-                    f"y saldo pendiente {texto_monto_ars(abonado.deuda_monto)}. "
+                    f"Tu cuenta figura con estado «{_account_status(abonado)}» "
+                    f"y saldo pendiente {texto_monto_ars(_billing_amount_str(abonado))}. "
                     f"{PLANTILLA_PAGO_QR}"
                 )
             else:

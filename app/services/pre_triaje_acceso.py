@@ -43,7 +43,9 @@ def linea_padron(estado: EstadoConexionPPPoE, abonado: Any | None = None) -> str
     plan = f" ({prod})" if prod else ""
     if svc.login:
         return f"internet por {tipo}{plan}"
-    serv_abo = str(getattr(abonado, "servicio", "") or "").strip().lower() if abonado else ""
+    from app.services.eko_context import build_eko_facts, servicio_agregado
+
+    serv_abo = servicio_agregado(build_eko_facts(abonado)) if abonado else ""
     if serv_abo in ("internet", "ambos"):
         return "internet fijo (detalle no leído)"
     return ""

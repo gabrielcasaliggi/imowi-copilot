@@ -1307,7 +1307,9 @@ def mensaje_baja_servicio_n1(
     partes = ["Entiendo que querés dar de baja el servicio."]
     monto = deuda_monto
     if monto is None and abonado is not None:
-        monto = str(getattr(abonado, "deuda_monto", "") or "").strip()
+        from app.services.eko_context import billing_amount_str, build_eko_facts
+
+        monto = billing_amount_str(build_eko_facts(abonado))
     try:
         deuda_pos = float(str(monto or "0").replace(",", "."))
     except ValueError:

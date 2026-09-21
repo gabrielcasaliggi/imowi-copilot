@@ -1,7 +1,9 @@
-"""Oficina Virtual Batán — deep-links autenticados (patrón jsat-get-link-ov).
+"""Oficina Virtual Batán — cliente HTTP JSAT.
 
-Auth de servicio vía /session/login + /session/check; link abonado vía
-GET /ov/link?celular=&path= con header sid.
+Auth de servicio: POST /session/login JSON (nunca user/password en query).
+GET /ov/link?celular=&path= es **legado** (Botmaker / probe admin).
+El ``tsid`` resultante NO es el handoff seguro de OV-02/OV-03
+(código de un uso + DNI). Ver ``app.services.ov_handoff``.
 
 Credenciales solo por env / platform settings — nunca hardcode.
 """
@@ -13,7 +15,6 @@ import logging
 import re
 import threading
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from sqlalchemy.orm import Session
@@ -135,8 +136,16 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
             except Exception:
                 logger.debug("OV session/check falló; se renueva SID", exc_info=True)
 
-        login_url = f"{api}/session/login?user={quote(user)}&password={quote(password)}"
-        r = httpx.post(login_url, timeout=timeout)
+        # POST JSON (mismo contrato que la SPA JSAT). Nunca user/password en query.
+        r = httpx.post(
+            f"{api}/session/login",
+            json={"user": user, "password": password, "external": True},
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            timeout=timeout,
+        )
         r.raise_for_status()
         data = _response_json(r) if r.content else {}
         result = data.get("result") if isinstance(data, dict) else None
@@ -150,11 +159,10 @@ def _ensure_sid(cfg: dict[str, Any]) -> str:
 
 
 def variantes_celular_ov(celular: str) -> list[str]:
-    """Formatos a probar en /ov/link.
+    """Formatos históricos de /ov/link (legado).
 
-    Botmaker manda el MSISDN completo ``549…``. Probar primero sin ``54`` devolvía
-    un tsid «OK» pero al abrir: «usuario NO TIENE asociado ningún cliente».
-    Orden: E.164 completo (549) → nacional / local como fallback.
+    OV-03: el flujo de abonado **no** hace round-robin. Esta lista queda para
+    probe admin / tests de compat. No usarla como identidad canónica.
     """
     from app.estate.canal_repo import normalizar_telefono
 
@@ -248,11 +256,9 @@ def candidatos_celular_ov(
     telefono_hilo: str = "",
     db: Session | None = None,
 ) -> list[str]:
-    """Celulares a probar en /ov/link (orden = prioridad).
+    """Celulares legado para GET /ov/link. No es identidad canónica (eso es DNI).
 
-    WhatsApp: MSISDN del hilo primero (Botmaker / PLATFORM_CONTACT_ID), luego padrón.
-    Portal/app: padrón; si falta, hilo real; si sigue vacío, WA del mismo abonado
-    o teléfono BillTrack por DNI (el hilo ``portal{dni}`` no sirve para OV).
+    OV-03: el handoff de abonado no itera esta lista. Se conserva por tests y probe.
     """
     from app.estate.canal_repo import normalizar_telefono
 
@@ -344,11 +350,11 @@ def get_fast_link(
     *,
     db: Session | None = None,
 ) -> str | None:
-    """Deep-link autenticado o None si OV no está listo / falla.
+    """LEGADO: GET /ov/link (tsid). Compat Botmaker / probe. NO es handoff seguro.
 
     Replica jsat-get-link-ov: URI cruda
     ``/ov/link?celular={msisdn}&path={path}`` (path con ``?`` literal, sin
-    percent-encoding). El ``result`` de OV se reenvía tal cual.
+    percent-encoding). El ``result`` se reenvía tal cual. No loguear la URL.
     """
     cel = re.sub(r"\D", "", celular or "")
     path_n = (path or "").strip()
@@ -370,11 +376,10 @@ def get_fast_link(
         data = _response_json(r) if r.content else {}
         if not r.is_success or str(data.get("status") or "").upper() != "OK":
             logger.info(
-                "OV /ov/link no OK status_http=%s body_status=%s cel_len=%s pref=%s",
+                "OV /ov/link no OK status_http=%s body_status=%s cel_len=%s",
                 r.status_code,
                 data.get("status"),
                 len(cel),
-                cel[:3] if cel else "",
             )
             return None
         # Botmaker: result es el string del link (no un dict).
@@ -385,23 +390,21 @@ def get_fast_link(
             return None
         out = str(link).strip()
         if out and not _link_ov_usable(out, celular_pedido=cel):
-            logger.info(
-                "OV /ov/link descartado (user= huérfano?) cel_len=%s pref=%s",
-                len(cel),
-                cel[:3],
-            )
+            logger.info("OV /ov/link descartado cel_len=%s", len(cel))
             return None
         if out:
             logger.info(
-                "OV /ov/link OK cel_len=%s pref=%s path=%s has_tsid=%s",
+                "OV /ov/link OK (legacy, no handoff-safe) cel_len=%s path_key=%s",
                 len(cel),
-                cel[:3],
-                path_n[:28],
-                "tsid=" in out.lower(),
+                path_n.split("?", 1)[0][:28],
             )
         return out or None
-    except Exception:
-        logger.exception("OV get_fast_link falló (cel_len=%s)", len(cel))
+    except Exception as exc:
+        logger.info(
+            "OV get_fast_link falló cel_len=%s err=%s",
+            len(cel),
+            type(exc).__name__,
+        )
         return None
 
 
@@ -434,28 +437,31 @@ def fast_or_public(
     db: Session | None = None,
     celulares: list[str] | None = None,
 ) -> str:
-    """Prefiere deep-link; prueba varios celulares/formatos; si no, hash público."""
+    """LEGADO: un solo celular (sin round-robin de variantes) o hash público.
+
+    OV-03 prohíbe probar MSISDN A, si falla B. El flujo de abonado usa
+    ``ov_handoff.resolve_handoff`` (DNI). Esta función queda para tests / probe.
+    """
     cfg = resolve_ov_batan(db)
     public_base = str(cfg.get("public_url") or "https://ov.batan.coop").rstrip("/")
-    cands: list[str] = []
-    for raw in list(celulares or []) + ([celular] if celular else []):
-        for v in variantes_celular_ov(str(raw or "")):
-            if v not in cands:
-                cands.append(v)
-    # Preferir respuesta pedida con 549… (Botmaker); si varias OK, la primera usable.
-    for cel in cands:
+    cel = re.sub(r"\D", "", celular or "")
+    if not cel:
+        extras = [re.sub(r"\D", "", str(x or "")) for x in (celulares or [])]
+        extras = [x for x in extras if len(x) >= 8]
+        cel = extras[0] if extras else ""
+    if cel:
         fast = get_fast_link(path, cel, db=db)
         if fast:
             return fast
-    if cands:
         logger.info(
-            "OV fast_or_public: fallback hash público path=%s cands=%s",
-            (path or "")[:40],
-            len(cands),
+            "OV fast_or_public: fallback hash público path_key=%s cel_len=%s",
+            (path or "").split("?", 1)[0][:40],
+            len(cel),
         )
     else:
         logger.info(
-            "OV fast_or_public: sin celular → hash público path=%s", (path or "")[:40]
+            "OV fast_or_public: sin celular → hash público path_key=%s",
+            (path or "").split("?", 1)[0][:40],
         )
     return public_url(path, public_base=public_base)
 

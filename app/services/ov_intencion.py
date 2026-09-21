@@ -375,6 +375,7 @@ def mensaje_gesto_ov(
             "Todavía no te adjunto el PDF por este chat, pero podés verla y "
             "descargarla acá:\n"
             f"{link}\n"
+            "Ahí vas a identificarte (DNI o usuario de Oficina Virtual). "
             "¿Pudiste abrirla? Si el link no entra o ves otra cuenta, avisame."
         )
     if gesto == GESTO_PAGAR:

@@ -55,17 +55,86 @@ def _talvez_mensaje_pppoe(
     if abonado is None or not str(getattr(abonado, "dni", "") or "").strip():
         return None
     try:
+        from app.services import billtrack as bt
         from app.services.conexion_pppoe import (
             clasificar_rama_pppoe,
             consultar_conexion_pppoe,
             triage_pppoe_para_prompt,
         )
 
-        estado = consultar_conexion_pppoe(
-            dni=str(abonado.dni),
-            client_number=str(getattr(abonado, "client_number", "") or ""),
-            db=db,
-        )
+        dni = str(abonado.dni)
+        client_number = str(getattr(abonado, "client_number", "") or "")
+        login_sel = str(ctx.get("login_seleccionado") or "").strip()
+
+        # Multi-cuenta: no elegir silenciosamente el primer login.
+        servicios_prev: list = []
+        try:
+            if client_number.strip():
+                servicios_prev = bt.lookup_servicios_conectividad(
+                    client_number=client_number.strip(), db=db
+                )
+            else:
+                servicios_prev = bt.lookup_servicios_conectividad_por_dni(
+                    dni=dni, db=db
+                )
+        except Exception:
+            logger.exception("BillTrack servicios (multi-cuenta) falló")
+            servicios_prev = []
+        logins = bt.listar_logins_conectividad(servicios_prev)
+        if len(logins) > 1 and not login_sel:
+            from app.services.eko_action_bridge import action_runtime_covers, dispatch_runtime
+
+            msg_sel = bt.mensaje_seleccion_cuenta_internet(servicios_prev)
+            if action_runtime_covers("request_account_selection"):
+                # Runtime setea STATE; una sola ejecución (no Legacy paralelo).
+                ar = dispatch_runtime(
+                    "request_account_selection",
+                    db=db,
+                    org_id=org_id,
+                    conv=None,
+                    abonado=abonado,
+                    ctx=ctx,
+                    decision_name="multi_cuenta_pppoe",
+                    parameters={"message": msg_sel},
+                )
+                if ar is not None:
+                    return ar.user_message or msg_sel
+            ctx["multi_cuenta_pendiente"] = True
+            return msg_sel
+
+        from app.services.eko_action_bridge import action_runtime_covers, dispatch_runtime
+
+        if action_runtime_covers("run_diagnostic_pppoe"):
+            ar = dispatch_runtime(
+                "run_diagnostic_pppoe",
+                db=db,
+                org_id=org_id,
+                conv=None,
+                abonado=abonado,
+                ctx=ctx,
+                decision_name="pppoe_explicit",
+            )
+            if ar is not None and ar.status == "needs_input":
+                return ar.user_message
+            if ar is not None and ar.status in ("unavailable", "failed", "denied"):
+                return ar.user_message or None
+            if ar is not None and ar.status == "success":
+                estado = (ar.data or {}).get("_estado")
+                if estado is None:
+                    return ar.user_message or None
+                # Continúa con mesa/BCM/UISP usando el mismo estado (sin re-probe Radius)
+            else:
+                estado = None
+            if estado is None:
+                # Feature on pero dispatch devolvió None → no debería; Legacy no
+                return None
+        else:
+            estado = consultar_conexion_pppoe(
+                dni=dni,
+                client_number=client_number,
+                login=login_sel,
+                db=db,
+            )
         if estado.servicio:
             from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
 

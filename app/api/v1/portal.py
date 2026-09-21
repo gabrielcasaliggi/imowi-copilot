@@ -979,58 +979,22 @@ def _abonado_portal_identificado(payload: dict, db: Session) -> Abonado:
 
 def _claves_identidad_ticket(db: Session, org_id: str, abo: Abonado) -> set[str]:
     """Teléfonos / líneas normalizadas con las que se asocian tickets del canal."""
-    keys: set[str] = set()
-    for raw in (abo.linea_msisdn, abo.telefono_e164):
-        s = (raw or "").strip()
-        if s:
-            keys.add(s)
-        n = crepo.normalizar_telefono(s)
-        if n:
-            keys.add(n)
-    for c in db.scalars(
-        select(ConversacionCanal).where(
-            ConversacionCanal.organizacion_id == org_id,
-            ConversacionCanal.abonado_id == abo.id,
-        )
-    ).all():
-        s = (c.telefono or "").strip()
-        if s:
-            keys.add(s)
-        n = crepo.normalizar_telefono(s)
-        if n:
-            keys.add(n)
-    return {k for k in keys if k}
+    from app.services.abonado_tickets import claves_identidad_ticket
+
+    return claves_identidad_ticket(db, org_id, abo)
 
 
 def _portal_ticket_out(t: Ticket, *, conversacion_id: str = "") -> dict:
-    return {
-        "id": t.id,
-        "estado": t.estado or "",
-        "categoria": t.categoria or "",
-        "origen": t.origen or "",
-        "created_at": t.created_at.isoformat() if t.created_at else "",
-        "updated_at": t.updated_at.isoformat() if t.updated_at else "",
-        "conversacion_id": conversacion_id or "",
-    }
+    from app.services.abonado_tickets import portal_ticket_out_es
+
+    return portal_ticket_out_es(t, conversacion_id=conversacion_id)
 
 
 def _conv_ids_por_ticket(db: Session, org_id: str, abo_id: str) -> dict[str, str]:
     """ticket_id → conversacion_id (la más reciente por updated_at)."""
-    out: dict[str, str] = {}
-    rows = db.scalars(
-        select(ConversacionCanal)
-        .where(
-            ConversacionCanal.organizacion_id == org_id,
-            ConversacionCanal.abonado_id == abo_id,
-            ConversacionCanal.ticket_id != "",
-        )
-        .order_by(ConversacionCanal.updated_at.desc())
-    ).all()
-    for c in rows:
-        tid = (c.ticket_id or "").strip()
-        if tid and tid not in out:
-            out[tid] = c.id
-    return out
+    from app.services.abonado_tickets import conv_ids_por_ticket
+
+    return conv_ids_por_ticket(db, org_id, abo_id)
 
 
 def _tickets_visibles_abonado(
@@ -1039,31 +1003,9 @@ def _tickets_visibles_abonado(
     abo: Abonado,
 ) -> list[tuple[Ticket, str]]:
     """Tickets del abonado vía conversación.ticket_id y/o coincidencia de línea."""
-    conv_map = _conv_ids_por_ticket(db, org_id, abo.id)
-    ids = set(conv_map.keys())
-    keys = _claves_identidad_ticket(db, org_id, abo)
+    from app.services.abonado_tickets import list_tickets_visibles_abonado
 
-    tickets: dict[str, Ticket] = {}
-    if ids:
-        for t in db.scalars(select(Ticket).where(Ticket.id.in_(ids), Ticket.organizacion_id == org_id)).all():
-            tickets[t.id] = t
-
-    if keys:
-        # Comparación exacta sobre Ticket.linea (así se persiste en canal_abonado).
-        for t in db.scalars(
-            select(Ticket).where(
-                Ticket.organizacion_id == org_id,
-                Ticket.linea.in_(list(keys)),
-            )
-        ).all():
-            tickets[t.id] = t
-
-    ordered = sorted(
-        tickets.values(),
-        key=lambda t: t.updated_at or t.created_at or datetime.min.replace(tzinfo=UTC),
-        reverse=True,
-    )
-    return [(t, conv_map.get(t.id, "")) for t in ordered]
+    return list_tickets_visibles_abonado(db, org_id, abo)
 
 
 def _ticket_pertenece_abonado(
@@ -1072,11 +1014,58 @@ def _ticket_pertenece_abonado(
     abo: Abonado,
     ticket: Ticket,
 ) -> bool:
-    if ticket.organizacion_id != org_id:
-        return False
-    if any(t.id == ticket.id for t, _ in _tickets_visibles_abonado(db, org_id, abo)):
-        return True
-    return False
+    from app.services.abonado_tickets import ticket_pertenece_abonado
+
+    return ticket_pertenece_abonado(db, org_id, abo, ticket)
+
+
+@router.get("/portal/customer-summary")
+def portal_customer_summary(
+    request: Request,
+    include: str | None = None,
+    refresh: str | None = None,
+    connectivity: str | None = None,
+    service_id: str | None = None,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Agregado de lectura Customer Summary (facade sobre lectores existentes).
+
+    Identidad solo desde JWT portal. No acepta abonado_id/dni/client_number
+    como parámetros de sujeto. Connectivity default = omit (sin probes).
+    """
+    from app.services.portal_customer_summary import (
+        evaluar_customer_summary,
+        parse_connectivity,
+        parse_include,
+        parse_refresh,
+    )
+
+    abo = _abonado_portal_identificado(payload, db)
+    try:
+        include_list = parse_include(include)
+        refresh_list = parse_refresh(refresh)
+        conn_mode = parse_connectivity(connectivity)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    try:
+        return evaluar_customer_summary(
+            db,
+            abonado=abo,
+            org_id=str(payload["org_id"]),
+            include=include_list,
+            refresh=refresh_list,
+            connectivity=conn_mode,
+            service_id=service_id,
+            canal=_canal_desde_request(request, payload),
+            conversacion_id=str(payload.get("conversacion_id") or ""),
+            ticket_out_fn=_portal_ticket_out,
+            tickets_visibles_fn=_tickets_visibles_abonado,
+        )
+    except ValueError as exc:
+        # service_id ajeno u otra validación de dominio
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/portal/connectivity")

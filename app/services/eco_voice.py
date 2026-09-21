@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.branding_assistant import assistant_tagline_mid
 from app.config import BOT_DISPLAY_NAME, PRODUCT_DISPLAY_NAME
 
@@ -396,14 +398,19 @@ def enrich_contexto_desde_integraciones(
     abonado: Any | None,
     *,
     org_id: str = "",
+    include_technical: bool = False,
+    db: Session | None = None,
 ) -> dict[str, str]:
     """Hook para ONT/OLT BCM, pagos Fiserv, cortes de zona, PPPoE/Radius y UISP radio.
 
+    Por defecto (Fase 3A) NO ejecuta probes técnicos. Solo rellena nro_asociado
+    y deja placeholders vacíos. Las observaciones técnicas llegan vía ``extras``
+    desde conversation state (tras diagnóstico explícito) o con
+    ``include_technical=True`` (legacy / tests explícitos).
+
     Claves:
       - nro_asociado, ont_estado, olt_huawei, pago_qr_reciente, cortes_zona
-      - pppoe_estado, pppoe_login, pppoe_tipo, pppoe_ip, pppoe_uptime, pppoe_nas, pppoe_resumen
-      - uisp_estado, uisp_login, uisp_sitio, uisp_senal, uisp_modelo, uisp_resumen, uisp_triage
-      - bcm_estado, bcm_serial, bcm_olt, bcm_rx, bcm_modelo, bcm_resumen, bcm_triage
+      - pppoe_*, uisp_*, bcm_*
     """
     _ = org_id
     out = {
@@ -442,10 +449,12 @@ def enrich_contexto_desde_integraciones(
     nro = str(getattr(abonado, "client_number", "") or "").strip()
     if nro:
         out["nro_asociado"] = nro
+    if not include_technical:
+        return out
     try:
         from app.services.conexion_pppoe import contexto_pppoe_para_abonado
 
-        pppoe = contexto_pppoe_para_abonado(abonado)
+        pppoe = contexto_pppoe_para_abonado(abonado, db=db)
         for k, v in pppoe.items():
             if str(v or "").strip():
                 out[k] = str(v).strip()
@@ -455,7 +464,9 @@ def enrich_contexto_desde_integraciones(
     try:
         from app.services.conexion_uisp import contexto_uisp_para_abonado
 
-        uisp = contexto_uisp_para_abonado(abonado, login=out.get("pppoe_login") or "")
+        uisp = contexto_uisp_para_abonado(
+            abonado, login=out.get("pppoe_login") or "", db=db
+        )
         for k, v in uisp.items():
             if str(v or "").strip():
                 out[k] = str(v).strip()
@@ -464,7 +475,7 @@ def enrich_contexto_desde_integraciones(
     try:
         from app.services.conexion_bcm import contexto_bcm_para_abonado
 
-        bcm = contexto_bcm_para_abonado(abonado)
+        bcm = contexto_bcm_para_abonado(abonado, db=db)
         for k, v in bcm.items():
             if str(v or "").strip():
                 out[k] = str(v).strip()
@@ -478,141 +489,33 @@ def build_contexto_abonado(
     *,
     org_id: str = "",
     extras: dict[str, str] | None = None,
+    db: Session | None = None,
+    include_technical: bool = False,
 ) -> str:
-    """Bloque de ficha para el system prompt. No inventa: solo datos reales o 'sin dato'."""
-    integ = enrich_contexto_desde_integraciones(abonado, org_id=org_id)
+    """Bloque de ficha para el system prompt. Fuente factual: Eko Facts (3B).
+
+    Conversation State y Technical Observations viven en ``extras`` (post-diagnóstico).
+    Por defecto NO llama Radius/BCM/UISP (include_technical=False).
+    """
+    integ = enrich_contexto_desde_integraciones(
+        abonado,
+        org_id=org_id,
+        include_technical=include_technical,
+        db=db,
+    )
+    merged: dict[str, str] = dict(integ)
     if extras:
         for k, v in extras.items():
             if str(v or "").strip():
-                integ[k] = str(v).strip()
+                merged[k] = str(v).strip()
 
-    pppoe_line = integ.get("pppoe_resumen") or "(sin dato — integrar Radius/NAS)"
-    uisp_line = integ.get("uisp_resumen") or "(sin dato — integrar UISP)"
-    bcm_line = integ.get("bcm_resumen") or "(sin dato — integrar BCM)"
-    triage = (integ.get("pppoe_triage") or "").strip()
-    uisp_triage = (integ.get("uisp_triage") or "").strip()
-    bcm_triage = (integ.get("bcm_triage") or "").strip()
+    from app.services.eko_context import build_eko_facts, format_n1_contexto
 
-    if not abonado:
-        lines = [
-            "CONTEXTO_ABONADO:",
-            "- modo: invitado (sin cuenta identificada)",
-            "- nombre: (sin dato)",
-            "- nro_asociado: (sin dato)",
-            "- estado_servicio: (sin dato)",
-            "- deuda: (sin dato)",
-            f"- ont_estado: {integ.get('ont_estado') or '(sin dato — integrar NMS)'}",
-            f"- olt_huawei: {integ.get('olt_huawei') or '(sin dato — integrar NMS)'}",
-            f"- pago_qr_reciente: {integ.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
-            f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
-            f"- pppoe: {pppoe_line}",
-            f"- uisp: {uisp_line}",
-            f"- bcm: {bcm_line}",
-            "- Regla: no inventes saldos, ONT/OLT, PPPoE, UISP, BCM ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
-        ]
-        celular_ov = (integ.get("celular_ov") or "").strip()
-        if celular_ov:
-            lines.insert(-1, f"- celular_ov: {celular_ov}")
-        celulares_ov = (integ.get("celulares_ov") or "").strip()
-        if celulares_ov:
-            lines.insert(-1, f"- celulares_ov: {celulares_ov}")
-        canal_ctx = (integ.get("canal") or "").strip()
-        if canal_ctx:
-            lines.insert(-1, f"- canal: {canal_ctx}")
-        return "\n".join(lines)
-
-    nombre = str(getattr(abonado, "nombre", "") or "").strip()
-    dni = str(getattr(abonado, "dni", "") or "").strip()
-    nro = (integ.get("nro_asociado") or "").strip() or "(sin dato — integrar asociados)"
-    servicio = str(getattr(abonado, "servicio", "") or "").strip() or "(sin dato)"
-    plan = str(getattr(abonado, "plan", "") or "").strip() or "(sin dato)"
-    from app.services.velocidad_plan import extraer_mbps_plan, formatear_mbps
-
-    plan_mbps = extraer_mbps_plan(
-        integ.get("pppoe_plan_mbps") or "",
-        integ.get("pppoe_producto") or "",
-        plan,
-        pppoe_line,
-    )
-    if plan_mbps is None and (integ.get("pppoe_plan_mbps") or "").strip():
-        try:
-            plan_mbps = float(str(integ.get("pppoe_plan_mbps")).replace(",", "."))
-        except (TypeError, ValueError):
-            plan_mbps = None
-    estado = str(getattr(abonado, "estado", "") or "").strip() or "(sin dato)"
-    deuda = str(getattr(abonado, "deuda_monto", "") or "").strip() or "0"
-    linea = str(getattr(abonado, "linea_msisdn", "") or "").strip() or "(sin dato)"
-
-    lines = [
-        "CONTEXTO_ABONADO (datos reales del sistema; usalos solo si aportan):",
-        "- modo: identificado",
-        f"- nombre: {nombre or '(sin dato)'}",
-        f"- dni_enmascarado: {_mask_dni(dni) or '(sin dato)'}",
-        f"- nro_asociado: {nro}",
-        f"- servicio: {servicio}",
-        f"- servicios_contratados: {_etiqueta_servicios(servicio)}",
-        f"- plan: {plan}",
-        *(
-            [
-                f"- plan_contratado: {formatear_mbps(plan_mbps)} Mbps",
-                f"- plan_mbps: {plan_mbps:g}",
-            ]
-            if plan_mbps
-            else []
-        ),
-        f"- estado_servicio: {estado}",
-        f"- deuda_monto: {deuda}",
-        f"- linea: {linea}",
-        f"- ont_estado: {integ.get('ont_estado') or '(sin dato — integrar NMS)'}",
-        f"- olt_huawei: {integ.get('olt_huawei') or '(sin dato — integrar NMS)'}",
-        f"- pago_qr_reciente: {integ.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
-        f"- cortes_zona: {integ.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
-        f"- pppoe: {pppoe_line}",
-    ]
-    celular_ov = (integ.get("celular_ov") or "").strip()
-    if celular_ov:
-        lines.append(f"- celular_ov: {celular_ov}")
-    celulares_ov = (integ.get("celulares_ov") or "").strip()
-    if celulares_ov:
-        lines.append(f"- celulares_ov: {celulares_ov}")
-    canal_ctx = (integ.get("canal") or "").strip()
-    if canal_ctx:
-        lines.append(f"- canal: {canal_ctx}")
-    if triage:
-        lines.append(f"- pppoe_triage: {triage}")
-    lines.append(f"- uisp: {uisp_line}")
-    if uisp_triage:
-        lines.append(f"- uisp_triage: {uisp_triage}")
-    lines.append(f"- bcm: {bcm_line}")
-    if bcm_triage:
-        lines.append(f"- bcm_triage: {bcm_triage}")
-    tech_acc = (integ.get("tecnologia_acceso") or "").strip()
-    if tech_acc:
-        lines.append(f"- tecnologia_acceso: {tech_acc}")
-    lines.extend(
-        [
-            "- Regla: si un campo dice '(sin dato)', no lo completes de memoria.",
-            "- Los montos de deuda/factura/saldo son SIEMPRE pesos argentinos (ARS). "
-            "Nunca digas dólares, USD ni 'dollar'. Preferí «pesos» o «$ … pesos».",
-            "- Ofrecé SOLO los servicios_contratados. No preguntes por internet/fibra/Wi‑Fi "
-            "si no figura internet fijo, ni por móvil IMOWI si no figura móvil.",
-            "- Si no tiene internet fijo y dice 'no tengo internet', NO es un corte: "
-            "no tiene ese producto contratado. No inicies diagnóstico de Wi‑Fi ni ONT.",
-            "- Si pppoe indica conectado/desconectado, usá pppoe_triage: no contradigas "
-            "el dato real ni pidas reinicio de ONT si triage dice linea_ok. "
-            "Si triage=sin_sesion_ppp, no pidas speedtest.",
-            "- Si uisp indica CPE radio, usá uisp_triage: no contradigas el estado de la antena. "
-            "CPE fuera de línea → PoE/energía; si sigue offline, visita. Señal mala (< -75 dBm) → "
-            "visita para alinear/revisar antena. Enlace OK → Wi‑Fi/router.",
-            "- Si bcm indica ONU/ONT, usá bcm_triage: no contradigas el estado óptico. "
-            "ONU fuera de línea → luces PON/LOS; potencia mala (< -27 dBm) → cable amarillo y visita. "
-            "Enlace OK → Wi‑Fi/router; NO pidas reinicio de ONT como primer paso.",
-            "- Si hay plan_mbps, esa es la velocidad CONTRATADA. Un test ≥70% de ese valor "
-            "es NORMAL: no digas que está 'por debajo' ni derives a técnico. "
-            "«10M»/«10Mb» ES un resultado de test; no vuelvas a preguntar cuánto dio.",
-        ]
-    )
-    return "\n".join(lines)
+    facts = build_eko_facts(abonado, db=db, org_id=org_id)
+    dni_mask = ""
+    if abonado is not None:
+        dni_mask = _mask_dni(str(getattr(abonado, "dni", "") or ""))
+    return format_n1_contexto(facts, extras=merged, dni_enmascarado=dni_mask)
 
 
 def system_prompt_eco_n1(

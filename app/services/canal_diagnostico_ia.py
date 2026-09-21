@@ -506,18 +506,30 @@ def _aplicar_diagnostico_ia(
         extras_ctx["tecnologia_acceso"] = str(ctx.get("tecnologia_acceso") or "")
 
     extras_ctx["canal"] = (canal or "").strip()
-    from app.services.ov_batan import candidatos_celular_ov
+    from app.services.ov_handoff import resolve_handoff
 
-    cels_ov = candidatos_celular_ov(
+    phone_cands = ctx.get("phone_candidates")
+    pay = resolve_handoff(
+        "pay",
         abonado,
-        canal=canal,
-        wa_id=getattr(conv, "wa_id", "") or "",
-        telefono_hilo=getattr(conv, "telefono", "") or "",
         db=db,
+        canal=canal,
+        phone_candidates=phone_cands,
     )
-    if cels_ov:
-        extras_ctx["celular_ov"] = cels_ov[0]
-        extras_ctx["celulares_ov"] = ",".join(cels_ov)
+    inv = resolve_handoff(
+        "invoice",
+        abonado,
+        db=db,
+        canal=canal,
+        phone_candidates=phone_cands,
+    )
+    if pay.url:
+        extras_ctx["ov_url_pagar"] = pay.url
+    if inv.url:
+        extras_ctx["ov_url_my"] = inv.url
+    extras_ctx["ov_handoff_mode"] = inv.mode or pay.mode
+    if pay.reason or inv.reason:
+        extras_ctx["ov_handoff_reason"] = inv.reason or pay.reason
 
     result = diagnosticar_turno(
         intencion=intencion,
@@ -529,7 +541,7 @@ def _aplicar_diagnostico_ia(
         kb_fragmento=kb,
         forzar_agente=forzar,
         contexto_abonado=build_contexto_abonado(
-            abonado, org_id=org_id, extras=extras_ctx or None
+            abonado, org_id=org_id, extras=extras_ctx or None, db=db
         ),
     )
 
