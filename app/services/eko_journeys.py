@@ -266,6 +266,8 @@ def _is_resume_connectivity(texto: str) -> bool:
         "el internet",
         "volvamos al internet",
         "volvamos con internet",
+        "bueno volvamos al internet",
+        "bueno, volvamos al internet",
         "seguir con internet",
         "lo del internet",
         "buenos y el internet",
@@ -447,6 +449,39 @@ def _advance_connectivity(
             correlation_id=corr,
         )
 
+    # Sin servicio de Internet fijo en padrón → no probe técnico (piloto Batán)
+    n_logins = _login_count(db, abonado)
+    if n_logins <= 0:
+        msg = (
+            "En tu cuenta no veo un servicio de Internet fijo (fibra/radio/ADSL) "
+            "para diagnosticar. "
+            "Si tu consulta es por móvil IMOWI, Sensa/TV o factura, decime y te ayudo por ese lado."
+        )
+        set_journey(
+            ctx,
+            step="respond",
+            last_action="run_diagnostic_pppoe",
+            last_action_status="unavailable",
+            last_diagnostic_result="no_fixed_internet",
+            last_user_message=msg,
+            next_required_input="",
+            diagnostic_started=False,
+        )
+        ctx["eko_no_fixed_internet"] = True
+        return JourneyTurn(
+            handled=True,
+            user_message=msg,
+            journey="internet_sin_conectividad",
+            step="respond",
+            intent="internet",
+            domain="internet",
+            action="run_diagnostic_pppoe",
+            action_status="unavailable",
+            reason_code="no_fixed_internet",
+            correlation_id=corr,
+            data={"no_fixed_internet": True, "execution_path": "none"},
+        )
+
     # Try capture login selection from user text (no probes)
     prev_sel = str(ctx.get("login_seleccionado") or st.get("selected_service") or "").strip()
     login = _try_capture_login(db, abonado, ctx, texto)
@@ -536,7 +571,7 @@ def _advance_connectivity(
         )
 
     # Avoid re-asking selection if already asked and still no login (loop gate)
-    n = _login_count(db, abonado)
+    n = n_logins
     if (
         n > 1
         and not selected
@@ -1302,6 +1337,10 @@ def maybe_handle_journey_turn(
         prev_sel = str(ctx.get("login_seleccionado") or st.get("selected_service") or "")
         previous_journey = active
         switched = True
+        had_no_fixed = (
+            str(st.get("last_diagnostic_result") or "") == "no_fixed_internet"
+            or bool(ctx.get("eko_no_fixed_internet"))
+        )
         _clear_stale_confirmation(ctx)
         set_journey(
             ctx,
@@ -1312,7 +1351,9 @@ def maybe_handle_journey_turn(
             domain=_domain_for(detected),
             intent=_intent_for(detected),
             diagnostic_started=False,
-            last_diagnostic_result="",
+            last_diagnostic_result=(
+                "no_fixed_internet" if had_no_fixed and detected == "internet_sin_conectividad" else ""
+            ),
             pending_confirmation=False,
             confirmation_correlation="",
             next_required_input="",
@@ -1323,21 +1364,34 @@ def maybe_handle_journey_turn(
         ctx["intencion"] = _intent_for(detected)
         active = detected
 
-        # Re-entry connectivity: no auto-probe; conservar selected_service
-        if detected == "internet_sin_conectividad" and prev_sel:
-            set_journey(
-                ctx,
-                step="respond",
-                selected_service=prev_sel,
-                last_user_message="",
-            )
-            ctx["login_seleccionado"] = prev_sel
-            msg = (
-                f"Volvemos al Internet (cuenta {prev_sel}). "
-                "¿Querés que vuelva a revisar la conexión, o contame qué sigue fallando?"
-            )
+        # Re-entry connectivity: nunca auto-probe (con o sin selected_service)
+        if detected == "internet_sin_conectividad":
+            if prev_sel:
+                set_journey(
+                    ctx,
+                    step="respond",
+                    selected_service=prev_sel,
+                    last_user_message="",
+                )
+                ctx["login_seleccionado"] = prev_sel
+                msg = (
+                    f"Volvemos al Internet (cuenta {prev_sel}). "
+                    "¿Querés que vuelva a revisar la conexión, o contame qué sigue fallando?"
+                )
+            elif had_no_fixed:
+                set_journey(ctx, step="respond", last_user_message="")
+                msg = (
+                    "Volvemos al tema de Internet. "
+                    "En tu cuenta no veo un servicio de Internet fijo para diagnosticar. "
+                    "Si es por móvil, Sensa/TV o factura, decime."
+                )
+            else:
+                set_journey(ctx, step="respond", last_user_message="")
+                msg = (
+                    "Volvemos al Internet. "
+                    "¿Querés que revise la conexión, o contame qué necesitás?"
+                )
             set_journey(ctx, last_user_message=msg, next_required_input="")
-            # No diagnostic_started — el usuario debe reafirmar
             turn = JourneyTurn(
                 handled=True,
                 user_message=msg,

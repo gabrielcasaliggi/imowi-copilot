@@ -312,6 +312,61 @@ def test_c06_return_to_connectivity_no_auto_diag(monkeypatch):
     assert ctx.get("login_seleccionado") == "INT9"
 
 
+def test_c06b_reentry_without_selected_no_auto_diag(monkeypatch):
+    """Piloto: volvamos al internet tras billing sin selected_service → no re-probe."""
+    _enable(monkeypatch)
+    ctx = {
+        "eko_journey": {
+            "name": "billing_consulta",
+            "step": "done",
+            "intent": "facturacion",
+            "domain": "billing",
+            "selected_service": "",
+            "last_diagnostic_result": "no_fixed_internet",
+            "correlation_id": "b",
+        },
+        "eko_no_fixed_internet": True,
+    }
+    with (
+        patch("app.services.eko_journeys._login_count", return_value=0),
+        patch("app.services.eko_journeys.dispatch_runtime") as disp,
+        patch("app.services.eko_journeys._legacy_pppoe_as_result") as leg,
+    ):
+        t = maybe_handle_journey_turn(
+            MagicMock(),
+            "org",
+            _conv(),
+            _abo(),
+            "bueno volvamos al internet",
+            canal="wa",
+            ctx=ctx,
+        )
+    assert t and t.data.get("no_auto_diagnostic") is True
+    assert "no veo un servicio de Internet fijo" in (t.user_message or "")
+    disp.assert_not_called()
+    leg.assert_not_called()
+
+
+def test_c01b_no_fixed_internet_no_probe(monkeypatch):
+    """Abonado sin INT en padrón: mensaje claro, cero probes."""
+    _enable(monkeypatch)
+    ctx: dict = {}
+    with (
+        patch("app.services.eko_journeys._login_count", return_value=0),
+        patch("app.services.eko_journeys.dispatch_runtime") as disp,
+        patch("app.services.eko_journeys._legacy_pppoe_as_result") as leg,
+    ):
+        t = maybe_handle_journey_turn(
+            MagicMock(), "org", _conv(), _abo(), "No tengo internet", canal="wa", ctx=ctx
+        )
+    assert t and t.data.get("no_fixed_internet") is True
+    assert t.reason_code == "no_fixed_internet"
+    assert "no veo un servicio de Internet fijo" in (t.user_message or "")
+    assert get_journey(ctx).get("last_diagnostic_result") == "no_fixed_internet"
+    disp.assert_not_called()
+    leg.assert_not_called()
+
+
 # --- C07 contradiction ---
 
 
