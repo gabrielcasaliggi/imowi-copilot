@@ -32,14 +32,17 @@ export function ActivityScreen({
   onExit,
   onGoEko,
   focusTicketId = "",
+  focusSeq = 0,
   onFocusConsumed,
 }: {
   conv: InboxConversation;
   token: string;
   onExit: () => void;
   onGoEko: () => void;
-  /** Tras crear reclamo: abrir detalle de este ticket. */
+  /** Tras crear reclamo / push ticket: abrir detalle vía API auth. */
   focusTicketId?: string;
+  /** Monotónico: re-abrir el mismo ticket_id en focuses sucesivos. */
+  focusSeq?: number;
   onFocusConsumed?: () => void;
 }) {
   const {
@@ -61,16 +64,24 @@ export function ActivityScreen({
     detail?.ticket.conversacion_id === conv.id;
 
   useEffect(() => {
+    if (!focusSeq) return;
     const tid = (focusTicketId || "").trim();
-    if (!tid) return;
+    if (!tid) {
+      onFocusConsumed?.();
+      return;
+    }
     setSelectedId(tid);
     refresh();
-    void openDetail(tid).finally(() => {
-      onFocusConsumed?.();
-    });
-    // Solo al llegar un focus nuevo desde crear reclamo.
+    void openDetail(tid)
+      .then((ok) => {
+        if (!ok) setSelectedId("");
+      })
+      .finally(() => {
+        onFocusConsumed?.();
+      });
+    // Solo al llegar un focus nuevo (reclamo / push ticket).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional
-  }, [focusTicketId]);
+  }, [focusSeq]);
 
   const listData = useMemo(() => {
     if (!detail?.ticket) return items;

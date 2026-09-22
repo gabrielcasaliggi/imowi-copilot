@@ -84,6 +84,12 @@ export function BalanceCard({
 
       {!ovLoading && links.length > 0 ? (
         <View style={styles.ovActions}>
+          {ovLinks?.authenticated === true ? null : (
+            <Text variant="meta" style={styles.ovMeta}>
+              Estos accesos abren la oficina virtual. Ahí vas a identificarte
+              (DNI o usuario); no es una sesión ya abierta.
+            </Text>
+          )}
           {links.map((link) => (
             <Button
               key={link.id}

@@ -359,6 +359,14 @@ def evaluar_customer_summary(
                 if outer_reason is not None:
                     outer_reason = str(outer_reason)
 
+        # MVP 2.1: metadata de capacidades (no inventa invoices/payments)
+        from app.services.eko_context import billing_capabilities_hint
+
+        ov_nav = True
+        if want_ov and isinstance(billing_data.get("ov"), dict):
+            ov_nav = str(billing_data["ov"].get("status") or "") in ("ready", "partial")
+        billing_data["capabilities_hint"] = billing_capabilities_hint(ov_available=ov_nav)
+
         billing = _domain(outer_status, billing_data, outer_reason)
     else:
         billing = _domain("omitted")

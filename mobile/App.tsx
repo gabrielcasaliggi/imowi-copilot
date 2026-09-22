@@ -43,18 +43,29 @@ export default function App() {
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState("");
   const [connectivityRefreshKey, setConnectivityRefreshKey] = useState(0);
+  const [pushFocusTicketId, setPushFocusTicketId] = useState("");
+  const [pushFocusSeq, setPushFocusSeq] = useState(0);
   const authedRef = useRef(false);
   const pendingIntentRef = useRef<PushOpenIntent | null>(null);
 
   const authed = Boolean(conv && token);
   authedRef.current = authed;
 
+  const applyIntentNavigation = (intent: PushOpenIntent) => {
+    setTab(intent.tab);
+    if (intent.refreshConnectivity) {
+      setConnectivityRefreshKey((k) => k + 1);
+    }
+    if (intent.tab === "activity") {
+      const tid = (intent.ticket_id || "").trim();
+      setPushFocusTicketId(tid);
+      setPushFocusSeq((n) => n + 1);
+    }
+  };
+
   const applyPushIntent = (intent: PushOpenIntent) => {
     if (authedRef.current) {
-      setTab(intent.tab);
-      if (intent.refreshConnectivity) {
-        setConnectivityRefreshKey((k) => k + 1);
-      }
+      applyIntentNavigation(intent);
       return;
     }
     pendingIntentRef.current = intent;
@@ -76,10 +87,7 @@ export default function App() {
     if (pendingIntentRef.current) {
       const intent = pendingIntentRef.current;
       pendingIntentRef.current = null;
-      setTab(intent.tab);
-      if (intent.refreshConnectivity) {
-        setConnectivityRefreshKey((k) => k + 1);
-      }
+      applyIntentNavigation(intent);
     }
   }, [authed, token]);
 
@@ -87,9 +95,10 @@ export default function App() {
     onAuthed(payload);
     const intent = pendingIntentRef.current;
     pendingIntentRef.current = null;
-    setTab(intent?.tab || "home");
-    if (intent?.refreshConnectivity) {
-      setConnectivityRefreshKey((k) => k + 1);
+    if (intent) {
+      applyIntentNavigation(intent);
+    } else {
+      setTab("home");
     }
     setPendingChatText("");
     setPinGate(payload.has_pin === false);
@@ -175,6 +184,11 @@ export default function App() {
               onTab={setTab}
               pendingChatText={pendingChatText}
               connectivityRefreshKey={connectivityRefreshKey}
+              pushFocusTicketId={pushFocusTicketId}
+              pushFocusSeq={pushFocusSeq}
+              onPushFocusConsumed={() => {
+                setPushFocusTicketId("");
+              }}
               onQuickAction={(texto) => {
                 setTab("eko");
                 setPendingChatText(texto || "");

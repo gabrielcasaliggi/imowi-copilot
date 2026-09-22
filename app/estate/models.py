@@ -147,6 +147,9 @@ class NetworkOutage(Base):
     push_resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )
+    # 2.3E: fingerprint del último material_update reclamado (sha256 hex).
+    # Mismo fingerprint → skip; fingerprint distinto → update legítimo.
+    push_material_fingerprint: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
@@ -230,6 +233,10 @@ class TicketEvent(Base):
     estado: Mapped[str] = mapped_column(String(32), default="")
     actor: Mapped[str] = mapped_column(String(120), default="sistema")
     visible_cliente: Mapped[str] = mapped_column(String(8), default="Sí")
+    # 2.3G-B: claim AT-MOST-ONCE por TicketEvent.id (no reutiliza claims de outage).
+    push_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     organizacion: Mapped[Organization] = relationship(back_populates="ticket_events")

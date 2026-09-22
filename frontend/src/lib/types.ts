@@ -249,6 +249,7 @@ export interface PlatformSettingsResponse {
       user?: string;
       password?: string;
       timeout?: number;
+      handoff_v2?: boolean;
       nota?: string;
       password_configured?: boolean;
     };

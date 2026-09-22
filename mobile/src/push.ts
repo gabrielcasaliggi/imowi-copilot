@@ -9,8 +9,16 @@ import {
 } from "./pushIncidente";
 import type { AppTab } from "./types";
 
-export type { PushOpenIntent } from "./pushIncidente";
-export { intentFromPushData, parseIncidentePush } from "./pushIncidente";
+export type {
+  CanonicalTicketEvent,
+  PushOpenIntent,
+  TicketPushPayload,
+} from "./pushIncidente";
+export {
+  intentFromPushData,
+  parseIncidentePush,
+  parseTicketPush,
+} from "./pushIncidente";
 
 const PUSH_TOKEN_KEY = "expo_push_token";
 const CHANNEL_ID = "eko";

@@ -68,6 +68,16 @@ _STATE_KEYS = frozenset(
 )
 
 
+def billing_capabilities_hint(*, ov_available: bool = True) -> dict[str, bool]:
+    """Metadata de qué puede responder Eko hoy (MVP 2.1). No autoriza mutaciones."""
+    return {
+        "can_answer_balance": True,
+        "can_answer_invoice_fields": False,
+        "can_answer_payment_history": False,
+        "can_navigate_ov": bool(ov_available),
+    }
+
+
 def build_eko_facts(
     abonado: Any | None,
     *,
@@ -81,6 +91,8 @@ def build_eko_facts(
     """
     _ = org_id
     ov_block = load_ov_facts(db=db)
+    ov_ok = bool(ov_block.get("available"))
+    hints = billing_capabilities_hint(ov_available=ov_ok)
 
     if abonado is None:
         return {
@@ -91,6 +103,10 @@ def build_eko_facts(
                 "status": "unavailable",
                 "balance": None,
                 "reason_code": "missing_identity",
+                "capabilities_hint": {
+                    **hints,
+                    "can_answer_balance": False,
+                },
             },
             "tickets": {
                 "status": "omitted",
@@ -123,6 +139,7 @@ def build_eko_facts(
             "freshness": "snapshot",
         },
         "reason_code": "stale_snapshot",
+        "capabilities_hint": hints,
     }
 
     services_block: dict[str, Any] = {

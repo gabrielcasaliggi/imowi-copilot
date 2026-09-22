@@ -71,6 +71,12 @@ _UNTRUSTED_PARAM_KEYS = frozenset(
         "jwt",
         "sid",
         "tsid",
+        # 2.2C: identidad técnica/comercial solo desde selected_service_ref / TrustedContext
+        "login",
+        "service_id",
+        "selected_service",
+        "login_seleccionado",
+        "selected_service_ref",
     }
 )
 
@@ -316,12 +322,27 @@ def evaluate_policy(request: ActionRequest, trusted: TrustedContext) -> PolicyDe
         if name in ("create_ticket", "update_ticket", "escalate_human", "close_conversation"):
             return PolicyDecision("DENY", "missing_organization")
 
-    # Multi-cuenta: acciones técnicas requieren login seleccionado
+    # Multi-cuenta / selección 2.2B: acciones técnicas requieren selected_service_ref
     if name in ("run_diagnostic_pppoe", "run_diagnostic_bcm", "run_diagnostic_uisp"):
         ctx = trusted.ctx or {}
-        if ctx.get("multi_cuenta_pendiente") and not str(ctx.get("login_seleccionado") or "").strip():
+        from app.services.eko_service_selection import (
+            get_selected_ref,
+            is_fixed_internet_diagnosticable,
+            ownership_matches_ref,
+        )
+
+        ref = get_selected_ref(ctx)
+        trusted_cn = str(getattr(trusted.abonado, "client_number", "") or "").strip()
+        if ref is not None and trusted_cn and not ownership_matches_ref(ref, trusted_cn):
+            return PolicyDecision("DENY", "ownership_mismatch")
+        if ref is not None and not is_fixed_internet_diagnosticable(ref):
+            # Sin login técnico o tipo no diagnosticable: no probes
+            return PolicyDecision("DENY", "service_not_diagnosticable")
+        login = str((ref.login if ref else "") or ctx.get("login_seleccionado") or "").strip()
+        if ctx.get("multi_cuenta_pendiente") and not login:
             return PolicyDecision("NEEDS_INPUT", "account_selection_required")
-        # También: si hay >1 y sin selección (sin flag aún) — executor revalida
+        # Ignorar login/service_id inyectados en parameters (LLM); solo ctx/ref
+        # (sanitize ya limpia client_number; login en params no se usa en executor)
 
     conf = confirmation_state_for(spec, trusted)
     if conf == "REJECTED":
@@ -552,6 +573,198 @@ def _exec_show_balance(req: ActionRequest, trusted: TrustedContext) -> ActionRes
     )
 
 
+def _exec_show_invoice(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
+    """Cabecera FC vía BillTrack. Ownership = abonado.client_number (TrustedContext)."""
+    from app.services.eko_invoice_reader import (
+        format_invoice_headers_message,
+        read_invoices_fc,
+    )
+
+    if trusted.abonado is None:
+        return ActionResult(
+            action="show_invoice",
+            status="denied",
+            reason_code="missing_abonado",
+            user_message="Para ver tu factura necesito identificarte.",
+        )
+    trusted_cn = str(getattr(trusted.abonado, "client_number", "") or "").strip()
+    param_cn = str(req.parameters.get("client_number") or "").strip()
+    if param_cn and trusted_cn and param_cn != trusted_cn:
+        return ActionResult(
+            action="show_invoice",
+            status="denied",
+            reason_code="client_number_mismatch",
+            user_message="No puedo consultar facturas de otra cuenta.",
+        )
+    cn = trusted_cn or param_cn
+    if not cn:
+        return ActionResult(
+            action="show_invoice",
+            status="needs_input",
+            reason_code="missing_client_number",
+            user_message="No tengo el número de cuenta para consultar facturas.",
+        )
+    lim_raw = req.parameters.get("limit")
+    result = read_invoices_fc(client_number=cn, db=trusted.db, limit=lim_raw)
+    if result.status == "invalid_input":
+        return ActionResult(
+            action="show_invoice",
+            status="needs_input",
+            reason_code=result.reason_code,
+            user_message=result.message,
+        )
+    if result.status in ("unavailable", "error"):
+        return ActionResult(
+            action="show_invoice",
+            status="unavailable",
+            reason_code=result.reason_code,
+            user_message=result.message,
+            data={"invoice_read_status": result.status},
+        )
+    if result.status == "empty":
+        return ActionResult(
+            action="show_invoice",
+            status="success",
+            reason_code="no_fc_invoices",
+            user_message=result.message,
+            data={"invoices": [], "count": 0},
+        )
+    return ActionResult(
+        action="show_invoice",
+        status="success",
+        user_message=format_invoice_headers_message(result.invoices),
+        data={
+            "invoices": [i.to_dict() for i in result.invoices],
+            "count": len(result.invoices),
+        },
+    )
+
+
+_SERVICE_TYPE_LABEL = {
+    "internet": "Internet",
+    "tv": "TV",
+    "movil": "Móvil",
+    "telefonia": "Telefonía",
+    "other": "Servicio",
+}
+
+
+def format_service_list_message(services: list[dict[str, Any]]) -> str:
+    """Texto determinístico del catálogo comercial (sin estado técnico)."""
+    if not services:
+        return (
+            "No encuentro servicios contratados asociados a tu cuenta "
+            "en este momento."
+        )
+    lines: list[str] = []
+    for s in services:
+        tip = str(s.get("type") or "other")
+        tip_l = _SERVICE_TYPE_LABEL.get(tip, "Servicio")
+        name = str(s.get("product") or s.get("label") or tip_l).strip() or tip_l
+        estado = "Activo" if s.get("active") else "Inactivo"
+        msisdn = str(s.get("line_msisdn") or "").strip()
+        extra = f" · línea {msisdn}" if msisdn else ""
+        # Prefijo de tipo solo si no está ya en el nombre comercial
+        prefix = ""
+        if tip_l.lower() not in name.lower():
+            prefix = f"{tip_l}: "
+        lines.append(f"• {prefix}{name}{extra} — {estado}")
+    header = (
+        "Estos son tus servicios contratados:"
+        if len(services) > 1
+        else "Este es tu servicio contratado:"
+    )
+    return header + "\n" + "\n".join(lines)
+
+
+def public_service_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Proyecta solo campos contractuales del DTO portal (sin inventar)."""
+    out: dict[str, Any] = {
+        "id": str(row.get("id") or ""),
+        "type": row.get("type"),
+        "label": row.get("label"),
+        "product": row.get("product"),
+        "active": bool(row.get("active")),
+    }
+    if row.get("line_msisdn") is not None:
+        out["line_msisdn"] = row.get("line_msisdn")
+    return out
+
+
+def _exec_service_list(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
+    """Catálogo comercial vía evaluar_servicios_portal. Sin selection ni probes."""
+    from app.services.portal_services import evaluar_servicios_portal
+
+    if trusted.abonado is None:
+        return ActionResult(
+            action="service_list",
+            status="denied",
+            reason_code="missing_abonado",
+            user_message="Para ver tus servicios necesito identificarte.",
+        )
+    trusted_cn = str(getattr(trusted.abonado, "client_number", "") or "").strip()
+    param_cn = str(req.parameters.get("client_number") or "").strip()
+    if param_cn and trusted_cn and param_cn != trusted_cn:
+        return ActionResult(
+            action="service_list",
+            status="denied",
+            reason_code="client_number_mismatch",
+            user_message="No puedo consultar servicios de otra cuenta.",
+        )
+    if not trusted_cn:
+        return ActionResult(
+            action="service_list",
+            status="needs_input",
+            reason_code="missing_client_number",
+            user_message="No tengo el número de cuenta para listar tus servicios.",
+        )
+    if trusted.db is None:
+        return ActionResult(
+            action="service_list",
+            status="unavailable",
+            reason_code="db_unavailable",
+            user_message="No puedo consultar tus servicios en este momento.",
+        )
+    try:
+        raw = evaluar_servicios_portal(trusted.db, abonado=trusted.abonado)
+    except Exception:
+        logger.exception("service_list: evaluar_servicios_portal falló")
+        return ActionResult(
+            action="service_list",
+            status="unavailable",
+            reason_code="source_error",
+            user_message="No pude consultar tus servicios por un error técnico.",
+        )
+    status = str((raw or {}).get("status") or "")
+    if status != "ok":
+        return ActionResult(
+            action="service_list",
+            status="unavailable",
+            reason_code=str((raw or {}).get("reason_code") or "source_unavailable"),
+            user_message="No puedo consultar tus servicios en este momento.",
+            data={"catalog_status": status},
+        )
+    items = [
+        public_service_row(s)
+        for s in list((raw or {}).get("services") or [])
+        if isinstance(s, dict) and str(s.get("id") or "").strip()
+    ]
+    if not items:
+        return ActionResult(
+            action="service_list",
+            status="success",
+            reason_code="empty_catalog",
+            user_message=format_service_list_message([]),
+            data={"services": [], "count": 0},
+        )
+    return ActionResult(
+        action="service_list",
+        status="success",
+        user_message=format_service_list_message(items),
+        data={"services": items, "count": len(items)},
+    )
+
+
 def _exec_show_ticket(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
     from app.estate.models import Ticket
     from app.services.abonado_tickets import load_ticket_facts, ticket_pertenece_abonado
@@ -665,14 +878,52 @@ def _internet_login_count(trusted: TrustedContext) -> int:
 
 
 def _exec_run_diagnostic_pppoe(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
-    """Diagnóstico explícito Radius. No corre en build_eko_facts."""
+    """Diagnóstico acotado: selected_service_ref → portal_connectivity (o Radius legacy).
+
+    No acepta login/service_id del LLM. No inventa probes para Sensa/IMOWI/VoIP.
+    """
     ctx = trusted.ctx
-    login = str(ctx.get("login_seleccionado") or "").strip()
+    from app.services.eko_service_selection import (
+        get_selected_ref,
+        is_fixed_internet_diagnosticable,
+        ownership_matches_ref,
+    )
+
+    # Ignorar parámetros no confiables (LLM puede proponer login/service_id)
+    _ = req.parameters
+
+    ref = get_selected_ref(ctx)
+    trusted_cn = str(getattr(trusted.abonado, "client_number", "") or "").strip()
+
+    if ref is not None and trusted_cn and not ownership_matches_ref(ref, trusted_cn):
+        return ActionResult(
+            action="run_diagnostic_pppoe",
+            status="denied",
+            reason_code="ownership_mismatch",
+            user_message="No puedo diagnosticar un servicio que no pertenece a tu cuenta.",
+        )
+
+    if ref is not None and not is_fixed_internet_diagnosticable(ref):
+        tip = (ref.service_type or "").strip().lower() or "este servicio"
+        return ActionResult(
+            action="run_diagnostic_pppoe",
+            status="unavailable",
+            reason_code="service_not_diagnosticable",
+            user_message=(
+                f"Para {tip} no tengo un diagnóstico técnico de Internet disponible. "
+                "Si el problema es tu Internet fijo, elegí ese servicio y pedime revisar la conexión."
+            ),
+            data={"selected_service_ref": ref.to_dict()},
+        )
+
+    login = str((ref.login if ref else "") or "").strip()
+    service_id = str((ref.service_id if ref else "") or "").strip()
+
     if ctx.get("multi_cuenta_pendiente") and not login:
         return ActionResult(
             action="run_diagnostic_pppoe",
             status="needs_input",
-            reason_code="account_selection_required",
+            reason_code="service_selection_required",
             user_message="Elegí una cuenta antes del diagnóstico.",
         )
     n = _internet_login_count(trusted)
@@ -681,15 +932,100 @@ def _exec_run_diagnostic_pppoe(req: ActionRequest, trusted: TrustedContext) -> A
         return ActionResult(
             action="run_diagnostic_pppoe",
             status="needs_input",
-            reason_code="account_selection_required",
+            reason_code="service_selection_required",
             user_message="Tenés más de una cuenta. ¿Cuál querés que revise?",
         )
+    if not login:
+        return ActionResult(
+            action="run_diagnostic_pppoe",
+            status="needs_input",
+            reason_code="service_selection_required",
+            user_message="Necesito que indiques qué servicio de Internet revisar.",
+        )
+
+    # Alinear proyección compat: login efectivo = selected_service_ref.login
+    ctx["login_seleccionado"] = login
+
     if trusted.db is None or trusted.abonado is None:
         return ActionResult(
             action="run_diagnostic_pppoe",
             status="unavailable",
             reason_code="missing_abonado",
         )
+
+    # Preferir adaptador portal (outage→PHY→sesión→calidad) cuando hay service_id
+    if service_id:
+        try:
+            from app.services.portal_connectivity import evaluar_conectividad_portal
+
+            body = evaluar_conectividad_portal(
+                trusted.db,
+                org_id=str(trusted.organization_id or ""),
+                abonado=trusted.abonado,
+                service_id=service_id,
+                request_id=str(trusted.correlation_id or "")[:32],
+            )
+            status = str(body.get("status") or "unknown")
+            reason = body.get("reason_code")
+            msg = str(body.get("message") or "").strip()
+            if body.get("needs_service_selection"):
+                return ActionResult(
+                    action="run_diagnostic_pppoe",
+                    status="needs_input",
+                    reason_code="service_selection_required",
+                    user_message=msg or "Elegí qué servicio de Internet revisar.",
+                    data={
+                        "connectivity": body,
+                        "login_used": login,
+                        "service_id": service_id,
+                    },
+                )
+            # Stamp TSS en ctx (misma proyección que canal)
+            try:
+                from app.services.connectivity_eko import conversational_branch_for
+
+                ctx["tss_status"] = status
+                ctx["tss_reason_code"] = str(reason or "")
+                ctx["tss_service_id"] = service_id
+                ctx["tss_access_technology"] = str(body.get("access_technology") or "")
+                ctx["tss_freshness"] = str(body.get("freshness") or "")
+                ctx["tss_checked_at"] = str(body.get("checked_at") or "")
+                inc = body.get("incident") if isinstance(body.get("incident"), dict) else None
+                ctx["tss_incident_id"] = str((inc or {}).get("id") or "")
+                ctx["tss_eko_branch"] = conversational_branch_for(
+                    reason,  # type: ignore[arg-type]
+                    status=status,
+                    tech=str(body.get("access_technology") or ""),
+                )
+            except Exception:
+                logger.debug("stamp TSS desde portal falló", exc_info=True)
+
+            svc = body.get("service") if isinstance(body.get("service"), dict) else {}
+            used_sid = str((svc or {}).get("id") or service_id)
+            return ActionResult(
+                action="run_diagnostic_pppoe",
+                status="success",
+                reason_code=str(reason) if reason else None,
+                data={
+                    "connectivity": body,
+                    "connectivity_status": status,
+                    "reason_code": reason,
+                    "login_used": login,
+                    "service_id": used_sid,
+                    "observation_keys": ["connectivity"],
+                },
+                user_message=msg or "Revisé tu conexión.",
+            )
+        except Exception:
+            logger.exception("run_diagnostic_pppoe vía portal_connectivity falló")
+            return ActionResult(
+                action="run_diagnostic_pppoe",
+                status="unavailable",
+                reason_code="sources_unavailable",
+                user_message="No pude consultar el estado de conexión ahora.",
+            )
+
+    # Compat: solo login (sin service_id) → Radius histórico
     try:
         from app.services.conexion_pppoe import (
             consultar_conexion_pppoe,
@@ -697,7 +1033,7 @@ def _exec_run_diagnostic_pppoe(req: ActionRequest, trusted: TrustedContext) -> A
         )
 
         dni = str(getattr(trusted.abonado, "dni", "") or "")
-        cn = str(getattr(trusted.abonado, "client_number", "") or "")
+        cn = trusted_cn
         estado = consultar_conexion_pppoe(
             dni=dni,
             client_number=cn,
@@ -709,7 +1045,7 @@ def _exec_run_diagnostic_pppoe(req: ActionRequest, trusted: TrustedContext) -> A
                 action="run_diagnostic_pppoe",
                 status="unavailable",
                 reason_code="radius_unavailable",
-                data={"error": (estado.error or "")[:120]},
+                data={"error": (estado.error or "")[:120], "login_used": login},
                 user_message="No pude consultar el estado de conexión ahora.",
             )
         extras: dict[str, str] = {
@@ -734,7 +1070,9 @@ def _exec_run_diagnostic_pppoe(req: ActionRequest, trusted: TrustedContext) -> A
             data={
                 "pppoe_resumen": resumen,
                 "observation_keys": list(extras.keys()),
-                "_estado": estado,  # in-process only; avoids re-probe in canal_pppoe
+                "_estado": estado,
+                "login_used": login,
+                "service_id": service_id,
             },
             user_message=resumen or "Revisé tu conexión PPPoE.",
         )
@@ -953,13 +1291,43 @@ def _exec_close_conversation(req: ActionRequest, trusted: TrustedContext) -> Act
     )
 
 
+def _exec_installation_status(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
+    """2.2D: READ honesto — no hay fuente estructurada de instalación/agenda.
+
+    No inventa status/fecha/turno/técnico. Ownership no aplica a datos inexistentes.
+    """
+    _ = req, trusted
+    return ActionResult(
+        action="installation_status",
+        status="unavailable",
+        reason_code="source_unavailable",
+        data={
+            "capability": "unavailable",
+            "installation_id": None,
+            "status": None,
+            "scheduled_at": None,
+            "visit_at": None,
+            "technician": None,
+            "ticket_id": None,
+            "honest_unavailable": True,
+        },
+        user_message=(
+            "Actualmente no tengo información verificable de la instalación "
+            "para mostrarte (fecha, turno o estado). "
+            "Si tenés un número de ticket de visita, pedime el estado del ticket; "
+            "si no, un agente puede ayudarte a consultarlo."
+        ),
+    )
+
+
 def bootstrap_registry() -> None:
-    """Registra el allowlist. Idempotente."""
-    if _REGISTRY:
-        return
+    """Registra el allowlist. Idempotente (re-registra specs actuales)."""
     specs = [
         ActionSpec("send_message", _exec_send_message, requires_abonado=False, idempotency="SAFE"),
         ActionSpec("show_balance", _exec_show_balance, idempotency="SAFE"),
+        ActionSpec("show_invoice", _exec_show_invoice, idempotency="SAFE"),
+        ActionSpec("service_list", _exec_service_list, idempotency="SAFE"),
+        ActionSpec("installation_status", _exec_installation_status, idempotency="SAFE"),
         ActionSpec("show_ticket", _exec_show_ticket, idempotency="SAFE"),
         ActionSpec(
             "open_OV",

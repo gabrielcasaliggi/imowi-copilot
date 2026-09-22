@@ -208,6 +208,8 @@ else:
     ACTION_RUNTIME_ACTIONS = frozenset(
         {
             "show_balance",
+            "show_invoice",
+            "service_list",
             "show_ticket",
             "send_message",
             "request_account_selection",
@@ -215,6 +217,7 @@ else:
             "run_diagnostic_pppoe",
             "run_diagnostic_bcm",
             "run_diagnostic_uisp",
+            "installation_status",
         }
     )
 

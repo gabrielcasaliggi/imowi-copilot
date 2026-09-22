@@ -65,6 +65,11 @@ _NETWORK_OUTAGE_COLUMNS: dict[str, str] = {
     "eta_validada": "VARCHAR(8) DEFAULT 'Sí'",
     "push_declared_at": "DATETIME",
     "push_resolved_at": "DATETIME",
+    "push_material_fingerprint": "VARCHAR(64) DEFAULT ''",
+}
+
+_TICKET_EVENT_COLUMNS: dict[str, str] = {
+    "push_claimed_at": "DATETIME",
 }
 
 _SLA_COLUMNS: dict[str, str] = {
@@ -209,6 +214,14 @@ def migrate_schema(engine: Engine) -> list[str]:
                 _add_column(engine, "network_outages", col, ddl)
                 cambios.append(f"network_outages.{col}")
                 logger.info("Migración: columna agregada network_outages.%s", col)
+
+    if insp.has_table("ticket_events"):
+        existentes_tev = {c["name"] for c in insp.get_columns("ticket_events")}
+        for col, ddl in _TICKET_EVENT_COLUMNS.items():
+            if col not in existentes_tev:
+                _add_column(engine, "ticket_events", col, ddl)
+                cambios.append(f"ticket_events.{col}")
+                logger.info("Migración: columna agregada ticket_events.%s", col)
 
     cambios.extend(_ensure_auth_tables(engine, insp))
     return cambios

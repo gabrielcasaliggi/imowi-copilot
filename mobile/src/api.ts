@@ -2,6 +2,8 @@ import { API_BASE, CANAL_HEADER } from "./config";
 import type {
   AuthPayload,
   ConnectivityStatusResponse,
+  CustomerSummaryQuery,
+  CustomerSummaryResponse,
   InboxConversation,
   InboxMessage,
   OvLinksResponse,
@@ -237,5 +239,26 @@ export const api = {
     });
     if (!res.ok) throw new ApiError(await parseError(res), res.status);
     return res.json() as Promise<PortalServicesResponse>;
+  },
+
+  /**
+   * Agregado Customer Summary. Identidad solo JWT — no enviar abonado_id/dni.
+   * Default backend: sin probes técnicos (connectivity omitted).
+   */
+  async getCustomerSummary(token: string, query?: CustomerSummaryQuery) {
+    const params = new URLSearchParams();
+    if (query?.include) params.set("include", query.include);
+    if (query?.refresh) params.set("refresh", query.refresh);
+    if (query?.connectivity) params.set("connectivity", query.connectivity);
+    if (query?.service_id) params.set("service_id", query.service_id);
+    const qs = params.toString();
+    const path = qs
+      ? `/api/v1/portal/customer-summary?${qs}`
+      : "/api/v1/portal/customer-summary";
+    const res = await request(path, {
+      headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<CustomerSummaryResponse>;
   },
 };

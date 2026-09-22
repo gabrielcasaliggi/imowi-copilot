@@ -86,8 +86,8 @@ def test_5_detect_connectivity_variants():
 
 
 def test_5_detect_billing_and_ticket():
-    assert detect_journey_name("¿Cuánto debo?") == "billing_consulta"
-    assert detect_journey_name("quiero pagar") == "billing_consulta"
+    assert detect_journey_name("¿Cuánto debo?") == "billing_self_service"
+    assert detect_journey_name("quiero pagar") == "billing_self_service"
     assert detect_journey_name("estado del ticket") == "ticket_consulta"
 
 
@@ -488,7 +488,7 @@ def test_5_connectivity_to_billing_switch(monkeypatch):
             ctx=ctx,
         )
     assert turn is not None
-    assert turn.journey == "billing_consulta"
+    assert turn.journey == "billing_self_service"
     assert get_journey(ctx).get("previous_journey") == "internet_sin_conectividad"
     assert get_journey(ctx).get("domain") == "billing"
     assert get_journey(ctx).get("diagnostic_started") in (False, None) or not get_journey(ctx).get(
@@ -501,7 +501,7 @@ def test_5_billing_to_connectivity_switch(monkeypatch):
     _enable_runtime(monkeypatch, "run_diagnostic_pppoe")
     ctx = {
         "eko_journey": {
-            "name": "billing_consulta",
+            "name": "billing_self_service",
             "step": "done",
             "intent": "facturacion",
             "domain": "billing",
@@ -528,7 +528,7 @@ def test_5_billing_to_connectivity_switch(monkeypatch):
         )
     assert turn is not None
     assert turn.journey == "internet_sin_conectividad"
-    assert get_journey(ctx).get("previous_journey") == "billing_consulta"
+    assert get_journey(ctx).get("previous_journey") == "billing_self_service"
 
 
 # --- Security ---

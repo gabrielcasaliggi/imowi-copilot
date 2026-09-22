@@ -137,14 +137,18 @@ def _collapse_key(row: dict[str, Any]) -> tuple[str, str]:
     """Clave de colapso: internet/móvil por línea (login); TV/otros por producto."""
     tip = str(row.get("type") or "")
     if tip == "internet":
-        login = (row.get("_login") or "").strip()
+        login = (row.get("login") or row.get("_login") or "").strip()
         if login:
-            return tip, f"login:{login}"
+            return tip, f"login:{login.lower()}"
         name = (row.get("product") or row.get("label") or "").strip().lower()
         return tip, f"name:{name}" if name else f"id:{row.get('id') or ''}"
     if tip in ("movil", "telefonia"):
         line = (
-            row.get("line_msisdn") or row.get("_login") or row.get("id") or ""
+            row.get("line_msisdn")
+            or row.get("login")
+            or row.get("_login")
+            or row.get("id")
+            or ""
         ).strip().lower()
         return tip, line
     name = (row.get("product") or row.get("label") or "").strip().lower()
@@ -206,9 +210,10 @@ def _dto(svc: Any) -> dict[str, Any] | None:
         "product": _source_product(svc),
         "active": bool(bt.servicio_habilitado(svc)),
         "line_msisdn": line_msisdn_from_svc(svc, tip=tip),
+        # login para selección Eko; se elimina del DTO HTTP.
+        "login": login,
         # Solo para dedupe/prune; se elimina antes de responder.
         "_conn": _conn_eligible(svc),
-        "_login": login.lower() if login else "",
     }
 
 
@@ -234,7 +239,11 @@ def _prune_movil_sin_linea(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _dedupe_catalog(
+    items: list[dict[str, Any]],
+    *,
+    keep_login: bool = False,
+) -> list[dict[str, Any]]:
     """Colapsa réplicas; conserva varios Internet/móvil con login distinto."""
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     order: list[tuple[str, str]] = []
@@ -252,47 +261,17 @@ def _dedupe_catalog(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for row in merged:
         clean = {kk: vv for kk, vv in row.items() if not kk.startswith("_")}
+        if not keep_login:
+            clean.pop("login", None)
         out.append(clean)
     return out
 
 
-def evaluar_servicios_portal(
-    db: Session,
+def _assemble_catalog(
+    raw: list[Any] | None,
     *,
-    abonado: Abonado,
-) -> dict[str, Any]:
-    """Catálogo administrativo del abonado del JWT. Sin IDOR ni probes operativos."""
-    dni = str(getattr(abonado, "dni", "") or "").strip()
-    checked_at = _now_iso()
-
-    if not dni:
-        logger.info("portal_services: abonado sin DNI")
-        return {
-            "status": "unavailable",
-            "checked_at": checked_at,
-            "services": [],
-            "reason_code": "missing_dni",
-        }
-
-    try:
-        raw, ok = bt.lookup_servicios_cuenta_por_dni(dni=dni, db=db)
-    except Exception:
-        logger.exception("portal_services: BillTrack falló")
-        return {
-            "status": "unavailable",
-            "checked_at": checked_at,
-            "services": [],
-            "reason_code": "source_error",
-        }
-
-    if not ok:
-        return {
-            "status": "unavailable",
-            "checked_at": checked_at,
-            "services": [],
-            "reason_code": "source_unavailable",
-        }
-
+    keep_login: bool = False,
+) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
     for svc in raw or []:
@@ -304,8 +283,7 @@ def evaluar_servicios_portal(
         seen.add(row["id"])
         items.append(row)
 
-    items = _dedupe_catalog(items)
-
+    items = _dedupe_catalog(items, keep_login=keep_login)
     items.sort(
         key=lambda r: (
             _TYPE_ORDER.index(r["type"]) if r["type"] in _TYPE_ORDER else 99,
@@ -314,10 +292,70 @@ def evaluar_servicios_portal(
             r["id"],
         )
     )
+    return items
 
+
+def _load_raw_services(db: Session, abonado: Abonado) -> tuple[list[Any] | None, str | None]:
+    """(raw|None, reason_code|None). reason set → unavailable."""
+    dni = str(getattr(abonado, "dni", "") or "").strip()
+    if not dni:
+        logger.info("portal_services: abonado sin DNI")
+        return None, "missing_dni"
+    try:
+        raw, ok = bt.lookup_servicios_cuenta_por_dni(dni=dni, db=db)
+    except Exception:
+        logger.exception("portal_services: BillTrack falló")
+        return None, "source_error"
+    if not ok:
+        return None, "source_unavailable"
+    return list(raw or []), None
+
+
+def evaluar_servicios_portal(
+    db: Session,
+    *,
+    abonado: Abonado,
+) -> dict[str, Any]:
+    """Catálogo administrativo del abonado del JWT. Sin IDOR ni probes operativos."""
+    checked_at = _now_iso()
+    raw, reason = _load_raw_services(db, abonado)
+    if reason:
+        return {
+            "status": "unavailable",
+            "checked_at": checked_at,
+            "services": [],
+            "reason_code": reason,
+        }
     return {
         "status": "ok",
         "checked_at": checked_at,
-        "services": items,
+        "services": _assemble_catalog(raw, keep_login=False),
+        "reason_code": None,
+    }
+
+
+def catalog_for_selection(
+    db: Session,
+    *,
+    abonado: Abonado,
+) -> dict[str, Any]:
+    """Catálogo para selección Eko: mismo contenido que portal + campo login.
+
+    NO es contrato HTTP. Solo para resolver service_id ↔ login en ConversationState.
+    Una sola consulta BillTrack (misma fuente que evaluar_servicios_portal).
+    """
+    checked_at = _now_iso()
+    raw, reason = _load_raw_services(db, abonado)
+    if reason:
+        return {
+            "status": "unavailable",
+            "checked_at": checked_at,
+            "services": [],
+            "reason_code": reason,
+        }
+    return {
+        "status": "ok",
+        "checked_at": checked_at,
+        "services": _assemble_catalog(raw, keep_login=True),
         "reason_code": None,
     }

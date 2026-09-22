@@ -10,7 +10,8 @@
     "lint": "tsc --noEmit",
     "test:push": "node scripts/verify-push-incidente.mjs",
     "test:claim": "node scripts/verify-create-claim.mjs",
-    "test:services": "node scripts/verify-services.mjs"
+    "test:services": "node scripts/verify-services.mjs",
+    "test:customer-summary": "node scripts/verify-customer-summary.mjs"
   },
   "dependencies": {
     "expo": "~54.0.0",

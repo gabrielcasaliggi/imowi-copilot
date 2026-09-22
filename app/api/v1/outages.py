@@ -148,15 +148,21 @@ def create_outage(
         eta_validada=eta_flag,
     )
     o = repo.update_network_outage(db, o, mensaje_cliente=mensaje)
+    # 2.3D: único camino de delivery = proactive adapter → app_push (XOR legacy).
     try:
-        from app.services.app_push import notificar_incidente_app
+        from app.services.eko_proactive_policy import authorize_outage_push
+        from app.services.eko_proactive_push import deliver_proactive_push
 
-        notificar_incidente_app(
-            db,
-            ctx.organizacion_id,
-            title="Corte en la red",
-            body=mensaje,
+        decision = authorize_outage_push(
+            event_type="outage.started",
+            org_id=ctx.organizacion_id,
             outage_id=str(o.id),
+            customer_message=mensaje,
+            customer_title="Corte en la red",
+        )
+        deliver_proactive_push(
+            db,
+            decision,
             nas_shortname=shortname,
             nas_ip=str(o.nas_ip or nas_ip or ""),
         )
@@ -239,15 +245,21 @@ def update_outage(
             touched_tipo=body.tipo is not None,
         )
         if material:
-            from app.services.app_push import notificar_incidente_actualizado_app
+            from app.services.eko_proactive_policy import authorize_outage_push
+            from app.services.eko_proactive_push import deliver_proactive_push
 
-            notificar_incidente_actualizado_app(
-                db,
-                ctx.organizacion_id,
+            decision = authorize_outage_push(
+                event_type="outage.material_update",
+                org_id=ctx.organizacion_id,
                 outage_id=str(o.id),
+                customer_message=str(o.mensaje_cliente or "").strip(),
+                customer_title="Actualización del incidente",
+            )
+            deliver_proactive_push(
+                db,
+                decision,
                 nas_shortname=str(o.nas_shortname or ""),
                 nas_ip=str(o.nas_ip or ""),
-                body=str(o.mensaje_cliente or "").strip(),
             )
     except Exception:
         logger.exception(
@@ -273,13 +285,21 @@ def resolve_outage(
         status = "resuelto"
     # Push resolved (idempotente). También intenta si quedó resuelto sin claim
     # (p.ej. crash entre resolve y push).
+    # 2.3D: único camino = proactive adapter (idempotente vía push_resolved_at).
     try:
-        from app.services.app_push import notificar_incidente_resuelto_app
+        from app.services.eko_proactive_policy import authorize_outage_push
+        from app.services.eko_proactive_push import deliver_proactive_push
 
-        notificar_incidente_resuelto_app(
-            db,
-            ctx.organizacion_id,
+        decision = authorize_outage_push(
+            event_type="outage.resolved",
+            org_id=ctx.organizacion_id,
             outage_id=str(o.id),
+            customer_message="",
+            customer_title="Servicio restablecido",
+        )
+        deliver_proactive_push(
+            db,
+            decision,
             nas_shortname=str(o.nas_shortname or ""),
             nas_ip=str(o.nas_ip or ""),
         )

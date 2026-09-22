@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -34,6 +34,9 @@ export function AppShell({
   onPinSaved,
   onExit,
   connectivityRefreshKey = 0,
+  pushFocusTicketId = "",
+  pushFocusSeq = 0,
+  onPushFocusConsumed,
 }: {
   branding: Branding;
   conv: InboxConversation;
@@ -49,16 +52,33 @@ export function AppShell({
   onPinSaved: () => void;
   onExit: () => void;
   connectivityRefreshKey?: number;
+  /** Deep-link desde push tipo=ticket (solo referencia; API es autoridad). */
+  pushFocusTicketId?: string;
+  /** Monotónico: permite re-abrir el mismo ticket_id en pushes sucesivos. */
+  pushFocusSeq?: number;
+  onPushFocusConsumed?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 8);
   const [focusTicketId, setFocusTicketId] = useState("");
+  const [focusSeq, setFocusSeq] = useState(0);
 
   const openActivity = (ticketId?: string) => {
     const tid = (ticketId || "").trim();
-    if (tid) setFocusTicketId(tid);
+    if (tid) {
+      setFocusTicketId(tid);
+      setFocusSeq((n) => n + 1);
+    }
     onTab("activity");
   };
+
+  useEffect(() => {
+    if (!pushFocusSeq) return;
+    setFocusTicketId((pushFocusTicketId || "").trim());
+    setFocusSeq((n) => n + 1);
+    onPushFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar seq
+  }, [pushFocusSeq]);
 
   return (
     <View style={styles.root}>
@@ -96,6 +116,7 @@ export function AppShell({
               onExit={onExit}
               onGoEko={() => onTab("eko")}
               focusTicketId={focusTicketId}
+              focusSeq={focusSeq}
               onFocusConsumed={() => setFocusTicketId("")}
             />
           ) : null}

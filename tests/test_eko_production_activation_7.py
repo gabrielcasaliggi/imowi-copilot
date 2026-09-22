@@ -355,7 +355,7 @@ def test_f7_waiting_confirmation_and_switch(monkeypatch):
 
 def test_f7_completed_and_failed_events():
     reset_journey_metrics()
-    emit_journey_event("journey.completed", journey="billing_consulta", step="done")
+    emit_journey_event("journey.completed", journey="billing_self_service", step="done")
     emit_journey_event(
         "journey.failed",
         journey="internet_sin_conectividad",
@@ -366,7 +366,7 @@ def test_f7_completed_and_failed_events():
     snap = snapshot_journey_metrics()
     assert snap["counters"]["journey_completed_total"] == 1
     assert snap["counters"]["journey_failed_total"] == 1
-    assert snap["by_journey"]["billing_consulta"]["completed"] == 1
+    assert snap["by_journey"]["billing_self_service"]["completed"] == 1
 
 
 # --- Security ---
@@ -465,7 +465,7 @@ def test_f7_26_no_pii_in_telemetry():
     reset_journey_metrics()
     emit_journey_event(
         "journey.step",
-        journey="billing_consulta",
+        journey="billing_self_service",
         dni="30111222",  # must be stripped
         abonado_id="abo-1",
         password="x",
@@ -552,7 +552,7 @@ def test_f7_32_billing_journey(monkeypatch):
         t = maybe_handle_journey_turn(
             MagicMock(), "org", _conv(), _abo(), "cuánto debo", canal="wa", ctx=ctx
         )
-    assert t and t.journey == "billing_consulta"
+    assert t and t.journey == "billing_self_service"
 
 
 def test_f7_33_ticket_journey(monkeypatch):
@@ -591,7 +591,7 @@ def test_f7_34_domain_switch(monkeypatch):
         maybe_handle_journey_turn(
             MagicMock(), "org", _conv(), _abo(), "cuánto debo", canal="wa", ctx=ctx
         )
-    assert get_journey(ctx).get("name") == "billing_consulta"
+    assert get_journey(ctx).get("name") == "billing_self_service"
     assert all(c.args[0] != "run_diagnostic_pppoe" for c in disp.call_args_list)
 
 
@@ -674,7 +674,7 @@ def test_f7_36_long_controlled_conversation(monkeypatch):
         maybe_handle_journey_turn(
             MagicMock(), "org", _conv(), _abo(), "¿Y cuánto debo?", canal="wa", ctx=ctx
         )
-        assert get_journey(ctx).get("name") == "billing_consulta"
+        assert get_journey(ctx).get("name") == "billing_self_service"
         assert get_journey(ctx).get("pending_confirmation") is False
         # T5 re-entry
         t5 = maybe_handle_journey_turn(
@@ -695,7 +695,7 @@ def test_f7_36_long_controlled_conversation(monkeypatch):
 def test_f7_37_process_restart_metrics_reset_state_in_ctx():
     """Tras restart de proceso, métricas in-memory se pierden; State vive en ctx persistido."""
     reset_journey_metrics()
-    emit_journey_event("journey.started", journey="billing_consulta")
+    emit_journey_event("journey.started", journey="billing_self_service")
     assert snapshot_journey_metrics()["counters"]["journey_started_total"] == 1
     reset_journey_metrics()  # simula restart
     assert snapshot_journey_metrics()["counters"]["journey_started_total"] == 0

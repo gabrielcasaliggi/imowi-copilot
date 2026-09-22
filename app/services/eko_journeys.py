@@ -31,8 +31,11 @@ JOURNEY_KEY = "eko_journey"
 
 JourneyName = Literal[
     "internet_sin_conectividad",
-    "billing_consulta",
+    "billing_self_service",
+    "billing_consulta",  # alias legado → normaliza a billing_self_service
     "ticket_consulta",
+    "service_catalog",
+    "installation_status",
 ]
 
 StepName = Literal[
@@ -94,14 +97,79 @@ _CONNECTIVITY_PHRASES = (
 _BILLING_PHRASES = (
     "cuanto debo",
     "cuánto debo",
+    "tengo que pagar",
     "tengo deuda",
     "donde pago",
     "dónde pago",
+    "como pago",
+    "cómo pago",
     "quiero pagar",
     "consultar saldo",
     "mi saldo",
+    "cual es mi saldo",
+    "cuál es mi saldo",
     "deuda",
+    "mi factura",
+    "la factura",
+    "ver factura",
+    "ver mi factura",
+    "necesito la factura",
+    "necesito mi factura",
+    "factura pendiente",
+    "que factura",
+    "qué factura",
+    "talon",
+    "talón",
+    "cuando vence",
+    "cuándo vence",
+    "vencimiento",
+    "que pague",
+    "qué pagué",
+    "que pagué",
+    "pagos hice",
+    "historial de pago",
+    "mis pagos",
 )
+
+# 2.2D: intención de seguimiento de instalación (sin fuente factual → honest unavailable)
+_INSTALLATION_PHRASES = (
+    "cuando me instalan",
+    "cuándo me instalan",
+    "cuando me instalan",
+    "como esta mi instalacion",
+    "cómo está mi instalación",
+    "como está mi instalación",
+    "estado de mi instalacion",
+    "estado de mi instalación",
+    "estado de la instalacion",
+    "estado de la instalación",
+    "que paso con mi instalacion",
+    "qué pasó con mi instalación",
+    "tengo turno de instalacion",
+    "tengo turno de instalación",
+    "turno de instalacion",
+    "turno de instalación",
+    "cuando viene el tecnico",
+    "cuándo viene el técnico",
+    "cuando viene el técnico",
+    "ya esta programada la instalacion",
+    "ya está programada la instalación",
+    "programada la instalacion",
+    "programada la instalación",
+    "seguimiento de instalacion",
+    "seguimiento de instalación",
+    "mi instalacion",
+    "mi instalación",
+)
+
+_JOURNEY_ALIAS = {
+    "billing_consulta": "billing_self_service",
+}
+
+
+def _canonical_journey(name: str) -> str:
+    n = (name or "").strip()
+    return _JOURNEY_ALIAS.get(n, n)
 
 _TICKET_PHRASES = (
     "estado del ticket",
@@ -113,6 +181,29 @@ _TICKET_PHRASES = (
     "ya está solucionado",
     "como va el ticket",
     "cómo va el ticket",
+)
+
+# Catálogo comercial (Eko 2.2A). Antes que billing genérico con "servicio".
+_SERVICE_CATALOG_PHRASES = (
+    "que servicios tengo",
+    "qué servicios tengo",
+    "que servicios tengo contratados",
+    "qué servicios tengo contratados",
+    "servicios tengo contratados",
+    "servicios contratados",
+    "mis servicios",
+    "mostrame mis servicios",
+    "mostrame los servicios",
+    "mostrar mis servicios",
+    "lista de servicios",
+    "listado de servicios",
+    "que tengo contratado",
+    "qué tengo contratado",
+    "servicios activos",
+    "que servicios tengo activos",
+    "qué servicios tengo activos",
+    "que servicios tengo con",
+    "qué servicios tengo con",
 )
 
 
@@ -186,31 +277,57 @@ def detect_journey_name(texto: str) -> JourneyName | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
-    # Billing / ticket antes que connectivity genérico con "deuda" vs "internet"
+    # Billing / ticket / catálogo antes que connectivity genérico
     if any(p in t for p in _TICKET_PHRASES):
         return "ticket_consulta"
+    # 2.2D instalación: honest unavailable (sin agenda/órdenes)
+    if any(p in t for p in _INSTALLATION_PHRASES):
+        return "installation_status"
+    if any(p in t for p in _SERVICE_CATALOG_PHRASES):
+        return "service_catalog"
+    # Re-entry a Internet ("¿y el Internet?") gana sobre selección lingüística
+    if _is_resume_connectivity(t):
+        return "internet_sin_conectividad"
     if any(p in t for p in _BILLING_PHRASES) and "internet" not in t:
-        return "billing_consulta"
+        return "billing_self_service"
     if any(p in t for p in _CONNECTIVITY_PHRASES):
         return "internet_sin_conectividad"
+    # Selección lingüística (después de connectivity para no robar "sin internet")
+    try:
+        from app.services.eko_service_selection import looks_like_selection_utterance
+
+        if looks_like_selection_utterance(t):
+            return "service_catalog"
+    except Exception:
+        pass
     if any(p in t for p in _BILLING_PHRASES):
-        return "billing_consulta"
+        return "billing_self_service"
     return None
 
 
-def _domain_for(name: JourneyName) -> str:
-    if name == "billing_consulta":
+def _domain_for(name: JourneyName | str) -> str:
+    n = _canonical_journey(str(name))
+    if n == "billing_self_service":
         return "billing"
-    if name == "ticket_consulta":
+    if n == "ticket_consulta":
         return "support"
+    if n == "service_catalog":
+        return "services"
+    if n == "installation_status":
+        return "services"
     return "internet"
 
 
-def _intent_for(name: JourneyName) -> str:
-    if name == "billing_consulta":
+def _intent_for(name: JourneyName | str) -> str:
+    n = _canonical_journey(str(name))
+    if n == "billing_self_service":
         return "facturacion"
-    if name == "ticket_consulta":
+    if n == "ticket_consulta":
         return "estado_ticket"
+    if n == "service_catalog":
+        return "consulta_servicios"
+    if n == "installation_status":
+        return "seguimiento_instalacion"
     return "internet"
 
 
@@ -263,7 +380,6 @@ def _is_resume_connectivity(texto: str) -> bool:
         return False
     cues = (
         "y el internet",
-        "el internet",
         "volvamos al internet",
         "volvamos con internet",
         "bueno volvamos al internet",
@@ -276,7 +392,7 @@ def _is_resume_connectivity(texto: str) -> bool:
         "bueno, y el internet",
     )
     return any(c in t for c in cues) or (
-        t in ("y el internet?", "¿y el internet?", "el internet?")
+        t in ("y el internet?", "¿y el internet?", "¿y el internet")
     )
 
 
@@ -384,6 +500,51 @@ def _msg_selection() -> str:
 def _interpret_pppoe(ar: ActionResult) -> tuple[str, str]:
     """(observation_code, user_safe_message). No inventa fallas de fibra/router."""
     data = ar.data or {}
+    # 2.2C: resultado portal_connectivity (precedencia canónica)
+    conn = data.get("connectivity") if isinstance(data.get("connectivity"), dict) else None
+    if conn is not None or data.get("connectivity_status") or data.get("reason_code"):
+        status = str(
+            (conn or {}).get("status")
+            or data.get("connectivity_status")
+            or ""
+        ).strip()
+        reason = str(
+            (conn or {}).get("reason_code")
+            or data.get("reason_code")
+            or ar.reason_code
+            or ""
+        ).strip()
+        msg = str(
+            ar.user_message
+            or (conn or {}).get("message")
+            or ""
+        ).strip()
+        if reason == "service_selection_required" or ar.status == "needs_input":
+            return "needs_selection", msg or _msg_selection()
+        if reason == "incident_active" or status == "outage":
+            return "outage", msg or "Detectamos una incidencia que puede afectar tu servicio."
+        if reason == "access_link_down":
+            return "access_link_down", msg or "Detectamos un problema en tu acceso a Internet."
+        if reason == "no_session":
+            return "no_session", msg or (
+                "Tu acceso responde, pero no hay una sesión activa en este momento."
+            )
+        if reason == "link_quality_poor":
+            return "link_quality_poor", msg or (
+                "Tu acceso muestra condiciones deficientes."
+            )
+        if status == "operational" and not reason:
+            return "operational", msg or "No registramos problemas en tu acceso a Internet."
+        if status == "unknown" or reason in (
+            "sources_unavailable",
+            "insufficient_data",
+            "service_not_diagnosticable",
+        ):
+            return "unknown", msg or "No pudimos verificar tu servicio en este momento."
+        if msg:
+            return reason or status or "connectivity_observed", msg
+        return "unknown", "Revisé tu línea pero no tengo un resultado completo ahora."
+
     estado = data.get("_estado")
     online = None
     if estado is not None:
@@ -401,6 +562,8 @@ def _interpret_pppoe(ar: ActionResult) -> tuple[str, str]:
         )
     if ar.status == "needs_input":
         return "needs_selection", ar.user_message or _msg_selection()
+    if ar.status == "denied":
+        return "denied", ar.user_message or "No puedo ejecutar ese diagnóstico."
     if online is True:
         return "pppoe_session_up", (
             "Veo una sesión de conexión activa en tu línea. "
@@ -486,9 +649,86 @@ def _advance_connectivity(
     prev_sel = str(ctx.get("login_seleccionado") or st.get("selected_service") or "").strip()
     login = _try_capture_login(db, abonado, ctx, texto)
     if login:
-        _apply_service_selection(ctx, login, previous=prev_sel)
+        if not _enrich_login_to_ref(db, abonado, ctx, login, previous=prev_sel):
+            _apply_service_selection(ctx, login, previous=prev_sel)
+
+    # Auto-selección segura: un único login de Internet fijo (comportamiento ya existente)
+    from app.services.eko_service_selection import (
+        get_selected_ref,
+        is_fixed_internet_diagnosticable,
+        ownership_matches_ref,
+    )
+
+    if n_logins == 1 and not str(ctx.get("login_seleccionado") or "").strip():
+        try:
+            from app.services import billtrack as bt
+            from app.services.canal_abonado import _servicios_conectividad_abonado
+
+            svcs = _servicios_conectividad_abonado(db, abonado)
+            opts = bt.listar_logins_conectividad(svcs)
+            if len(opts) == 1:
+                only = str(opts[0]).strip()
+                if only and not _enrich_login_to_ref(db, abonado, ctx, only, previous=prev_sel):
+                    _apply_service_selection(ctx, only, previous=prev_sel)
+        except Exception:
+            logger.debug("auto-select single login falló", exc_info=True)
 
     selected = str(ctx.get("login_seleccionado") or get_journey(ctx).get("selected_service") or "").strip()
+    st = get_journey(ctx)
+    ref = get_selected_ref(ctx)
+    trusted_cn = str(getattr(abonado, "client_number", "") or "").strip()
+
+    # Ownership: nunca diagnosticar ref ajeno
+    if ref is not None and trusted_cn and not ownership_matches_ref(ref, trusted_cn):
+        set_journey(ctx, step="respond", last_diagnostic_result="ownership_mismatch")
+        return JourneyTurn(
+            handled=True,
+            user_message="No puedo diagnosticar un servicio que no pertenece a tu cuenta.",
+            journey="internet_sin_conectividad",
+            step="respond",
+            intent="internet",
+            domain="internet",
+            action="run_diagnostic_pppoe",
+            action_status="denied",
+            reason_code="ownership_mismatch",
+            correlation_id=corr,
+            data={"execution_path": "none"},
+        )
+
+    # Servicio seleccionado no diagnosticable (Sensa/IMOWI/VoIP / sin login)
+    if ref is not None and not is_fixed_internet_diagnosticable(ref):
+        tip = (ref.service_type or ref.label or ref.product or "ese servicio").strip()
+        msg = (
+            f"Para «{tip}» no tengo un diagnóstico técnico de Internet disponible. "
+            "Si el problema es tu Internet fijo (fibra/radio), elegí ese servicio "
+            "y pedime revisar la conexión."
+        )
+        set_journey(
+            ctx,
+            step="respond",
+            last_action="run_diagnostic_pppoe",
+            last_action_status="unavailable",
+            last_diagnostic_result="service_not_diagnosticable",
+            last_user_message=msg,
+            diagnostic_started=False,
+        )
+        return JourneyTurn(
+            handled=True,
+            user_message=msg,
+            journey="internet_sin_conectividad",
+            step="respond",
+            intent="internet",
+            domain="internet",
+            action="run_diagnostic_pppoe",
+            action_status="unavailable",
+            reason_code="service_not_diagnosticable",
+            correlation_id=corr,
+            data={
+                "selected_service_ref": ref.to_dict(),
+                "execution_path": "none",
+            },
+        )
+
     st = get_journey(ctx)
 
     # Confirmation pending for ticket (trusted) — solo si sigue vigente en este journey
@@ -756,7 +996,33 @@ def _advance_connectivity(
     # BCM/UISP: no auto-ejecutar en Fase 5 (Legacy contractual en canal_pppoe fuera del journey).
     set_journey(ctx, step="decide", next_observation="bcm_uisp_legacy_out_of_scope_5")
 
-    if obs == "pppoe_session_down":
+    _sel = get_selected_ref(ctx)
+    diag_meta = {
+        "observation": obs,
+        "execution_path": path,
+        "login_used": (ar.data or {}).get("login_used") or selected,
+        "service_id": (ar.data or {}).get("service_id")
+        or (_sel.service_id if _sel else ""),
+        "reason_code": ar.reason_code or (ar.data or {}).get("reason_code"),
+        "connectivity_status": (ar.data or {}).get("connectivity_status"),
+    }
+
+    if ar.status == "denied":
+        set_journey(ctx, step="respond", last_user_message=msg, diagnostic_started=False)
+        return JourneyTurn(
+            handled=True,
+            user_message=msg,
+            journey="internet_sin_conectividad",
+            step="respond",
+            action="run_diagnostic_pppoe",
+            action_status="denied",
+            reason_code=ar.reason_code,
+            correlation_id=ar.correlation_id or corr,
+            data={**diag_meta, "decision": "denied"},
+        )
+
+    # Sesión caída (Radius legacy) o no_session (portal): ofrecer escalamiento
+    if obs in ("pppoe_session_down", "no_session"):
         _mark_confirmation_pending(ctx, corr=corr)
         set_journey(ctx, step="decide", last_user_message=msg)
         return JourneyTurn(
@@ -766,11 +1032,12 @@ def _advance_connectivity(
             step="decide",
             action="run_diagnostic_pppoe",
             action_status=ar.status,
+            reason_code=ar.reason_code,
             correlation_id=ar.correlation_id or corr,
-            data={"observation": obs, "execution_path": path, "decision": "offer_escalate"},
+            data={**diag_meta, "decision": "offer_escalate"},
         )
 
-    if obs == "pppoe_session_up":
+    if obs in ("pppoe_session_up", "operational"):
         set_journey(ctx, step="respond", next_required_input="", last_user_message=msg, pending_confirmation=False)
         ctx["pppoe_informado"] = True
         return JourneyTurn(
@@ -780,8 +1047,9 @@ def _advance_connectivity(
             step="respond",
             action="run_diagnostic_pppoe",
             action_status=ar.status,
+            reason_code=ar.reason_code,
             correlation_id=ar.correlation_id or corr,
-            data={"observation": obs, "execution_path": path, "decision": "local_checks"},
+            data={**diag_meta, "decision": "local_checks"},
         )
 
     set_journey(ctx, step="respond", last_user_message=msg)
@@ -793,8 +1061,9 @@ def _advance_connectivity(
         step="respond",
         action="run_diagnostic_pppoe",
         action_status=ar.status,
+        reason_code=ar.reason_code,
         correlation_id=ar.correlation_id or corr,
-        data={"observation": obs, "execution_path": path},
+        data=diag_meta,
     )
 
 
@@ -1011,18 +1280,60 @@ def _label_login_guess(texto: str, servicios: list[Any], opts: list[str]) -> str
 
 
 def _apply_service_selection(ctx: dict, login: str, *, previous: str = "") -> None:
-    prev = (previous or "").strip()
+    """Compat: selección solo por login (connectivity). Delega a apply_service_ref."""
+    from app.services.eko_service_selection import ServiceRef, get_selected_ref
+
     login_n = (login or "").strip()
+    if not login_n:
+        return
+    prev_ref = get_selected_ref(ctx)
+    # previous string may be login from old selected_service
+    prev_login = (previous or "").strip() or (prev_ref.login if prev_ref else "")
+    ref = ServiceRef(
+        service_id=(prev_ref.service_id if prev_ref and prev_ref.login == login_n else ""),
+        login=login_n,
+        service_type=(prev_ref.service_type if prev_ref and prev_ref.login == login_n else ""),
+        client_number=(prev_ref.client_number if prev_ref and prev_ref.login == login_n else ""),
+        label="",
+        product="",
+        active=None,
+    )
+    apply_service_ref(ctx, ref, previous_login=prev_login)
+
+
+def apply_service_ref(
+    ctx: dict,
+    ref: Any,
+    *,
+    previous_login: str = "",
+) -> None:
+    """Persiste selección única: selected_service_ref + proyecciones compat."""
+    from app.services.eko_service_selection import ServiceRef, get_selected_ref, selection_changed
+
+    if not isinstance(ref, ServiceRef):
+        return
+    prev = get_selected_ref(ctx)
+    login_n = (ref.login or "").strip()
+    # Compat: selected_service sigue siendo el login cuando existe; si no, service_id.
+    compat_key = login_n or ref.service_id
     set_journey(
         ctx,
-        selected_service=login_n,
+        selected_service=compat_key,
+        selected_service_ref=ref.to_dict(),
         next_required_input="",
         asked_selection=False,
     )
-    ctx["login_seleccionado"] = login_n
+    if login_n:
+        ctx["login_seleccionado"] = login_n
+    else:
+        # Servicio sin login técnico (p.ej. Sensa): no dejar login ajeno sticky
+        ctx.pop("login_seleccionado", None)
     ctx.pop("multi_cuenta_pendiente", None)
-    if prev and login_n and prev != login_n:
-        # Contradicción: invalidar observación/diagnóstico del servicio anterior
+
+    changed = selection_changed(prev, ref)
+    if not changed and previous_login and login_n and previous_login != login_n:
+        changed = True
+    if changed:
         set_journey(
             ctx,
             diagnostic_started=False,
@@ -1033,6 +1344,58 @@ def _apply_service_selection(ctx: dict, login: str, *, previous: str = "") -> No
         )
         ctx.pop("pppoe_informado", None)
         ctx.pop("pppoe_triage", None)
+        try:
+            from app.services.connectivity_eko import limpiar_tss_de_ctx
+
+            limpiar_tss_de_ctx(ctx)
+        except Exception:
+            for k in (
+                "tss_status",
+                "tss_reason_code",
+                "tss_message_key",
+                "tss_service_id",
+                "tss_access_technology",
+                "tss_freshness",
+                "tss_checked_at",
+                "tss_incident_id",
+                "tss_eko_branch",
+            ):
+                ctx.pop(k, None)
+
+
+def _enrich_login_to_ref(
+    db: Session | None,
+    abonado: Any | None,
+    ctx: dict,
+    login: str,
+    *,
+    previous: str = "",
+) -> bool:
+    """Resuelve login → selected_service_ref vía catálogo. Sin probes."""
+    if db is None or abonado is None:
+        return False
+    cn = str(getattr(abonado, "client_number", "") or "").strip()
+    if not cn:
+        return False
+    try:
+        from app.services.eko_service_selection import resolve_service_selection
+        from app.services.portal_services import catalog_for_selection
+
+        cat = catalog_for_selection(db, abonado=abonado)
+        if cat.get("status") != "ok":
+            return False
+        result = resolve_service_selection(
+            texto="",
+            catalog=list(cat.get("services") or []),
+            client_number=cn,
+            proposed_login=login,
+        )
+        if result.status == "selected" and result.ref is not None:
+            apply_service_ref(ctx, result.ref, previous_login=previous)
+            return True
+    except Exception:
+        logger.debug("enrich login→ref falló", exc_info=True)
+    return False
 
 
 def _legacy_pppoe_as_result(
@@ -1093,6 +1456,321 @@ class SimpleOnline:
 # ---------------------------------------------------------------------------
 
 
+def _billing_user_act(texto: str) -> str:
+    """Clasificación determinística del pedido billing (no LLM)."""
+    t = (texto or "").lower().strip()
+    if any(
+        k in t
+        for k in (
+            "cuando vence",
+            "cuándo vence",
+            "fecha de vencimiento",
+            "vencimiento",
+            "vence mi",
+        )
+    ):
+        return "due_date"
+    if any(
+        k in t
+        for k in (
+            "que pagué",
+            "qué pagué",
+            "que pague",
+            "pagos hice",
+            "historial de pago",
+            "mis pagos",
+            "comprobante de pago que hice",
+        )
+    ):
+        return "payment_history"
+    if any(
+        k in t
+        for k in (
+            "talon",
+            "talón",
+            "talon de pago",
+            "talón de pago",
+            "qr de pago",
+        )
+    ):
+        return "payment_slip"
+    if any(
+        k in t
+        for k in (
+            "cuanto tengo que pagar",
+            "cuánto tengo que pagar",
+            "cuanto debo",
+            "cuánto debo",
+            "cual es mi saldo",
+            "cuál es mi saldo",
+            "mi saldo",
+            "consultar saldo",
+            "tengo deuda",
+        )
+    ):
+        return "balance"
+    # pay antes que invoice: "pagar la factura" no debe abrir show_invoice
+    if any(
+        k in t
+        for k in (
+            "quiero pagar",
+            "donde pago",
+            "dónde pago",
+            "como pago",
+            "cómo pago",
+            "pagar",
+        )
+    ):
+        return "pay"
+    if any(
+        k in t
+        for k in (
+            "ver factura",
+            "ver mi factura",
+            "mi factura",
+            "la factura",
+            "necesito la factura",
+            "necesito mi factura",
+            "mostrame la factura",
+            "mostrar factura",
+            "factura pendiente",
+            "que factura",
+            "qué factura",
+        )
+    ):
+        return "invoice"
+    return "balance"
+
+
+def _open_ov_destination(
+    *,
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    abonado: Any | None,
+    ctx: dict[str, Any],
+    canal: str,
+    texto: str,
+    destination: str,
+    corr: str,
+) -> tuple[ActionResult | None, str]:
+    """Runtime open_OV o Legacy link público. destination: pagar|my|talon-de-pago."""
+    path = "runtime"
+    if _capability_allowed("open_OV"):
+        ar = dispatch_runtime(
+            "open_OV",
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            decision_name="journey_billing_ov",
+            parameters={"destination": destination},
+            texto=texto,
+        )
+        if ar is not None:
+            _record_action(ctx, get_journey(ctx), ar, action="open_OV")
+            return ar, path
+    # Legacy contractual: Facts OV links
+    from app.services.eko_context import build_eko_facts
+
+    facts = build_eko_facts(abonado, db=db, org_id=org_id)
+    links = ((facts.get("ov") or {}).get("links") or {})
+    key_map = {"pagar": "pay", "my": "invoice", "talon-de-pago": "payment_slip"}
+    url = str(links.get(key_map.get(destination, ""), "") or "")
+    if not url:
+        ar = ActionResult(
+            action="open_OV",
+            status="unavailable",
+            reason_code="ov_unavailable",
+            user_message="No pude armar el enlace a la Oficina Virtual ahora.",
+            execution_path="legacy",
+            correlation_id=corr,
+        )
+        path = "legacy"
+        _record_action(ctx, get_journey(ctx), ar, action="open_OV")
+        return ar, path
+    ar = ActionResult(
+        action="open_OV",
+        status="success",
+        data={"url": url, "destination": destination, "auth": "external"},
+        user_message=f"Podés continuar en la Oficina Virtual:\n{url}",
+        execution_path="legacy",
+        correlation_id=corr,
+    )
+    path = "legacy"
+    _record_action(ctx, get_journey(ctx), ar, action="open_OV")
+    return ar, path
+
+
+def _advance_billing_invoice(
+    *,
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    abonado: Any | None,
+    texto: str,
+    ctx: dict[str, Any],
+    canal: str,
+    corr: str,
+    journey: str,
+) -> JourneyTurn:
+    """Invoice header READ (FC) + OV opcional. Sin due_date/period/PDF/líneas."""
+    # Multi-cuenta telefónica ya resolvió NEEDS_INPUT arriba; no adivinar acá.
+    if ctx.get("phone_candidates") and abonado is None:
+        set_journey(ctx, step="identity", next_required_input="account_selection")
+        return JourneyTurn(
+            handled=True,
+            user_message=(
+                "Encontré más de una cuenta asociada a este número. "
+                "Indicame el DNI de la cuenta que querés consultar."
+            ),
+            journey=journey,
+            step="identity",
+            intent="facturacion",
+            domain="billing",
+            action_status="needs_input",
+            reason_code="identity_ambiguous",
+            correlation_id=corr,
+            data={"needs_input": "account_selection", "billing_act": "invoice"},
+        )
+
+    client_number = str(getattr(abonado, "client_number", "") or "").strip() if abonado else ""
+
+    # Ownership no resuelto: no despachar ni consultar BillTrack.
+    if not client_number:
+        set_journey(ctx, step="identity", next_required_input="client_number")
+        return JourneyTurn(
+            handled=True,
+            user_message="No tengo el número de cuenta para consultar facturas.",
+            journey=journey,
+            step="identity",
+            intent="facturacion",
+            domain="billing",
+            action="show_invoice",
+            action_status="needs_input",
+            reason_code="missing_client_number",
+            correlation_id=corr,
+            data={
+                "needs_input": "client_number",
+                "billing_act": "invoice",
+                "execution_path": "none",
+            },
+        )
+
+    ar: ActionResult | None = None
+    path = "runtime"
+    if _capability_allowed("show_invoice"):
+        ar = dispatch_runtime(
+            "show_invoice",
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            decision_name="journey_billing_invoice",
+            parameters={"client_number": client_number},
+            texto=texto,
+        )
+    if ar is None:
+        from app.services.eko_invoice_reader import (
+            format_invoice_headers_message,
+            read_invoices_fc,
+        )
+
+        path = "legacy"
+        result = read_invoices_fc(client_number=client_number, db=db, limit=5)
+        if result.status == "invalid_input":
+            ar = ActionResult(
+                action="show_invoice",
+                status="needs_input",
+                reason_code=result.reason_code,
+                user_message=result.message,
+                execution_path="legacy",
+            )
+        elif result.status in ("unavailable", "error"):
+            ar = ActionResult(
+                action="show_invoice",
+                status="unavailable",
+                reason_code=result.reason_code,
+                user_message=result.message,
+                execution_path="legacy",
+                data={"invoice_read_status": result.status},
+            )
+        elif result.status == "empty":
+            ar = ActionResult(
+                action="show_invoice",
+                status="success",
+                reason_code="no_fc_invoices",
+                user_message=result.message,
+                execution_path="legacy",
+                data={"invoices": [], "count": 0},
+            )
+        else:
+            ar = ActionResult(
+                action="show_invoice",
+                status="success",
+                user_message=format_invoice_headers_message(result.invoices),
+                execution_path="legacy",
+                data={
+                    "invoices": [i.to_dict() for i in result.invoices],
+                    "count": len(result.invoices),
+                },
+            )
+
+    _record_action(ctx, get_journey(ctx), ar, action="show_invoice")
+    msg = ar.user_message or ""
+
+    # OV como complemento (PDF/detalle fuera de Eko), no como sustituto del reader
+    if ar.status in ("success", "unavailable") and _capability_allowed("open_OV"):
+        ov_ar, ov_path = _open_ov_destination(
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            texto=texto,
+            destination="my",
+            corr=corr,
+        )
+        if ov_ar and ov_ar.status == "success" and ov_ar.user_message:
+            if ar.reason_code == "no_fc_invoices":
+                msg = (
+                    f"{msg}\nPodés revisar en la Oficina Virtual:\n{ov_ar.user_message}"
+                )
+            elif ar.status == "success" and (ar.data or {}).get("count"):
+                msg = (
+                    f"{msg}\n\nSi necesitás el PDF u otro detalle, "
+                    f"continúa en la Oficina Virtual:\n{ov_ar.user_message}"
+                )
+            elif ar.status == "unavailable":
+                msg = f"{msg}\nTambién podés intentar en la Oficina Virtual:\n{ov_ar.user_message}"
+            path = f"{path}+{ov_path}"
+
+    set_journey(ctx, step="done" if ar.status == "success" else "respond", last_user_message=msg)
+    return JourneyTurn(
+        handled=True,
+        user_message=msg,
+        journey=journey,
+        step=get_journey(ctx).get("step") or "respond",
+        intent="facturacion",
+        domain="billing",
+        action="show_invoice",
+        action_status=ar.status,
+        reason_code=ar.reason_code,
+        correlation_id=ar.correlation_id or corr,
+        data={
+            "execution_path": path,
+            "billing_act": "invoice",
+            "invoices": (ar.data or {}).get("invoices"),
+            "count": (ar.data or {}).get("count"),
+        },
+    )
+
+
 def _advance_billing(
     *,
     db: Session | None,
@@ -1103,22 +1781,181 @@ def _advance_billing(
     ctx: dict[str, Any],
     canal: str,
 ) -> JourneyTurn:
+    """Eko 2.1 billing_self_service: READ balance + invoice header + NAVIGATION OV."""
+    journey = "billing_self_service"
     corr = str(get_journey(ctx).get("correlation_id") or uuid.uuid4())
-    set_journey(ctx, correlation_id=corr, intent="facturacion", domain="billing", step="respond")
+    set_journey(
+        ctx,
+        name=journey,
+        journey=journey,
+        correlation_id=corr,
+        intent="facturacion",
+        domain="billing",
+        step="respond",
+    )
+
+    # Identidad / desambiguación multi-cuenta telefónica
     if abonado is None:
+        if ctx.get("phone_candidates"):
+            set_journey(ctx, step="identity", next_required_input="account_selection")
+            return JourneyTurn(
+                handled=True,
+                user_message=(
+                    "Encontré más de una cuenta asociada a este número. "
+                    "Indicame el DNI de la cuenta que querés consultar."
+                ),
+                journey=journey,
+                step="identity",
+                intent="facturacion",
+                domain="billing",
+                action_status="needs_input",
+                reason_code="identity_ambiguous",
+                correlation_id=corr,
+                data={"needs_input": "account_selection"},
+            )
         set_journey(ctx, step="identity", next_required_input="identity")
         return JourneyTurn(
             handled=True,
-            user_message="Para consultar tu saldo necesito identificarte. ¿Me pasás tu DNI?",
-            journey="billing_consulta",
+            user_message="Para consultar tu saldo o factura necesito identificarte. ¿Me pasás tu DNI?",
+            journey=journey,
             step="identity",
+            intent="facturacion",
+            domain="billing",
+            action_status="needs_input",
             correlation_id=corr,
         )
+
+    act = _billing_user_act(texto)
+
+    # --- Invoice fields / due / payment history: honest unavailable + OV ---
+    if act == "due_date":
+        ov_ar, path = _open_ov_destination(
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            texto=texto,
+            destination="my",
+            corr=corr,
+        )
+        base = (
+            "No tengo disponible desde Eko la fecha de vencimiento de tu factura. "
+            "Podés consultarla en la Oficina Virtual."
+        )
+        msg = base
+        if ov_ar and ov_ar.status == "success" and ov_ar.user_message:
+            msg = f"{base}\n{ov_ar.user_message}"
+        set_journey(ctx, step="done", last_user_message=msg)
+        return JourneyTurn(
+            handled=True,
+            user_message=msg,
+            journey=journey,
+            step="done",
+            intent="facturacion",
+            domain="billing",
+            action="open_OV",
+            action_status=(ov_ar.status if ov_ar else "unavailable"),
+            correlation_id=corr,
+            data={
+                "execution_path": path,
+                "billing_act": act,
+                "honest_unavailable": "due_date",
+            },
+        )
+
+    if act == "payment_history":
+        msg = (
+            "Desde Eko no tengo el historial de pagos. "
+            "Podés revisarlo en la Oficina Virtual."
+        )
+        ov_ar, path = _open_ov_destination(
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            texto=texto,
+            destination="my",
+            corr=corr,
+        )
+        if ov_ar and ov_ar.status == "success" and ov_ar.user_message:
+            msg = f"{msg}\n{ov_ar.user_message}"
+        set_journey(ctx, step="done", last_user_message=msg)
+        return JourneyTurn(
+            handled=True,
+            user_message=msg,
+            journey=journey,
+            step="done",
+            intent="facturacion",
+            domain="billing",
+            action="open_OV",
+            action_status=(ov_ar.status if ov_ar else "unavailable"),
+            correlation_id=corr,
+            data={
+                "execution_path": path,
+                "billing_act": act,
+                "honest_unavailable": "payment_history",
+            },
+        )
+
+    if act == "invoice":
+        return _advance_billing_invoice(
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            texto=texto,
+            ctx=ctx,
+            canal=canal,
+            corr=corr,
+            journey=journey,
+        )
+
+    if act in ("pay", "payment_slip"):
+        dest = {"pay": "pagar", "payment_slip": "talon-de-pago"}[act]
+        preface = {
+            "pay": "Para pagar, usá la Oficina Virtual (el cobro se hace allá, no en este chat).",
+            "payment_slip": "Te dejo el acceso al talón de pago en la Oficina Virtual.",
+        }[act]
+        ov_ar, path = _open_ov_destination(
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            texto=texto,
+            destination=dest,
+            corr=corr,
+        )
+        msg = preface
+        if ov_ar and ov_ar.status == "success" and ov_ar.user_message:
+            msg = f"{preface}\n{ov_ar.user_message}"
+        elif ov_ar and ov_ar.status != "success":
+            msg = f"{preface}\n{ov_ar.user_message or ''}".strip()
+        set_journey(ctx, step="done", last_user_message=msg)
+        return JourneyTurn(
+            handled=True,
+            user_message=msg,
+            journey=journey,
+            step="done",
+            intent="facturacion",
+            domain="billing",
+            action="open_OV",
+            action_status=(ov_ar.status if ov_ar else "unavailable"),
+            correlation_id=corr,
+            data={"execution_path": path, "billing_act": act, "ov_destination": dest},
+        )
+
+    # --- Balance (default) ---
     if not _capability_allowed("show_balance"):
         return JourneyTurn(
             handled=True,
             user_message="No puedo consultar el saldo ahora.",
-            journey="billing_consulta",
+            journey=journey,
             step="respond",
             data={"gap": "show_balance"},
             correlation_id=corr,
@@ -1136,13 +1973,15 @@ def _advance_billing(
     )
     path = "runtime"
     if ar is None:
-        # Legacy contractual: Facts via same Facts helpers as Runtime executor
         from app.services.eco_voice import mensaje_saldo_padron
         from app.services.eko_context import billing_amount_str, build_eko_facts
 
         facts = build_eko_facts(abonado, db=db, org_id=org_id)
+        billing = facts.get("billing") or {}
         amount = billing_amount_str(facts)
-        if amount is None:
+        if amount is None or (
+            billing.get("status") == "unavailable" and billing.get("balance") is None
+        ):
             ar = ActionResult(
                 action="show_balance",
                 status="unavailable",
@@ -1151,48 +1990,111 @@ def _advance_billing(
                 execution_path="legacy",
             )
         else:
+            note = ""
+            if billing.get("status") == "stale":
+                note = " (dato de padrón; puede no estar al instante)."
             ar = ActionResult(
                 action="show_balance",
                 status="success",
-                data={"amount": amount, "billing_status": (facts.get("billing") or {}).get("status")},
-                user_message=mensaje_saldo_padron(amount, incluir_ov=False),
+                data={
+                    "amount": amount,
+                    "billing_status": billing.get("status"),
+                    "capabilities_hint": billing.get("capabilities_hint"),
+                },
+                user_message=mensaje_saldo_padron(amount, incluir_ov=False) + note,
                 execution_path="legacy",
             )
         path = "legacy"
     _record_action(ctx, get_journey(ctx), ar, action="show_balance")
-
     msg = ar.user_message or ""
-    # open_OV only if user asked to pay / where to pay
-    t = (texto or "").lower()
-    if any(k in t for k in ("pagar", "donde pago", "dónde pago", "quiero pagar")):
-        if _capability_allowed("open_OV"):
-            ov = dispatch_runtime(
-                "open_OV",
-                db=db,
-                org_id=org_id,
-                conv=conv,
-                abonado=abonado,
-                ctx=ctx,
-                canal=canal,
-                decision_name="journey_billing_ov",
-                parameters={"destination": "pagar"},
-                texto=texto,
-            )
-            if ov is not None and ov.status == "success":
-                msg = f"{msg}\n{ov.user_message}".strip()
-                _record_action(ctx, get_journey(ctx), ov, action="open_OV")
-
-    set_journey(ctx, step="done" if ar.status == "success" else "respond")
+    set_journey(ctx, step="done" if ar.status == "success" else "respond", last_user_message=msg)
     return JourneyTurn(
         handled=True,
         user_message=msg,
-        journey="billing_consulta",
+        journey=journey,
         step=get_journey(ctx).get("step") or "respond",
+        intent="facturacion",
+        domain="billing",
         action="show_balance",
         action_status=ar.status,
         reason_code=ar.reason_code,
         correlation_id=ar.correlation_id or corr,
-        data={"execution_path": path},
+        data={"execution_path": path, "billing_act": "balance"},
+    )
+
+
+def _advance_installation_status(
+    *,
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    abonado: Any | None,
+    texto: str,
+    ctx: dict[str, Any],
+    canal: str,
+) -> JourneyTurn:
+    """Eko 2.2D: honest unavailable — no hay agenda/órdenes estructuradas.
+
+    Discovery: sin fuente factual de instalación. No inventar fechas/turnos/estados.
+    """
+    journey = "installation_status"
+    corr = str(get_journey(ctx).get("correlation_id") or uuid.uuid4())
+    set_journey(
+        ctx,
+        name=journey,
+        correlation_id=corr,
+        intent="seguimiento_instalacion",
+        domain="services",
+        step="respond",
+    )
+    msg = (
+        "Actualmente no tengo información verificable de la instalación "
+        "para mostrarte (fecha, turno o estado). "
+        "Si tenés un número de ticket de visita, pedime el estado del ticket; "
+        "si no, un agente puede ayudarte a consultarlo."
+    )
+    path = "none"
+    ar: ActionResult | None = None
+    if _capability_allowed("installation_status"):
+        ar = dispatch_runtime(
+            "installation_status",
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            decision_name="journey_installation_status",
+            texto=texto,
+        )
+        if ar is not None:
+            path = "runtime"
+            msg = ar.user_message or msg
+            _record_action(ctx, get_journey(ctx), ar, action="installation_status")
+    set_journey(ctx, step="done", last_user_message=msg, last_action="installation_status")
+    return JourneyTurn(
+        handled=True,
+        user_message=msg,
+        journey=journey,
+        step="done",
+        intent="seguimiento_instalacion",
+        domain="services",
+        action="installation_status",
+        action_status=(ar.status if ar else "unavailable"),
+        reason_code=(ar.reason_code if ar else "source_unavailable"),
+        correlation_id=(ar.correlation_id if ar else None) or corr,
+        data={
+            "execution_path": path,
+            "honest_unavailable": "installation_status",
+            "capability": "unavailable",
+            # Campos ausentes de forma explícita (no inventados)
+            "installation_id": None,
+            "status": None,
+            "scheduled_at": None,
+            "visit_at": None,
+            "technician": None,
+            "ticket_id": None,
+        },
     )
 
 
@@ -1290,6 +2192,291 @@ def _advance_ticket(
 
 
 # ---------------------------------------------------------------------------
+# Service catalog (Eko 2.2A list + 2.2B selection) — no probes / EFFECT
+# ---------------------------------------------------------------------------
+
+
+def _wants_service_list(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    return any(p in t for p in _SERVICE_CATALOG_PHRASES)
+
+
+def _advance_service_catalog(
+    *,
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    abonado: Any | None,
+    texto: str,
+    ctx: dict[str, Any],
+    canal: str,
+) -> JourneyTurn:
+    """Lista servicios (2.2A) y selección determinística service_id↔login (2.2B)."""
+    from app.services.eko_service_selection import (
+        format_selection_options,
+        looks_like_selection_utterance,
+        option_from_row,
+        resolve_service_selection,
+    )
+    from app.services.portal_services import catalog_for_selection
+
+    journey = "service_catalog"
+    corr = str(get_journey(ctx).get("correlation_id") or uuid.uuid4())
+    set_journey(
+        ctx,
+        name=journey,
+        journey=journey,
+        domain="services",
+        intent="consulta_servicios",
+        correlation_id=corr,
+        step="respond",
+    )
+
+    if abonado is None:
+        if ctx.get("phone_candidates"):
+            set_journey(ctx, step="identity", next_required_input="account_selection")
+            return JourneyTurn(
+                handled=True,
+                user_message=(
+                    "Encontré más de una cuenta asociada a este número. "
+                    "Indicame el DNI de la cuenta que querés consultar."
+                ),
+                journey=journey,
+                step="identity",
+                intent="consulta_servicios",
+                domain="services",
+                action_status="needs_input",
+                reason_code="identity_ambiguous",
+                correlation_id=corr,
+                data={"needs_input": "account_selection"},
+            )
+        set_journey(ctx, step="identity", next_required_input="identity")
+        return JourneyTurn(
+            handled=True,
+            user_message="Para listar tus servicios necesito identificarte. ¿Me pasás tu DNI?",
+            journey=journey,
+            step="identity",
+            intent="consulta_servicios",
+            domain="services",
+            action_status="needs_input",
+            correlation_id=corr,
+        )
+
+    client_number = str(getattr(abonado, "client_number", "") or "").strip()
+    if not client_number:
+        set_journey(ctx, step="identity", next_required_input="client_number")
+        return JourneyTurn(
+            handled=True,
+            user_message="No tengo el número de cuenta para listar tus servicios.",
+            journey=journey,
+            step="identity",
+            intent="consulta_servicios",
+            domain="services",
+            action="service_list",
+            action_status="needs_input",
+            reason_code="missing_client_number",
+            correlation_id=corr,
+            data={
+                "needs_input": "client_number",
+                "execution_path": "none",
+            },
+        )
+
+    wants_list = _wants_service_list(texto)
+    pending_opts = list(get_journey(ctx).get("selection_options") or [])
+    wants_sel = (not wants_list) and (
+        looks_like_selection_utterance(texto)
+        or bool(pending_opts and re.fullmatch(r"\s*\d{1,2}\s*", (texto or "")))
+    )
+
+    # --- 2.2B selection path (no probes) ---
+    if wants_sel and db is not None:
+        cat = catalog_for_selection(db, abonado=abonado)
+        if cat.get("status") != "ok":
+            return JourneyTurn(
+                handled=True,
+                user_message="No puedo consultar tus servicios en este momento.",
+                journey=journey,
+                step="respond",
+                intent="consulta_servicios",
+                domain="services",
+                action="service_selection",
+                action_status="unavailable",
+                reason_code=str(cat.get("reason_code") or "source_unavailable"),
+                correlation_id=corr,
+            )
+        rows = list(cat.get("services") or [])
+        result = resolve_service_selection(
+            texto=texto,
+            catalog=rows,
+            client_number=client_number,
+            pending_options=pending_opts or None,
+        )
+        if result.status == "selected" and result.ref is not None:
+            apply_service_ref(ctx, result.ref)
+            ref = result.ref
+            name = ref.product or ref.label or ref.service_type or ref.service_id
+            msg = f"Listo: seleccioné «{name}»."
+            if ref.login:
+                msg += f" (cuenta {ref.login})"
+            set_journey(
+                ctx,
+                step="done",
+                last_user_message=msg,
+                selection_options=pending_opts or [option_from_row(r) for r in rows],
+            )
+            return JourneyTurn(
+                handled=True,
+                user_message=msg,
+                journey=journey,
+                step="done",
+                intent="consulta_servicios",
+                domain="services",
+                action="service_selection",
+                action_status="success",
+                correlation_id=corr,
+                data={
+                    "selected_service_ref": ref.to_dict(),
+                    "execution_path": "deterministic",
+                },
+            )
+        if result.status == "denied":
+            set_journey(ctx, step="respond", next_required_input="service_selection")
+            return JourneyTurn(
+                handled=True,
+                user_message=result.message or "No puedo seleccionar ese servicio.",
+                journey=journey,
+                step="respond",
+                intent="consulta_servicios",
+                domain="services",
+                action="service_selection",
+                action_status="denied",
+                reason_code=result.reason_code,
+                correlation_id=corr,
+                data={"execution_path": "deterministic"},
+            )
+        # needs_input / no_match / ambiguous
+        options = result.options or [option_from_row(r) for r in rows]
+        set_journey(
+            ctx,
+            step="service_selection",
+            next_required_input="service_selection",
+            selection_options=options,
+            asked_selection=True,
+        )
+        return JourneyTurn(
+            handled=True,
+            user_message=result.message or format_selection_options(options),
+            journey=journey,
+            step="service_selection",
+            intent="consulta_servicios",
+            domain="services",
+            action="service_selection",
+            action_status="needs_input",
+            reason_code=result.reason_code or "service_selection_required",
+            correlation_id=corr,
+            data={
+                "needs_input": "service_selection",
+                "selection_options": options,
+                "execution_path": "deterministic",
+            },
+        )
+
+    # --- 2.2A list path ---
+    ar: ActionResult | None = None
+    path = "runtime"
+    if _capability_allowed("service_list"):
+        ar = dispatch_runtime(
+            "service_list",
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            ctx=ctx,
+            canal=canal,
+            decision_name="journey_service_catalog",
+            parameters={},
+            texto=texto,
+        )
+    if ar is None:
+        from app.services.eko_action_runtime import (
+            format_service_list_message,
+            public_service_row,
+        )
+        from app.services.portal_services import evaluar_servicios_portal
+
+        path = "legacy"
+        if db is None:
+            ar = ActionResult(
+                action="service_list",
+                status="unavailable",
+                reason_code="db_unavailable",
+                user_message="No puedo consultar tus servicios en este momento.",
+                execution_path="legacy",
+            )
+        else:
+            try:
+                raw = evaluar_servicios_portal(db, abonado=abonado)
+            except Exception:
+                logger.exception("service_catalog legacy: portal_services falló")
+                raw = {"status": "unavailable", "reason_code": "source_error", "services": []}
+            if str(raw.get("status") or "") != "ok":
+                ar = ActionResult(
+                    action="service_list",
+                    status="unavailable",
+                    reason_code=str(raw.get("reason_code") or "source_unavailable"),
+                    user_message="No puedo consultar tus servicios en este momento.",
+                    execution_path="legacy",
+                )
+            else:
+                items = [
+                    public_service_row(s)
+                    for s in list(raw.get("services") or [])
+                    if isinstance(s, dict) and str(s.get("id") or "").strip()
+                ]
+                ar = ActionResult(
+                    action="service_list",
+                    status="success",
+                    reason_code=("empty_catalog" if not items else None),
+                    user_message=format_service_list_message(items),
+                    execution_path="legacy",
+                    data={"services": items, "count": len(items)},
+                )
+
+    _record_action(ctx, get_journey(ctx), ar, action="service_list")
+    msg = ar.user_message or ""
+
+    # Guardar opciones estructuradas para selección posterior (2.2B); sin auto-select.
+    if ar.status == "success" and db is not None:
+        try:
+            cat = catalog_for_selection(db, abonado=abonado)
+            if cat.get("status") == "ok":
+                opts = [option_from_row(r) for r in list(cat.get("services") or [])]
+                set_journey(ctx, selection_options=opts)
+        except Exception:
+            logger.debug("service_catalog: no pude persistir selection_options", exc_info=True)
+
+    set_journey(ctx, step="done" if ar.status == "success" else "respond", last_user_message=msg)
+    return JourneyTurn(
+        handled=True,
+        user_message=msg,
+        journey=journey,
+        step=get_journey(ctx).get("step") or "respond",
+        intent="consulta_servicios",
+        domain="services",
+        action="service_list",
+        action_status=ar.status,
+        reason_code=ar.reason_code,
+        correlation_id=ar.correlation_id or corr,
+        data={
+            "execution_path": path,
+            "services": (ar.data or {}).get("services"),
+            "count": (ar.data or {}).get("count"),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public entry
 # ---------------------------------------------------------------------------
 
@@ -1318,15 +2505,32 @@ def maybe_handle_journey_turn(
     )
 
     detected = detect_journey_name(texto)
+    if detected:
+        detected = _canonical_journey(detected)  # type: ignore[assignment]
     st = get_journey(ctx)
-    active = str(st.get("name") or "").strip()
+    active = _canonical_journey(str(st.get("name") or "").strip())
     started = False
     switched = False
     previous_journey = ""
 
+    # No robar selección de Internet multi-cuenta hacia service_catalog.
+    # "el segundo" / "el de casa" deben resolverse en internet_sin_conectividad.
+    if (
+        active == "internet_sin_conectividad"
+        and detected == "service_catalog"
+        and not _wants_service_list(texto)
+        and (
+            str(st.get("next_required_input") or "") == "login"
+            or str(st.get("step") or "") == "service_selection"
+            or bool(st.get("asked_selection"))
+            or bool(ctx.get("multi_cuenta_pendiente"))
+        )
+    ):
+        detected = None
+
     # Re-entry: volver a connectivity sin auto-diagnóstico
     if (
-        active == "billing_consulta"
+        active == "billing_self_service"
         and _is_resume_connectivity(texto)
         and not detected
     ):
@@ -1419,11 +2623,11 @@ def maybe_handle_journey_turn(
 
     # Continuity: preserve intent/domain on subsequent turns
     ctx["intencion"] = str(get_journey(ctx).get("intent") or ctx.get("intencion") or "")
-    name = str(get_journey(ctx).get("name") or active)
+    name = _canonical_journey(str(get_journey(ctx).get("name") or active))
 
-    # Domain contamination guard: no diagnostic from billing/ticket journeys
-    if name == "billing_consulta" and detect_journey_name(texto) is None:
-        # stay in billing
+    # Domain contamination guard: no diagnostic from billing/ticket/catalog journeys
+    if name in ("billing_self_service", "service_catalog") and detect_journey_name(texto) is None:
+        # stay in current domain
         pass
 
     turn: JourneyTurn | None = None
@@ -1431,12 +2635,20 @@ def maybe_handle_journey_turn(
         turn = _advance_connectivity(
             db=db, org_id=org_id, conv=conv, abonado=abonado, texto=texto, ctx=ctx, canal=canal
         )
-    elif name == "billing_consulta":
+    elif name == "billing_self_service":
         turn = _advance_billing(
+            db=db, org_id=org_id, conv=conv, abonado=abonado, texto=texto, ctx=ctx, canal=canal
+        )
+    elif name == "service_catalog":
+        turn = _advance_service_catalog(
             db=db, org_id=org_id, conv=conv, abonado=abonado, texto=texto, ctx=ctx, canal=canal
         )
     elif name == "ticket_consulta":
         turn = _advance_ticket(
+            db=db, org_id=org_id, conv=conv, abonado=abonado, texto=texto, ctx=ctx, canal=canal
+        )
+    elif name == "installation_status":
+        turn = _advance_installation_status(
             db=db, org_id=org_id, conv=conv, abonado=abonado, texto=texto, ctx=ctx, canal=canal
         )
     else:
@@ -1444,8 +2656,14 @@ def maybe_handle_journey_turn(
 
     if turn is not None:
         completed = turn.step == "done" or (
-            turn.journey in ("billing_consulta", "ticket_consulta")
-            and turn.action_status == "success"
+            turn.journey
+            in (
+                "billing_self_service",
+                "ticket_consulta",
+                "service_catalog",
+                "installation_status",
+            )
+            and turn.action_status in ("success", "unavailable")
             and turn.step in ("done", "respond")
         )
         observe_journey_turn(

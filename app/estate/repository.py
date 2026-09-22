@@ -968,7 +968,42 @@ def add_ticket_event(
     db.add(ev)
     db.commit()
     db.refresh(ev)
+    # 2.3G-B: post-commit detector (fallos de push no revierten el evento).
+    try:
+        from app.services.eko_ticket_proactive import maybe_deliver_ticket_event_push
+
+        maybe_deliver_ticket_event_push(db, ev)
+    except Exception:
+        import logging
+
+        logging.getLogger("operations_hub").warning(
+            "ticket_proactive hook failed ticket_event_id=%s ticket_id=%s",
+            str(ev.id)[:36],
+            str(ticket_id)[:32],
+            exc_info=True,
+        )
     return ev
+
+
+def claim_ticket_event_push(db: Session, ticket_event_id: str) -> bool:
+    """AT-MOST-ONCE por TicketEvent.id. True = este caller gana el intento.
+
+    No reutiliza push_declared_at / push_resolved_at / fingerprint de outages.
+    """
+    eid = str(ticket_event_id or "").strip()
+    if not eid:
+        return False
+    now = datetime.now(UTC)
+    result = db.execute(
+        update(TicketEvent)
+        .where(
+            TicketEvent.id == eid,
+            TicketEvent.push_claimed_at.is_(None),
+        )
+        .values(push_claimed_at=now)
+    )
+    db.commit()
+    return int(result.rowcount or 0) == 1
 
 
 def list_ticket_events(
@@ -2153,6 +2188,29 @@ def claim_outage_push_resolved(db: Session, outage_id: str) -> bool:
             NetworkOutage.push_resolved_at.is_(None),
         )
         .values(push_resolved_at=now, updated_at=now)
+    )
+    db.commit()
+    return int(result.rowcount or 0) == 1
+
+
+def claim_outage_push_material(db: Session, outage_id: str, fingerprint: str) -> bool:
+    """Reclama un material_update si el fingerprint es nuevo.
+
+    UPDATE condicional: mismo fingerprint → False (dedupe).
+    Fingerprint distinto → True (update legítimo; permite re-notify).
+    Timestamp = intento reclamado, no entrega Expo.
+    """
+    fp = (fingerprint or "").strip()
+    if not fp or not (outage_id or "").strip():
+        return False
+    now = datetime.now(UTC)
+    result = db.execute(
+        update(NetworkOutage)
+        .where(
+            NetworkOutage.id == outage_id,
+            NetworkOutage.push_material_fingerprint != fp,
+        )
+        .values(push_material_fingerprint=fp, updated_at=now)
     )
     db.commit()
     return int(result.rowcount or 0) == 1

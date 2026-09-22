@@ -148,13 +148,17 @@ export type OvLinkId = "pay" | "invoice" | "payment_slip";
 export type OvLinkReasonCode =
   | "ov_unavailable"
   | "partial"
-  | "insufficient_data";
+  | "insufficient_data"
+  | "identity_ambiguous";
+
+export type OvHandoffMode = "authenticated" | "public" | "failed";
 
 export type OvLinkItem = {
   id: OvLinkId;
   label: string;
   url: string | null;
   available: boolean;
+  mode?: OvHandoffMode;
 };
 
 export type OvLinksActions = {
@@ -168,6 +172,9 @@ export type OvLinksResponse = {
   actions: OvLinksActions;
   links: OvLinkItem[];
   reason_code: OvLinkReasonCode | null;
+  /** AUTH solo con JSAT POST /ov/handoff. Un tsid legado no alcanza. */
+  mode?: OvHandoffMode;
+  authenticated?: boolean;
 };
 
 /** Contrato GET /portal/services — catálogo administrativo (no operativo). */
@@ -193,4 +200,101 @@ export type PortalServicesResponse = {
   checked_at: string;
   services: PortalServiceItem[];
   reason_code: string | null;
+};
+
+/** Contrato GET /portal/customer-summary — envelope por dominio (Fase 2D/2E). */
+export type CustomerSummaryDomainStatus =
+  | "ok"
+  | "empty"
+  | "stale"
+  | "unavailable"
+  | "not_available"
+  | "omitted"
+  | "partial";
+
+export type CustomerSummaryDomain<T> = {
+  status: CustomerSummaryDomainStatus;
+  data: T | null;
+  reason_code: string | null;
+};
+
+export type CustomerSummaryCustomer = {
+  id: string;
+  display_name: string;
+  organization_id: string;
+};
+
+/** data.status = estado comercial de la cuenta (activo|corte|…). */
+export type CustomerSummaryAccount = {
+  client_number: string;
+  status: string;
+  plan: string;
+};
+
+export type CustomerSummaryServicesData = {
+  checked_at: string;
+  items: PortalServiceItem[];
+};
+
+export type CustomerSummaryBalance = {
+  amount: string;
+  currency: string;
+  as_of: string | null;
+  freshness: string;
+};
+
+export type CustomerSummaryBillingData = {
+  balance?: CustomerSummaryBalance;
+  ov?: OvLinksResponse;
+};
+
+export type CustomerSummaryTicketsData = {
+  items: PortalTicket[];
+};
+
+/** connectivity=omit → data null; summary/probe → payload tipado. */
+export type CustomerSummaryConnectivitySummary = {
+  needs_service_selection: boolean;
+  services: ConnectivityServiceOption[];
+  count: number;
+};
+
+export type CustomerSummaryConnectivityProbe = Pick<
+  ConnectivityStatusResponse,
+  | "status"
+  | "freshness"
+  | "checked_at"
+  | "message"
+  | "access_technology"
+  | "service"
+  | "incident"
+  | "actions"
+  | "needs_service_selection"
+  | "services"
+  | "reason_code"
+>;
+
+export type CustomerSummaryMeta = {
+  generated_at: string;
+  include: string[];
+  refresh_applied: string[];
+};
+
+export type CustomerSummaryResponse = {
+  customer: CustomerSummaryDomain<CustomerSummaryCustomer>;
+  account: CustomerSummaryDomain<CustomerSummaryAccount>;
+  services: CustomerSummaryDomain<CustomerSummaryServicesData>;
+  billing: CustomerSummaryDomain<CustomerSummaryBillingData>;
+  connectivity: CustomerSummaryDomain<
+    CustomerSummaryConnectivitySummary | CustomerSummaryConnectivityProbe | null
+  >;
+  tickets: CustomerSummaryDomain<CustomerSummaryTicketsData>;
+  meta: CustomerSummaryMeta;
+};
+
+export type CustomerSummaryQuery = {
+  include?: string;
+  refresh?: string;
+  connectivity?: "omit" | "summary" | "probe";
+  service_id?: string;
 };

@@ -3,8 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import { useConnectivity } from "../hooks/useConnectivity";
 import { useCreateClaim } from "../hooks/useCreateClaim";
-import { useOvLinks } from "../hooks/useOvLinks";
-import { useServices } from "../hooks/useServices";
+import { useCustomerSummary } from "../hooks/useCustomerSummary";
 import { firstName, present } from "../present";
 import { layout, spacing } from "../theme";
 import type { InboxConversation } from "../types";
@@ -72,9 +71,10 @@ export function HomeScreen({
   const espera = conv.estado === "espera_agente";
   const conAgente = conv.estado === "con_agente";
 
+  // Diagnóstico técnico: endpoint especializado (no summary).
   const connectivity = useConnectivity({ token, onAuthExpired });
-  const ov = useOvLinks({ token, onAuthExpired });
-  const services = useServices({ token, onAuthExpired });
+  // Account/services/billing/OV: Customer Summary (sin probes).
+  const summary = useCustomerSummary({ token, onAuthExpired });
   const claim = useCreateClaim({ token, onAuthExpired });
   const [showClaim, setShowClaim] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -105,7 +105,17 @@ export function HomeScreen({
     });
   };
 
-  const hasCatalog = services.items.length > 0;
+  const hasCatalog = summary.serviceItems.length > 0;
+  // Plan/estado comercial desde summary; no confundir con connectivity.
+  const planComercial = present(summary.plan) || undefined;
+  const estadoComercial =
+    present(summary.accountCommercialStatus) || present(abonado?.estado) || undefined;
+  // Nunca inventar $0 ante error: solo monto string del dominio billing.
+  const balanceMonto =
+    summary.billingDomainStatus === "unavailable" && !present(summary.balanceAmount)
+      ? null
+      : summary.balanceAmount;
+  const showBalance = Boolean(present(balanceMonto));
 
   return (
     <Screen safeBottom={false}>
@@ -159,14 +169,24 @@ export function HomeScreen({
           </Banner>
         ) : null}
 
-        {present(abonado?.deuda_monto) ? (
+        {summary.error && !summary.loading ? (
+          <Banner tone="warning" onPress={summary.refresh} actionLabel="Reintentar">
+            {summary.error}
+          </Banner>
+        ) : null}
+
+        {showBalance ? (
           <View style={styles.gap}>
             <BalanceCard
-              monto={abonado?.deuda_monto}
+              monto={balanceMonto}
               onAskEko={onQuickAction}
-              ovLinks={ov.data}
-              ovLoading={ov.loading}
-              ovTransportError={ov.error}
+              ovLinks={summary.ovLinks}
+              ovLoading={summary.loading}
+              ovTransportError={
+                summary.billingDomainStatus === "unavailable" && !summary.ovLinks
+                  ? summary.error || "unavailable"
+                  : undefined
+              }
             />
           </View>
         ) : null}
@@ -174,18 +194,24 @@ export function HomeScreen({
         {/* Plan solo si aún no hay catálogo; con lista evita repetir Internet. */}
         <View style={styles.gap}>
           <ServiceCard
-            plan={hasCatalog ? undefined : abonado?.plan}
-            estado={abonado?.estado}
+            plan={hasCatalog ? undefined : planComercial}
+            estado={estadoComercial}
           />
         </View>
 
         <View style={styles.gap}>
           <ServicesSection
-            items={services.items}
-            loading={services.loading}
-            error={services.error}
-            unavailable={services.unavailable}
-            onRetry={services.refresh}
+            items={summary.serviceItems}
+            loading={summary.loading}
+            error={
+              summary.servicesUnavailable
+                ? "No pudimos cargar tus servicios. Intentá nuevamente."
+                : summary.error && !hasCatalog
+                  ? summary.error
+                  : ""
+            }
+            unavailable={summary.servicesUnavailable}
+            onRetry={summary.refresh}
             onViewConnectivity={onViewConnectivity}
             onAskEko={onQuickAction}
           />

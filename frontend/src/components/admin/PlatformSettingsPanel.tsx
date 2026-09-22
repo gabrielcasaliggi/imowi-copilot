@@ -92,6 +92,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
     user: "",
     password: "",
     timeout: "20",
+    handoff_v2: false,
   });
   const [ovTestCelular, setOvTestCelular] = useState("");
   const [ovBatanTest, setOvBatanTest] = useState<{
@@ -159,6 +160,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       user: s.ov_batan?.user || "",
       password: s.ov_batan?.password || "",
       timeout: String(s.ov_batan?.timeout ?? 20),
+      handoff_v2: Boolean(s.ov_batan?.handoff_v2),
     });
     setKb({
       min_score: Number(s.knowledge?.min_score ?? 0.15),
@@ -216,6 +218,7 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
           user: ovBatan.user,
           password: ovBatan.password,
           timeout: Number(ovBatan.timeout) || 20,
+          handoff_v2: ovBatan.handoff_v2,
         },
         knowledge: kb,
         playbooks,
@@ -1108,15 +1111,16 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
       )}
 
       {section === "ov_batan" && (
-        <GlassCard title="Oficina Virtual — deep-links por celular" accent="cyan" variant="secondary">
+        <GlassCard title="Oficina Virtual — handoff por DNI" accent="cyan" variant="secondary">
           <div className="grid gap-3 md:grid-cols-2">
             <p className="md:col-span-2 text-xs text-slate-400">
-              API de OV Batán (patrón jsat-get-link-ov). {botName} pide un link autenticado con el{" "}
-              <code className="text-slate-300">celular</code> del padrón (
-              <code className="text-slate-300">/ov/link</code>
-              ). Sirve en web, app, WhatsApp y Telegram. Usuario técnico de servicio — no pegues la
-              clave en chats. Si está apagado, se usan los links públicos{" "}
-              <code className="text-slate-300">ov.batan.coop/#/…</code>.
+              Identidad canónica en {botName}: DNI del abonado identificado.{" "}
+              <code className="text-slate-300">GET /ov/link</code> (celular + tsid) es legado y{" "}
+              <strong>no</strong> es el handoff seguro.{" "}
+              <code className="text-slate-300">POST /ov/handoff</code> queda apagado hasta que JSAT
+              publique el contrato. Mientras, los links públicos{" "}
+              <code className="text-slate-300">ov.batan.coop/#/…</code> no se presentan como sesión
+              autenticada.
             </p>
             <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
               <input
@@ -1125,7 +1129,16 @@ export function PlatformSettingsPanel({ onMessage }: { onMessage?: (msg: string)
                 onChange={(e) => setOvBatan({ ...ovBatan, enabled: e.target.checked })}
                 className="rounded border-slate-600"
               />
-              Habilitar deep-links OV para {botName}
+              Habilitar API OV (sesión técnica) para {botName}
+            </label>
+            <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={ovBatan.handoff_v2}
+                onChange={(e) => setOvBatan({ ...ovBatan, handoff_v2: e.target.checked })}
+                className="rounded border-slate-600"
+              />
+              Activar POST /ov/handoff (solo cuando JSAT lo tenga en producción)
             </label>
             <div className="md:col-span-2">
               <label className={labelCls}>URL API (sin barra final)</label>

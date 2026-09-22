@@ -276,7 +276,7 @@ def test_c05_explicit_domain_switch_no_diagnostic(monkeypatch):
             canal="wa",
             ctx=ctx,
         )
-    assert t and t.journey == "billing_consulta"
+    assert t and t.journey == "billing_self_service"
     assert get_journey(ctx).get("pending_confirmation") is False
     assert get_action_state(ctx).get("status") == "cleared_on_domain_switch"
     assert disp.call_args.args[0] == "show_balance"
@@ -287,7 +287,7 @@ def test_c06_return_to_connectivity_no_auto_diag(monkeypatch):
     _enable(monkeypatch)
     ctx = {
         "eko_journey": {
-            "name": "billing_consulta",
+            "name": "billing_self_service",
             "step": "done",
             "intent": "facturacion",
             "domain": "billing",
@@ -317,7 +317,7 @@ def test_c06b_reentry_without_selected_no_auto_diag(monkeypatch):
     _enable(monkeypatch)
     ctx = {
         "eko_journey": {
-            "name": "billing_consulta",
+            "name": "billing_self_service",
             "step": "done",
             "intent": "facturacion",
             "domain": "billing",
@@ -513,7 +513,7 @@ def test_c10_stale_confirmation_after_billing_rejected(monkeypatch):
     _enable(monkeypatch)
     ctx = {
         "eko_journey": {
-            "name": "billing_consulta",
+            "name": "billing_self_service",
             "step": "done",
             "intent": "facturacion",
             "domain": "billing",
@@ -798,7 +798,7 @@ def test_c23_billing_no_pppoe_contamination(monkeypatch):
     _enable(monkeypatch)
     ctx = {
         "eko_journey": {
-            "name": "billing_consulta",
+            "name": "billing_self_service",
             "step": "done",
             "intent": "facturacion",
             "domain": "billing",

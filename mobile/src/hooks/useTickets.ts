@@ -67,22 +67,27 @@ export function useTickets({
   }, [load]);
 
   const openDetail = useCallback(
-    async (ticketId: string) => {
-      if (!token || detailBusy) return;
+    async (ticketId: string): Promise<boolean> => {
+      const tid = (ticketId || "").trim();
+      if (!token || !tid || detailBusy) return false;
       setDetailBusy(true);
       setError("");
       try {
-        const res = await api.getTicket(ticketId, token);
+        const res = await api.getTicket(tid, token);
         if (mounted.current) setDetail(res);
+        return true;
       } catch (err) {
-        if (!mounted.current) return;
+        if (!mounted.current) return false;
         if (isAuthExpired(err)) {
           onAuthExpired();
-          return;
+          return false;
         }
+        // 404 (otro abonado / inexistente) u error de red: no fabricar detalle.
+        setDetail(null);
         setError(
           formatUserError(err, "No pudimos abrir el ticket. Intentá nuevamente."),
         );
+        return false;
       } finally {
         if (mounted.current) setDetailBusy(false);
       }
