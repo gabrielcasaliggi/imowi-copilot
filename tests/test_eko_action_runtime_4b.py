@@ -247,7 +247,19 @@ def test_4b_policy_multi_account_before_executor():
 
 
 def test_4b_explicit_diagnostic_invokes_reader_when_selected():
-    trusted = _trusted(ctx={"login_seleccionado": "INT1"})
+    trusted = _trusted(
+        ctx={
+            "eko_journey": {
+                "selected_service_ref": {
+                    "service_id": "",
+                    "login": "INT1",
+                    "service_type": "internet",
+                    "client_number": "200",
+                }
+            },
+            "login_seleccionado": "INT1",
+        }
+    )
     estado = SimpleNamespace(
         error="",
         sesion=SimpleNamespace(online=True),

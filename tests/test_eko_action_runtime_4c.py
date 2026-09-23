@@ -407,7 +407,17 @@ def test_4c_build_facts_and_decision_zero_probes():
 
 def test_4c_explicit_pppoe_exactly_one_reader(monkeypatch):
     _enable_runtime(monkeypatch, "run_diagnostic_pppoe")
-    ctx = {"login_seleccionado": "INT1"}
+    ctx = {
+        "eko_journey": {
+            "selected_service_ref": {
+                "service_id": "",
+                "login": "INT1",
+                "service_type": "internet",
+                "client_number": "200",
+            }
+        },
+        "login_seleccionado": "INT1",
+    }
     estado = SimpleNamespace(
         error="",
         sesion=SimpleNamespace(online=True),

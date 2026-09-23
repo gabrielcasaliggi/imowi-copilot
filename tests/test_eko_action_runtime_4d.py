@@ -554,7 +554,17 @@ def test_4d_explicit_pppoe_one_reader(monkeypatch):
             org_id="org-1",
             conv=_conv(),
             abonado=_abo(),
-            ctx={"login_seleccionado": "INT1"},
+            ctx={
+                "eko_journey": {
+                    "selected_service_ref": {
+                        "service_id": "",
+                        "login": "INT1",
+                        "service_type": "internet",
+                        "client_number": "200",
+                    }
+                },
+                "login_seleccionado": "INT1",
+            },
         )
     assert ar is not None
     assert ar.status == "success"
