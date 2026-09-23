@@ -47,6 +47,7 @@ _N1_WIRED_RUNTIME: frozenset[str] = frozenset(
         "open_OV",
         "run_diagnostic_pppoe",
         "create_ticket",
+        "ticket_customer_note",  # 2.6I N1 wire
     }
 )
 
@@ -211,11 +212,11 @@ def _base_rows() -> list[ActionCoverage]:
             status="EXECUTED_BY_RUNTIME",
             legacy_call_site="canal_abonado._crear_ticket_n2",
             runtime_call_site="_ticket_via_runtime_o_legacy → dispatch",
-            feature_gate="ENABLED + ACTIONS (no default CSV)",
+            feature_gate="ENABLED + default ACTIONS (2.6K)",
             executor=True,
             confirmation="REQUIRED (trusted)",
             idempotency="PROTECTED (conv.ticket_id)",
-            notes="Fuera del set default; listar en ACTION_RUNTIME_ACTIONS",
+            notes="2.6K: in default ACTION_RUNTIME_ACTIONS; ENABLED still required",
         ),
         ActionCoverage(
             action="update_ticket",
@@ -226,7 +227,18 @@ def _base_rows() -> list[ActionCoverage]:
             executor=True,
             confirmation="NOT_REQUIRED",
             idempotency="PROTECTED",
-            notes="Ownership en executor; gap de cableado N1",
+            notes="2.6E: evidencia interna only; sin TicketEvent customer-visible",
+        ),
+        ActionCoverage(
+            action="ticket_customer_note",
+            status="EXECUTED_BY_RUNTIME",
+            legacy_call_site="(none — N1 XOR: sin Legacy customer-visible)",
+            runtime_call_site="eko_journeys._advance_ticket + canal_abonado → dispatch",
+            feature_gate="ENABLED + default ACTIONS (2.6G/2.6I)",
+            executor=True,
+            confirmation="NOT_REQUIRED",
+            idempotency="PROTECTED (detalle hash)",
+            notes="2.6I: N1 wire; agent API sigue vía emit_ticket_customer_note",
         ),
         ActionCoverage(
             action="escalate_human",

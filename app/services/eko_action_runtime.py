@@ -77,6 +77,21 @@ _UNTRUSTED_PARAM_KEYS = frozenset(
         "selected_service",
         "login_seleccionado",
         "selected_service_ref",
+        # 2.5D-4: handoff/stack nunca desde LLM
+        "eko_handoff",
+        "domain_stack",
+        "active_domain_id",
+        # 2.6E/2.6I: visibilidad / notify / ownership / tipo Event no son autoridad LLM
+        "visible_cliente",
+        "visibility",
+        "notify",
+        "push",
+        "actor",
+        "ownership",
+        "agent_authorized",
+        "tipo",
+        "event_type",
+        "ticket_event_type",
     }
 )
 
@@ -319,7 +334,13 @@ def evaluate_policy(request: ActionRequest, trusted: TrustedContext) -> PolicyDe
 
     if not trusted.organization_id and spec.requires_abonado:
         # create_ticket / update necesitan org
-        if name in ("create_ticket", "update_ticket", "escalate_human", "close_conversation"):
+        if name in (
+            "create_ticket",
+            "update_ticket",
+            "ticket_customer_note",
+            "escalate_human",
+            "close_conversation",
+        ):
             return PolicyDecision("DENY", "missing_organization")
 
     # Multi-cuenta / selección 2.2B: acciones técnicas requieren selected_service_ref
@@ -338,7 +359,8 @@ def evaluate_policy(request: ActionRequest, trusted: TrustedContext) -> PolicyDe
         if ref is not None and not is_fixed_internet_diagnosticable(ref):
             # Sin login técnico o tipo no diagnosticable: no probes
             return PolicyDecision("DENY", "service_not_diagnosticable")
-        login = str((ref.login if ref else "") or ctx.get("login_seleccionado") or "").strip()
+        # 2.5D-1: login técnico solo desde selected_service_ref (no shadow fallback)
+        login = str((ref.login if ref else "") or "").strip()
         if ctx.get("multi_cuenta_pendiente") and not login:
             return PolicyDecision("NEEDS_INPUT", "account_selection_required")
         # Ignorar login/service_id inyectados en parameters (LLM); solo ctx/ref
@@ -1088,7 +1110,12 @@ def _exec_run_diagnostic_pppoe(req: ActionRequest, trusted: TrustedContext) -> A
 
 def _exec_run_diagnostic_bcm(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
     ctx = trusted.ctx
-    if ctx.get("multi_cuenta_pendiente") and not str(ctx.get("login_seleccionado") or "").strip():
+    from app.services.eko_service_selection import get_selected_ref
+
+    # 2.5D-1: selección canónica; login técnico solo si el ref lo trae
+    _ref = get_selected_ref(ctx)
+    _login = str((_ref.login if _ref else "") or "").strip()
+    if ctx.get("multi_cuenta_pendiente") and not _login:
         return ActionResult(
             action="run_diagnostic_bcm",
             status="needs_input",
@@ -1119,7 +1146,12 @@ def _exec_run_diagnostic_bcm(req: ActionRequest, trusted: TrustedContext) -> Act
 
 def _exec_run_diagnostic_uisp(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
     ctx = trusted.ctx
-    if ctx.get("multi_cuenta_pendiente") and not str(ctx.get("login_seleccionado") or "").strip():
+    from app.services.eko_service_selection import get_selected_ref
+
+    _ref = get_selected_ref(ctx)
+    # 2.5D-1: login desde ServiceRef; pppoe_login es dato de probe (no SoT de selección)
+    login = str((_ref.login if _ref else "") or ctx.get("pppoe_login") or "").strip()
+    if ctx.get("multi_cuenta_pendiente") and not login:
         return ActionResult(
             action="run_diagnostic_uisp",
             status="needs_input",
@@ -1128,7 +1160,6 @@ def _exec_run_diagnostic_uisp(req: ActionRequest, trusted: TrustedContext) -> Ac
     try:
         from app.services.conexion_uisp import contexto_uisp_para_abonado
 
-        login = str(ctx.get("login_seleccionado") or ctx.get("pppoe_login") or "")
         extras = contexto_uisp_para_abonado(trusted.abonado, login=login, db=trusted.db) or {}
         for k, v in extras.items():
             if str(v or "").strip():
@@ -1203,6 +1234,7 @@ def _exec_create_ticket(req: ActionRequest, trusted: TrustedContext) -> ActionRe
 
 
 def _exec_update_ticket(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
+    """2.6E: evidencia interna only — NO TicketEvent customer-visible / NO push."""
     from app.estate.models import Ticket
     from app.services.abonado_tickets import ticket_pertenece_abonado
     from app.services.canal_abonado import _append_evidencia_ticket
@@ -1235,6 +1267,104 @@ def _exec_update_ticket(req: ActionRequest, trusted: TrustedContext) -> ActionRe
     )
 
 
+def _exec_ticket_customer_note(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
+    """2.6E ACT: nota customer-visible → pipeline ticket.updated (self-note: no push)."""
+    from app.estate.models import Ticket
+    from app.services.abonado_tickets import (
+        list_tickets_visibles_abonado,
+        ticket_pertenece_abonado,
+    )
+    from app.services.eko_ticket_proactive import emit_ticket_customer_note
+
+    ticket_id = str(
+        req.parameters.get("ticket_id") or getattr(trusted.conv, "ticket_id", "") or ""
+    ).strip()
+    mensaje = str(
+        req.parameters.get("mensaje")
+        or req.parameters.get("message")
+        or req.parameters.get("nota")
+        or req.parameters.get("note")
+        or ""
+    ).strip()
+    if trusted.db is None or trusted.abonado is None:
+        return ActionResult(
+            action="ticket_customer_note",
+            status="denied",
+            reason_code="missing_abonado",
+        )
+    org = str(trusted.organization_id or "").strip()
+    if not org:
+        return ActionResult(
+            action="ticket_customer_note",
+            status="denied",
+            reason_code="missing_organization",
+        )
+    # 2.6I: sin ticket_id explícito, solo un ticket visible = inequívoco; N>1 → NEEDS_INPUT
+    if not ticket_id:
+        rows = list_tickets_visibles_abonado(trusted.db, org, trusted.abonado)
+        if len(rows) == 1:
+            ticket_id = str(getattr(rows[0][0], "id", "") or "").strip()
+        elif len(rows) > 1:
+            return ActionResult(
+                action="ticket_customer_note",
+                status="needs_input",
+                reason_code="ambiguous_ticket",
+                user_message="Tenés varios tickets. ¿Me pasás el número del que querés actualizar?",
+            )
+    if not ticket_id or not mensaje:
+        return ActionResult(
+            action="ticket_customer_note",
+            status="needs_input",
+            reason_code="missing_ticket_or_message",
+            user_message=(
+                "Necesito el número de ticket y el texto de la nota."
+                if not ticket_id
+                else "¿Qué texto querés dejar en el ticket?"
+            ),
+        )
+    t = trusted.db.get(Ticket, ticket_id)
+    if t is None or not ticket_pertenece_abonado(
+        trusted.db, org, trusted.abonado, t
+    ):
+        return ActionResult(
+            action="ticket_customer_note",
+            status="denied",
+            reason_code="foreign_ticket" if t is not None else "ticket_not_found",
+            user_message=(
+                "No tenés acceso a ese ticket."
+                if t is not None
+                else "No encuentro ese ticket."
+            ),
+        )
+    abo_id = str(getattr(trusted.abonado, "id", "") or "").strip()
+    actor = f"abonado:{abo_id}" if abo_id else "abonado"
+    ev = emit_ticket_customer_note(
+        trusted.db,
+        org,
+        ticket_id,
+        mensaje,
+        actor=actor,
+        abonado=trusted.abonado,
+        nivel=str(getattr(t, "nivel", "") or ""),
+        estado=str(getattr(t, "estado", "") or ""),
+    )
+    if ev is None:
+        return ActionResult(
+            action="ticket_customer_note",
+            status="failed",
+            reason_code="emit_failed",
+        )
+    return ActionResult(
+        action="ticket_customer_note",
+        status="success",
+        data={
+            "ticket_id": ticket_id,
+            "ticket_event_id": str(getattr(ev, "id", "") or ""),
+        },
+        user_message="Dejé una actualización visible en tu ticket.",
+    )
+
+
 def _exec_escalate_human(req: ActionRequest, trusted: TrustedContext) -> ActionResult:
     if trusted.conv is None or trusted.db is None:
         return ActionResult(
@@ -1250,6 +1380,14 @@ def _exec_escalate_human(req: ActionRequest, trusted: TrustedContext) -> ActionR
             data={"estado": conv.estado},
             user_message="Ya estás en espera con un agente.",
         )
+    # 2.5D-4: continuity stamp + invalidate confirmation (handoff ≠ authority)
+    if isinstance(trusted.ctx, dict):
+        try:
+            from app.services.eko_handoff_continuity import stamp_handoff_out
+
+            stamp_handoff_out(trusted.ctx, reason="escalate_human")
+        except Exception:
+            logger.debug("stamp_handoff_out falló", exc_info=True)
     prev = conv.estado or ""
     conv.estado = "espera_agente"
     trusted.db.commit()
@@ -1369,6 +1507,11 @@ def bootstrap_registry() -> None:
         ActionSpec(
             "update_ticket",
             _exec_update_ticket,
+            idempotency="PROTECTED",
+        ),
+        ActionSpec(
+            "ticket_customer_note",
+            _exec_ticket_customer_note,
             idempotency="PROTECTED",
         ),
         ActionSpec(

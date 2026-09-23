@@ -20,7 +20,7 @@ SourceAuthority = Literal[
 EVENT_VERSION = 1
 POLICY_VERSION = "eko-proactive-policy-1"
 
-# Eventos habilitados para delivery (outage 2.3D + ticket 2.3G-B).
+# Eventos habilitados para delivery (outage 2.3D + ticket 2.3G-B + 2.6A SLA).
 SUPPORTED_PROACTIVE_EVENTS: frozenset[str] = frozenset(
     {
         "outage.started",
@@ -29,6 +29,7 @@ SUPPORTED_PROACTIVE_EVENTS: frozenset[str] = frozenset(
         "ticket.created",
         "ticket.updated",
         "ticket.closed",
+        "ticket.sla_breached",
         # ticket.resolved: UNSUPPORTED — no hay estado Resuelto en estate.
     }
 )
@@ -40,11 +41,12 @@ OUTAGE_EVENT_TO_LEGACY_PUSH: dict[str, str] = {
     "outage.resolved": "resolved",
 }
 
-# Contrato mobile 2.3G-M: event ∈ created|updated|resolved|closed|"".
+# Contrato mobile 2.3G-M + 2.6A: event ∈ created|updated|resolved|closed|sla_breached|"".
 TICKET_EVENT_TO_LEGACY_PUSH: dict[str, str] = {
     "ticket.created": "created",
     "ticket.updated": "updated",
     "ticket.closed": "closed",
+    "ticket.sla_breached": "sla_breached",
 }
 
 

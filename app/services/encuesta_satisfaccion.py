@@ -281,6 +281,7 @@ def _aplicar_tag_csat_bajo(db: Session, conv: ConversacionCanal, puntuacion: int
                 actor="sistema",
                 estado=t.estado or "",
                 nivel=t.nivel or "",
+                visible_cliente="No",
             )
         except Exception:
             db.rollback()

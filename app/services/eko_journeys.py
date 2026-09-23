@@ -183,6 +183,31 @@ _TICKET_PHRASES = (
     "cómo va el ticket",
 )
 
+# 2.6I: intención de nota customer-visible (≠ consulta estado / ≠ update_ticket evidencia)
+_TICKET_NOTE_PHRASES = (
+    "dejar una nota",
+    "dejar nota",
+    "dejá una nota",
+    "deja una nota",
+    "dejo una nota",
+    "quiero dejar una nota",
+    "quiero dejar nota",
+    "anotar en el ticket",
+    "anotá en el ticket",
+    "anota en el ticket",
+    "agregar nota al ticket",
+    "agregar al ticket",
+    "agregá al ticket",
+    "agrega al ticket",
+    "dejar constancia",
+    "constancia en el ticket",
+    "nota en el ticket",
+    "nota al ticket",
+    "mensaje al ticket",
+    "actualizar el ticket con",
+    "actualizá el ticket con",
+)
+
 # Catálogo comercial (Eko 2.2A). Antes que billing genérico con "servicio".
 _SERVICE_CATALOG_PHRASES = (
     "que servicios tengo",
@@ -278,7 +303,7 @@ def detect_journey_name(texto: str) -> JourneyName | None:
     if not t:
         return None
     # Billing / ticket / catálogo antes que connectivity genérico
-    if any(p in t for p in _TICKET_PHRASES):
+    if any(p in t for p in _TICKET_NOTE_PHRASES) or any(p in t for p in _TICKET_PHRASES):
         return "ticket_consulta"
     # 2.2D instalación: honest unavailable (sin agenda/órdenes)
     if any(p in t for p in _INSTALLATION_PHRASES):
@@ -646,20 +671,106 @@ def _advance_connectivity(
         )
 
     # Try capture login selection from user text (no probes)
-    prev_sel = str(ctx.get("login_seleccionado") or st.get("selected_service") or "").strip()
-    login = _try_capture_login(db, abonado, ctx, texto)
-    if login:
-        if not _enrich_login_to_ref(db, abonado, ctx, login, previous=prev_sel):
-            _apply_service_selection(ctx, login, previous=prev_sel)
-
-    # Auto-selección segura: un único login de Internet fijo (comportamiento ya existente)
+    # 2.5D-1: previous selection identity from canonical ServiceRef only
     from app.services.eko_service_selection import (
         get_selected_ref,
         is_fixed_internet_diagnosticable,
         ownership_matches_ref,
     )
 
-    if n_logins == 1 and not str(ctx.get("login_seleccionado") or "").strip():
+    _prev_ref = get_selected_ref(ctx)
+    prev_sel = (
+        str((_prev_ref.login or _prev_ref.service_id) if _prev_ref else "").strip()
+    )
+    login = _try_capture_login(db, abonado, ctx, texto)
+    if login:
+        if not _enrich_login_to_ref(db, abonado, ctx, login, previous=prev_sel):
+            _apply_service_selection(ctx, login, previous=prev_sel)
+
+    # 2.5D-2: referencia natural/relativa (fijo/otro/ese/…) vía catálogo — sin probes
+    if not login and db is not None and abonado is not None:
+        from app.services.eko_service_selection import (
+            looks_like_selection_utterance,
+            resolve_service_selection,
+        )
+
+        if looks_like_selection_utterance(texto):
+            try:
+                from app.services.portal_services import catalog_for_selection
+
+                cn_sel = str(getattr(abonado, "client_number", "") or "").strip()
+                cat = catalog_for_selection(db, abonado=abonado)
+                if cat.get("status") == "ok" and cn_sel:
+                    pending = list(get_journey(ctx).get("selection_options") or [])
+                    result = resolve_service_selection(
+                        texto=texto,
+                        catalog=list(cat.get("services") or []),
+                        client_number=cn_sel,
+                        pending_options=pending or None,
+                        current_ref=get_selected_ref(ctx),
+                    )
+                    if result.status == "selected" and result.ref is not None:
+                        apply_service_ref(
+                            ctx, result.ref, previous_login=prev_sel
+                        )
+                    elif result.status == "needs_input" and result.reason_code in (
+                        "fijo_ambiguous",
+                        "fijo_no_compatible",
+                        "otro_missing_current",
+                        "otro_current_not_in_catalog",
+                        "otro_no_alternate",
+                        "otro_ambiguous",
+                        "ambiguous_reference",
+                    ):
+                        set_journey(
+                            ctx,
+                            step="service_selection",
+                            next_required_input="login",
+                            asked_selection=True,
+                            selection_options=result.options or pending,
+                            last_user_message=result.message or "",
+                        )
+                        return JourneyTurn(
+                            handled=True,
+                            user_message=result.message
+                            or "Necesito que aclares qué servicio querés.",
+                            journey="internet_sin_conectividad",
+                            step="service_selection",
+                            intent="internet",
+                            domain="internet",
+                            action="service_selection",
+                            action_status="needs_input",
+                            reason_code=result.reason_code,
+                            correlation_id=corr,
+                            data={"execution_path": "none"},
+                        )
+                    elif result.status == "denied":
+                        return JourneyTurn(
+                            handled=True,
+                            user_message=result.message
+                            or "Ese servicio no pertenece a tu cuenta.",
+                            journey="internet_sin_conectividad",
+                            step="respond",
+                            intent="internet",
+                            domain="internet",
+                            action="service_selection",
+                            action_status="denied",
+                            reason_code=result.reason_code,
+                            correlation_id=corr,
+                            data={"execution_path": "none"},
+                        )
+            except Exception:
+                logger.debug("2.5D-2 reference resolve en connectivity falló", exc_info=True)
+
+    # Auto-selección segura: un único login de Internet fijo (comportamiento ya existente)
+    # 2.5D-1: no inventar selección si ya hay ServiceRef canónico.
+    # LEGACY_READ_REMAINS: tampoco sobrescribir si aún solo existe la proyección login_seleccionado
+    # (estado pre-dual-write); eso NO convierte el shadow en SoT de lectura.
+    if (
+        n_logins == 1
+        and get_selected_ref(ctx) is None
+        and not str(ctx.get("login_seleccionado") or "").strip()
+    ):
         try:
             from app.services import billtrack as bt
             from app.services.canal_abonado import _servicios_conectividad_abonado
@@ -673,9 +784,12 @@ def _advance_connectivity(
         except Exception:
             logger.debug("auto-select single login falló", exc_info=True)
 
-    selected = str(ctx.get("login_seleccionado") or get_journey(ctx).get("selected_service") or "").strip()
     st = get_journey(ctx)
     ref = get_selected_ref(ctx)
+    # Canonical identity for gates; LEGACY_READ_REMAINS shadow only if no ref yet
+    selected = str((ref.login or ref.service_id) if ref else "").strip()
+    if not selected:
+        selected = str(ctx.get("login_seleccionado") or "").strip()
     trusted_cn = str(getattr(abonado, "client_number", "") or "").strip()
 
     # Ownership: nunca diagnosticar ref ajeno
@@ -812,9 +926,16 @@ def _advance_connectivity(
 
     # Avoid re-asking selection if already asked and still no login (loop gate)
     n = n_logins
+    from app.services.eko_handoff_continuity import should_ask_service_selection
+
+    needs_sel = should_ask_service_selection(
+        ctx,
+        client_number=trusted_cn,
+        require_diagnosticable=False,
+    )
     if (
         n > 1
-        and not selected
+        and needs_sel
         and (
             st.get("step") == "service_selection"
             or st.get("asked_selection")
@@ -836,8 +957,8 @@ def _advance_connectivity(
             correlation_id=corr,
         )
 
-    # Service selection gate — zero probes
-    if n > 1 and not selected:
+    # Service selection gate — zero probes; consume canonical ref when valid (2.5D-4 K01)
+    if n > 1 and needs_sel:
         set_journey(
             ctx,
             step="service_selection",
@@ -2098,6 +2219,57 @@ def _advance_installation_status(
     )
 
 
+def _wants_ticket_customer_note(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+    return bool(t) and any(p in t for p in _TICKET_NOTE_PHRASES)
+
+
+def _extract_customer_note_mensaje(texto: str) -> str:
+    """Contenido de la nota: texto usuario sin el prefijo de intención."""
+    raw = (texto or "").strip()
+    if not raw:
+        return ""
+    lower = raw.lower()
+    for phrase in sorted(_TICKET_NOTE_PHRASES, key=len, reverse=True):
+        idx = lower.find(phrase)
+        if idx < 0:
+            continue
+        rest = raw[idx + len(phrase) :].lstrip(" :,-.")
+        return rest[:800] if rest else ""
+    return raw[:800]
+
+
+def _resolve_ticket_id_for_note(
+    *,
+    db: Session | None,
+    org_id: str,
+    abonado: Any | None,
+    conv: Any,
+    texto: str,
+) -> tuple[str, str | None]:
+    """(ticket_id, needs_input_reason). Ownership lo valida Runtime."""
+    tid = str(getattr(conv, "ticket_id", "") or "").strip()
+    if not tid:
+        m = re.search(
+            r"\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b",
+            texto or "",
+            re.I,
+        )
+        tid = m.group(1) if m else ""
+    if tid:
+        return tid, None
+    if db is None or abonado is None:
+        return "", "missing_ticket"
+    from app.services.abonado_tickets import list_tickets_visibles_abonado
+
+    rows = list_tickets_visibles_abonado(db, org_id, abonado)
+    if len(rows) == 1:
+        return str(getattr(rows[0][0], "id", "") or "").strip(), None
+    if len(rows) > 1:
+        return "", "ambiguous_ticket"
+    return "", "missing_ticket"
+
+
 def _advance_ticket(
     *,
     db: Session | None,
@@ -2108,6 +2280,16 @@ def _advance_ticket(
     ctx: dict[str, Any],
     canal: str,
 ) -> JourneyTurn:
+    if _wants_ticket_customer_note(texto):
+        return _advance_ticket_customer_note(
+            db=db,
+            org_id=org_id,
+            conv=conv,
+            abonado=abonado,
+            texto=texto,
+            ctx=ctx,
+            canal=canal,
+        )
     corr = str(get_journey(ctx).get("correlation_id") or uuid.uuid4())
     set_journey(ctx, correlation_id=corr, intent="estado_ticket", domain="support", step="respond")
     if abonado is None:
@@ -2191,6 +2373,140 @@ def _advance_ticket(
     )
 
 
+def _advance_ticket_customer_note(
+    *,
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    abonado: Any | None,
+    texto: str,
+    ctx: dict[str, Any],
+    canal: str,
+) -> JourneyTurn:
+    """2.6I: N1 → Policy/Runtime ticket_customer_note. Sin Legacy customer-visible."""
+    from app.services.eko_action_bridge import action_runtime_covers
+
+    corr = str(get_journey(ctx).get("correlation_id") or uuid.uuid4())
+    set_journey(
+        ctx,
+        correlation_id=corr,
+        intent="ticket_customer_note",
+        domain="support",
+        step="respond",
+    )
+    if abonado is None:
+        return JourneyTurn(
+            handled=True,
+            user_message="Para dejar una nota en tu ticket necesito identificarte. ¿Me pasás tu DNI?",
+            journey="ticket_consulta",
+            step="identity",
+            correlation_id=corr,
+        )
+    mensaje = _extract_customer_note_mensaje(texto)
+    tid, missing = _resolve_ticket_id_for_note(
+        db=db, org_id=org_id, abonado=abonado, conv=conv, texto=texto
+    )
+    if missing == "ambiguous_ticket":
+        set_journey(ctx, next_required_input="ticket_id", step="respond")
+        return JourneyTurn(
+            handled=True,
+            user_message="Tenés varios tickets. ¿Me pasás el número del que querés actualizar?",
+            journey="ticket_consulta",
+            step="respond",
+            action="ticket_customer_note",
+            action_status="needs_input",
+            reason_code="ambiguous_ticket",
+            correlation_id=corr,
+        )
+    if missing == "missing_ticket" or not tid:
+        set_journey(ctx, next_required_input="ticket_id", step="respond")
+        return JourneyTurn(
+            handled=True,
+            user_message="No tengo un ticket asociado a este chat. ¿Me pasás el número?",
+            journey="ticket_consulta",
+            step="respond",
+            action="ticket_customer_note",
+            action_status="needs_input",
+            reason_code="missing_ticket",
+            correlation_id=corr,
+        )
+    if not mensaje:
+        set_journey(ctx, next_required_input="note_message", step="respond")
+        return JourneyTurn(
+            handled=True,
+            user_message="¿Qué texto querés dejar visible en el ticket?",
+            journey="ticket_consulta",
+            step="respond",
+            action="ticket_customer_note",
+            action_status="needs_input",
+            reason_code="missing_message",
+            correlation_id=corr,
+        )
+    if not _capability_allowed("ticket_customer_note"):
+        return JourneyTurn(
+            handled=True,
+            user_message="No puedo dejar una nota en el ticket ahora.",
+            journey="ticket_consulta",
+            data={"gap": "ticket_customer_note"},
+            correlation_id=corr,
+        )
+    # XOR: si Runtime no cubre → sin Legacy customer-visible (no add_ticket_event Sí)
+    if not action_runtime_covers("ticket_customer_note"):
+        ar = ActionResult(
+            action="ticket_customer_note",
+            status="unavailable",
+            reason_code="runtime_gate_off",
+            user_message="No puedo dejar esa nota en el ticket ahora.",
+            execution_path="none",
+        )
+        _record_action(ctx, get_journey(ctx), ar, action="ticket_customer_note")
+        return JourneyTurn(
+            handled=True,
+            user_message=ar.user_message or "",
+            journey="ticket_consulta",
+            step="respond",
+            action="ticket_customer_note",
+            action_status=ar.status,
+            reason_code=ar.reason_code,
+            correlation_id=corr,
+        )
+    ar = dispatch_runtime(
+        "ticket_customer_note",
+        db=db,
+        org_id=org_id,
+        conv=conv,
+        abonado=abonado,
+        ctx=ctx,
+        canal=canal,
+        decision_name="journey_ticket_customer_note",
+        parameters={"ticket_id": tid, "mensaje": mensaje},
+        texto=texto,
+        source="decision",
+    )
+    if ar is None:
+        # covers() era True: nunca Legacy mutante customer-visible
+        ar = ActionResult(
+            action="ticket_customer_note",
+            status="failed",
+            reason_code="dispatch_none",
+            user_message="No pude dejar la nota en el ticket ahora.",
+            execution_path="runtime",
+        )
+    _record_action(ctx, get_journey(ctx), ar, action="ticket_customer_note")
+    set_journey(ctx, step="done" if ar.status == "success" else "respond")
+    return JourneyTurn(
+        handled=True,
+        user_message=ar.user_message or "",
+        journey="ticket_consulta",
+        step=get_journey(ctx).get("step") or "respond",
+        action="ticket_customer_note",
+        action_status=ar.status,
+        reason_code=ar.reason_code,
+        correlation_id=ar.correlation_id or corr,
+        data={"ticket_id": tid, "execution_path": ar.execution_path},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Service catalog (Eko 2.2A list + 2.2B selection) — no probes / EFFECT
 # ---------------------------------------------------------------------------
@@ -2214,6 +2530,7 @@ def _advance_service_catalog(
     """Lista servicios (2.2A) y selección determinística service_id↔login (2.2B)."""
     from app.services.eko_service_selection import (
         format_selection_options,
+        get_selected_ref,
         looks_like_selection_utterance,
         option_from_row,
         resolve_service_selection,
@@ -2311,6 +2628,7 @@ def _advance_service_catalog(
             catalog=rows,
             client_number=client_number,
             pending_options=pending_opts or None,
+            current_ref=get_selected_ref(ctx),
         )
         if result.status == "selected" and result.ref is not None:
             apply_service_ref(ctx, result.ref)
@@ -2538,7 +2856,18 @@ def maybe_handle_journey_turn(
 
     # Domain switch
     if detected and active and detected != active:
-        prev_sel = str(ctx.get("login_seleccionado") or st.get("selected_service") or "")
+        from app.services.eko_service_selection import get_selected_ref
+
+        # 2.5D-1: preserve canonical ServiceRef; projections updated only for display/compat
+        prev_ref = get_selected_ref(ctx)
+        prev_sel = str(
+            (prev_ref.login or prev_ref.service_id) if prev_ref else ""
+        ).strip()
+        if not prev_sel:
+            # LEGACY_READ_REMAINS: continuity display when dual-write incomplete
+            prev_sel = str(
+                ctx.get("login_seleccionado") or st.get("selected_service") or ""
+            ).strip()
         previous_journey = active
         switched = True
         had_no_fixed = (
@@ -2546,25 +2875,29 @@ def maybe_handle_journey_turn(
             or bool(ctx.get("eko_no_fixed_internet"))
         )
         _clear_stale_confirmation(ctx)
-        set_journey(
-            ctx,
-            previous_journey=active,
-            name=detected,
-            journey=detected,
-            step="switched",
-            domain=_domain_for(detected),
-            intent=_intent_for(detected),
-            diagnostic_started=False,
-            last_diagnostic_result=(
-                "no_fixed_internet" if had_no_fixed and detected == "internet_sin_conectividad" else ""
+        switch_fields: dict[str, Any] = {
+            "previous_journey": active,
+            "name": detected,
+            "journey": detected,
+            "step": "switched",
+            "domain": _domain_for(detected),
+            "intent": _intent_for(detected),
+            "diagnostic_started": False,
+            "last_diagnostic_result": (
+                "no_fixed_internet"
+                if had_no_fixed and detected == "internet_sin_conectividad"
+                else ""
             ),
-            pending_confirmation=False,
-            confirmation_correlation="",
-            next_required_input="",
-            asked_selection=False,
-            selected_service=prev_sel,
-            correlation_id=str(uuid.uuid4()),
-        )
+            "pending_confirmation": False,
+            "confirmation_correlation": "",
+            "next_required_input": "",
+            "asked_selection": False,
+            "selected_service": prev_sel,
+            "correlation_id": str(uuid.uuid4()),
+        }
+        if prev_ref is not None:
+            switch_fields["selected_service_ref"] = prev_ref.to_dict()
+        set_journey(ctx, **switch_fields)
         ctx["intencion"] = _intent_for(detected)
         active = detected
 
@@ -2577,7 +2910,9 @@ def maybe_handle_journey_turn(
                     selected_service=prev_sel,
                     last_user_message="",
                 )
-                ctx["login_seleccionado"] = prev_sel
+                # Projection shadow only when technical login exists
+                if prev_ref and (prev_ref.login or "").strip():
+                    ctx["login_seleccionado"] = prev_ref.login
                 msg = (
                     f"Volvemos al Internet (cuenta {prev_sel}). "
                     "¿Querés que vuelva a revisar la conexión, o contame qué sigue fallando?"

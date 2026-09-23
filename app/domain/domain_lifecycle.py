@@ -19,6 +19,8 @@ nunca TEC-2. Closed no se reabre (eso es reopen explícito, Fase 8B).
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from typing import Any
 
 from app.domain.conversation_state import (
@@ -518,3 +520,242 @@ def cover_and_note(
             ),
         )
     return slot
+
+
+# ---------------------------------------------------------------------------
+# 2.5D-3 — Natural-language resume against domain_stack (no free memory)
+# ---------------------------------------------------------------------------
+
+_RESUME_PREVIOUS_RE = re.compile(
+    r"\b(?:volvamos|volviendo|retomemos|retomando|sigamos|seguir)\b"
+    r".{0,40}\b(?:lo\s+anterior|lo\s+de\s+antes)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Captura el fragmento de tema tras una cue de resume explícito.
+_RESUME_TOPIC_RE = re.compile(
+    r"\b(?:volvamos|volviendo|retomemos|retomando)\b"
+    r".{0,20}\b(?:a\s+lo\s+de|al\s+tema\s+de|el\s+tema\s+de|lo\s+de)\s+(.+)$"
+    r"|"
+    r"\b(?:sigamos|seguir)\b.{0,10}\bcon\s+(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@dataclass(frozen=True)
+class DomainResumeResult:
+    """Resultado determinístico de resume NL → domain_stack."""
+
+    status: str  # resolved | needs_input | not_resume
+    domain_id: str | None = None
+    kind: str | None = None
+    reason_code: str = ""
+    message: str = ""
+
+
+def looks_like_domain_resume(texto: str) -> bool:
+    """True si el texto es una referencia de resume acotada (Grupo 1/2)."""
+    t = (texto or "").strip()
+    if not t:
+        return False
+    if _RESUME_PREVIOUS_RE.search(t):
+        return True
+    return bool(_RESUME_TOPIC_RE.search(t))
+
+
+def map_resume_topic_to_kind(fragment: str) -> str | None:
+    """Mapea el fragmento X a un kind canónico existente. No inventa dominios."""
+    frag = (fragment or "").strip().lower()
+    if not frag:
+        return None
+    spans = domain_spans_in_order(frag)
+    if len(spans) == 1:
+        return spans[0]
+    if len(spans) > 1:
+        return None  # ambigüedad → caller NEEDS_INPUT
+    # Keywords mínimos alineados a señales ya usadas (sin NLP general)
+    if any(
+        k in frag
+        for k in (
+            "internet",
+            "wifi",
+            "wi-fi",
+            "conexión",
+            "conexion",
+            "fibra",
+            "router",
+            "onu",
+        )
+    ):
+        return KIND_TECNICO
+    if any(k in frag for k in ("factura", "boleta", "deuda", "saldo", "pago")):
+        return KIND_ADMIN
+    if any(k in frag for k in ("comercial", "contratar", "alta", "plan nuevo")):
+        return KIND_COMERCIAL
+    return None
+
+
+def previous_domain_from_stack(cs: ConversationState) -> str | None:
+    """Dominio inmediatamente anterior al current según domain_stack (índice 0 = current)."""
+    stack = [x for x in (cs.domain_stack or []) if str(x).strip()]
+    if len(stack) < 2:
+        return None
+    active = cs.active_domain_id
+    if active and active in stack:
+        idx = stack.index(active)
+        if idx + 1 < len(stack):
+            return stack[idx + 1]
+        return None
+    # Sin active alineado: no adivinar
+    return None
+
+
+def _stack_domain_for_kind(cs: ConversationState, kind: str) -> str | None:
+    """Busca en domain_stack el slot del kind (no crea)."""
+    if kind not in KINDS:
+        return None
+    want_id = SLOT_ID.get(kind)
+    for did in cs.domain_stack or []:
+        slot = cs.slot(did)
+        if slot is None:
+            continue
+        if slot.kind == kind or (want_id and did == want_id):
+            if slot.status == "closed":
+                continue
+            return slot.id
+    return None
+
+
+def resolve_domain_resume(
+    cs: ConversationState,
+    texto: str = "",
+    *,
+    proposed_kind: str | None = None,
+    resume_requested: bool = False,
+) -> DomainResumeResult:
+    """Resuelve resume NL contra domain_stack. Nunca crea dominios ni muta ServiceRef.
+
+    El LLM puede proponer ``proposed_kind`` / ``resume_requested``, pero la
+    autoridad es: phrase → kinds canónicos → stack → RESOLVED | NEEDS_INPUT.
+    """
+    raw = (texto or "").strip()
+    is_resume = resume_requested or looks_like_domain_resume(raw)
+    prop = str(proposed_kind or "").strip().lower() or None
+    if prop and prop not in KINDS:
+        return DomainResumeResult(
+            status="needs_input",
+            reason_code="resume_unknown_kind",
+            message="No reconozco ese dominio para retomar.",
+        )
+
+    if not is_resume:
+        # Propuesta LLM suelta sin cue de resume: no aceptar como autoridad
+        if prop:
+            return DomainResumeResult(
+                status="needs_input",
+                reason_code="resume_proposal_without_cue",
+                message="Necesito que indiques retomar un tema anterior.",
+            )
+        return DomainResumeResult(status="not_resume", reason_code="not_resume")
+
+    # --- "lo anterior" ---
+    if raw and _RESUME_PREVIOUS_RE.search(raw) and not prop:
+        prev = previous_domain_from_stack(cs)
+        if not prev:
+            return DomainResumeResult(
+                status="needs_input",
+                reason_code="resume_no_previous",
+                message="No tengo un tema anterior claro para retomar.",
+            )
+        slot = cs.slot(prev)
+        if slot is None or slot.status == "closed":
+            return DomainResumeResult(
+                status="needs_input",
+                reason_code="resume_previous_unavailable",
+                message="No puedo retomar el tema anterior.",
+            )
+        return DomainResumeResult(
+            status="resolved",
+            domain_id=slot.id,
+            kind=slot.kind,
+            reason_code="resume_previous",
+        )
+
+    # --- tema explícito X o proposed_kind ---
+    kind: str | None = prop
+    if kind is None and raw:
+        m = _RESUME_TOPIC_RE.search(raw)
+        fragment = ""
+        if m:
+            fragment = (m.group(1) or m.group(2) or "").strip()
+        kind = map_resume_topic_to_kind(fragment) if fragment else None
+        if fragment and kind is None:
+            # fragmento presente pero no mapeable / ambiguo
+            spans = domain_spans_in_order(fragment)
+            if len(spans) > 1:
+                return DomainResumeResult(
+                    status="needs_input",
+                    reason_code="resume_topic_ambiguous",
+                    message="¿A qué tema querés volver?",
+                )
+            return DomainResumeResult(
+                status="needs_input",
+                reason_code="resume_unknown_topic",
+                message="No reconozco ese tema para retomar.",
+            )
+
+    if kind is None:
+        return DomainResumeResult(
+            status="needs_input",
+            reason_code="resume_missing_topic",
+            message="¿A qué tema querés volver?",
+        )
+
+    domain_id = _stack_domain_for_kind(cs, kind)
+    if not domain_id:
+        return DomainResumeResult(
+            status="needs_input",
+            kind=kind,
+            reason_code="resume_not_in_stack",
+            message="No tengo ese tema reciente para retomar.",
+        )
+    slot = cs.slot(domain_id)
+    if slot is None or slot.status == "closed":
+        return DomainResumeResult(
+            status="needs_input",
+            kind=kind,
+            reason_code="resume_slot_unavailable",
+            message="No puedo retomar ese tema.",
+        )
+    return DomainResumeResult(
+        status="resolved",
+        domain_id=slot.id,
+        kind=slot.kind,
+        reason_code="resume_topic",
+    )
+
+
+def apply_domain_resume(
+    cs: ConversationState,
+    texto: str = "",
+    *,
+    proposed_kind: str | None = None,
+    resume_requested: bool = False,
+) -> DomainResumeResult:
+    """Resuelve y, si RESOLVED, aplica ``resume_domain`` (actualiza stack vía lifecycle).
+
+    No modifica selected_service_ref ni ejecuta Runtime.
+    """
+    result = resolve_domain_resume(
+        cs,
+        texto,
+        proposed_kind=proposed_kind,
+        resume_requested=resume_requested,
+    )
+    if result.status != "resolved" or not result.domain_id:
+        return result
+    current = cs.active_slot()
+    if current is not None and current.id != result.domain_id:
+        pause_domain(cs, current.id)
+    resume_domain(cs, result.domain_id)
+    return result

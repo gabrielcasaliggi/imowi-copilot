@@ -1118,6 +1118,8 @@ def portal_list_services(
 
 
 def _portal_ticket_eventos_out(db: Session, org_id: str, ticket_id: str) -> list[dict]:
+    from app.services.eko_ticket_proactive import is_portal_customer_event
+
     eventos = repo.list_ticket_events(db, org_id, ticket_id, solo_visibles=True)
     return [
         {
@@ -1128,6 +1130,7 @@ def _portal_ticket_eventos_out(db: Session, org_id: str, ticket_id: str) -> list
             "created_at": e.created_at.isoformat() if e.created_at else "",
         }
         for e in eventos
+        if is_portal_customer_event(e)
     ]
 
 

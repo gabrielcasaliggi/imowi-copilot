@@ -43,6 +43,29 @@ def action_runtime_covers(action: str) -> bool:
     return name in ACTION_RUNTIME_ACTIONS
 
 
+def effective_action_runtime_config() -> dict[str, Any]:
+    """Config ACTION_RUNTIME_* efectiva (misma fuente que covers/dispatch).
+
+    Sin secretos: solo enabled + lista de acciones cargada en proceso.
+    """
+    return {
+        "enabled": bool(ACTION_RUNTIME_ENABLED),
+        "actions": sorted(ACTION_RUNTIME_ACTIONS),
+    }
+
+
+def log_effective_action_runtime_config() -> dict[str, Any]:
+    """Startup/ops: evidencia de configuración cargada por el proceso."""
+    snap = effective_action_runtime_config()
+    actions_csv = ",".join(snap["actions"])
+    logger.info(
+        "action_runtime.enabled=%s action_runtime.actions=%s",
+        "true" if snap["enabled"] else "false",
+        actions_csv,
+    )
+    return snap
+
+
 def resolve_user_confirmation(
     *,
     historial: list[dict] | None = None,

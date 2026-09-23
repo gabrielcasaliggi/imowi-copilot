@@ -228,6 +228,170 @@ def _natural_matches(texto: str, rows: list[dict[str, Any]]) -> list[dict[str, A
     return hits
 
 
+def _normalize_ref_text(texto: str) -> str:
+    t = (texto or "").lower().strip()
+    t = re.sub(r"[¿?¡!.,;:]+", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _is_fijo_reference(texto: str) -> bool:
+    """2.5D-2: referencia acotada a fijo/fija (no NLP general)."""
+    t = _normalize_ref_text(texto)
+    if not t:
+        return False
+    if t in ("el fijo", "la fija", "fijo", "fija", "al fijo", "a la fija", "del fijo", "de la fija"):
+        return True
+    return bool(re.search(r"\b(?:el\s+|la\s+|al\s+|del\s+|de\s+la\s+)?fij[oa]\b", t))
+
+
+def _is_otro_reference(texto: str) -> bool:
+    """2.5D-2: referencia relativa 'el otro' / 'la otra' (no 'otra vez')."""
+    t = _normalize_ref_text(texto)
+    if not t:
+        return False
+    if re.search(r"\botra\s+vez\b", t) or re.search(r"\botro\s+d[ií]a\b", t):
+        return False
+    if t in ("el otro", "la otra", "otro", "otra", "al otro", "a la otra"):
+        return True
+    return bool(
+        re.search(
+            r"\b(?:me\s+refiero\s+(?:a|al)\s+)?(?:el\s+otro|la\s+otra|al\s+otro)\b",
+            t,
+        )
+    )
+
+
+def _row_matches_ref(row: dict[str, Any], ref: ServiceRef) -> bool:
+    sid = str(row.get("id") or "").strip()
+    login = str(row.get("login") or "").strip().lower()
+    if ref.service_id and sid and sid == ref.service_id:
+        return True
+    if ref.login and login and login == ref.login.lower():
+        return True
+    return False
+
+
+def _fijo_phone_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [r for r in rows if str(r.get("type") or "").strip().lower() == "telefonia"]
+
+
+def _fijo_internet_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Internet fijo = type internet (móvil es type movil, no entra)."""
+    return [r for r in rows if str(r.get("type") or "").strip().lower() == "internet"]
+
+
+def resolve_fijo_reference(
+    *,
+    texto: str,
+    catalog: list[dict[str, Any]],
+    client_number: str,
+) -> SelectionResult:
+    """2.5D-2: 'el fijo' / 'la fija' → un candidato inequívoco o NEEDS_INPUT."""
+    cn = str(client_number or "").strip()
+    rows = [r for r in catalog if isinstance(r, dict) and str(r.get("id") or "").strip()]
+    phone = _fijo_phone_rows(rows)
+    inet = _fijo_internet_rows(rows)
+
+    if len(phone) == 1 and len(inet) == 0:
+        return SelectionResult(
+            status="selected",
+            ref=ref_from_row(phone[0], client_number=cn),
+            reason_code="fijo_unique_telefonia",
+        )
+    if len(inet) == 1 and len(phone) == 0:
+        return SelectionResult(
+            status="selected",
+            ref=ref_from_row(inet[0], client_number=cn),
+            reason_code="fijo_unique_internet",
+        )
+    # Ambiguity: phone + internet, or multiple of either, or none
+    candidates = phone + inet
+    if not candidates:
+        return SelectionResult(
+            status="needs_input",
+            reason_code="fijo_no_compatible",
+            message="No encuentro un servicio fijo (telefonía o Internet) en tu cuenta.",
+            options=[option_from_row(r) for r in rows],
+        )
+    options = [option_from_row(r) for r in candidates]
+    return SelectionResult(
+        status="needs_input",
+        reason_code="fijo_ambiguous",
+        message=format_selection_options(options),
+        options=options,
+    )
+
+
+def resolve_otro_reference(
+    *,
+    texto: str,
+    catalog: list[dict[str, Any]],
+    client_number: str,
+    current_ref: ServiceRef | None,
+) -> SelectionResult:
+    """2.5D-2: 'el otro' relativo a selected_service_ref canónico."""
+    cn = str(client_number or "").strip()
+    rows = [r for r in catalog if isinstance(r, dict) and str(r.get("id") or "").strip()]
+    if current_ref is None:
+        return SelectionResult(
+            status="needs_input",
+            reason_code="otro_missing_current",
+            message=format_selection_options([option_from_row(r) for r in rows]),
+            options=[option_from_row(r) for r in rows],
+        )
+    in_catalog = [r for r in rows if _row_matches_ref(r, current_ref)]
+    if not in_catalog:
+        return SelectionResult(
+            status="needs_input",
+            reason_code="otro_current_not_in_catalog",
+            message=format_selection_options([option_from_row(r) for r in rows]),
+            options=[option_from_row(r) for r in rows],
+        )
+    others = [r for r in rows if not _row_matches_ref(r, current_ref)]
+    if len(others) == 1:
+        return SelectionResult(
+            status="selected",
+            ref=ref_from_row(others[0], client_number=cn),
+            reason_code="otro_unique_alternate",
+        )
+    if not others:
+        return SelectionResult(
+            status="needs_input",
+            reason_code="otro_no_alternate",
+            message="Solo veo un servicio seleccionado; no hay «otro» para elegir.",
+            options=[option_from_row(r) for r in rows],
+        )
+    options = [option_from_row(r) for r in others]
+    return SelectionResult(
+        status="needs_input",
+        reason_code="otro_ambiguous",
+        message=format_selection_options(options),
+        options=options,
+    )
+
+
+def resolve_service_reference(
+    *,
+    texto: str,
+    catalog: list[dict[str, Any]],
+    client_number: str,
+    current_ref: ServiceRef | None = None,
+    pending_options: list[Any] | None = None,
+    proposed_service_id: str = "",
+    proposed_login: str = "",
+) -> SelectionResult:
+    """2.5D-2 alias: same contract as :func:`resolve_service_selection`."""
+    return resolve_service_selection(
+        texto=texto,
+        catalog=catalog,
+        client_number=client_number,
+        current_ref=current_ref,
+        pending_options=pending_options,
+        proposed_service_id=proposed_service_id,
+        proposed_login=proposed_login,
+    )
+
+
 def resolve_service_selection(
     *,
     texto: str,
@@ -236,6 +400,7 @@ def resolve_service_selection(
     pending_options: list[Any] | None = None,
     proposed_service_id: str = "",
     proposed_login: str = "",
+    current_ref: ServiceRef | None = None,
 ) -> SelectionResult:
     """Resuelve una referencia a exactamente un servicio del catálogo confiable."""
     cn = str(client_number or "").strip()
@@ -351,7 +516,8 @@ def resolve_service_selection(
         )
 
     # 4) Un solo servicio en catálogo + referencia genérica ("ese", "el servicio")
-    t_low = (texto or "").lower().strip()
+    #    NO ampliar a "fijo"/"otro" aquí — van en 4b/4c (2.5D-2).
+    t_low = _normalize_ref_text(texto)
     if len(rows) == 1 and (
         not t_low
         or t_low in ("ese", "esa", "ese servicio", "el servicio", "ese mismo", "ok", "dale")
@@ -361,6 +527,23 @@ def resolve_service_selection(
         return SelectionResult(
             status="selected",
             ref=ref_from_row(rows[0], client_number=cn),
+        )
+
+    # 4b) Relative "el otro" — requires canonical current_ref (2.5D-2)
+    if _is_otro_reference(texto):
+        return resolve_otro_reference(
+            texto=texto,
+            catalog=rows,
+            client_number=cn,
+            current_ref=current_ref,
+        )
+
+    # 4c) "el fijo" / "la fija" (2.5D-2) — before generic natural match
+    if _is_fijo_reference(texto):
+        return resolve_fijo_reference(
+            texto=texto,
+            catalog=rows,
+            client_number=cn,
         )
 
     # 5) Lenguaje natural
@@ -400,7 +583,15 @@ def selection_changed(prev: ServiceRef | None, new: ServiceRef) -> bool:
 
 
 def get_selected_ref(ctx: dict[str, Any] | None) -> ServiceRef | None:
-    """Lee la selección efectiva; compat con selected_service/login_seleccionado string."""
+    """2.5D-1 — canonical READ SoT for the currently selected service.
+
+    Reads **only** ``eko_journey.selected_service_ref``.
+
+    Does **not** fall back to ``selected_service`` or ``ctx.login_seleccionado``
+    (those remain write-side projections / legacy shadow only).
+
+    Pure read: no inference, no catalog lookup, no LLM, no state mutation.
+    """
     st_raw = (ctx or {}).get("eko_journey")
     st = dict(st_raw) if isinstance(st_raw, dict) else {}
     raw = st.get("selected_service_ref")
@@ -416,17 +607,12 @@ def get_selected_ref(ctx: dict[str, Any] | None) -> ServiceRef | None:
             product=str(raw.get("product") or "").strip(),
             active=raw.get("active") if isinstance(raw.get("active"), bool) else None,
         )
-    login = str(
-        (ctx or {}).get("login_seleccionado") or st.get("selected_service") or ""
-    ).strip()
-    if login:
-        return ServiceRef(
-            service_id="",
-            login=login,
-            service_type="",
-            client_number="",
-        )
     return None
+
+
+def get_selected_service_ref(ctx: dict[str, Any] | None) -> ServiceRef | None:
+    """Alias canónico 2.5D-1 de :func:`get_selected_ref`."""
+    return get_selected_ref(ctx)
 
 
 _NON_DIAGNOSTICABLE_TYPES = frozenset(
@@ -491,6 +677,9 @@ def looks_like_selection_utterance(texto: str) -> bool:
         "el único",
         "el unico",
     ):
+        return True
+    # 2.5D-2 reference phrases (same selection path; does not change "ese" rules)
+    if _is_fijo_reference(texto) or _is_otro_reference(texto):
         return True
     if any(
         k in t

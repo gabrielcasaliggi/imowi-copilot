@@ -12,12 +12,13 @@ export type IncidentePushPayload = {
   event: IncidentePushEvent;
 };
 
-/** Vocabulario canónico acordado para futura emisión backend (2.3G-B). */
+/** Vocabulario canónico acordado (2.3G-M + 2.6A sla_breached). */
 export type CanonicalTicketEvent =
   | "created"
   | "updated"
   | "resolved"
   | "closed"
+  | "sla_breached"
   | "";
 
 export type TicketPushPayload = {
@@ -62,6 +63,7 @@ function normalizeTicketEvent(raw: unknown): CanonicalTicketEvent {
   if (bare === "updated" || bare === "update") return "updated";
   if (bare === "resolved" || bare === "resolve") return "resolved";
   if (bare === "closed" || bare === "close") return "closed";
+  if (bare === "sla_breached" || bare === "sla-breached") return "sla_breached";
   return "";
 }
 

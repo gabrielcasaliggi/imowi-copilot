@@ -177,6 +177,7 @@ def procesar_cierre_ticket(
         nivel=ticket.nivel,
         estado=ticket.estado,
         actor="sistema-ia",
+        visible_cliente="No",
     )
 
     contribucion = None

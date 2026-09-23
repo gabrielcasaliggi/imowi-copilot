@@ -83,7 +83,7 @@ def test_4e_all_exposed_capabilities_registered():
     inv = contract_invariants()
     assert inv["registered_equals_contracted"] is True
     assert inv["coverage_equals_contracted"] is True
-    assert inv["capability_count"] == 15
+    assert inv["capability_count"] == 16
 
 
 def test_4e_capability_metadata_required_fields():

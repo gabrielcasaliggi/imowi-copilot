@@ -2147,6 +2147,13 @@ def _cliente_consulta_ticket_propio(texto: str) -> bool:
     )
 
 
+def _cliente_quiere_nota_ticket(texto: str) -> bool:
+    """2.6I: intención N1 de nota customer-visible (phrase gate, no authority)."""
+    from app.services.eko_journeys import _wants_ticket_customer_note
+
+    return _wants_ticket_customer_note(texto)
+
+
 def _extraer_ticket_id_de_texto(texto: str) -> str:
     import re
 
@@ -2932,6 +2939,14 @@ def _crear_ticket_n2(
     )
     conv.ticket_id = t.id
     prev_estado = conv.estado or ""
+    # 2.5D-4: stamp continuity before leaving bot (ticket N2 handoff)
+    try:
+        from app.services.eko_handoff_continuity import stamp_handoff_out
+
+        stamp_handoff_out(ctx, reason="ticket_n2_espera_agente")
+        crepo.set_contexto(conv, ctx)
+    except Exception:
+        logger.debug("stamp_handoff_out ticket N2 falló", exc_info=True)
     conv.estado = "espera_agente"
     if pendientes:
         ctx["temas_anotados_ticket"] = list(
@@ -5066,6 +5081,20 @@ def procesar_mensaje_entrante(
             }
 
     ctx = crepo.get_contexto(conv)
+    # 2.5D-4: handoff active + hilo ya en bot → invalidar confirmation stale
+    # antes de un «sí» residual (validación ownership completa más abajo).
+    try:
+        from app.services.eko_handoff_continuity import (
+            invalidate_stale_confirmation_if_handoff,
+        )
+
+        if (conv.estado or "") == "bot" and invalidate_stale_confirmation_if_handoff(
+            ctx
+        ):
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+    except Exception:
+        logger.debug("handoff_stale_confirmation_clear falló", exc_info=True)
     # Fase 6: un incremento de cs.turn por mensaje de usuario N1 (no CSAT/duplicado).
     try:
         from app.domain.conversation_state import increment_user_turn
@@ -5116,6 +5145,21 @@ def procesar_mensaje_entrante(
 
     if not abonado:
         abonado = crepo.find_abonado_por_telefono(db, org_id, conv.telefono)
+
+    # 2.5D-4: retorno de handoff — validar continuidad vs TrustedContext (no transcript)
+    try:
+        from app.services.eko_handoff_continuity import (
+            handoff_is_active,
+            prepare_return_from_handoff,
+        )
+
+        if handoff_is_active(ctx) and (conv.estado or "") == "bot":
+            cn = str(getattr(abonado, "client_number", "") or "").strip() if abonado else ""
+            prepare_return_from_handoff(ctx, client_number=cn, catalog=None)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+    except Exception:
+        logger.debug("handoff_return_validate falló", exc_info=True)
 
     # Fase 5: Journey orchestration (capabilities existentes; flag off = Legacy N1).
     try:
@@ -5853,6 +5897,74 @@ def procesar_mensaje_entrante(
             return _responder_consulta_saldo(
                 db, org_id, conv, abonado, ctx, canal=canal
             )
+
+        # 2.6I: nota customer-visible vía Runtime (antes que consulta estado).
+        if _cliente_quiere_nota_ticket(texto):
+            from app.services.eko_action_bridge import action_runtime_covers, dispatch_runtime
+            from app.services.eko_journeys import (
+                _extract_customer_note_mensaje,
+                _resolve_ticket_id_for_note,
+            )
+
+            if action_runtime_covers("ticket_customer_note"):
+                mensaje = _extract_customer_note_mensaje(texto)
+                tid, missing = _resolve_ticket_id_for_note(
+                    db=db,
+                    org_id=org_id,
+                    abonado=abonado,
+                    conv=conv,
+                    texto=texto,
+                )
+                if missing == "ambiguous_ticket":
+                    resp = "Tenés varios tickets. ¿Me pasás el número del que querés actualizar?"
+                elif missing == "missing_ticket" or not tid:
+                    resp = "No tengo un ticket asociado a este chat. ¿Me pasás el número?"
+                elif not mensaje:
+                    resp = "¿Qué texto querés dejar visible en el ticket?"
+                else:
+                    ar = dispatch_runtime(
+                        "ticket_customer_note",
+                        db=db,
+                        org_id=org_id,
+                        conv=conv,
+                        abonado=abonado,
+                        ctx=ctx,
+                        canal=canal,
+                        decision_name="consulta_ticket_customer_note",
+                        parameters={"ticket_id": tid, "mensaje": mensaje},
+                        texto=texto,
+                    )
+                    # covers True → XOR: nunca Legacy customer-visible
+                    if ar is None:
+                        resp = "No pude dejar la nota en el ticket ahora."
+                    else:
+                        resp = ar.user_message or "No pude dejar la nota en el ticket ahora."
+                crepo.set_contexto(conv, ctx)
+                db.commit()
+                _enviar_respuesta(
+                    db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+                )
+                return {
+                    "ok": True,
+                    "modo": "bot",
+                    "conversacion_id": conv.id,
+                    "respuesta": resp,
+                    "estado": conv.estado,
+                }
+            # Gate off: sin Legacy customer-visible (no add_ticket_event Sí)
+            resp = "No puedo dejar esa nota en el ticket ahora."
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(
+                db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
+            )
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+            }
 
         # Consulta de ticket propio vía Runtime (ownership obligatorio).
         if _cliente_consulta_ticket_propio(texto):

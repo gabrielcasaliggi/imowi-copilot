@@ -22,10 +22,12 @@ from app.domain.domain_lifecycle import (
     DomainClosedError,
     DomainExistsError,
     DomainKindError,
+    apply_domain_resume,
     apply_domain_signal,
     create_domain,
     domain_spans_in_order,
     kind_from_user_signal,
+    looks_like_domain_resume,
     pause_domain,
     refine_playbook,
     resume_domain,
@@ -258,6 +260,37 @@ def apply_turn_domain(
     hint = (playbook_hint or "").strip()
     if hint in _SKIP_PLAYBOOKS:
         hint = ""
+
+    # 2.5D-3: resume NL → domain_stack (antes de crear/señal normal)
+    if looks_like_domain_resume(texto):
+        resume = apply_domain_resume(cs, texto)
+        if resume.status == "resolved" and resume.domain_id:
+            slot = cs.slot(resume.domain_id)
+            trans = DomainTransitionResult(
+                cs=cs,
+                previous_active_id=prev_id,
+                active_domain_id=cs.active_domain_id,
+                paused=bool(prev_id and prev_id != resume.domain_id),
+                resumed=True,
+                reason="nl_resume",
+                playbook=(slot.playbook if slot else "") or "",
+            )
+            _log_transition(
+                trans,
+                from_status=prev_status,
+                to_status=(slot.status if slot else ""),
+                kind=(slot.kind if slot else "") or "",
+                turn=cs.turn,
+            )
+            return trans
+        # Resume explícito sin match seguro: no inventar dominio
+        return DomainTransitionResult(
+            cs=cs,
+            previous_active_id=prev_id,
+            active_domain_id=cs.active_domain_id,
+            reason="resume_needs_input",
+            playbook=(previous.playbook if previous else "") or "",
+        )
 
     spans = domain_spans_in_order(texto)
     secondary_kind = spans[1] if len(spans) > 1 else None

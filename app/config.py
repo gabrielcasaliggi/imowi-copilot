@@ -193,9 +193,13 @@ BILLTRACK_ENABLED = os.getenv("BILLTRACK_ENABLED", "false").strip().lower() in (
 )
 
 # Action Runtime (Agentic Ops 4C) — cableado progresivo. Off por defecto.
-# ACTION_RUNTIME_ACTIONS: lista CSV; vacío = set por defecto (read-only + OV + diag).
-# Mutantes (create_ticket, update_ticket, escalate_human, close_conversation) NO
-# están en el set por defecto: hay que listarlas explícitamente cuando el gate esté listo.
+# ACTION_RUNTIME_ACTIONS: lista CSV; vacío = set por defecto.
+# Mutantes update_ticket / escalate_human / close_conversation
+# NO están en el default (activar vía CSV).
+# 2.6G: ticket_customer_note SÍ está en el default — ACT customer-visible
+# gobernado por el mismo gate (ENABLED + ACTIONS), sin bypass.
+# 2.6K: create_ticket SÍ está en el default — EFFECT con confirmation REQUIRED;
+# sigue requiriendo ACTION_RUNTIME_ENABLED=true para despachar (XOR vs Legacy).
 ACTION_RUNTIME_ENABLED = os.getenv(
     "ACTION_RUNTIME_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
@@ -218,6 +222,8 @@ else:
             "run_diagnostic_bcm",
             "run_diagnostic_uisp",
             "installation_status",
+            "ticket_customer_note",
+            "create_ticket",
         }
     )
 

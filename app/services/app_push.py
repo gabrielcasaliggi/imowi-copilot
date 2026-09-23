@@ -785,9 +785,9 @@ def _payload_ticket_seguro(
     ticket_id: str,
     event: str,
 ) -> dict:
-    """Contrato mobile 2.3G-M. Sin detalle interno ni texto de TicketEvent."""
+    """Contrato mobile 2.3G-M + 2.6A. Sin detalle interno ni texto de TicketEvent."""
     ev = (event or "").strip().lower()
-    if ev not in ("created", "updated", "resolved", "closed"):
+    if ev not in ("created", "updated", "resolved", "closed", "sla_breached"):
         ev = ""
     return {
         "tipo": "ticket",

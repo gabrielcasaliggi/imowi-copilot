@@ -410,18 +410,34 @@ def add_ticket_event(
     detalle = (body.detalle or "").strip()
     if not detalle:
         raise HTTPException(400, "El detalle de la nota es obligatorio")
-    ev = repo.add_ticket_event(
-        db,
-        t.organizacion_id,
-        ticket_id,
-        tipo="nota_interna" if body.interno else "nota",
-        titulo=body.titulo or ("Nota interna" if body.interno else "Nota"),
-        detalle=detalle,
-        nivel=t.nivel or "N1",
-        estado=t.estado or "Abierto",
-        actor=ctx.usuario_email,
-        visible_cliente="No" if body.interno else "Sí",
-    )
+    if body.interno:
+        ev = repo.add_ticket_event(
+            db,
+            t.organizacion_id,
+            ticket_id,
+            tipo="nota_interna",
+            titulo=body.titulo or "Nota interna",
+            detalle=detalle,
+            nivel=t.nivel or "N1",
+            estado=t.estado or "Abierto",
+            actor=ctx.usuario_email,
+            visible_cliente="No",
+        )
+    else:
+        from app.services.eko_ticket_proactive import emit_ticket_customer_note
+
+        ev = emit_ticket_customer_note(
+            db,
+            t.organizacion_id,
+            ticket_id,
+            detalle,
+            actor=ctx.usuario_email,
+            agent_authorized=True,
+            nivel=t.nivel or "N1",
+            estado=t.estado or "Abierto",
+        )
+        if ev is None:
+            raise HTTPException(400, "No se pudo registrar la nota")
     log_audit(
         db,
         org_id=t.organizacion_id,
@@ -766,12 +782,13 @@ def reassign_ticket(
             db,
             t.organizacion_id,
             ticket_id,
-            tipo="nota",
+            tipo="nota_interna",
             titulo="Nota de derivación",
             detalle=body.nota.strip(),
             nivel=t.nivel,
             estado=t.estado,
             actor=ctx.usuario_email,
+            visible_cliente="No",
         )
     log_audit(
         db,

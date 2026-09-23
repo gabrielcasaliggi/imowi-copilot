@@ -25,6 +25,7 @@ function normalizeTicketEvent(raw) {
   if (bare === "updated" || bare === "update") return "updated";
   if (bare === "resolved" || bare === "resolve") return "resolved";
   if (bare === "closed" || bare === "close") return "closed";
+  if (bare === "sla_breached" || bare === "sla-breached") return "sla_breached";
   return "";
 }
 
@@ -171,7 +172,7 @@ assert(tp && tp.tipo === "ticket", "ticket tipo");
 assert(tp.ticket_id === "TK-1", "ticket_id");
 assert(tp.event === "created", "ticket event created");
 
-for (const event of ["created", "updated", "resolved", "closed"]) {
+for (const event of ["created", "updated", "resolved", "closed", "sla_breached"]) {
   const ti = intentFromPushData({
     tipo: "ticket",
     ticket_id: "TK-9",
@@ -182,6 +183,12 @@ for (const event of ["created", "updated", "resolved", "closed"]) {
   assert(!ti.refreshConnectivity, `ticket ${event} no connectivity`);
   assert(ti.outage_id === "", `ticket ${event} no outage`);
 }
+
+assert(
+  parseTicketPush({ tipo: "ticket", ticket_id: "A", event: "ticket.sla_breached" })
+    .event === "sla_breached",
+  "ticket.sla_breached bare",
+);
 
 assert(
   parseTicketPush({ tipo: "ticket", ticket_id: "A", event: "ticket.resolved" })

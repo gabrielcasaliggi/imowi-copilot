@@ -727,6 +727,7 @@ def create_ticket(
         nivel=t.nivel,
         estado=t.estado,
         actor=creado_por or "sistema",
+        visible_cliente="Sí",
     )
     add_ticket_notification(
         db,
@@ -785,6 +786,13 @@ def refresh_tickets_sla(db: Session, tickets: list[Ticket], *, persist: bool = T
         except Exception:
             logger = __import__("logging").getLogger("operations_hub")
             logger.warning("Fallo notify SLA breach %s", t.id, exc_info=True)
+        try:
+            from app.services.eko_ticket_proactive import emit_customer_sla_breach_event
+
+            emit_customer_sla_breach_event(db, t)
+        except Exception:
+            logger = __import__("logging").getLogger("operations_hub")
+            logger.warning("Fallo emit SLA breach customer push %s", t.id, exc_info=True)
 
 
 def ensure_ticket_sla(db: Session, t: Ticket) -> dict:
@@ -800,6 +808,12 @@ def ensure_ticket_sla(db: Session, t: Ticket) -> dict:
                 from app.services.sla_notify import notify_sla_breach
 
                 notify_sla_breach(db, t, was_breached=False)
+            except Exception:
+                pass
+            try:
+                from app.services.eko_ticket_proactive import emit_customer_sla_breach_event
+
+                emit_customer_sla_breach_event(db, t)
             except Exception:
                 pass
     return compute_sla(t)
@@ -896,16 +910,32 @@ def update_ticket(
         mark_ticket_notifications_read(db, event_org_id, ticket_id)
     if cambios:
         detalle = "; ".join(cambios)
+        # 2.6E: admin auto-events default visible=No. Preserve cierre customer-visible.
+        closing = (t.estado or "") == "Cerrado"
+        reassign = asignado_a is not None and not closing
+        if reassign:
+            ev_tipo = "reasignacion"
+            ev_titulo = "Ticket reasignado"
+            ev_visible = "No"
+        elif closing:
+            ev_tipo = "actualizacion"
+            ev_titulo = "Ticket actualizado"
+            ev_visible = "Sí"
+        else:
+            ev_tipo = "actualizacion"
+            ev_titulo = "Ticket actualizado"
+            ev_visible = "No"
         add_ticket_event(
             db,
             event_org_id,
             ticket_id,
-            tipo="actualizacion" if asignado_a is None else "reasignacion",
-            titulo="Ticket reasignado" if asignado_a is not None else "Ticket actualizado",
+            tipo=ev_tipo,
+            titulo=ev_titulo,
             detalle=detalle,
             nivel=t.nivel,
             estado=t.estado,
             actor=actor,
+            visible_cliente=ev_visible,
         )
         if asignado_a:
             add_ticket_notification(
@@ -952,7 +982,7 @@ def add_ticket_event(
     nivel: str = "",
     estado: str = "",
     actor: str = "sistema",
-    visible_cliente: str = "Sí",
+    visible_cliente: str = "No",
 ) -> TicketEvent:
     ev = TicketEvent(
         organizacion_id=org_id,

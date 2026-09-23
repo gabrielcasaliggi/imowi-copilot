@@ -78,6 +78,11 @@ async def lifespan(app: FastAPI):
     for aviso in avisos_config_produccion():
         logger.warning("Config producción: %s", aviso)
 
+    # 2.6Q: evidencia de ACTION_RUNTIME_* efectiva (misma fuente que Runtime).
+    from app.services.eko_action_bridge import log_effective_action_runtime_config
+
+    log_effective_action_runtime_config()
+
     engine = get_engine()
     migrados = aplicar_schema(engine)
     if migrados:

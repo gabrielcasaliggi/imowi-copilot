@@ -122,6 +122,7 @@ def persistir_datos_sms_en_ticket(
         nivel=t.nivel,
         estado=t.estado,
         actor=actor,
+        visible_cliente="No",
     )
     traces.append(f"📬 [Ticket]: Contexto SMS actualizado en {ticket_id}")
     return traces

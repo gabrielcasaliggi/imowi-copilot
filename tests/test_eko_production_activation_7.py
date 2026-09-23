@@ -109,14 +109,11 @@ def test_f7_01_journeys_default_off(monkeypatch):
 
 
 def test_f7_02_runtime_default_off():
-    # Valor de módulo / bridge según config de proceso (default false en config)
+    # Master ENABLED sigue off por defecto (rollout)
     assert app_config.ACTION_RUNTIME_ENABLED is False or bridge.ACTION_RUNTIME_ENABLED in (
         True,
         False,
     )
-    # Default contractual en config.py es false
-    assert "create_ticket" not in app_config.ACTION_RUNTIME_ACTIONS or True
-    # Mutantes no están en el set default del archivo
     defaults = {
         "show_balance",
         "show_ticket",
@@ -126,11 +123,14 @@ def test_f7_02_runtime_default_off():
         "run_diagnostic_pppoe",
         "run_diagnostic_bcm",
         "run_diagnostic_uisp",
+        "ticket_customer_note",
+        "create_ticket",  # 2.6K: allowlisted; still requires ENABLED
     }
-    # Si ACTIONS no fue overrideado por env, create_ticket no está
+    # Si ACTIONS no fue overrideado por env, set default incluye create_ticket
     if not __import__("os").getenv("ACTION_RUNTIME_ACTIONS", "").strip():
-        assert "create_ticket" not in app_config.ACTION_RUNTIME_ACTIONS
-        assert defaults <= set(app_config.ACTION_RUNTIME_ACTIONS) or True
+        assert "create_ticket" in app_config.ACTION_RUNTIME_ACTIONS
+        assert "update_ticket" not in app_config.ACTION_RUNTIME_ACTIONS
+        assert defaults <= set(app_config.ACTION_RUNTIME_ACTIONS)
 
 
 def test_f7_03_journey_on_runtime_off(monkeypatch):

@@ -126,6 +126,7 @@ def registrar_avances_en_ticket(
             nivel=ticket_nivel,
             estado=ticket_estado,
             actor=actor or "consola",
+            visible_cliente="No",
         )
         registrados.append(paso_id)
         registrados_set.add(paso_id)
@@ -144,6 +145,7 @@ def registrar_avances_en_ticket(
             nivel=ticket_nivel,
             estado=ticket_estado,
             actor=actor or "consola",
+            visible_cliente="No",
         )
         registrados.append(paso_actual)
         traces.append(f"📋 [Ticket]: Resumen NOC registrado en {ticket_id}")
