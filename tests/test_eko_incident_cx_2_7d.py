@@ -774,6 +774,87 @@ def test_27d_no_fixed_first_message_still_explains(monkeypatch):
     assert turn.reason_code == "no_fixed_internet"
     assert "no veo un servicio de internet fijo" in (turn.user_message or "").lower()
 
+
+def test_27d_session_up_thanks_does_not_replay_diag(monkeypatch):
+    """Tras sesión activa, gracias/resuelto/no no reenvían el párrafo de diagnóstico."""
+    _enable_journeys(monkeypatch)
+    base_journey = {
+        "name": "internet_sin_conectividad",
+        "step": "respond",
+        "last_diagnostic_result": "pppoe_session_up",
+        "last_action": "run_diagnostic_pppoe",
+        "last_user_message": (
+            "Veo una sesión de conexión activa en tu línea. "
+            "Si igual no navegás, puede ser algo en el router o Wi‑Fi de tu casa."
+        ),
+        "intent": "internet",
+        "domain": "internet",
+        "correlation_id": "c-up",
+    }
+    ctx: dict = {"eko_journey": dict(base_journey), "pppoe_informado": True}
+    apply_service_ref(
+        ctx,
+        ServiceRef(
+            service_id="svc-only",
+            login="INT-ONLY",
+            client_number="27001",
+            service_type="internet",
+        ),
+    )
+    with (
+        patch("app.services.eko_journeys._login_count", return_value=1),
+        patch(
+            "app.services.eko_journeys.dispatch_runtime",
+            side_effect=AssertionError("no re-diag"),
+        ),
+    ):
+        t1 = maybe_handle_journey_turn(
+            MagicMock(),
+            "org-1",
+            _conv(),
+            _abo(),
+            "gracias ya lo solucione",
+            canal="wa",
+            ctx=ctx,
+        )
+    assert t1 is not None
+    assert t1.reason_code == "post_diag_ack"
+    assert t1.data.get("resolved_ack") is True
+    assert "sesión de conexión activa" not in (t1.user_message or "").lower()
+
+    ctx2: dict = {"eko_journey": dict(base_journey), "pppoe_informado": True}
+    apply_service_ref(
+        ctx2,
+        ServiceRef(
+            service_id="svc-only",
+            login="INT-ONLY",
+            client_number="27001",
+            service_type="internet",
+        ),
+    )
+    with (
+        patch("app.services.eko_journeys._login_count", return_value=1),
+        patch(
+            "app.services.eko_journeys.dispatch_runtime",
+            side_effect=AssertionError("no re-diag"),
+        ),
+    ):
+        t2 = maybe_handle_journey_turn(
+            MagicMock(),
+            "org-1",
+            _conv(),
+            _abo(),
+            "no",
+            canal="wa",
+            ctx=ctx2,
+        )
+    assert t2 is not None
+    assert t2.reason_code == "post_diag_ack"
+    assert t2.data.get("declined_help") is True
+    assert "sesión de conexión activa" not in (t2.user_message or "").lower()
+
+
+def test_27d_espera_agente_routes_followup(monkeypatch):
     _enable_journeys(monkeypatch)
     _enable_runtime(monkeypatch, "ticket_customer_note", "show_ticket")
     from app.services.canal_abonado import _try_incident_cx_en_espera

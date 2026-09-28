@@ -489,6 +489,35 @@ def _wants_incident_followup(texto: str) -> bool:
     return bool(t) and any(p in t for p in _INCIDENT_FOLLOWUP_PHRASES)
 
 
+def _wants_post_diag_close(texto: str) -> bool:
+    """Gracias / resuelto / rechazo de más ayuda tras diagnóstico ya informado."""
+    t = (texto or "").lower().strip()
+    if not t:
+        return False
+    if t in ("no", "nop", "no gracias", "no, gracias", "no por ahora"):
+        return True
+    try:
+        from app.domain.flujos_abonado import indica_resuelto
+        from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+        if indica_resuelto(texto) or _cierra_consulta_facturacion(texto):
+            return True
+    except Exception:
+        pass
+    return any(
+        p in t
+        for p in (
+            "gracias",
+            "listo",
+            "perfecto",
+            "ya lo solucion",
+            "ya solucion",
+            "quedó ok",
+            "quedo ok",
+        )
+    )
+
+
 def _active_incident_ticket_id(conv: Any) -> str:
     return str(getattr(conv, "ticket_id", "") or "").strip()
 
@@ -1022,6 +1051,32 @@ def _advance_connectivity(
                 correlation_id=corr,
                 data={"stale_confirmation_guard": True},
             )
+        if t_low == "no" and (
+            ctx.get("pppoe_informado") or st.get("last_diagnostic_result")
+        ):
+            msg = (
+                "Perfecto, no te guío con más chequeos por ahora. "
+                "Si más adelante necesitás algo, escribime."
+            )
+            set_journey(
+                ctx,
+                step="done",
+                pending_confirmation=False,
+                last_user_message=msg,
+            )
+            return JourneyTurn(
+                handled=True,
+                user_message=msg,
+                journey="internet_sin_conectividad",
+                step="done",
+                intent="internet",
+                domain="internet",
+                action=str(st.get("last_action") or "run_diagnostic_pppoe"),
+                action_status="already_done",
+                reason_code="post_diag_ack",
+                correlation_id=corr,
+                data={"resolved_ack": True, "declined_help": True},
+            )
 
     # 2.7D: ticket de incidente ya ligado → continuidad (no duplicar, no reset a menú)
     tid_active = _active_incident_ticket_id(conv)
@@ -1110,12 +1165,36 @@ def _advance_connectivity(
         and st.get("step") in ("respond", "done", "interpret", "decide")
         and not st.get("pending_confirmation")
     ):
-        prev_msg = str(st.get("last_user_message") or "").strip()
-        msg = prev_msg or (
+        if _wants_post_diag_close(texto):
+            msg = (
+                "Me alegra que se haya solucionado. "
+                "Si más adelante necesitás algo, escribime."
+            )
+            set_journey(
+                ctx,
+                step="done",
+                pending_confirmation=False,
+                last_user_message=msg,
+            )
+            return JourneyTurn(
+                handled=True,
+                user_message=msg,
+                journey="internet_sin_conectividad",
+                step="done",
+                intent="internet",
+                domain="internet",
+                action=str(st.get("last_action") or "run_diagnostic_pppoe"),
+                action_status="already_done",
+                reason_code="post_diag_ack",
+                correlation_id=corr,
+                data={"idempotent_skip": True, "resolved_ack": True},
+            )
+        # No reenviar el párrafo de diagnóstico: mensaje neutro de "ya revisado"
+        msg = (
             "Ya revisé tu conexión en este chat. "
             "Si cambió algo o querés que vuelva a chequear, decime."
         )
-        set_journey(ctx, step="respond", pending_confirmation=False)
+        set_journey(ctx, step="respond", pending_confirmation=False, last_user_message=msg)
         return JourneyTurn(
             handled=True,
             user_message=msg,
