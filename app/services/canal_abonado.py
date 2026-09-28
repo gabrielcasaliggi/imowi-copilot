@@ -4272,6 +4272,109 @@ def _intentar_identificar_en_espera_agente(
     }
 
 
+def _try_incident_cx_en_espera(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    texto: str,
+    *,
+    canal: str,
+) -> dict | None:
+    """2.7D: en espera_agente, permitir follow-up de incidente vía Journeys (nota/show/continuity).
+
+    No reabre el bot N1 genérico. No crea ticket nuevo. Mantiene estado espera_agente.
+    """
+    try:
+        from app.services.eko_journeys import (
+            _TICKET_PHRASES,
+            _wants_incident_followup,
+            _wants_ticket_customer_note,
+            journey_turn_to_response,
+            journeys_enabled,
+            maybe_handle_journey_turn,
+        )
+    except Exception:
+        return None
+
+    if not journeys_enabled(canal=canal, org_id=org_id):
+        return None
+    if not (conv.ticket_id or "").strip():
+        return None
+
+    t_low = (texto or "").lower().strip()
+    if not t_low:
+        return None
+    wants = (
+        _wants_ticket_customer_note(texto)
+        or _wants_incident_followup(texto)
+        or any(p in t_low for p in _TICKET_PHRASES)
+    )
+    if not wants:
+        return None
+
+    abonado: Abonado | None = None
+    if conv.abonado_id:
+        abonado = db.get(Abonado, conv.abonado_id)
+    if abonado is None:
+        return None
+
+    ctx = crepo.get_contexto(conv)
+    ctx.pop("responder_en_audio", None)
+
+    # Si el ticket se creó por Legacy sin journey en ctx, sembrar continuidad mínima
+    try:
+        from app.services.eko_journeys import (
+            _new_journey,
+            get_journey,
+            set_journey,
+        )
+
+        st = get_journey(ctx)
+        if not str(st.get("name") or "").strip():
+            seeded = _new_journey("internet_sin_conectividad")
+            seeded.update(
+                {
+                    "step": "done",
+                    "last_action": "create_ticket",
+                    "last_action_status": "success",
+                }
+            )
+            set_journey(ctx, **seeded)
+        elif str(st.get("step") or "") not in ("done", "respond"):
+            # Journey vivo sin step post-ticket: marcar done para gate de continuidad
+            if st.get("last_action") == "create_ticket" or (conv.ticket_id or "").strip():
+                set_journey(
+                    ctx,
+                    step="done",
+                    last_action=st.get("last_action") or "create_ticket",
+                )
+    except Exception:
+        logger.debug("2.7D seed journey en espera falló", exc_info=True)
+
+    try:
+        jturn = maybe_handle_journey_turn(
+            db, org_id, conv, abonado, texto, canal=canal, ctx=ctx
+        )
+    except Exception:
+        logger.exception("2.7D incident CX en espera_agente falló")
+        return None
+    if jturn is None or not jturn.handled:
+        return None
+
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    resp = (jturn.user_message or "").strip()
+    if resp:
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    out = journey_turn_to_response(jturn, conv=conv, ctx=ctx)
+    # No sacar de la cola humana: el agente sigue dueño del hilo
+    out["modo"] = "espera_agente"
+    out["estado"] = conv.estado
+    out["ticket_id"] = conv.ticket_id or out.get("ticket_id") or ""
+    out["incident_cx_espera"] = True
+    return out
+
+
 def _responder_espera_agente(
     db: Session,
     org_id: str,
@@ -4298,6 +4401,13 @@ def _responder_espera_agente(
                 f"{(texto or '').strip()[:300]}"
             ),
         )
+
+    # 2.7D: follow-up de incidente / nota / consulta ticket sin reiniciar a menú N1
+    cx_follow = _try_incident_cx_en_espera(
+        db, org_id, conv, texto, canal=canal
+    )
+    if cx_follow is not None:
+        return cx_follow
 
     tid = conv.ticket_id or ""
     ctx = crepo.get_contexto(conv)

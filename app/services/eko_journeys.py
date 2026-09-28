@@ -177,6 +177,13 @@ _TICKET_PHRASES = (
     "mi reclamo",
     "que paso con mi reclamo",
     "qué pasó con mi reclamo",
+    "que paso con el reclamo",
+    "qué pasó con el reclamo",
+    "como va mi reclamo",
+    "cómo va mi reclamo",
+    "como va el reclamo",
+    "cómo va el reclamo",
+    "estado de mi reclamo",
     "ya esta solucionado",
     "ya está solucionado",
     "como va el ticket",
@@ -184,6 +191,7 @@ _TICKET_PHRASES = (
 )
 
 # 2.6I: intención de nota customer-visible (≠ consulta estado / ≠ update_ticket evidencia)
+# 2.7D: follow-up conversacional hacia el reclamo activo
 _TICKET_NOTE_PHRASES = (
     "dejar una nota",
     "dejar nota",
@@ -199,6 +207,14 @@ _TICKET_NOTE_PHRASES = (
     "agregar al ticket",
     "agregá al ticket",
     "agrega al ticket",
+    "agregar algo al reclamo",
+    "agregar al reclamo",
+    "agregá al reclamo",
+    "agrega al reclamo",
+    "quiero agregar algo al reclamo",
+    "quiero agregar al reclamo",
+    "quiero agregar que",
+    "quiero agregar algo",
     "dejar constancia",
     "constancia en el ticket",
     "nota en el ticket",
@@ -206,6 +222,25 @@ _TICKET_NOTE_PHRASES = (
     "mensaje al ticket",
     "actualizar el ticket con",
     "actualizá el ticket con",
+)
+
+# 2.7D: síntoma persiste / seguimiento de incidente (sin nueva creación de ticket)
+_INCIDENT_FOLLOWUP_PHRASES = (
+    "sigue sin funcionar",
+    "sigue sin andar",
+    "sigue sin internet",
+    "sigue sin servicio",
+    "sigue igual",
+    "sigue caido",
+    "sigue caído",
+    "todavia no tengo internet",
+    "todavía no tengo internet",
+    "aun no tengo internet",
+    "aún no tengo internet",
+    "todavia no anda",
+    "todavía no anda",
+    "todavia no funciona",
+    "todavía no funciona",
 )
 
 # Catálogo comercial (Eko 2.2A). Antes que billing genérico con "servicio".
@@ -446,6 +481,16 @@ def _wants_rediagnose(texto: str) -> bool:
         "revisa otra vez",
     )
     return any(c in t for c in cues)
+
+
+def _wants_incident_followup(texto: str) -> bool:
+    """2.7D: síntoma persiste / seguimiento sin pedir re-diag ni menú general."""
+    t = (texto or "").lower().strip()
+    return bool(t) and any(p in t for p in _INCIDENT_FOLLOWUP_PHRASES)
+
+
+def _active_incident_ticket_id(conv: Any) -> str:
+    return str(getattr(conv, "ticket_id", "") or "").strip()
 
 
 def _record_action(ctx: dict, st: dict, ar: ActionResult | None, *, action: str) -> None:
@@ -892,6 +937,80 @@ def _advance_connectivity(
                 data={"stale_confirmation_guard": True},
             )
 
+    # 2.7D: ticket de incidente ya ligado → continuidad (no duplicar, no reset a menú)
+    tid_active = _active_incident_ticket_id(conv)
+    mid_selection = (
+        st.get("step") == "service_selection"
+        or st.get("next_required_input") == "login"
+        or bool(st.get("asked_selection") and not selected)
+    )
+    if (
+        tid_active
+        and not mid_selection
+        and not login
+        and not _wants_rediagnose(texto)
+        and not _confirmation_is_live(ctx)
+    ):
+        if _wants_ticket_customer_note(texto):
+            return _advance_ticket_customer_note(
+                db=db,
+                org_id=org_id,
+                conv=conv,
+                abonado=abonado,
+                texto=texto,
+                ctx=ctx,
+                canal=canal,
+            )
+        if any(p in t_low for p in _TICKET_PHRASES):
+            return _advance_ticket(
+                db=db,
+                org_id=org_id,
+                conv=conv,
+                abonado=abonado,
+                texto=texto,
+                ctx=ctx,
+                canal=canal,
+            )
+        detected_here = detect_journey_name(texto)
+        if _wants_incident_followup(texto) or detected_here == "internet_sin_conectividad":
+            # Incidente vivo: ya hubo diagnóstico o create_ticket en este journey
+            has_incident_ctx = bool(
+                st.get("last_diagnostic_result")
+                or st.get("last_action") == "create_ticket"
+                or ctx.get("pppoe_informado")
+                or st.get("step") == "done"
+            )
+            if has_incident_ctx:
+                msg = (
+                    f"Tu reclamo de Internet sigue en curso con el ticket {tid_active}. "
+                    "Si querés agregar información, decime «quiero agregar que…». "
+                    "Si preferís que vuelva a revisar la conexión, pedime revisar de nuevo."
+                )
+                set_journey(
+                    ctx,
+                    step="respond",
+                    pending_confirmation=False,
+                    last_user_message=msg,
+                )
+                return JourneyTurn(
+                    handled=True,
+                    user_message=msg,
+                    journey="internet_sin_conectividad",
+                    step="respond",
+                    intent="internet",
+                    domain="internet",
+                    action=str(st.get("last_action") or "create_ticket"),
+                    action_status="already_done",
+                    reason_code="incident_continuity",
+                    correlation_id=corr,
+                    data={
+                        "incident_continuity": True,
+                        "ticket_id": tid_active,
+                        "no_duplicate_ticket": True,
+                        "selected_service": selected,
+                    },
+                )
+
     # Idempotency: diagnóstico ya informado → no re-probe salvo pedido explícito.
     # Incluye textos que no matchean connectivity (p.ej. frases LLM) para que
     # no reinterpreten autoridad ni disparen side effects.
@@ -1292,7 +1411,9 @@ def _handle_ticket_confirmation(
         return JourneyTurn(
             handled=True,
             user_message=(
-                f"Dale, te derivo con un agente. Ticket {tid}. Quedate en este chat."
+                f"Dale, te derivo con un agente. Ticket {tid}. "
+                "Podés seguir en este chat para consultar el reclamo o agregar información "
+                "(por ejemplo «quiero agregar que…»)."
             ),
             mode="espera_agente",
             journey="internet_sin_conectividad",
@@ -1300,7 +1421,7 @@ def _handle_ticket_confirmation(
             action="create_ticket",
             action_status="success",
             correlation_id=corr,
-            data={"ticket_id": tid},
+            data={"ticket_id": tid, "incident_continuity_ready": True},
         )
     set_journey(ctx, step="respond", pending_confirmation=False)
     return JourneyTurn(
