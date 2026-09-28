@@ -298,3 +298,20 @@ export type CustomerSummaryQuery = {
   connectivity?: "omit" | "summary" | "probe";
   service_id?: string;
 };
+
+/** Contrato GET /portal/invoices — solo cabecera FC. Sin vencimiento ni cuenta. */
+export type PortalInvoiceStatus = "ok" | "empty" | "unavailable" | "error";
+
+export type PortalInvoiceHeader = {
+  invoice_number: string;
+  full_type: string;
+  amount: string;
+  issued_at: string | null;
+  status: string;
+};
+
+export type PortalInvoicesResponse = {
+  status: PortalInvoiceStatus;
+  reason_code: string | null;
+  invoices: PortalInvoiceHeader[];
+};

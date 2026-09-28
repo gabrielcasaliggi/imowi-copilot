@@ -1117,6 +1117,34 @@ def portal_list_services(
     return evaluar_servicios_portal(db, abonado=abo)
 
 
+_INVOICE_QUERY_ALLOWED = frozenset({"limit"})
+
+
+def _rechazar_query_factura(request: Request) -> None:
+    """Único query permitido: limit. Cualquier selector de identidad → 400."""
+    for key in request.query_params.keys():
+        if key not in _INVOICE_QUERY_ALLOWED:
+            raise HTTPException(400, "Parámetro no permitido")
+
+
+@router.get("/portal/invoices")
+def portal_invoices(
+    request: Request,
+    payload: dict = Depends(_portal_auth),
+    db: Session = Depends(get_db),
+):
+    """Cabeceras FC del abonado del JWT. Sin client_number, dni ni account_number."""
+    _rechazar_query_factura(request)
+    from app.services.portal_invoices import evaluar_facturas_portal
+
+    abo = _abonado_portal_identificado(payload, db)
+    return evaluar_facturas_portal(
+        client_number=str(getattr(abo, "client_number", "") or ""),
+        db=db,
+        limit=request.query_params.get("limit"),
+    )
+
+
 def _portal_ticket_eventos_out(db: Session, org_id: str, ticket_id: str) -> list[dict]:
     from app.services.eko_ticket_proactive import is_portal_customer_event
 

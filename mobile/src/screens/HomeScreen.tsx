@@ -4,10 +4,12 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { useConnectivity } from "../hooks/useConnectivity";
 import { useCreateClaim } from "../hooks/useCreateClaim";
 import { useCustomerSummary } from "../hooks/useCustomerSummary";
+import { useInvoices } from "../hooks/useInvoices";
 import { firstName, present } from "../present";
 import { layout, spacing } from "../theme";
 import type { InboxConversation } from "../types";
 import { BalanceCard } from "../ui/BalanceCard";
+import { InvoiceHeadersSection } from "../ui/InvoiceHeadersSection";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { ConnectivityCard } from "../ui/ConnectivityCard";
@@ -75,6 +77,7 @@ export function HomeScreen({
   const connectivity = useConnectivity({ token, onAuthExpired });
   // Account/services/billing/OV: Customer Summary (sin probes).
   const summary = useCustomerSummary({ token, onAuthExpired });
+  const invoices = useInvoices({ token, onAuthExpired });
   const claim = useCreateClaim({ token, onAuthExpired });
   const [showClaim, setShowClaim] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -190,6 +193,15 @@ export function HomeScreen({
             />
           </View>
         ) : null}
+
+        <View style={styles.gap}>
+          <InvoiceHeadersSection
+            loading={invoices.loading}
+            data={invoices.data}
+            transportError={Boolean(invoices.error)}
+            onRetry={invoices.refresh}
+          />
+        </View>
 
         {/* Plan solo si aún no hay catálogo; con lista evita repetir Internet. */}
         <View style={styles.gap}>

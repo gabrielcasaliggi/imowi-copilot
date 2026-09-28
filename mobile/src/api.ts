@@ -8,6 +8,7 @@ import type {
   InboxMessage,
   OvLinksResponse,
   PortalAudioResult,
+  PortalInvoicesResponse,
   PortalServicesResponse,
   PortalTicket,
   PortalTicketDetail,
@@ -239,6 +240,15 @@ export const api = {
     });
     if (!res.ok) throw new ApiError(await parseError(res), res.status);
     return res.json() as Promise<PortalServicesResponse>;
+  },
+
+  /** Cabeceras FC. Identidad solo por JWT: no enviar client_number ni dni. */
+  async getInvoices(token: string) {
+    const res = await request("/api/v1/portal/invoices", {
+      headers: { Authorization: `Bearer ${token}`, ...CANAL_HEADER },
+    });
+    if (!res.ok) throw new ApiError(await parseError(res), res.status);
+    return res.json() as Promise<PortalInvoicesResponse>;
   },
 
   /**
