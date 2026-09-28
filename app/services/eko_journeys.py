@@ -685,6 +685,92 @@ def _advance_connectivity(
     # Sin servicio de Internet fijo en padrón → no probe técnico (piloto Batán)
     n_logins = _login_count(db, abonado)
     if n_logins <= 0:
+        already_no_fixed = bool(ctx.get("eko_no_fixed_internet")) or str(
+            st.get("last_diagnostic_result") or ""
+        ) == "no_fixed_internet"
+        t_close = (texto or "").lower().strip()
+        closing = False
+        if already_no_fixed and t_close:
+            try:
+                from app.domain.flujos_abonado import indica_resuelto
+                from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+                closing = bool(indica_resuelto(texto)) or bool(
+                    _cierra_consulta_facturacion(texto)
+                )
+            except Exception:
+                closing = False
+            if not closing:
+                closing = any(
+                    p in t_close
+                    for p in (
+                        "gracias",
+                        "listo",
+                        "perfecto",
+                        "ya lo solucion",
+                        "ya solucion",
+                        "quedó ok",
+                        "quedo ok",
+                    )
+                )
+        if already_no_fixed and closing:
+            msg = (
+                "Me alegra que se haya solucionado. "
+                "Si más adelante necesitás algo de móvil, Sensa/TV o factura, escribime."
+            )
+            set_journey(
+                ctx,
+                step="done",
+                last_action="run_diagnostic_pppoe",
+                last_action_status="already_done",
+                last_diagnostic_result="no_fixed_internet",
+                last_user_message=msg,
+                next_required_input="",
+                pending_confirmation=False,
+                diagnostic_started=False,
+            )
+            return JourneyTurn(
+                handled=True,
+                user_message=msg,
+                journey="internet_sin_conectividad",
+                step="done",
+                intent="internet",
+                domain="internet",
+                action="run_diagnostic_pppoe",
+                action_status="already_done",
+                reason_code="no_fixed_internet_ack",
+                correlation_id=corr,
+                data={
+                    "no_fixed_internet": True,
+                    "resolved_ack": True,
+                    "execution_path": "none",
+                },
+            )
+        if already_no_fixed:
+            # Idempotente: no repetir el mismo párrafo ante cualquier turno residual
+            prev = str(st.get("last_user_message") or "").strip()
+            msg = prev or (
+                "En esta cuenta no tengo Internet fijo para diagnosticar. "
+                "Si es por móvil IMOWI, Sensa/TV o factura, decime."
+            )
+            set_journey(ctx, step="respond", last_user_message=msg)
+            return JourneyTurn(
+                handled=True,
+                user_message=msg,
+                journey="internet_sin_conectividad",
+                step="respond",
+                intent="internet",
+                domain="internet",
+                action="run_diagnostic_pppoe",
+                action_status="already_done",
+                reason_code="no_fixed_internet",
+                correlation_id=corr,
+                data={
+                    "no_fixed_internet": True,
+                    "idempotent_skip": True,
+                    "execution_path": "none",
+                },
+            )
         msg = (
             "En tu cuenta no veo un servicio de Internet fijo (fibra/radio/ADSL) "
             "para diagnosticar. "

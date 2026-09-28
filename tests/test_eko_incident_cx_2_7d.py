@@ -699,7 +699,81 @@ def test_27d_sigue_sin_funcionar_keeps_incident(monkeypatch):
 # --- espera_agente hook ---
 
 
-def test_27d_espera_agente_routes_followup(monkeypatch):
+def test_27d_no_fixed_thanks_does_not_loop(monkeypatch):
+    """Tras no_fixed_internet, 'gracias' / 'ya lo solucioné' no repiten el mismo párrafo."""
+    _enable_journeys(monkeypatch)
+    ctx: dict = {
+        "eko_journey": {
+            "name": "internet_sin_conectividad",
+            "step": "respond",
+            "last_diagnostic_result": "no_fixed_internet",
+            "last_user_message": (
+                "En tu cuenta no veo un servicio de Internet fijo "
+                "(fibra/radio/ADSL) para diagnosticar."
+            ),
+            "intent": "internet",
+            "domain": "internet",
+            "correlation_id": "c-nf",
+        },
+        "eko_no_fixed_internet": True,
+    }
+    with patch("app.services.eko_journeys._login_count", return_value=0):
+        turn = maybe_handle_journey_turn(
+            MagicMock(),
+            "org-1",
+            _conv(),
+            _abo(),
+            "gracias",
+            canal="wa",
+            ctx=ctx,
+        )
+    assert turn is not None
+    assert turn.reason_code == "no_fixed_internet_ack"
+    assert turn.data.get("resolved_ack") is True
+    assert "no veo un servicio" not in (turn.user_message or "").lower()
+    assert "alegra" in (turn.user_message or "").lower() or "solucionado" in (
+        turn.user_message or ""
+    ).lower()
+
+    with patch("app.services.eko_journeys._login_count", return_value=0):
+        turn2 = maybe_handle_journey_turn(
+            MagicMock(),
+            "org-1",
+            _conv(),
+            _abo(),
+            "ya lo solucione",
+            canal="wa",
+            ctx={
+                **ctx,
+                "eko_journey": {
+                    **ctx["eko_journey"],
+                    "step": "respond",
+                    "last_diagnostic_result": "no_fixed_internet",
+                },
+                "eko_no_fixed_internet": True,
+            },
+        )
+    assert turn2 is not None
+    assert turn2.reason_code == "no_fixed_internet_ack"
+    assert "no veo un servicio" not in (turn2.user_message or "").lower()
+
+
+def test_27d_no_fixed_first_message_still_explains(monkeypatch):
+    _enable_journeys(monkeypatch)
+    with patch("app.services.eko_journeys._login_count", return_value=0):
+        turn = maybe_handle_journey_turn(
+            MagicMock(),
+            "org-1",
+            _conv(),
+            _abo(),
+            "no tengo internet",
+            canal="wa",
+            ctx={},
+        )
+    assert turn is not None
+    assert turn.reason_code == "no_fixed_internet"
+    assert "no veo un servicio de internet fijo" in (turn.user_message or "").lower()
+
     _enable_journeys(monkeypatch)
     _enable_runtime(monkeypatch, "ticket_customer_note", "show_ticket")
     from app.services.canal_abonado import _try_incident_cx_en_espera
