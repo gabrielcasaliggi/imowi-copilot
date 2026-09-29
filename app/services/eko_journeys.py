@@ -491,29 +491,145 @@ def _wants_incident_followup(texto: str) -> bool:
 
 _PURE_COURTESY = frozenset({
     "gracias",
+    "muchas gracias",
     "ok",
     "ok gracias",
     "okay",
     "okay gracias",
-    "muchas gracias",
+    "okey",
+    "bien",
+    "bien gracias",
     "perfecto",
     "perfecto gracias",
-    "dale",
-    "dale gracias",
     "listo",
     "listo gracias",
+    "entendido",
+    "entendido gracias",
+    "dale",
+    "dale gracias",
+    "genial",
+    "genial gracias",
+    "barbaro",
+    "barbaro gracias",
     "no gracias",
-    "no, gracias",
     "👍",
     "👌",
 })
 
+# Frases completas, ya sin acentos. Las cortas no matchean un texto más largo.
+_EXPLICIT_CLOSE_PHRASES = (
+    "quiero cerrar la conversacion",
+    "podes cerrar la conversacion",
+    "puede cerrar la conversacion",
+    "cerra la conversacion",
+    "cerrar la conversacion",
+    "terminemos la conversacion",
+    "quiero terminar la conversacion",
+    "quiero finalizar la conversacion",
+    "finalizar la conversacion",
+    "finalizar conversacion",
+    "terminar la conversacion",
+    "quiero terminar",
+    "quiero finalizar",
+)
 
-def _courtesy_text(texto: str) -> str:
-    t = (texto or "").strip().lower()
+_CLOSE_COURTESY_EDGE = frozenset({
+    "",
+    "gracias",
+    "por favor",
+    "ya",
+    "ok",
+    "dale",
+})
+
+
+def _fold_utterance(texto: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", (texto or "").strip().lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     for ch in ("¡", "!", "?", "¿", ".", ",", ";", ":"):
         t = t.replace(ch, " ")
     return " ".join(t.split())
+
+
+def _courtesy_text(texto: str) -> str:
+    return _fold_utterance(texto)
+
+
+def _negates_close(texto: str) -> bool:
+    """«no quiero cerrar…» no es un pedido de cierre."""
+    return bool(
+        re.search(
+            r"\bno\b(?:\s+\w+){0,6}\s+(?:cerrar|cerra|cerres|terminar|termine|finalizar|finalice)\b",
+            texto,
+        )
+    )
+
+
+def _wants_explicit_conversation_close(texto: str) -> bool:
+    """Cierre de hilo pedido en forma explícita. No usa LLM ni un «cerrar» suelto."""
+    t = _fold_utterance(texto)
+    if not t or _negates_close(t):
+        return False
+    for phrase in sorted(_EXPLICIT_CLOSE_PHRASES, key=len, reverse=True):
+        idx = t.find(phrase)
+        if idx < 0:
+            continue
+        before = t[:idx].strip()
+        after = t[idx + len(phrase) :].strip()
+        if before not in _CLOSE_COURTESY_EDGE:
+            continue
+        if phrase in ("quiero terminar", "quiero finalizar") and after:
+            if after not in _CLOSE_COURTESY_EDGE:
+                continue
+        elif after and after not in _CLOSE_COURTESY_EDGE:
+            continue
+        return True
+    return False
+
+
+def _explicit_intent_after_resolution(texto: str) -> bool:
+    """Dominio, reingreso, handoff o cierre. Una cortesía o un texto ambiguo no cuentan."""
+    if _wants_explicit_conversation_close(texto):
+        return True
+    if _wants_connectivity_reentry(texto):
+        return True
+    if detect_journey_name(texto):
+        return True
+    try:
+        from app.domain.flujos_abonado import pide_humano
+
+        return bool(pide_humano(texto))
+    except Exception:
+        return False
+
+
+def _explicit_close_turn(
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    ctx: dict[str, Any],
+    *,
+    canal: str,
+) -> JourneyTurn:
+    """Delega en el cierre N1 ya existente. No reenvía el texto: ese camino ya lo envía."""
+    from app.services.canal_abonado import _cerrar_consulta_resuelta
+
+    _cerrar_consulta_resuelta(db, org_id, conv, canal=canal)
+    st = get_journey(ctx)
+    return JourneyTurn(
+        handled=True,
+        user_message="",
+        mode="cerrado",
+        journey=str(st.get("name") or ""),
+        step=str(st.get("step") or ""),
+        intent=str(st.get("intent") or ""),
+        domain=str(st.get("domain") or ""),
+        reason_code="explicit_conversation_close",
+        correlation_id=str(st.get("correlation_id") or ""),
+        data={"explicit_close": True, "close_action": True},
+    )
 
 
 def _wants_connectivity_reentry(texto: str) -> bool:
@@ -1247,11 +1363,9 @@ def _advance_connectivity(
     # Incluye textos que no matchean connectivity (p.ej. frases LLM) para que
     # no reinterpreten autoridad ni disparen side effects.
     detected_here = detect_journey_name(texto)
-    if (
-        st.get("step") == "done"
-        and st.get("resolved_ack")
-        and _is_pure_courtesy(texto)
-    ):
+    # 2.7E-R1: done no vuelve a respond si no hay una intención explícita.
+    if st.get("step") == "done" and not _explicit_intent_after_resolution(texto):
+        pure = _is_pure_courtesy(texto)
         return JourneyTurn(
             handled=True,
             user_message="",
@@ -1261,16 +1375,26 @@ def _advance_connectivity(
             domain="internet",
             action=str(st.get("last_action") or "run_diagnostic_pppoe"),
             action_status="already_done",
-            reason_code="post_resolution_courtesy",
+            reason_code="post_resolution_courtesy" if pure else "post_resolution_hold",
             correlation_id=corr,
-            data={"courtesy_silence": True, "resolved_ack": True},
+            data={
+                "courtesy_silence": pure,
+                "post_resolution_hold": True,
+                "resolved_ack": bool(st.get("resolved_ack")),
+            },
         )
+    post_done_reentry = (
+        st.get("step") == "done"
+        and detected_here == "internet_sin_conectividad"
+        and not _is_pure_courtesy(texto)
+    )
     if (
         ctx.get("pppoe_informado")
         and st.get("last_diagnostic_result")
         and detected_here in (None, "internet_sin_conectividad")
         and not login
         and not _wants_connectivity_reentry(texto)
+        and not post_done_reentry
         and st.get("step") in ("respond", "done", "interpret", "decide")
         and not st.get("pending_confirmation")
     ):
@@ -3217,6 +3341,12 @@ def maybe_handle_journey_turn(
         observe_journey_turn,
         record_security_signal,
     )
+
+    # El cierre explícito gana sobre cualquier journey activa.
+    if _wants_explicit_conversation_close(texto):
+        turn = _explicit_close_turn(db, org_id, conv, ctx, canal=canal)
+        observe_journey_turn(turn, canal=canal)
+        return turn
 
     detected = detect_journey_name(texto)
     if detected:
