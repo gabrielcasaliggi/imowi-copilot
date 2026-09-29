@@ -13,6 +13,7 @@ from app.services.eko_action_runtime import ActionResult
 from app.services.eko_journeys import get_journey, maybe_handle_journey_turn
 
 ACK = "Me alegra que se haya solucionado."
+OFFER = "Perfecto. ¿Necesitás algo más?"
 DIAG = "Veo una sesión de conexión activa"
 
 
@@ -96,7 +97,7 @@ def test_27e_resolve_then_thanks_is_silence(monkeypatch):
     )
     diag, ack, courtesy = out
     assert DIAG in (diag[0].user_message or "")
-    assert ACK in (ack[0].user_message or "")
+    assert OFFER in (ack[0].user_message or "")
     assert ack[0].step == "done"
     assert get_journey(ctx).get("resolved_ack") is True
     assert courtesy[0].handled is True
@@ -200,7 +201,7 @@ def _patch_close(conv_holder: dict):
 
 
 def test_27e_r1_real_sequence_courtesy_then_explicit_close(monkeypatch):
-    """Transcript real: bien y no gracias quedan en silencio; el cierre no vuelve a connectivity."""
+    """Tras la oferta, «bien» sigue en silencio y «no gracias» cierra. No vuelve a connectivity."""
     _enable(monkeypatch)
     ctx: dict = {}
     conv = _conv()
@@ -219,7 +220,6 @@ def test_27e_r1_real_sequence_courtesy_then_explicit_close(monkeypatch):
         "gracias ya se soluciono",
         "bien",
         "no gracias",
-        "cerra la conversacion",
     ]
     with (
         patch("app.services.eko_journeys._login_count", return_value=1),
@@ -233,38 +233,47 @@ def test_27e_r1_real_sequence_courtesy_then_explicit_close(monkeypatch):
             turn = maybe_handle_journey_turn(
                 MagicMock(), "org-1", conv, abo, texto, canal="portal", ctx=ctx
             )
-            out.append((turn, list(calls[before:]), conv.estado))
+            out.append(
+                (
+                    turn,
+                    list(calls[before:]),
+                    conv.estado,
+                    dict(get_journey(ctx)),
+                )
+            )
 
-    diag, ack, bien, no_gracias, close = out
+    diag, ack, bien, no_gracias = out
     assert DIAG in (diag[0].user_message or "")
     assert diag[1] == ["run_diagnostic_pppoe"]
     assert diag[2] == "bot"
-    assert ACK in (ack[0].user_message or "")
+    assert OFFER in (ack[0].user_message or "")
     assert ack[0].step == "done"
     assert ack[1] == []
     assert ack[2] == "bot"
+    offered_at = ack[3].get("continuity_offered_at")
+    assert offered_at
 
-    for turn, runtime, estado in (bien, no_gracias):
-        assert turn.user_message == ""
-        assert turn.step == "done"
-        assert runtime == []
-        assert estado == "bot"
-        assert "Ya revisé" not in (turn.user_message or "")
-    assert get_journey(ctx).get("step") == "done"
-    assert get_journey(ctx).get("name") == "internet_sin_conectividad"
-    assert bien[0].reason_code == "post_resolution_courtesy"
+    turn, runtime, estado, journey = bien
+    assert turn.user_message == ""
+    assert turn.step == "done"
+    assert runtime == []
+    assert estado == "bot"
+    assert "Ya revisé" not in (turn.user_message or "")
+    assert turn.reason_code == "post_resolution_courtesy"
+    assert journey.get("continuity_pending") is True
+    assert journey.get("continuity_offered_at") == offered_at
 
-    assert close[0].reason_code == "explicit_conversation_close"
-    assert close[0].data.get("close_action") is True
-    assert close[0].user_message == ""
-    assert close[1] == []
-    assert "Ya revisé" not in (close[0].user_message or "")
+    assert no_gracias[0].user_message == ""
+    assert no_gracias[0].reason_code == "explicit_conversation_close"
+    assert no_gracias[1] == []
+    assert no_gracias[2] == "cerrado"
+    assert "Ya revisé" not in (no_gracias[0].user_message or "")
     assert closed["calls"] == 1
     assert conv.estado == "cerrado"
 
 
 def test_27e_r1_courtesy_keeps_done(monkeypatch):
-    for phrase in ("bien", "ok", "perfecto", "no gracias", "entendido", "genial"):
+    for phrase in ("bien", "ok", "perfecto", "entendido", "genial"):
         out, ctx, conv = _play(
             monkeypatch,
             ["no tengo internet", "gracias ya se soluciono", phrase],

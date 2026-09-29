@@ -11,7 +11,7 @@ from app.services.eko_journeys import get_journey, maybe_handle_journey_turn
 
 SALDO = "No figuran deudas pendientes (saldo 0 pesos)."
 DIAG = "Veo una sesión de conexión activa"
-ACK = "Me alegra que se haya solucionado."
+ACK = "Perfecto. ¿Necesitás algo más?"
 
 
 def _enable(monkeypatch):

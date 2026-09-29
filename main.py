@@ -3,6 +3,7 @@ Operations Hub — plataforma Agentic AI multitenant (OSS/BSS).
 Ejecutar: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -54,6 +55,23 @@ logger = logging.getLogger("operations_hub")
 
 _SENTRY_OK = init_sentry()
 _SENTRY_RISK_ACCEPTED = sentry_risk_accepted()
+
+
+async def _barrido_continuidad_diferida() -> None:
+    """Ofertas de continuidad vencidas. El sleep inicial no bloquea el arranque."""
+    from app.services.eko_journeys import (
+        CONTINUITY_SWEEP_INTERVAL_S,
+        sweep_expired_continuity_offers,
+    )
+
+    while True:
+        try:
+            await asyncio.sleep(CONTINUITY_SWEEP_INTERVAL_S)
+            await asyncio.to_thread(sweep_expired_continuity_offers)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Barrido de continuidad diferida falló")
 
 
 def cargar_persistencia_tickets_legacy() -> int:
@@ -139,8 +157,16 @@ async def lifespan(app: FastAPI):
         "production" if es_produccion() else "development",
         ENABLE_LEGACY_API,
     )
-    yield
-    logger.info("Apagando Operations Hub")
+    sweep_task = asyncio.create_task(_barrido_continuidad_diferida())
+    try:
+        yield
+    finally:
+        sweep_task.cancel()
+        try:
+            await sweep_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Apagando Operations Hub")
 
 
 app = FastAPI(

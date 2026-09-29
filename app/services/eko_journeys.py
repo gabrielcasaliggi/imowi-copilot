@@ -14,6 +14,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
@@ -28,6 +29,25 @@ from app.services.eko_capability_contract import build_capability
 logger = logging.getLogger("operations_hub")
 
 JOURNEY_KEY = "eko_journey"
+CONTINUITY_OFFER_MESSAGE = "Perfecto. ¿Necesitás algo más?"
+CONTINUITY_OFFER_TTL = timedelta(minutes=30)
+CONTINUITY_SWEEP_INTERVAL_S = 60
+_CONTINUITY_REOPEN_GRACE = timedelta(seconds=2 * CONTINUITY_SWEEP_INTERVAL_S)
+_CONTINUITY_DECLINE_EXACT = frozenset({
+    "no",
+    "nop",
+    "no gracias",
+    "no por ahora",
+})
+_OFFER_STEPS = frozenset({"respond", "done", "interpret", "decide"})
+_ENCUESTA_CTX_KEYS = (
+    "encuesta_pendiente",
+    "encuesta_enviada",
+    "encuesta_origen",
+    "encuesta_agente_id",
+    "encuesta_enviada_at",
+    "encuesta_message_id",
+)
 
 JourneyName = Literal[
     "internet_sin_conectividad",
@@ -92,6 +112,9 @@ _CONNECTIVITY_PHRASES = (
     "sin conexion",
     "sin conexión",
     "internet cortado",
+    # Persistencia ya usada en el dominio («sigue teniendo problemas»).
+    "sigo teniendo problemas",
+    "sigue teniendo problemas",
 )
 
 _BILLING_PHRASES = (
@@ -616,6 +639,102 @@ def _journey_is_resolved(st: dict[str, Any]) -> bool:
     return True
 
 
+def _customer_confirmed_resolution(texto: str) -> bool:
+    """Confirmación de que el problema quedó resuelto. Una cortesía sola no alcanza."""
+    try:
+        from app.domain.flujos_abonado import indica_resuelto
+
+        return bool(indica_resuelto(texto))
+    except Exception:
+        logger.debug("indica_resuelto no disponible", exc_info=True)
+        return False
+
+
+def _journey_outcome_delivered(ctx: dict[str, Any], st: dict[str, Any]) -> bool:
+    """Ya hubo un resultado de este journey. No es el primer turno ni una espera."""
+    if str(st.get("next_required_input") or "").strip():
+        return False
+    if st.get("pending_confirmation"):
+        return False
+    if str(st.get("step") or "") not in _OFFER_STEPS:
+        return False
+    return bool(
+        str(st.get("last_action") or "").strip()
+        or str(st.get("last_diagnostic_result") or "").strip()
+        or ctx.get("pppoe_informado")
+        or str(st.get("last_user_message") or "").strip()
+    )
+
+
+def _clear_continuity_pending(ctx: dict[str, Any]) -> None:
+    if get_journey(ctx).get("continuity_pending"):
+        set_journey(ctx, continuity_pending=False)
+
+
+def _legacy_ack_offers_continuity(texto: str) -> bool:
+    """Ack legado tras diagnóstico. Una cortesía sola conserva el ack sin oferta."""
+    return not _is_pure_courtesy(texto)
+
+
+def _continuity_offer_fields() -> dict[str, Any]:
+    return {
+        "continuity_pending": True,
+        "continuity_offered_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _copy_encuesta_flags(ctx: dict[str, Any], saved: dict[str, Any]) -> None:
+    """El cierre ya escribió la encuesta. El ctx en memoria no debe pisarla."""
+    for key in _ENCUESTA_CTX_KEYS:
+        if key in saved:
+            ctx[key] = saved[key]
+
+
+def _is_continuity_decline(texto: str) -> bool:
+    """Rechazo a seguir. Reusa el «no» de post-diag y el fin de consulta, sin la cortesía."""
+    raw = (texto or "").lower().strip()
+    folded = _fold_utterance(texto)
+    if raw in ("no, gracias",) or folded in _CONTINUITY_DECLINE_EXACT:
+        return True
+    if _is_pure_courtesy(texto):
+        return False
+    try:
+        from app.services.diagnostico_n1 import _cierra_consulta_facturacion
+
+        return bool(_cierra_consulta_facturacion(texto))
+    except Exception:
+        logger.debug("cierre de facturación no disponible", exc_info=True)
+        return False
+
+
+def _continuity_offer_turn(ctx: dict[str, Any]) -> JourneyTurn:
+    st = get_journey(ctx)
+    offered_at = datetime.now(UTC).isoformat()
+    set_journey(
+        ctx,
+        step="done",
+        continuity_pending=True,
+        continuity_offered_at=offered_at,
+        resolved_ack=True,
+        next_required_input="",
+        pending_confirmation=False,
+        last_user_message=CONTINUITY_OFFER_MESSAGE,
+    )
+    return JourneyTurn(
+        handled=True,
+        user_message=CONTINUITY_OFFER_MESSAGE,
+        journey=str(st.get("name") or ""),
+        step="done",
+        intent=str(st.get("intent") or ""),
+        domain=str(st.get("domain") or ""),
+        action=str(st.get("last_action") or ""),
+        action_status="already_done",
+        reason_code="continuity_offer",
+        correlation_id=str(st.get("correlation_id") or ""),
+        data={"continuity_pending": True, "resolved_ack": True},
+    )
+
+
 def _explicit_handoff(texto: str) -> bool:
     try:
         from app.domain.flujos_abonado import pide_humano
@@ -689,9 +808,14 @@ def _explicit_close_turn(
     canal: str,
 ) -> JourneyTurn:
     """Delega en el cierre N1 ya existente. No reenvía el texto: ese camino ya lo envía."""
+    from app.estate import canal_repo as crepo
     from app.services.canal_abonado import _cerrar_consulta_resuelta
 
     _cerrar_consulta_resuelta(db, org_id, conv, canal=canal)
+    raw = getattr(conv, "contexto_json", None)
+    if isinstance(raw, str):
+        _copy_encuesta_flags(ctx, crepo.get_contexto(conv))
+    _clear_continuity_pending(ctx)
     st = get_journey(ctx)
     return JourneyTurn(
         handled=True,
@@ -995,10 +1119,14 @@ def _advance_connectivity(
                     )
                 )
         if already_no_fixed and closing:
-            msg = (
-                "Me alegra que se haya solucionado. "
-                "Si más adelante necesitás algo de móvil, Sensa/TV o factura, escribime."
-            )
+            offer = _legacy_ack_offers_continuity(texto)
+            if offer:
+                msg = CONTINUITY_OFFER_MESSAGE
+            else:
+                msg = (
+                    "Me alegra que se haya solucionado. "
+                    "Si más adelante necesitás algo de móvil, Sensa/TV o factura, escribime."
+                )
             set_journey(
                 ctx,
                 step="done",
@@ -1009,6 +1137,7 @@ def _advance_connectivity(
                 next_required_input="",
                 pending_confirmation=False,
                 diagnostic_started=False,
+                **(_continuity_offer_fields() if offer else {}),
             )
             return JourneyTurn(
                 handled=True,
@@ -1025,6 +1154,7 @@ def _advance_connectivity(
                     "no_fixed_internet": True,
                     "resolved_ack": True,
                     "execution_path": "none",
+                    "continuity_pending": offer,
                 },
             )
         if already_no_fixed:
@@ -1474,16 +1604,25 @@ def _advance_connectivity(
         and not st.get("pending_confirmation")
     ):
         if _wants_post_diag_close(texto):
-            msg = (
-                "Me alegra que se haya solucionado. "
-                "Si más adelante necesitás algo, escribime."
-            )
+            offer = _legacy_ack_offers_continuity(texto)
+            if offer:
+                msg = CONTINUITY_OFFER_MESSAGE
+            else:
+                msg = (
+                    "Me alegra que se haya solucionado. "
+                    "Si más adelante necesitás algo, escribime."
+                )
             set_journey(
                 ctx,
                 step="done",
                 pending_confirmation=False,
                 resolved_ack=True,
                 last_user_message=msg,
+                **(
+                    {**_continuity_offer_fields(), "next_required_input": ""}
+                    if offer
+                    else {}
+                ),
             )
             return JourneyTurn(
                 handled=True,
@@ -1496,7 +1635,11 @@ def _advance_connectivity(
                 action_status="already_done",
                 reason_code="post_diag_ack",
                 correlation_id=corr,
-                data={"idempotent_skip": True, "resolved_ack": True},
+                data={
+                    "idempotent_skip": True,
+                    "resolved_ack": True,
+                    "continuity_pending": offer,
+                },
             )
         # No reenviar el párrafo de diagnóstico: mensaje neutro de "ya revisado"
         msg = (
@@ -3492,6 +3635,7 @@ def maybe_handle_journey_turn(
             "pending_confirmation": False,
             "confirmation_correlation": "",
             "next_required_input": "",
+            "continuity_pending": False,
             "asked_selection": False,
             "selected_service": prev_sel,
             "correlation_id": str(uuid.uuid4()),
@@ -3568,12 +3712,27 @@ def maybe_handle_journey_turn(
 
     # Journey activo no autoriza reejecutar una interacción ya resuelta.
     st_now = get_journey(ctx)
+    if (
+        not st_now.get("continuity_pending")
+        and _customer_confirmed_resolution(texto)
+        and _journey_outcome_delivered(ctx, st_now)
+    ):
+        turn = _continuity_offer_turn(ctx)
+        observe_journey_turn(turn, canal=canal)
+        return turn
     if _journey_is_resolved(st_now):
         if _explicit_handoff(texto):
+            _clear_continuity_pending(ctx)
             turn = _resolved_handoff_turn(ctx)
             observe_journey_turn(turn, canal=canal)
             return turn
-        if not _resolved_turn_authorizes_handler(texto):
+        if _resolved_turn_authorizes_handler(texto):
+            _clear_continuity_pending(ctx)
+        elif st_now.get("continuity_pending") and _is_continuity_decline(texto):
+            turn = _explicit_close_turn(db, org_id, conv, ctx, canal=canal)
+            observe_journey_turn(turn, canal=canal)
+            return turn
+        else:
             turn = _resolved_silence_turn(ctx, texto)
             observe_journey_turn(turn, canal=canal)
             return turn
@@ -3657,3 +3816,123 @@ def journey_turn_to_response(
     if turn.data.get("ticket_id"):
         out["ticket_id"] = turn.data["ticket_id"]
     return out
+
+
+def _parse_offered_at(value: object) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _continuity_offer_is_stale(conv: Any, ctx: dict[str, Any], offered: datetime) -> bool:
+    """El hilo salió de bot y volvió después de la oferta. Esa oferta ya no manda."""
+    updated = getattr(conv, "updated_at", None)
+    if isinstance(updated, datetime) and updated.tzinfo is None:
+        updated = updated.replace(tzinfo=UTC)
+    deadline = offered + CONTINUITY_OFFER_TTL + _CONTINUITY_REOPEN_GRACE
+    if isinstance(updated, datetime) and updated > deadline:
+        return True
+    surveyed = _parse_offered_at(ctx.get("encuesta_enviada_at"))
+    return surveyed is not None and surveyed >= offered
+
+
+def _claim_continuity_close(db: Session, conv: Any) -> bool:
+    """Un solo worker gana el cierre. Compara estado y contexto leídos."""
+    from sqlalchemy import update
+
+    from app.estate.models import ConversacionCanal
+
+    result = db.execute(
+        update(ConversacionCanal)
+        .where(
+            ConversacionCanal.id == conv.id,
+            ConversacionCanal.estado == "bot",
+            ConversacionCanal.contexto_json == conv.contexto_json,
+        )
+        .values(estado="cerrado")
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
+    if result.rowcount != 1:
+        db.expire(conv)
+        return False
+    db.refresh(conv)
+    return True
+
+
+def _close_expired_continuity(db: Session, conv: Any, now: datetime) -> bool:
+    """Cierra una oferta vencida con el mismo cierre N1. False si no corresponde."""
+    from app.estate import canal_repo as crepo
+    from app.services.canal_abonado import _cerrar_consulta_resuelta
+
+    if str(getattr(conv, "estado", "") or "") != "bot":
+        return False
+    ctx = crepo.get_contexto(conv)
+    st = ctx.get(JOURNEY_KEY)
+    if not isinstance(st, dict) or not st.get("continuity_pending"):
+        return False
+    if st.get("pending_confirmation"):
+        return False
+    offered = _parse_offered_at(st.get("continuity_offered_at"))
+    if offered is None or now - offered < CONTINUITY_OFFER_TTL:
+        return False
+    if _continuity_offer_is_stale(conv, ctx, offered):
+        return False
+    if not _claim_continuity_close(db, conv):
+        return False
+    _cerrar_consulta_resuelta(
+        db,
+        str(getattr(conv, "organizacion_id", "") or ""),
+        conv,
+        canal=str(getattr(conv, "canal", "") or ""),
+    )
+    fresh = crepo.get_contexto(conv)
+    journey = fresh.get(JOURNEY_KEY)
+    if isinstance(journey, dict):
+        journey["continuity_pending"] = False
+        fresh[JOURNEY_KEY] = journey
+    crepo.set_contexto(conv, fresh)
+    db.commit()
+    return True
+
+
+def sweep_expired_continuity_offers(db: Session | None = None) -> int:
+    """Cierra atenciones en oferta de continuidad vencida. El plazo cuenta desde la oferta."""
+    from sqlalchemy import select
+
+    from app.estate.models import ConversacionCanal
+
+    owns_session = db is None
+    if owns_session:
+        from app.estate.database import get_session_factory
+
+        db = get_session_factory()()
+    assert db is not None
+    closed = 0
+    try:
+        rows = list(
+            db.scalars(
+                select(ConversacionCanal).where(ConversacionCanal.estado == "bot")
+            ).all()
+        )
+        now = datetime.now(UTC)
+        for conv in rows:
+            try:
+                if _close_expired_continuity(db, conv, now):
+                    closed += 1
+            except Exception:
+                logger.exception(
+                    "continuity sweep conv=%s",
+                    getattr(conv, "id", ""),
+                )
+        return closed
+    finally:
+        if owns_session:
+            db.close()
