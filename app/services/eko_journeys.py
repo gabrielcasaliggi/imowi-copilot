@@ -605,6 +605,81 @@ def _explicit_intent_after_resolution(texto: str) -> bool:
         return False
 
 
+def _journey_is_resolved(st: dict[str, Any]) -> bool:
+    """Interacción terminada. No es lo mismo que conversación cerrada ni que journey activo."""
+    if str(st.get("step") or "") != "done":
+        return False
+    if str(st.get("next_required_input") or "").strip():
+        return False
+    if st.get("pending_confirmation"):
+        return False
+    return True
+
+
+def _explicit_handoff(texto: str) -> bool:
+    try:
+        from app.domain.flujos_abonado import pide_humano
+
+        return bool(pide_humano(texto))
+    except Exception:
+        return False
+
+
+def _resolved_turn_authorizes_handler(texto: str) -> bool:
+    """Acto o seguimiento explícito. El balance por defecto de billing no cuenta."""
+    if _wants_connectivity_reentry(texto) or _wants_incident_followup(texto):
+        return True
+    if _wants_ticket_customer_note(texto):
+        return True
+    if detect_journey_name(texto):
+        return True
+    return _billing_user_act(texto) != "balance"
+
+
+def _resolved_handoff_turn(ctx: dict[str, Any]) -> JourneyTurn:
+    st = get_journey(ctx)
+    corr = str(st.get("correlation_id") or uuid.uuid4())
+    name = str(st.get("name") or "")
+    _mark_confirmation_pending(ctx, corr=corr)
+    return JourneyTurn(
+        handled=True,
+        user_message=(
+            "Para derivar con un agente y generar un ticket, confirmame con un «sí». "
+            "Si preferís seguir en el chat, decime «no»."
+        ),
+        journey=name,
+        step="confirm_action",
+        intent=str(st.get("intent") or ""),
+        domain=str(st.get("domain") or ""),
+        action="create_ticket",
+        action_status="needs_confirmation",
+        correlation_id=corr,
+        data={"handoff": True, "resolved_ack": bool(st.get("resolved_ack"))},
+    )
+
+
+def _resolved_silence_turn(ctx: dict[str, Any], texto: str) -> JourneyTurn:
+    st = get_journey(ctx)
+    pure = _is_pure_courtesy(texto)
+    return JourneyTurn(
+        handled=True,
+        user_message="",
+        journey=str(st.get("name") or ""),
+        step="done",
+        intent=str(st.get("intent") or ""),
+        domain=str(st.get("domain") or ""),
+        action=str(st.get("last_action") or ""),
+        action_status="already_done",
+        reason_code="post_resolution_courtesy" if pure else "post_resolution_hold",
+        correlation_id=str(st.get("correlation_id") or ""),
+        data={
+            "courtesy_silence": pure,
+            "post_resolution_hold": True,
+            "resolved_ack": bool(st.get("resolved_ack")),
+        },
+    )
+
+
 def _explicit_close_turn(
     db: Session | None,
     org_id: str,
@@ -3490,6 +3565,18 @@ def maybe_handle_journey_turn(
     if name in ("billing_self_service", "service_catalog") and detect_journey_name(texto) is None:
         # stay in current domain
         pass
+
+    # Journey activo no autoriza reejecutar una interacción ya resuelta.
+    st_now = get_journey(ctx)
+    if _journey_is_resolved(st_now):
+        if _explicit_handoff(texto):
+            turn = _resolved_handoff_turn(ctx)
+            observe_journey_turn(turn, canal=canal)
+            return turn
+        if not _resolved_turn_authorizes_handler(texto):
+            turn = _resolved_silence_turn(ctx, texto)
+            observe_journey_turn(turn, canal=canal)
+            return turn
 
     turn: JourneyTurn | None = None
     if name == "internet_sin_conectividad":
