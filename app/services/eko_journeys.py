@@ -489,6 +489,67 @@ def _wants_incident_followup(texto: str) -> bool:
     return bool(t) and any(p in t for p in _INCIDENT_FOLLOWUP_PHRASES)
 
 
+_PURE_COURTESY = frozenset({
+    "gracias",
+    "ok",
+    "ok gracias",
+    "okay",
+    "okay gracias",
+    "muchas gracias",
+    "perfecto",
+    "perfecto gracias",
+    "dale",
+    "dale gracias",
+    "listo",
+    "listo gracias",
+    "no gracias",
+    "no, gracias",
+    "👍",
+    "👌",
+})
+
+
+def _courtesy_text(texto: str) -> str:
+    t = (texto or "").strip().lower()
+    for ch in ("¡", "!", "?", "¿", ".", ",", ";", ":"):
+        t = t.replace(ch, " ")
+    return " ".join(t.split())
+
+
+def _wants_connectivity_reentry(texto: str) -> bool:
+    """Pedido explícito de volver a Internet después de un cierre. No es cortesía."""
+    if _wants_rediagnose(texto):
+        return True
+    t = (texto or "").lower()
+    cues = (
+        "ayuda con internet",
+        "internet nuevamente",
+        "internet otra vez",
+        "nuevamente con internet",
+        "de nuevo con internet",
+        "necesito ayuda nuevamente",
+        "necesito ayuda otra vez",
+        "necesito internet",
+    )
+    return any(c in t for c in cues)
+
+
+def _is_pure_courtesy(texto: str) -> bool:
+    """Cortesía sin otra intención. No cierra el hilo ni repite el acknowledgement."""
+    if detect_journey_name(texto):
+        return False
+    if _wants_connectivity_reentry(texto):
+        return False
+    try:
+        from app.domain.flujos_abonado import pide_humano
+
+        if pide_humano(texto):
+            return False
+    except Exception:
+        return False
+    return _courtesy_text(texto) in _PURE_COURTESY
+
+
 def _wants_post_diag_close(texto: str) -> bool:
     """Gracias / resuelto / rechazo de más ayuda tras diagnóstico ya informado."""
     t = (texto or "").lower().strip()
@@ -1152,16 +1213,64 @@ def _advance_connectivity(
                     },
                 )
 
+    # 2.7E: agente después del cierre → handoff normal (confirmación), sin cerrar el hilo.
+    try:
+        from app.domain.flujos_abonado import pide_humano
+    except Exception:
+        pide_humano = None  # type: ignore[assignment]
+    if (
+        pide_humano is not None
+        and st.get("step") == "done"
+        and st.get("resolved_ack")
+        and (ctx.get("pppoe_informado") or st.get("last_diagnostic_result"))
+        and pide_humano(texto)
+        and not _confirmation_is_live(ctx)
+    ):
+        _mark_confirmation_pending(ctx, corr=corr)
+        return JourneyTurn(
+            handled=True,
+            user_message=(
+                "Para derivar con un agente y generar un ticket, confirmame con un «sí». "
+                "Si preferís seguir en el chat, decime «no»."
+            ),
+            journey="internet_sin_conectividad",
+            step="confirm_action",
+            intent="internet",
+            domain="internet",
+            action="create_ticket",
+            action_status="needs_confirmation",
+            correlation_id=corr,
+            data={"handoff": True, "resolved_ack": True},
+        )
+
     # Idempotency: diagnóstico ya informado → no re-probe salvo pedido explícito.
     # Incluye textos que no matchean connectivity (p.ej. frases LLM) para que
     # no reinterpreten autoridad ni disparen side effects.
     detected_here = detect_journey_name(texto)
     if (
+        st.get("step") == "done"
+        and st.get("resolved_ack")
+        and _is_pure_courtesy(texto)
+    ):
+        return JourneyTurn(
+            handled=True,
+            user_message="",
+            journey="internet_sin_conectividad",
+            step="done",
+            intent="internet",
+            domain="internet",
+            action=str(st.get("last_action") or "run_diagnostic_pppoe"),
+            action_status="already_done",
+            reason_code="post_resolution_courtesy",
+            correlation_id=corr,
+            data={"courtesy_silence": True, "resolved_ack": True},
+        )
+    if (
         ctx.get("pppoe_informado")
         and st.get("last_diagnostic_result")
         and detected_here in (None, "internet_sin_conectividad")
         and not login
-        and not _wants_rediagnose(texto)
+        and not _wants_connectivity_reentry(texto)
         and st.get("step") in ("respond", "done", "interpret", "decide")
         and not st.get("pending_confirmation")
     ):
@@ -1174,6 +1283,7 @@ def _advance_connectivity(
                 ctx,
                 step="done",
                 pending_confirmation=False,
+                resolved_ack=True,
                 last_user_message=msg,
             )
             return JourneyTurn(
