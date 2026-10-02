@@ -88,4 +88,5 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 | 2026-09-08 | Auth WA por MSISDN (F1) | `lookup_abonados_por_telefono` + desambiguación N cuentas; brief `docs/INTEGRACION-OV-FACTURAS-WA.md` |
 | 2026-09-10 | Rama de planta manda el turno N1 | BCM/UISP `enlace_ok` ya no cae al LLM; Sensa cuelga del acceso; ADSL/IMOWI no usan BCM; sensor `tests/test_guardrails_planta.py` |
 | 2026-09-10 | Eval masivo `--planta` | Replay Botmaker mockea BCM/Radius (`enlace_ok` / `onu_offline`); sensor `tests/test_eval_planta.py` |
-
+| 2026-10-02 | EKO 2.8A: login nombrado por texto → `selected_service_ref` | El canal por texto dejaba `login_seleccionado` sin ref y el diagnóstico volvía a pedir selección; `_sincronizar_login_desde_mensaje` ahora canonicaliza vía `_enrich_login_to_ref`; sensor `tests/test_eko_28a_login_sync_ref.py` |
+| 2026-10-02 | EKO CTX-1: servicio en foco en CONTEXTO_ABONADO | El prompt N1 no sabía qué servicio estaba en foco ni distinguía datos técnicos de otro login; sección `SERVICE IN FOCUS`, guarda por grupo pppoe/uisp/bcm y fecha de ticket; sensor `tests/test_eko_ctx_1_servicio_en_foco.py` |
