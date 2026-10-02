@@ -62,7 +62,6 @@ _STATE_KEYS = frozenset(
     {
         "canal",
         "tecnologia_acceso",
-        "pago_qr_reciente",
         "cortes_zona",
     }
 )
@@ -427,13 +426,13 @@ def format_n1_contexto(
             "## TECHNICAL OBSERVATIONS",
             f"- ont_estado: {tech.get('ont_estado') or '(sin dato — integrar NMS)'}",
             f"- olt_huawei: {tech.get('olt_huawei') or '(sin dato — integrar NMS)'}",
-            f"- pago_qr_reciente: {extras.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}",
-            f"- cortes_zona: {extras.get('cortes_zona') or '(sin dato — integrar operaciones)'}",
             f"- pppoe: {tech.get('pppoe_resumen') or '(sin dato — integrar Radius/NAS)'}",
             f"- uisp: {tech.get('uisp_resumen') or '(sin dato — integrar UISP)'}",
             f"- bcm: {tech.get('bcm_resumen') or '(sin dato — integrar BCM)'}",
             "- Regla: no inventes saldos, ONT/OLT, PPPoE, UISP, BCM ni pagos. Pedí DNI/N.º de socio si hace falta la cuenta.",
         ]
+        if (extras.get("cortes_zona") or "").strip():
+            lines.insert(-1, f"- cortes_zona: {extras['cortes_zona'].strip()}")
         for ov_k in sorted(_OV_KEYS):
             ov_v = (extras.get(ov_k) or "").strip()
             if ov_v:
@@ -592,12 +591,8 @@ def format_n1_contexto(
     lines.append(
         f"- olt_huawei: {tech.get('olt_huawei') or '(sin dato — integrar NMS)'}"
     )
-    lines.append(
-        f"- pago_qr_reciente: {extras.get('pago_qr_reciente') or '(sin dato — integrar Fiserv)'}"
-    )
-    lines.append(
-        f"- cortes_zona: {extras.get('cortes_zona') or '(sin dato — integrar operaciones)'}"
-    )
+    if (extras.get("cortes_zona") or "").strip():
+        lines.append(f"- cortes_zona: {extras['cortes_zona'].strip()}")
     lines.append(
         f"- pppoe: {tech.get('pppoe_resumen') or '(sin dato — integrar Radius/NAS)'}"
     )

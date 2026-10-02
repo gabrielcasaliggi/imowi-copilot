@@ -409,7 +409,7 @@ def enrich_contexto_desde_integraciones(
     ``include_technical=True`` (legacy / tests explícitos).
 
     Claves:
-      - nro_asociado, ont_estado, olt_huawei, pago_qr_reciente, cortes_zona
+      - nro_asociado, ont_estado, olt_huawei, cortes_zona
       - pppoe_*, uisp_*, bcm_*
     """
     _ = org_id
@@ -417,7 +417,6 @@ def enrich_contexto_desde_integraciones(
         "nro_asociado": "",
         "ont_estado": "",
         "olt_huawei": "",
-        "pago_qr_reciente": "",
         "cortes_zona": "",
         "pppoe_estado": "",
         "pppoe_login": "",

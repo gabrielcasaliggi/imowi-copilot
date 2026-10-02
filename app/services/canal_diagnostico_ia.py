@@ -61,6 +61,17 @@ def _grupos_tecnicos_vigentes(ctx: dict, ref, abonado, db) -> set[str]:
     return todos
 
 
+def _cortes_zona_desde_ctx(ctx: dict) -> str:
+    """Estado de outage ya conocido en ctx. Sin consultas; sin nombres técnicos (NAS)."""
+    if ctx.get("outage_individual"):
+        return "el abonado indicó que el problema es individual (no de la zona)"
+    if ctx.get("outage_id"):
+        return "incidente masivo activo en la zona, ya informado al abonado"
+    if ctx.get("outage_resuelto_avisado"):
+        return "incidente de la zona resuelto, ya avisado al abonado"
+    return ""
+
+
 def _extras_servicio_y_planta(ctx: dict, abonado, db) -> dict[str, str]:
     """Servicio en foco + observaciones técnicas del ctx. Solo lectura de ctx."""
     extras_ctx: dict[str, str] = {}
@@ -77,6 +88,9 @@ def _extras_servicio_y_planta(ctx: dict, abonado, db) -> dict[str, str]:
         for k in _GRUPOS_TECNICOS[grupo]:
             if ctx.get(k):
                 extras_ctx[k] = str(ctx.get(k) or "")
+    cortes = _cortes_zona_desde_ctx(ctx)
+    if cortes:
+        extras_ctx["cortes_zona"] = cortes
     return extras_ctx
 
 

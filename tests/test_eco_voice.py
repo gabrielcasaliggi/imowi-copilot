@@ -27,7 +27,8 @@ def test_contexto_abonado_invitado():
     txt = build_contexto_abonado(None)
     assert "invitado" in txt.lower()
     assert "integrar NMS" in txt
-    assert "integrar Fiserv" in txt
+    assert "Fiserv" not in txt
+    assert "pago_qr_reciente" not in txt
 
 
 def test_contexto_abonado_identificado():
@@ -51,7 +52,7 @@ def test_contexto_abonado_identificado():
     assert "nro_asociado: 200" in txt
     # Placeholders listos para conectar APIs
     assert "ont_estado" in txt
-    assert "pago_qr_reciente" in txt
+    assert "pago_qr_reciente" not in txt
     assert "NUNCA dólares" not in txt
     assert "deuda_monto: 0" in txt
 
@@ -73,7 +74,7 @@ def test_montos_sin_anotaciones_prompt():
 def test_enrich_hook_vacio_hasta_integracion():
     empty = enrich_contexto_desde_integraciones(None)
     assert empty["ont_estado"] == ""
-    assert empty["pago_qr_reciente"] == ""
+    assert "pago_qr_reciente" not in empty
     assert empty.get("pppoe_estado", "") == ""
 
 
