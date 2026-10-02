@@ -2160,6 +2160,9 @@ def _apply_service_selection(ctx: dict, login: str, *, previous: str = "") -> No
     apply_service_ref(ctx, ref, previous_login=prev_login)
 
 
+_PLANTA_CTX_PREFIXES = ("pppoe_", "uisp_", "bcm_")
+
+
 def apply_service_ref(
     ctx: dict,
     ref: Any,
@@ -2189,9 +2192,15 @@ def apply_service_ref(
         ctx.pop("login_seleccionado", None)
     ctx.pop("multi_cuenta_pendiente", None)
 
-    changed = selection_changed(prev, ref)
+    ref_changed = selection_changed(prev, ref)
+    changed = ref_changed
     if not changed and previous_login and login_n and previous_login != login_n:
         changed = True
+    if ref_changed:
+        # Planta service-scoped del servicio anterior (2.5B §Service change): no sobrevive.
+        for k in [k for k in ctx if str(k).startswith(_PLANTA_CTX_PREFIXES)]:
+            ctx.pop(k, None)
+        ctx.pop("tecnologia_acceso", None)
     if changed:
         set_journey(
             ctx,

@@ -1205,13 +1205,15 @@ def _sincronizar_login_desde_mensaje(
     ref_ok = ref is not None and (ref.login or "").strip().lower() == login.lower()
     if login == prev and ref_ok:
         return login
+    if not ref_ok:
+        # SoT única: login → catálogo confiable → apply_service_ref. Sin fallback legacy.
+        # Antes del sync: si el servicio cambia, apply_service_ref limpia la planta anterior
+        # y el sync repone la del login nuevo.
+        _enrich_login_to_ref(db, abonado, ctx, login, previous=prev)
     if login != prev:
         sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
     ctx.pop("multi_cuenta_pendiente", None)
     _note_pasos_cubiertos(ctx, "login_seleccionado")
-    if not ref_ok:
-        # SoT única: login → catálogo confiable → apply_service_ref. Sin fallback legacy.
-        _enrich_login_to_ref(db, abonado, ctx, login, previous=prev)
     return login
 
 
