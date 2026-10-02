@@ -1190,20 +1190,28 @@ def _sincronizar_login_desde_mensaje(
     ctx: dict,
     texto: str,
 ) -> str:
-    """Si el abonado nombra un login Radius, refresca PPPoE/UISP en ctx."""
+    """Si el abonado nombra un login Radius, refresca PPPoE/UISP y fija selected_service_ref."""
     from app.services import billtrack as bt
     from app.services.conexion_uisp import sincronizar_servicio_login_en_ctx
+    from app.services.eko_journeys import _enrich_login_to_ref
+    from app.services.eko_service_selection import get_selected_ref
 
     servicios = _servicios_conectividad_abonado(db, abonado)
     login = bt.extraer_login_en_texto(texto, servicios)
     if not login:
         return str(ctx.get("login_seleccionado") or "")
     prev = str(ctx.get("login_seleccionado") or "")
-    if login == prev:
+    ref = get_selected_ref(ctx)
+    ref_ok = ref is not None and (ref.login or "").strip().lower() == login.lower()
+    if login == prev and ref_ok:
         return login
-    sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
+    if login != prev:
+        sincronizar_servicio_login_en_ctx(db, abonado, ctx, login)
     ctx.pop("multi_cuenta_pendiente", None)
     _note_pasos_cubiertos(ctx, "login_seleccionado")
+    if not ref_ok:
+        # SoT única: login → catálogo confiable → apply_service_ref. Sin fallback legacy.
+        _enrich_login_to_ref(db, abonado, ctx, login, previous=prev)
     return login
 
 
