@@ -10,6 +10,75 @@ from sqlalchemy.orm import Session
 
 from app.estate.models import Abonado, ConversacionCanal
 
+_CTX_TECH_KEYS = (
+    "pppoe_resumen",
+    "pppoe_triage",
+    "uisp_resumen",
+    "uisp_triage",
+    "uisp_signal_dbm",
+    "uisp_calidad_senal",
+    "pppoe_plan_mbps",
+    "pppoe_producto",
+    "bcm_resumen",
+    "bcm_triage",
+)
+
+
+_GRUPOS_TECNICOS = {
+    "pppoe": ("pppoe_resumen", "pppoe_triage", "pppoe_plan_mbps", "pppoe_producto"),
+    "uisp": ("uisp_resumen", "uisp_triage", "uisp_signal_dbm", "uisp_calidad_senal"),
+    # Persistido en el 1er turno PPPoE/BCM: no depender solo del re-fetch live.
+    "bcm": ("bcm_resumen", "bcm_triage", "tecnologia_acceso"),
+}
+
+
+def _grupos_tecnicos_vigentes(ctx: dict, ref, abonado, db) -> set[str]:
+    """Grupos de observaciones de ctx que se pueden copiar a extras. Sin adivinar.
+
+    Con ref: se descarta un grupo solo con evidencia de mismatch (pppoe_login/uisp_login
+    presentes y distintos al login del ref). Sin ref: 2+ logins de Internet → ninguno.
+    """
+    todos = set(_GRUPOS_TECNICOS)
+    if not any(ctx.get(k) for k in _CTX_TECH_KEYS):
+        return todos
+    if ref is None:
+        from app.services.eko_context import internet_logins_count
+
+        return todos if internet_logins_count(db, abonado) < 2 else set()
+    want = (ref.login or "").strip().lower()
+
+    def _mismatch(key: str) -> bool:
+        have = str(ctx.get(key) or "").strip().lower()
+        return bool(have) and have != want
+
+    p_mis, u_mis = _mismatch("pppoe_login"), _mismatch("uisp_login")
+    if p_mis:
+        todos.discard("pppoe")
+    if u_mis:
+        todos.discard("uisp")
+    if p_mis and u_mis:
+        todos.discard("bcm")
+    return todos
+
+
+def _extras_servicio_y_planta(ctx: dict, abonado, db) -> dict[str, str]:
+    """Servicio en foco + observaciones técnicas del ctx. Solo lectura de ctx."""
+    extras_ctx: dict[str, str] = {}
+    # EKO-CTX-1: servicio en foco (solo lectura de selected_service_ref) + guarda de frescura.
+    from app.services.eko_service_selection import get_selected_ref
+
+    ref = get_selected_ref(ctx)
+    if ref is not None:
+        extras_ctx["servicio_foco_login"] = ref.login
+        extras_ctx["servicio_foco_tipo"] = ref.service_type
+        extras_ctx["servicio_foco_label"] = ref.label
+        extras_ctx["servicio_foco_id"] = ref.service_id
+    for grupo in sorted(_grupos_tecnicos_vigentes(ctx, ref, abonado, db)):
+        for k in _GRUPOS_TECNICOS[grupo]:
+            if ctx.get(k):
+                extras_ctx[k] = str(ctx.get(k) or "")
+    return extras_ctx
+
 
 def _aplicar_diagnostico_ia(
     db: Session,
@@ -480,30 +549,7 @@ def _aplicar_diagnostico_ia(
 
     from app.services.eco_voice import build_contexto_abonado
 
-    extras_ctx: dict[str, str] = {}
-    if ctx.get("pppoe_resumen"):
-        extras_ctx["pppoe_resumen"] = str(ctx.get("pppoe_resumen") or "")
-    if ctx.get("pppoe_triage"):
-        extras_ctx["pppoe_triage"] = str(ctx.get("pppoe_triage") or "")
-    if ctx.get("uisp_resumen"):
-        extras_ctx["uisp_resumen"] = str(ctx.get("uisp_resumen") or "")
-    if ctx.get("uisp_triage"):
-        extras_ctx["uisp_triage"] = str(ctx.get("uisp_triage") or "")
-    if ctx.get("uisp_signal_dbm"):
-        extras_ctx["uisp_signal_dbm"] = str(ctx.get("uisp_signal_dbm") or "")
-    if ctx.get("uisp_calidad_senal"):
-        extras_ctx["uisp_calidad_senal"] = str(ctx.get("uisp_calidad_senal") or "")
-    if ctx.get("pppoe_plan_mbps"):
-        extras_ctx["pppoe_plan_mbps"] = str(ctx.get("pppoe_plan_mbps") or "")
-    if ctx.get("pppoe_producto"):
-        extras_ctx["pppoe_producto"] = str(ctx.get("pppoe_producto") or "")
-    # Persistido en el 1er turno PPPoE/BCM: no depender solo del re-fetch live.
-    if ctx.get("bcm_resumen"):
-        extras_ctx["bcm_resumen"] = str(ctx.get("bcm_resumen") or "")
-    if ctx.get("bcm_triage"):
-        extras_ctx["bcm_triage"] = str(ctx.get("bcm_triage") or "")
-    if ctx.get("tecnologia_acceso"):
-        extras_ctx["tecnologia_acceso"] = str(ctx.get("tecnologia_acceso") or "")
+    extras_ctx = _extras_servicio_y_planta(ctx, abonado, db)
 
     extras_ctx["canal"] = (canal or "").strip()
     from app.services.ov_handoff import resolve_handoff

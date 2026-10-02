@@ -372,6 +372,28 @@ def _servicios_contratados_label(facts: dict[str, Any]) -> str:
     return _etiqueta_servicios_agregado(str(account.get("servicio_agregado") or ""))
 
 
+def _servicio_en_foco_line(extras: dict[str, str], items: list[dict[str, Any]]) -> str:
+    """Servicio en foco desde extras (copiados de selected_service_ref) o del catálogo.
+
+    Solo render: no infiere selección. Sin ref y sin regla aplicable → "" (sin sección).
+    """
+    login = str(extras.get("servicio_foco_login") or "").strip()
+    sid = str(extras.get("servicio_foco_id") or "").strip()
+    if login or sid:
+        label = str(extras.get("servicio_foco_label") or "").strip() or str(
+            extras.get("servicio_foco_tipo") or ""
+        ).strip()
+        if label and login:
+            return f"{label} ({login})"
+        return label or login or sid
+    n_internet = sum(1 for it in items if str(it.get("type") or "").strip().lower() == "internet")
+    if n_internet >= 2:
+        return "(sin seleccionar — preguntar cuál antes de diagnosticar)"
+    if n_internet == 1 or len(items) == 1:
+        return "único servicio"
+    return ""
+
+
 def format_n1_contexto(
     facts: dict[str, Any],
     *,
@@ -485,6 +507,11 @@ def format_n1_contexto(
     else:
         lines.append("- servicios_catalogo: (vacío o no consultado)")
 
+    foco = _servicio_en_foco_line(extras, items if services.get("status") == "ok" else [])
+    if foco:
+        lines.append("## SERVICE IN FOCUS")
+        lines.append(f"- servicio_en_foco: {foco}")
+
     lines.append("## BILLING")
     lines.append(f"- deuda_monto: {deuda}")
     lines.append(f"- billing_status: {billing.get('status') or 'stale'}")
@@ -507,7 +534,11 @@ def format_n1_contexto(
             tid = str(it.get("id") or "")[:12]
             st = str(it.get("state") or "")
             cat = str(it.get("category") or "")
-            parts.append(f"{tid}:{st}/{cat}".strip(":"))
+            entry = f"{tid}:{st}/{cat}".strip(":")
+            upd = str(it.get("updated_at") or "").strip()[:10]
+            if upd:
+                entry += f" (actualizado: {upd})"
+            parts.append(entry)
         lines.append(f"- tickets_abiertos_resumen: {'; '.join(parts)}")
         lines.append(f"- tickets_count: {len(t_items)}")
     elif tickets.get("status") == "unavailable":
