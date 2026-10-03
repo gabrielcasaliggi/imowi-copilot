@@ -5081,6 +5081,21 @@ def _identificar_por_dni_si_aplica(
     }
 
 
+def _journey_hold_sin_texto(jturn: object) -> bool:
+    """True si el journey "atendió" con post_resolution_hold y sin texto (silencio no legítimo).
+
+    El silencio legítimo (cortesía pura, cierre explícito) no entra: lleva courtesy_silence
+    o reason_code distinto.
+    """
+    return bool(
+        jturn is not None
+        and getattr(jturn, "handled", False)
+        and not (getattr(jturn, "user_message", "") or "").strip()
+        and getattr(jturn, "reason_code", None) == "post_resolution_hold"
+        and not (getattr(jturn, "data", None) or {}).get("courtesy_silence")
+    )
+
+
 def procesar_mensaje_entrante(
     db: Session,
     org_id: str,
@@ -5291,6 +5306,14 @@ def procesar_mensaje_entrante(
         jturn = maybe_handle_journey_turn(
             db, org_id, conv, abonado, texto, canal=canal, ctx=ctx
         )
+        if _journey_hold_sin_texto(jturn):
+            # Hold post-resolución sin cortesía: el journey no ejecutó Action/Runtime en
+            # este turno, así que el Legacy N1 atiende (XOR: un solo camino por turno).
+            logger.info(
+                "eko_journeys: post_resolution_hold sin texto → Legacy N1 (journey=%s)",
+                jturn.journey,
+            )
+            jturn = None
         if jturn is not None and jturn.handled:
             crepo.set_contexto(conv, ctx)
             db.commit()
