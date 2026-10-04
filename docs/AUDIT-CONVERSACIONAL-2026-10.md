@@ -179,3 +179,43 @@ dejó `scan.out` en el scratchpad de la sesión. No lo procesé para esta Parte 
 - **Sin** suite completa por commit; **con** `timeout` en cada ejecución (≤ 60 s por escenario, ≤ 5 min por tanda).
 - Entregable: tabla escenario × commit y, solo donde pasó de bien a mal, `git log -S` acotado al archivo.
 - Worktrees temporales borrados al terminar (los de esta sesión ya fueron eliminados; `git worktree list` = 1).
+
+---
+
+# Parte 2: causas raíz de los xfail
+
+**Fecha:** 2026-10-04 · **HEAD:** `17fd0d9` · **Fuente:** `tests/e2e_conv` (80 tests: 32 pasan, **48 xfail estrictos**).
+**Método:** cada xfail se ejecutó con `--runxfail`; se tomó la **primera** aserción que falla como causa primaria y la rama
+que respondió (`Turn.branch`, sacada de la pila de llamadas y de un espía sobre `maybe_handle_journey_turn`, sin tocar producto).
+Cada xfail se asigna a **una** causa primaria; las secundarias se anotan aparte. Toda cuenta incluye los dos canales
+(WhatsApp y portal, resultados idénticos salvo ids de ticket).
+
+**Resultado: 12 causas raíz distintas para 48 xfails.** Por capa: 7 de journeys, 3 de legacy, 2 de la unión (orden de capas).
+
+| # | Causa raíz | Dónde decide (archivo:línea) | Capa | xfails (n) | Invariante / regla |
+|---|---|---|---|---|---|
+| RC-1 | La confirmación de derivación pendiente **atrapa cualquier texto**: si no es sí/no repite «confirmame con un «sí»» | `eko_journeys.py:1965-1975` (`_handle_ticket_confirmation` definida en `:1927`, rama `if not rec`) | journeys | **6**: `test_06`×2, `test_07`×2, `test_h7`×2 | I5; «resuelto» no debe abrir handoff (R1) |
+| RC-2 | El «sí» **nunca confirma**: `resolve_user_confirmation` exige `action_state.status == "confirmation_pending"` y el journey solo marca su propio `pending_confirmation` (sonda: `action_state == {}`) | `eko_action_bridge.py:69-116`; prompts en `eko_journeys.py:758-777` y `:1050` | unión journeys↔Runtime | **2**: `test_h6`×2 | I5, I3; R1 (ticket tras confirmar imposible) |
+| RC-3 | El journey de servicios **captura texto libre** tras resolver (devuelve el listado) | `eko_journeys.py:747-755` (`_resolved_turn_authorizes_handler`: termina en `_billing_user_act != "balance"` → casi siempre `True`) + lista en `_advance_service_catalog` (def `:3267`, rama de lista `:3477-3530`) | journeys | **2**: `test_e14b`×2 | R2 (links de pago); secundaria en `e16a/b` |
+| RC-4 | **Escalación automática** al agotar el playbook: crea el ticket sin confirmar | `canal_abonado.py:7790-7791` (llamada a `_escalar("Playbook … agotado")`; `_escalar` definido en `:7574`) | legacy | **4**: `test_e16a`×2, `test_e16b`×2 | I6; R1 |
+| RC-5 | **Saludo genérico** por el playbook `general` cuando el estado es `aviso_deuda`/`general` y el texto no se entiende | `canal_abonado.py:7762-7767` (`_preguntar_o_recordar`) y `:7878-7883` (`_preguntar`); texto en `flujos_abonado.py:679-683` | legacy | **10**: `test_e14a`×2, `e14c`×2, `e14d`×2, `test_13[journeys_off]`×2, `test_14a[journeys_off]`×2 | I2 |
+| RC-6 | El **aviso de saldo bloquea** («¿Querés que te ayude primero a pagar…?»); hay 3 sitios que lo ofrecen | `canal_abonado.py:813-822`, `:3802-3807`, `:6645-6649` | legacy | **4**: `test_e13`×2, `test_14b[journeys_off]`×2 | R2 |
+| RC-7 | Con journeys ON **no hay aviso de saldo**: el journey responde antes de la rama de deuda | orden: `canal_abonado.py:5332` (journeys) antes de `:6645` (aviso) | unión | **6**: `test_13/14a/14b[journeys_on]`×2 c/u | R2 |
+| RC-8 | El **corte masivo** se evalúa después de journeys y el diagnóstico legacy del journey no lo mira | `canal_abonado.py:5332` vs `:5481` (`_talvez_respuesta_outage`); `canal_pppoe._talvez_mensaje_pppoe` | unión | **2**: `test_09`×2 | (regla de producto: avisar el corte) |
+| RC-9 | **Selección = callejón**: «Listo: seleccioné…» cierra el journey sin siguiente paso y el problema declarado no se guarda | `eko_journeys.py:3411` (rama de éxito, «Listo: seleccioné…») y `:3450-3475` (rama ambigua, no guarda `texto`) | journeys | **6**: `test_10`×2, `test_h8`×2, `test_h10`×2 | R1 |
+| RC-10 | `_extract_service_id` toma «id» **dentro de un login** (`tupaciretacuidaBAI` → `aBAI`) → «no pertenece a tu cuenta» | `eko_service_selection.py:157-171` | journeys (2.2B) | **2**: `test_h5`×2 | I4 |
+| RC-11 | La selección por texto solo reconoce logins **`INT*`**; «el de tupaciretaBAI» no se resuelve y vuelve el menú | `eko_service_selection.py:174-179` (`_extract_login`) | journeys (2.2B/2.5D-2) | **2**: `test_12`×2 | I4 |
+| RC-12 | El journey **«sin Internet fijo» queda abierto** (`step="respond"`) y responde igual a cualquier texto, incluido «hola» | `eko_journeys.py:1170-1186` | journeys | **2**: `test_h9`×2 | I5 |
+| | **Total** | | | **48** | |
+
+**Suma de control:** 6+2+2+4+10+4+6+2+6+2+2+2 = 48.
+
+**Causas secundarias (no cambian la cuenta):** RC-1 también corta el turno 2 de `test_13/14b[journeys_on]`; RC-3 también aparece en
+`e16a/b` (los textos libres caen al listado de servicios).
+
+**Lectura transversal.** Las 12 causas se reducen a cuatro patrones:
+1. **Un journey no sabe soltar el turno** (RC-1, RC-2, RC-3, RC-12): mantiene estado vivo o autoriza cualquier texto.
+2. **Dos dueños de la misma decisión** (RC-5, RC-6, RC-7, RC-8): legacy y journeys deciden lo mismo en distinto orden.
+3. **Escalación sin confirmación** (RC-4): el legacy crea tickets por agotamiento.
+4. **Selección de servicio frágil** (RC-9, RC-10, RC-11): regex y mensajes de la 2.2B/2.5.
+
