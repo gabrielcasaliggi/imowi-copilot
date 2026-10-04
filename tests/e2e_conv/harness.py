@@ -57,6 +57,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "multi": dict(servicio="internet", deuda="0", logins=LOGIN3, catalogo=_internet_rows(LOGIN3)),
     "deuda": dict(servicio="internet", deuda="15000.00", logins=LOGIN1, catalogo=_internet_rows(LOGIN1)),
     "movil": dict(servicio="movil", deuda="0", logins=[], catalogo=MOVILES),
+    "movil_deuda": dict(servicio="movil", deuda="15000.00", logins=[], catalogo=MOVILES),
     "sensa": dict(servicio="ambos", deuda="0", logins=LOGIN1, catalogo=_internet_rows(LOGIN1) + TV),
 }
 
@@ -166,6 +167,13 @@ def converse(
             stack.enter_context(patch(
                 "app.services.portal_services.catalog_for_selection",
                 lambda _db, abonado: {"status": "ok", "services": prof["catalogo"]},
+            ))
+            stack.enter_context(patch(
+                "app.services.portal_services.evaluar_servicios_portal",
+                lambda _db, abonado=None, **_k: {
+                    "status": "ok", "reason_code": None,
+                    "services": [{k: v for k, v in r.items() if k != "login"} for r in prof["catalogo"]],
+                },
             ))
             stack.enter_context(patch("app.services.handoff_notify.notify_espera_agente", lambda *a, **k: 0))
             if corte_activo:

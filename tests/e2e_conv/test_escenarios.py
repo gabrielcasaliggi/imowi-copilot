@@ -229,3 +229,79 @@ def test_base_off_sensa_pregunta(canal):
     t = converse(["no me anda la tele sensa"], canal=canal, journeys=False, profile="sensa")
     sin_violaciones(t)
     assert "?" in t[0].reply
+
+
+# =============================================================== reglas de producto R1/R2 (móvil + saldo pendiente)
+#   R1 móvil/Sensa/VoIP: playbook + KB; si no se resuelve, ofrece agente y crea el ticket SOLO tras confirmar.
+#   R2 deuda: aviso informativo, una sola vez por conversación; no bloquea y no se repite.
+DEBT_NOTICE = re.compile(r"(saldo pendiente|figura un saldo|tenés una deuda|deuda pendiente)", re.I)
+BLOQUEA = re.compile(r"(primero a pagar|o seguimos con el diagn)", re.I)
+PAGO = re.compile(r"(oficina virtual|https?://|ov\.batan)", re.I)
+BASE_MOVIL = ["tengo problemas con mi línea de imowi", "1", "no puedo hacer llamadas"]
+PREGUNTA_LLAMADAS = re.compile(r"(llamar|llamada|te entran|se cortan)", re.I)
+
+
+def avisos(turns) -> int:
+    return sum(1 for t in turns if DEBT_NOTICE.search(t.reply))
+
+
+@xf("E13/R2: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar, o seguimos…?») en vez de ser informativo y seguir con la pregunta del playbook")
+def test_e13_movil_con_saldo_aviso_una_vez_y_sigue_playbook(canal):
+    t = converse(BASE_MOVIL, canal=canal, profile="movil_deuda")
+    sin_violaciones(t, servicio=(1, inv.VOCAB_MOVIL, ("Imowi 5 GB",)))
+    r = t[2].reply
+    assert avisos(t) == 1 and DEBT_NOTICE.search(r), r
+    assert PREGUNTA_LLAMADAS.search(r) and "?" in r and not BLOQUEA.search(r), r
+
+
+@xf("E14a: «no sigamos con el diagnóstico» tras el aviso cae en el saludo genérico y pierde el contexto")
+def test_e14a_no_sigamos_ofrece_pago_o_repregunta(canal):
+    t = converse(BASE_MOVIL + ["no sigamos con el diagnóstico"], canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    r = t[3].reply
+    assert PAGO.search(r) or inv.VOCAB_MOVIL.search(r), r
+
+
+@xf("E14b: «sí, pagar» tras el aviso responde «No encuentro servicios contratados…» (el journey de servicios captura el texto) en vez de dar los links de pago")
+def test_e14b_si_pagar_da_links(canal):
+    t = converse(BASE_MOVIL + ["sí, pagar"], canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    assert PAGO.search(t[3].reply), t[3].reply
+
+
+@xf("E14c: «seguimos con el diagnóstico» tras el aviso cae en el saludo genérico en vez de seguir el playbook móvil")
+def test_e14c_seguimos_continua_playbook(canal):
+    t = converse(BASE_MOVIL + ["seguimos con el diagnóstico"], canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    assert inv.VOCAB_MOVIL.search(t[3].reply) and "?" in t[3].reply, t[3].reply
+
+
+@xf("E14d: un texto no relacionado tras el aviso resetea la conversación al saludo genérico y se pierde el contexto móvil")
+def test_e14d_texto_no_relacionado_no_pierde_contexto(canal):
+    t = converse(BASE_MOVIL + ["¿hasta qué hora atienden?", "seguimos con el diagnóstico"], canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    assert inv.VOCAB_MOVIL.search(t[4].reply), t[4].reply
+
+
+def test_e15_el_aviso_no_se_repite_en_el_turno_siguiente(canal):
+    t = converse(BASE_MOVIL + ["ya reinicié y sigue igual", "sigue sin llamar"], canal=canal, profile="movil_deuda")
+    assert avisos(t) == 1, [x.reply[:60] for x in t]
+
+
+@xf("E16a/R1: tras las preguntas del playbook móvil el bot escala solo (ticket sin confirmación) y textos libres caen al listado de servicios")
+def test_e16a_movil_sin_resolver_ofrece_agente_y_con_si_crea_ticket(canal):
+    script = BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "sí"]
+    t = converse(script, canal=canal, profile="movil")
+    sin_violaciones(t)
+    ofrecio = [i for i, x in enumerate(t) if inv.CONFIRM_PROMPT.search(x.reply)]
+    assert ofrecio, "nunca ofreció derivar con confirmación"
+    assert all(not x.ticket_created for x in t[: ofrecio[0] + 1]), "creó el ticket antes de confirmar"
+    assert t[-1].ticket_created, t[-1].reply
+
+
+@xf("E16b/R1: sin confirmación explícita el bot igual crea el ticket (agotamiento del playbook)")
+def test_e16b_movil_sin_confirmacion_no_crea_ticket(canal):
+    script = BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "no, gracias"]
+    t = converse(script, canal=canal, profile="movil")
+    sin_violaciones(t)
+    assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
