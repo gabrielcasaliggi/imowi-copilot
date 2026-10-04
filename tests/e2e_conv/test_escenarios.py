@@ -284,6 +284,25 @@ def test_base_off_negacion_o_pregunta_no_crea_ticket(canal, texto):
     assert not any(x.ticket_created for x in t), (texto, t[1].reply)
 
 
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("texto", ["no necesito un agente", "¿necesito hablar con un agente?"])
+def test_f0_negacion_o_pregunta_sin_prompt_de_confirmacion(canal, journeys, texto):
+    """Tanda 3 F0: nombrar al agente sin pedirlo no muestra «¿Confirmás…?» ni crea ticket."""
+    t = converse(["no tengo internet", texto], canal=canal, journeys=journeys)
+    assert not any(x.ticket_created for x in t), (texto, t[1].reply)
+    assert t[1].reply and not inv.CONFIRM_PROMPT.search(t[1].reply), t[1].reply
+
+
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("insiste", ["sí quiero un agente", "quiero hablar con una persona"])
+def test_f0_pedido_sin_contexto_e_insistencia_deriva_directo(canal, journeys, insiste):
+    """Pedido de agente sin contexto → el bot intenta ayudar → el abonado insiste → deriva sin otra vuelta."""
+    t = converse(["quiero hablar con un agente", insiste], canal=canal, journeys=journeys)
+    assert not t[0].ticket_created and re.search(r"ayudarte yo", t[0].reply), t[0].reply
+    assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
+    assert not inv.CONFIRM_PROMPT.search(t[1].reply), t[1].reply
+
+
 def test_base_off_gracias_cierra(canal):
     t = converse(["no tengo internet", "ya anda, gracias"], canal=canal, journeys=False)
     sin_violaciones(t)

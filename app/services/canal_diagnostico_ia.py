@@ -556,9 +556,12 @@ def _aplicar_diagnostico_ia(
     cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     kb = _kb_fragmento(db, org_id, texto)
     # No usar pide_humano() suelto: «técnico» del menú no debe forzar escalate
+    # «no necesito un agente» / «¿necesito hablar con un agente?» tampoco (ADR regla 5).
+    from app.services.eko_journeys import _agent_declined_or_questioned
+
     forzar = bool(
         es_escape_agente(texto)
-        or pide_humano_en_flujo_activo(texto, ctx)
+        or (pide_humano_en_flujo_activo(texto, ctx) and not _agent_declined_or_questioned(texto))
     )
 
     from app.services.eco_voice import build_contexto_abonado

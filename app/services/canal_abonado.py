@@ -2625,15 +2625,18 @@ def _responder_sin_internet_fijo(
     servicio_abo: str,
 ) -> dict:
     """Aviso progresivo si piden internet y el padrón es solo móvil (sin N2 de fibra)."""
+    from app.services.eko_journeys import _agent_declined_or_questioned
+
     n = int(ctx.get("aviso_sin_internet") or 0) + 1
     ctx["aviso_sin_internet"] = n
-    if pide_humano(texto) or es_escape_agente(texto):
+    pide_agente = (pide_humano(texto) and not _agent_declined_or_questioned(texto)) or es_escape_agente(texto)
+    if pide_agente:
         ctx["pidio_humano"] = int(ctx.get("pidio_humano") or 0) + 1
     crepo.set_contexto(conv, ctx)
     db.commit()
 
     # 2ª+ pedido de persona tras el aviso: handoff (no ticket de fibra inventado)
-    if int(ctx.get("pidio_humano") or 0) >= 2 or (n >= 3 and pide_humano(texto)):
+    if int(ctx.get("pidio_humano") or 0) >= 2 or (n >= 3 and pide_agente):
         tid = _crear_ticket_n2(
             db,
             org_id,
@@ -2660,7 +2663,7 @@ def _responder_sin_internet_fijo(
         }
 
     resp = texto_sin_internet_contratado(servicio_abo, insistencia=n)
-    if n == 2 and pide_humano(texto):
+    if n == 2 and pide_agente:
         resp = (
             "Entiendo que pedís un operador. En tu cuenta no figura internet fijo, "
             "así que no abro un caso de fibra. ¿Seguimos con el *móvil* (datos/señal) "
@@ -5703,7 +5706,11 @@ def procesar_mensaje_entrante(
     # Escape hatch *agente*, pedido de técnico a mitad de diagnóstico,
     # o 2ª insistencia sin síntoma → ticket.
     # Pedido de humano al inicio SIN síntoma y SIN flujo → menú + CTA *agente*.
-    if (
+    # «no necesito un agente» / «¿necesito hablar con un agente?» no son pedidos (ADR regla 5).
+    from app.services.eko_journeys import _agent_declined_or_questioned, _explicit_agent_request
+
+    _agente_no_pedido = _agent_declined_or_questioned(texto)
+    if not _agente_no_pedido and (
         es_escape_agente(texto)
         or pide_humano_en_flujo_activo(texto, ctx)
         or (
@@ -5713,7 +5720,6 @@ def procesar_mensaje_entrante(
         )
     ):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
-        from app.services.eko_journeys import _explicit_agent_request
 
         tid, pending = _ticket_via_runtime_o_legacy(
             db,
@@ -5769,7 +5775,7 @@ def procesar_mensaje_entrante(
             "ticket_id": tid,
         }
 
-    if pide_humano(texto) and not contiene_sintoma_canal(texto):
+    if pide_humano(texto) and not contiene_sintoma_canal(texto) and not _agente_no_pedido:
         ctx["pidio_humano"] = int(ctx.get("pidio_humano") or 0) + 1
         crepo.set_contexto(conv, ctx)
         db.commit()

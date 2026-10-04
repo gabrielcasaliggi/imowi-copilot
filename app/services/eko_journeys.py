@@ -757,6 +757,27 @@ def _explicit_agent_request(texto: str) -> bool:
     return bool(_AGENTE_PEDIDO.search(t)) or t in ("agente", "un agente", "quiero un agente")
 
 
+_AGENTE_PALABRA = r"\b(agente|operador|persona|humano|alguien|asesor|representante)\b"
+_AGENTE_NEGADO = re.compile(
+    r"\b(no|ni|tampoco|nunca)\s+(quiero|necesito|preciso|pido|busco|hace falta|me hace falta|hablar)\b[^.!?]*"
+    + _AGENTE_PALABRA,
+    re.I,
+)
+_AGENTE_CONSULTA = re.compile(
+    r"\b(necesito|tengo que|hace falta|debo|hay que|es necesario)\b[^.!?]*" + _AGENTE_PALABRA + r"[^.!]*\?",
+    re.I,
+)
+
+
+def _agent_declined_or_questioned(texto: str) -> bool:
+    """«no necesito un agente» / «¿necesito hablar con un agente?»: nombran al agente pero no lo piden.
+
+    ``pide_humano`` da True para ambos; acá no deben abrir la oferta de derivación ni crear ticket.
+    """
+    t = (texto or "").strip().lower()
+    return bool(_AGENTE_NEGADO.search(t) or _AGENTE_CONSULTA.search(t))
+
+
 def _explicit_handoff(texto: str) -> bool:
     try:
         from app.domain.flujos_abonado import pide_humano
@@ -1593,6 +1614,7 @@ def _advance_connectivity(
         and st.get("resolved_ack")
         and (ctx.get("pppoe_informado") or st.get("last_diagnostic_result"))
         and pide_humano(texto)
+        and not _agent_declined_or_questioned(texto)
         and not _confirmation_is_live(ctx)
     ):
         _mark_confirmation_pending(ctx, corr=corr)
@@ -2006,6 +2028,24 @@ def _handle_ticket_confirmation(
     por_pedido = _explicit_agent_request(texto)
     if por_pedido and not rej:
         rec = True
+    # «no necesito un agente» rechaza la oferta; «¿necesito hablar con un agente?» no la acepta:
+    # ninguno repite el «confirmame con un sí».
+    consulta_agente = not rec and not rej and _agent_declined_or_questioned(texto)
+    if consulta_agente and "?" in texto:
+        set_journey(ctx, pending_confirmation=False, step="respond", next_required_input="")
+        return JourneyTurn(
+            handled=True,
+            user_message=(
+                "No hace falta: lo podemos seguir por acá. Si en algún momento preferís que te atienda "
+                "una persona, decime «quiero hablar con un agente». Contame cómo sigue el Internet."
+            ),
+            journey="internet_sin_conectividad",
+            step="respond",
+            reason_code="agent_question",
+            correlation_id=corr,
+        )
+    if consulta_agente:
+        rej = True
     if rej:
         set_journey(
             ctx,
@@ -3881,7 +3921,7 @@ def _maybe_handle_journey_turn(
         observe_journey_turn(turn, canal=canal)
         return turn
     if _journey_is_resolved(st_now):
-        if _explicit_handoff(texto):
+        if _explicit_handoff(texto) and not _agent_declined_or_questioned(texto):
             _clear_continuity_pending(ctx)
             turn = _resolved_handoff_turn(ctx)
             observe_journey_turn(turn, canal=canal)
