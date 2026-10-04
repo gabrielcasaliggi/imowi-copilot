@@ -1572,6 +1572,17 @@ def run_persona(client: Any, persona: Persona, *, usar_llama: bool = False) -> R
             dijo_apertura = True
             payload = _enviar(client, token, msg)
             bot = str(payload.get("respuesta") or payload.get("reply") or "").strip()
+            # El portal muestra todos los mensajes del bot del turno (p. ej. el aviso de saldo
+            # informativo de R2 sale antes de la respuesta técnica), no solo ``respuesta``.
+            msgs = list(payload.get("mensajes") or [])
+            ult_in = max((k for k, m in enumerate(msgs) if m.get("direccion") == "in"), default=-1)
+            del_turno = [
+                str(m.get("texto") or "").strip()
+                for m in msgs[ult_in + 1 :]
+                if m.get("autor") == "bot" and str(m.get("texto") or "").strip()
+            ]
+            if len(del_turno) > 1:
+                bot = "\n".join(del_turno)
             ticket = ticket or _ticket_en_payload(payload, bot)
             t = TurnoLoop(
                 usuario=msg,

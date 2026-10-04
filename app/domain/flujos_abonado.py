@@ -3866,6 +3866,18 @@ def mensaje_confirmacion_mejora_linea_vista(texto: str = "") -> str:
     return "Bien. ¿Notás mejor señal o velocidad de internet ahora?"
 
 
+_SEGUIR_DIAGNOSTICO = re.compile(r"\b(segu[ií]\w*|sig[aou]\w*|continu\w+)\b[^.?!]*\bdiagn[oó]stic", re.I)
+_NO_SEGUIR = re.compile(r"\bno\s+(segu|sig[aou]|continu)", re.I)
+
+
+def responde_seguir_diagnostico(texto: str) -> str | None:
+    """«seguimos / seguí con el diagnóstico» → "seguir"; «no sigamos con el diagnóstico» → "no_seguir"."""
+    t = (texto or "").lower()
+    if not _SEGUIR_DIAGNOSTICO.search(t):
+        return None
+    return "no_seguir" if _NO_SEGUIR.search(t) else "seguir"
+
+
 def indica_resuelto(texto: str) -> bool:
     """El abonado indica que el servicio ya volvió / funciona.
 

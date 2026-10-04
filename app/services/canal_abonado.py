@@ -805,33 +805,15 @@ def _respuesta_tras_transicion_dominio(
         )
     # Aviso deuda solo al entrar a técnico por síntoma (create/refine), nunca en
     # baja/titularidad ni al retomar un dominio técnico por una respuesta corta.
+    # R2: informativo; el turno sigue con el diagnóstico.
     if (
-        _intencion_es_tecnica(intencion)
-        and (trans.created or (trans.refined and not trans.resumed))
-        and abonado
-        and _deuda_positiva(abonado)
-        and not ctx.get("aviso_deuda_ofrecido")
-        and intencion != "corte_deuda"
+        (trans.created or (trans.refined and not trans.resumed))
         and not solicita_baja_servicio(texto)
         and not solicita_cambio_titularidad(texto)
         and not solicita_cambio_domicilio(texto)
         and not es_tramite_admin(str(ctx.get("intencion_previa") or ""))
     ):
-        ctx["intencion"] = "aviso_deuda"
-        ctx["intencion_tecnica_pendiente"] = intencion
-        ctx["aviso_deuda_ofrecido"] = True
-        crepo.set_contexto(conv, ctx)
-        db.commit()
-        resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-        return {
-            "ok": True,
-            "modo": "bot",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-            "intencion": "aviso_deuda",
-        }
+        _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, intencion, canal=canal)
     if trans.refined and not trans.resumed and not trans.created:
         return None
     acto = _responder_acto_restante_dominio(
@@ -2598,9 +2580,45 @@ def _texto_aviso_deuda_tecnico(abonado: Abonado, intencion_tecnica: str) -> str:
     else:
         tema = "de internet"
     return (
-        f"Antes de seguir: en tu cuenta figura un saldo pendiente de {monto}. "
-        f"¿Querés que te ayude primero a pagar, o seguimos con el diagnóstico {tema}?"
+        f"Te aviso que en tu cuenta figura un saldo pendiente de {monto}. "
+        f"Lo podés pagar cuando quieras desde la Oficina Virtual. Sigo con el diagnóstico {tema}."
     )
+
+
+def _avisar_deuda_informativo(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    ctx: dict,
+    intencion: str,
+    *,
+    canal: str,
+) -> bool:
+    """Único emisor del aviso de saldo (R2, RC-6/7): informativo, una vez por conversación, no bloquea.
+
+    Se envía como mensaje propio antes de la respuesta técnica del turno; el llamador sigue con el
+    diagnóstico (no cambia ``intencion``). True si avisó en este turno.
+    """
+    if (
+        abonado is None
+        or not _deuda_positiva(abonado)
+        or not _intencion_es_tecnica(intencion)
+        or intencion == "corte_deuda"
+        or ctx.get("aviso_deuda_ofrecido")
+    ):
+        return False
+    ctx["aviso_deuda_ofrecido"] = True
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(
+        db,
+        org_id,
+        conv,
+        _texto_aviso_deuda_tecnico(abonado, intencion),
+        enviar_externo=_enviar_externo(canal),
+    )
+    return True
 
 
 def _servicio_abonado(abonado: Abonado | None) -> str:
@@ -3811,34 +3829,39 @@ def _arrancar_intencion_menu(
         "movil_llamadas",
     ):
         conv.servicio_detectado = intencion
-    if (
-        abonado
-        and _deuda_positiva(abonado)
-        and _intencion_es_tecnica(intencion)
-        and not ctx.get("aviso_deuda_ofrecido")
-        and intencion != "corte_deuda"
-    ):
-        ctx["intencion"] = "aviso_deuda"
-        ctx["intencion_tecnica_pendiente"] = intencion
-        ctx["aviso_deuda_ofrecido"] = True
-        crepo.set_contexto(conv, ctx)
-        db.commit()
-        resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-        return {
-            "ok": True,
-            "modo": "bot",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-            "intencion": "aviso_deuda",
-        }
+    _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, intencion, canal=canal)
     if abonado and intencion == "cambio_clave_wifi":
         out_remota = _respuesta_cambio_wifi_bcm(
             db, org_id, conv, abonado, ctx, texto, canal=canal
         )
         if out_remota is not None:
             return out_remota
+    # «Se me acabaron los datos»: directo a bono OV (antes solo tras elegir «seguir» en el aviso
+    # bloqueante; con R2 el diagnóstico sigue acá).
+    if intencion in ("movil", "movil_datos"):
+        from app.services.diagnostico_n1 import (
+            _MSG_BONO_OV,
+            datos_agotados_abono,
+            sanitizar_apn_en_texto,
+        )
+
+        if datos_agotados_abono(texto, crepo.list_mensajes(db, conv.id)):
+            from app.domain.conversation_state import replace_covers
+
+            replace_covers(ctx, ["datos_activados", "consumo_paquete"])
+            ctx["paso_idx"] = 2
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            pregunta = sanitizar_apn_en_texto(_MSG_BONO_OV)
+            _enviar_respuesta(db, org_id, conv, pregunta, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": pregunta,
+                "estado": conv.estado,
+                "intencion": "movil_datos",
+            }
     crepo.set_contexto(conv, ctx)
     db.commit()
     # Respuesta corta de menú («técnico») → no diagnosticar aún; pedir el síntoma
@@ -5375,9 +5398,12 @@ def procesar_mensaje_entrante(
             journey_release(ctx, "post_resolution_hold")
             jturn = None
         if jturn is not None and jturn.handled:
+            resp = jturn.user_message or ""
+            if resp and jturn.journey == "internet_sin_conectividad":
+                # R2 / RC-7: el aviso de saldo también con journeys ON, antes de la respuesta técnica.
+                _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, "internet", canal=canal)
             crepo.set_contexto(conv, ctx)
             db.commit()
-            resp = jturn.user_message or ""
             if resp:
                 _enviar_respuesta(
                     db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
@@ -6676,27 +6702,7 @@ def procesar_mensaje_entrante(
         conv.servicio_detectado = intent
         crepo.set_contexto(conv, ctx)
         db.commit()
-        if (
-            abonado
-            and _deuda_positiva(abonado)
-            and _intencion_es_tecnica(intent)
-            and not ctx.get("aviso_deuda_ofrecido")
-        ):
-            ctx["intencion"] = "aviso_deuda"
-            ctx["intencion_tecnica_pendiente"] = intent
-            ctx["aviso_deuda_ofrecido"] = True
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            resp = _texto_aviso_deuda_tecnico(abonado, intent)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "aviso_deuda",
-            }
+        _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, intent, canal=canal)
         # Diagnosticar con el mensaje original (tenía ambos temas), no solo "internet"/"factura"
         diag = _aplicar_diagnostico_ia(
             db,
@@ -6797,29 +6803,8 @@ def procesar_mensaje_entrante(
             if intencion in ("internet", "internet_radio", "internet_adsl", "movil")
             else (servicio_abo or intencion)
         )
-        # Con deuda: avisar una vez y dejar elegir pagar vs diagnóstico técnico
-        if (
-            abonado
-            and _deuda_positiva(abonado)
-            and _intencion_es_tecnica(intencion)
-            and not ctx.get("aviso_deuda_ofrecido")
-            and intencion != "corte_deuda"
-        ):
-            ctx["intencion"] = "aviso_deuda"
-            ctx["intencion_tecnica_pendiente"] = intencion
-            ctx["aviso_deuda_ofrecido"] = True
-            crepo.set_contexto(conv, ctx)
-            db.commit()
-            resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            return {
-                "ok": True,
-                "modo": "bot",
-                "conversacion_id": conv.id,
-                "respuesta": resp,
-                "estado": conv.estado,
-                "intencion": "aviso_deuda",
-            }
+        # Con deuda: avisar una vez (R2: informativo, sigue el diagnóstico)
+        _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, intencion, canal=canal)
         if abonado and intencion == "cambio_clave_wifi":
             out_remota = _respuesta_cambio_wifi_bcm(
                 db, org_id, conv, abonado, ctx, texto, canal=canal
@@ -7173,27 +7158,7 @@ def procesar_mensaje_entrante(
             ctx["paso_idx"] = 0
             ctx["diag_turnos"] = 0
             _reset_pasos_cubiertos(ctx)
-            if (
-                abonado
-                and _deuda_positiva(abonado)
-                and _intencion_es_tecnica(intencion)
-                and not ctx.get("aviso_deuda_ofrecido")
-            ):
-                ctx["intencion"] = "aviso_deuda"
-                ctx["intencion_tecnica_pendiente"] = intencion
-                ctx["aviso_deuda_ofrecido"] = True
-                crepo.set_contexto(conv, ctx)
-                db.commit()
-                resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-                _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-                return {
-                    "ok": True,
-                    "modo": "bot",
-                    "conversacion_id": conv.id,
-                    "respuesta": resp,
-                    "estado": conv.estado,
-                    "intencion": "aviso_deuda",
-                }
+            _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, intencion, canal=canal)
             crepo.set_contexto(conv, ctx)
             db.commit()
             pb = _playbooks(db)
@@ -7316,30 +7281,7 @@ def procesar_mensaje_entrante(
                 ctx.pop("ultima_queja", None)
                 ctx["reiteracion_queja"] = 0
                 conv.servicio_detectado = intencion
-                if (
-                    abonado
-                    and _deuda_positiva(abonado)
-                    and _intencion_es_tecnica(intencion)
-                    and not ctx.get("aviso_deuda_ofrecido")
-                    and intencion != "corte_deuda"
-                ):
-                    ctx["intencion"] = "aviso_deuda"
-                    ctx["intencion_tecnica_pendiente"] = intencion
-                    ctx["aviso_deuda_ofrecido"] = True
-                    crepo.set_contexto(conv, ctx)
-                    db.commit()
-                    resp = _texto_aviso_deuda_tecnico(abonado, intencion)
-                    _enviar_respuesta(
-                        db, org_id, conv, resp, enviar_externo=_enviar_externo(canal)
-                    )
-                    return {
-                        "ok": True,
-                        "modo": "bot",
-                        "conversacion_id": conv.id,
-                        "respuesta": resp,
-                        "estado": conv.estado,
-                        "intencion": "aviso_deuda",
-                    }
+                _avisar_deuda_informativo(db, org_id, conv, abonado, ctx, intencion, canal=canal)
                 from app.services.diagnostico_n1 import (
                     _MSG_BONO_OV,
                     datos_agotados_abono,

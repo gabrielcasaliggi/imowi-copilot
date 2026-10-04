@@ -2111,8 +2111,11 @@ def _handle_ticket_confirmation(
     if not rec:
         # RC-1: la oferta expira. «ya anda» la cancela de una; otro texto se repregunta UNA vez
         # y a la segunda el journey suelta el turno (PASS → legacy), sin ticket.
+        # RC-6/7: «seguí / no sigamos con el diagnóstico» elige seguir en el chat (no derivar).
+        from app.domain.flujos_abonado import responde_seguir_diagnostico
+
         reprompts = int(get_journey(ctx).get("reprompts") or 0)
-        if _customer_confirmed_resolution(texto) or reprompts >= 1:
+        if _customer_confirmed_resolution(texto) or responde_seguir_diagnostico(texto) or reprompts >= 1:
             journey_release(ctx, "confirmation_expired")
             return None
         _mark_confirmation_pending(ctx, corr=corr)

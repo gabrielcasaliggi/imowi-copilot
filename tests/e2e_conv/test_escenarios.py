@@ -129,18 +129,7 @@ def test_12_cambio_de_servicio_tras_diagnostico(canal):
     assert "tupaciretaBAI" in t[2].reply, t[2].reply
 
 
-JOURNEYS_R2 = [
-    pytest.param(
-        True,
-        marks=xf("R2/journeys: con journeys ON no hay aviso de saldo (el journey de conectividad responde «No veo una sesión…» antes de la rama de deuda)"),
-        id="journeys_on",
-    ),
-    pytest.param(
-        False,
-        marks=xf("R2/legacy: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar…?»); la respuesta al aviso ya no cae al saludo genérico (RC-5)"),
-        id="journeys_off",
-    ),
-]
+JOURNEYS_R2 = [pytest.param(True, id="journeys_on"), pytest.param(False, id="journeys_off")]
 
 
 # Viejos 13/14 (Internet con saldo pendiente) bajo R2: el aviso es informativo, una vez por conversación, no bloquea.
@@ -317,7 +306,6 @@ def test_base_off_sensa_pregunta(canal):
 # =============================================================== reglas de producto R1/R2 (móvil + saldo pendiente)
 #   R1 móvil/Sensa/VoIP: playbook + KB; si no se resuelve, ofrece agente y crea el ticket SOLO tras confirmar.
 #   R2 deuda: aviso informativo, una sola vez por conversación; no bloquea y no se repite.
-@xf("E13/R2: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar, o seguimos…?») en vez de ser informativo y seguir con la pregunta del playbook")
 def test_e13_movil_con_saldo_aviso_una_vez_y_sigue_playbook(canal):
     t = converse(BASE_MOVIL, canal=canal, profile="movil_deuda")
     sin_violaciones(t, servicio=(1, inv.VOCAB_MOVIL, ("Imowi 5 GB",)))
@@ -449,3 +437,17 @@ def test_rc5_on_hold_del_journey_devuelve_la_intencion_previa(canal):
     sin_violaciones(t)
     assert t[3].branch.startswith("legacy:") and PREGUNTA_LLAMADAS.search(t[3].reply), t[3].reply
     assert t[3].journey_state.get("released_reason") == "post_resolution_hold", t[3].journey_state
+
+
+# ------------------------------------------------ RC-6/7: un solo emisor del aviso de saldo (R2)
+@pytest.mark.parametrize("journeys", JOURNEYS_R2)
+def test_rc67_aviso_va_antes_de_la_respuesta_tecnica_y_no_cambia_la_intencion(canal, journeys):
+    t = converse(["no tengo internet", "sigue igual", "sigue sin andar"], canal=canal, profile="deuda", journeys=journeys)
+    assert len(t[0].replies) == 2 and DEBT_NOTICE.search(t[0].replies[0]), t[0].replies
+    assert not DEBT_NOTICE.search(t[0].replies[1]) and inv.VOCAB_INTERNET.search(t[0].replies[1]), t[0].replies
+    assert avisos(t) == 1 and not any(BLOQUEA.search(x.reply) for x in t), [x.reply[:80] for x in t]
+
+
+def test_rc67_sin_saldo_no_hay_aviso(canal):
+    t = converse(["no tengo internet"], canal=canal, profile="int1")
+    assert avisos(t) == 0, t[0].reply

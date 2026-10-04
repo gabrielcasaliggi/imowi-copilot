@@ -1121,20 +1121,20 @@ def test_flujo_acabaron_datos_sigamos_sin_n2():
             canal="whatsapp",
             usar_llama=False,
         )
-    assert r1.get("intencion") == "aviso_deuda"
+    # R2 (tanda 3, RC-6/7): el aviso de saldo es informativo; la intención sigue siendo la técnica
+    # y el bono OV llega en este mismo turno (antes esperaba la elección «sigamos»).
+    assert r1.get("intencion") == "movil_datos"
     assert not r1.get("ticket_id")
+    assert "ov.batan" in (r1.get("respuesta") or "").lower()
 
     with Session() as db:
         r2 = procesar_mensaje_entrante(
             db, org_id, telefono=tel, texto="sigamos", canal="whatsapp", usar_llama=False
         )
-    assert r2.get("intencion") != "aviso_deuda" or "ov.batan" in (
-        r2.get("respuesta") or ""
-    ).lower()
+    assert r2.get("intencion") != "aviso_deuda"
     assert "no te entendí" not in (r2.get("respuesta") or "").lower()
     assert "decime cuál preferís" not in (r2.get("respuesta") or "").lower()
     assert not r2.get("ticket_id")
-    assert "ov.batan" in (r2.get("respuesta") or "").lower()
 
     with Session() as db:
         r3 = procesar_mensaje_entrante(
@@ -1192,7 +1192,8 @@ def test_aviso_deuda_informar_pago_no_repite_eleccion():
             canal="whatsapp",
             usar_llama=False,
         )
-        assert r1.get("intencion") == "aviso_deuda"
+        # R2 (tanda 3, RC-6/7): el aviso de saldo es informativo; la intención sigue siendo la técnica.
+        assert r1.get("intencion") == "movil_datos"
         r2 = procesar_mensaje_entrante(
             db,
             org_id,

@@ -941,6 +941,16 @@ def _aplicar_diagnostico_ia(
             if pid and pid not in cub_set:
                 paso_stamp = pid
                 break
+    # «seguimos con el diagnóstico» sin dato nuevo: se retoma el paso pendiente, dicho como
+    # continuación y no como copia literal del mensaje anterior.
+    from app.domain.flujos_abonado import responde_seguir_diagnostico
+
+    if (
+        mensaje
+        and responde_seguir_diagnostico(texto) == "seguir"
+        and not mensaje.lower().startswith("dale")
+    ):
+        mensaje = f"Dale, seguimos: {mensaje}"
     if paso_stamp or mensaje:
         stamp_bot_question(
             ctx, step_id=paso_stamp, pregunta=mensaje, intencion=intencion
