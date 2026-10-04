@@ -472,3 +472,22 @@ def test_h11_negacion_sobre_el_tema_no_abre_facturacion(canal):
     assert not v, v
     assert not any(x.branch.startswith("journey:billing") or FACTURACION.search(x.reply) for x in t[3:]), [(x.branch, x.reply) for x in t[3:]]
     assert t[4].reply and re.search(r"(llam|anduvo|reinici)", t[4].reply, re.I), t[4].reply
+
+
+# ------------------------------------------------ RC-13: el playbook avanza con respuestas libres
+PLAYBOOK_MOVIL_PREGUNTAS = re.compile(r"(reinici|anduvo|modo avi|mejor[oó]|zona|varios lados|sms|a2p|derive)", re.I)
+
+
+@xf("RC-13: «no las recibo» a una pregunta de acción del playbook móvil no avanza: el fallback repite «Reiniciá y probá una llamada. ¿Anduvo?»")
+def test_rc13_respuesta_libre_avanza_el_playbook(canal):
+    t = converse(BASE_MOVIL + ["no las recibo"], canal=canal, profile="movil")
+    sin_violaciones(t)
+    assert t[3].reply != t[2].reply and PLAYBOOK_MOVIL_PREGUNTAS.search(t[3].reply), (t[2].reply, t[3].reply)
+    assert not FACTURACION.search(t[3].reply), t[3].reply
+
+
+@xf("RC-13: una respuesta no reconocida repite la misma pregunta dos veces seguidas; debe repreguntar una vez y luego avanzar")
+def test_rc13_respuesta_no_reconocida_repregunta_una_vez_y_avanza(canal):
+    t = converse(BASE_MOVIL + ["la verdad no sé", "tampoco sé"], canal=canal, profile="movil")
+    assert t[3].reply != t[2].reply and t[3].reply.endswith(t[2].reply.split(". ", 1)[-1]), (t[2].reply, t[3].reply)
+    assert t[4].reply not in (t[2].reply, t[3].reply) and PLAYBOOK_MOVIL_PREGUNTAS.search(t[4].reply), t[4].reply
