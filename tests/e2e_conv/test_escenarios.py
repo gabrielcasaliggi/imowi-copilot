@@ -251,10 +251,25 @@ def test_base_off_corte_activo_avisa(canal):
     assert re.search(r"(incidencia|zona)", t[0].reply, re.I)
 
 
-def test_base_off_agente_si_crea_ticket(canal):
+def test_base_off_agente_deriva_directo(canal):
+    """ADR regla 5 en el legacy (sin journey): el pedido explícito ES la confirmación; el «sí» posterior no duplica."""
     t = converse(["no tengo internet", "quiero hablar con un agente", "sí"], canal=canal, journeys=False)
     sin_violaciones(t)
-    assert t[2].ticket_created and not t[1].ticket_created
+    assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
+    assert not t[2].ticket_created, t[2].reply
+
+
+def test_base_off_agente_movil_deriva_directo(canal):
+    t = converse(["tengo problemas con mi línea de imowi", "1", "quiero hablar con un agente"],
+                 canal=canal, journeys=False, profile="movil")
+    sin_violaciones(t)
+    assert t[2].ticket_created and HANDOFF_OK.search(t[2].reply), t[2].reply
+
+
+@pytest.mark.parametrize("texto", ["no necesito un agente", "¿necesito hablar con un agente?"])
+def test_base_off_negacion_o_pregunta_no_crea_ticket(canal, texto):
+    t = converse(["no tengo internet", texto], canal=canal, journeys=False)
+    assert not any(x.ticket_created for x in t), (texto, t[1].reply)
 
 
 def test_base_off_gracias_cierra(canal):

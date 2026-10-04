@@ -5713,6 +5713,8 @@ def procesar_mensaje_entrante(
         )
     ):
         intent = str(ctx.get("intencion") or conv.servicio_detectado or "general")
+        from app.services.eko_journeys import _explicit_agent_request
+
         tid, pending = _ticket_via_runtime_o_legacy(
             db,
             org_id,
@@ -5725,6 +5727,8 @@ def procesar_mensaje_entrante(
             canal=canal,
             texto=texto,
             decision_name="escape_agente",
+            # ADR regla 5: el pedido explícito ES la confirmación (derivada del texto por código).
+            confirmado_por_pedido=_explicit_agent_request(texto),
         )
         if pending:
             crepo.set_contexto(conv, ctx)
