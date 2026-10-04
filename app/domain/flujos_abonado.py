@@ -3869,11 +3869,13 @@ def mensaje_confirmacion_mejora_linea_vista(texto: str = "") -> str:
     return "Bien. ¿Notás mejor señal o velocidad de internet ahora?"
 
 
+_TEMA = r"(?:la\s+|el\s+|mi\s+|mis\s+|las\s+|los\s+|ese\s+|esa\s+)?\w+(?:\s+\w+){0,2}"
 _NIEGA_TEMA = re.compile(
-    r"\bno\s+(te\s+|le\s+)?(pregunt[eé]|consult[eé]|habl[eé]|hablaba|hablo|dije|mencion[eé]|quer[ií]a|quiero|es|era)\s+"
-    r"(nada\s+)?(por|de|sobre|con)\s+(la\s+|el\s+|mi\s+|mis\s+|las\s+|los\s+)?\w+"
-    r"|\bno\s+(tiene|tenia|tenía)\s+que\s+ver\s+con\b"
-    r"|\bno\s+es\s+(un\s+tema\s+)?(de|por)\b",
+    r"^\W*(?:(?:no|che)[,\s]+)?(?:"
+    r"no\s+(?:te\s+|le\s+)?(?:pregunt[eé]|consult[eé]|habl[eé]|hablaba|dije|mencion[eé]|quer[ií]a|es)\s+"
+    r"(?:nada\s+)?(?:por|de|sobre|con)\s+" + _TEMA +
+    r"|no\s+(?:tiene|tenia|tenía)\s+que\s+ver\s+con\s+" + _TEMA +
+    r")\W*$",
     re.I,
 )
 
@@ -3881,14 +3883,11 @@ _NIEGA_TEMA = re.compile(
 def niega_tema(texto: str) -> bool:
     """«no te pregunté por la factura», «no es por la factura»: nombra un tema para descartarlo.
 
-    No debe reclamar el turno para ese dominio (RC-3 acotado, H11b). Es una negación del tema,
-    no un pedido de agente ni del servicio («no tengo internet» no entra: no usa esas fórmulas).
+    Fórmula estricta: la negación es TODO el mensaje (tema de hasta 3 palabras, sin cola ni
+    afirmación posterior). Así «no es por internet, es por la factura» o «no es por el wifi, la
+    factura vino mal» no se tocan. No debe reclamar el turno para ese dominio (RC-3 acotado, H11b).
     """
-    t = (texto or "").lower()
-    if not _NIEGA_TEMA.search(t):
-        return False
-    # «no es por internet, es por la factura» / «…sino por la factura»: niega uno y afirma otro.
-    return not re.search(r"\bsino\b|[,;]\s*(es|era|quiero|necesito|me\s+interesa)\b|\bpero\s+(es|quiero|necesito)\b", t)
+    return bool(_NIEGA_TEMA.match((texto or "").strip().lower()))
 
 
 _SEGUIR_DIAGNOSTICO = re.compile(r"\b(segu[ií]\w*|sig[aou]\w*|continu\w+)\b[^.?!]*\bdiagn[oó]stic", re.I)
