@@ -137,7 +137,7 @@ JOURNEYS_R2 = [
     ),
     pytest.param(
         False,
-        marks=xf("R2/legacy: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar…?») y las respuestas al aviso caen al saludo genérico"),
+        marks=xf("R2/legacy: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar…?»); la respuesta al aviso ya no cae al saludo genérico (RC-5)"),
         id="journeys_off",
     ),
 ]
@@ -326,7 +326,6 @@ def test_e13_movil_con_saldo_aviso_una_vez_y_sigue_playbook(canal):
     assert PREGUNTA_LLAMADAS.search(r) and "?" in r and not BLOQUEA.search(r), r
 
 
-@xf("E14a: «no sigamos con el diagnóstico» tras el aviso cae en el saludo genérico y pierde el contexto")
 def test_e14a_no_sigamos_ofrece_pago_o_repregunta(canal):
     t = converse(BASE_MOVIL + ["no sigamos con el diagnóstico"], canal=canal, profile="movil_deuda")
     sin_violaciones(t)
@@ -341,14 +340,12 @@ def test_e14b_si_pagar_da_links(canal):
     assert PAGO.search(t[3].reply), t[3].reply
 
 
-@xf("E14c: «seguimos con el diagnóstico» tras el aviso cae en el saludo genérico en vez de seguir el playbook móvil")
 def test_e14c_seguimos_continua_playbook(canal):
     t = converse(BASE_MOVIL + ["seguimos con el diagnóstico"], canal=canal, profile="movil_deuda")
     sin_violaciones(t)
     assert inv.VOCAB_MOVIL.search(t[3].reply) and "?" in t[3].reply, t[3].reply
 
 
-@xf("E14d: un texto no relacionado tras el aviso resetea la conversación al saludo genérico y se pierde el contexto móvil")
 def test_e14d_texto_no_relacionado_no_pierde_contexto(canal):
     t = converse(BASE_MOVIL + ["¿hasta qué hora atienden?", "seguimos con el diagnóstico"], canal=canal, profile="movil_deuda")
     sin_violaciones(t)
@@ -435,3 +432,20 @@ def test_rc1_el_pass_no_toca_la_seleccion(canal):
     assert ref and ref.get("login") == "lemuramatiBAI", t[1].journey_state
     assert t[3].branch.startswith("legacy:"), t[3].branch
     assert t[3].journey_state.get("selected_service_ref") == ref, t[3].journey_state
+
+
+# ------------------------------------------------ RC-5: con contexto vivo el legacy no cae en el saludo genérico
+@pytest.mark.parametrize("texto,esperado", [("quiero pagar", PAGO), ("seguí con el diagnóstico", inv.VOCAB_INTERNET)])
+def test_rc5_off_respuesta_al_aviso_retoma_el_tema(canal, texto, esperado):
+    """Journeys OFF: el 1.er turno sale por la transición de dominio; el 2.º no se toma como elección del menú inicial."""
+    t = converse(["no tengo internet", texto], canal=canal, profile="deuda", journeys=False)
+    sin_violaciones(t)
+    assert esperado.search(t[1].reply), t[1].reply
+
+
+def test_rc5_on_hold_del_journey_devuelve_la_intencion_previa(canal):
+    """Journeys ON: el hold del journey resuelto es un PASS; el legacy recibe la intención que había, no la del journey."""
+    t = converse(BASE_MOVIL + ["seguimos con el diagnóstico"], canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    assert t[3].branch.startswith("legacy:") and PREGUNTA_LLAMADAS.search(t[3].reply), t[3].reply
+    assert t[3].journey_state.get("released_reason") == "post_resolution_hold", t[3].journey_state

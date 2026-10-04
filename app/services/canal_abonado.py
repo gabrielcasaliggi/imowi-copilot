@@ -2509,6 +2509,17 @@ def _elige_pago_o_tecnico(texto: str) -> str | None:
     return None
 
 
+def _contexto_vivo(ctx: dict) -> bool:
+    """RC-5: hay un tema en curso (intención, tema técnico pendiente, servicio elegido o problema declarado)."""
+    intent = str(ctx.get("intencion") or "").strip()
+    if intent and intent != "general":
+        return True
+    if str(ctx.get("intencion_tecnica_pendiente") or "").strip():
+        return True
+    j = ctx.get("eko_journey")
+    return isinstance(j, dict) and bool(j.get("selected_service_ref") or j.get("declared_problem"))
+
+
 def _cliente_salir_aviso_deuda(texto: str) -> bool:
     """No quiere pagar ni diagnosticar / servicio OK / desiste."""
     if _cliente_desiste_o_resuelto(texto) or indica_resuelto(texto):
@@ -5254,6 +5265,8 @@ def procesar_mensaje_entrante(
             }
 
     ctx = crepo.get_contexto(conv)
+    # RC-5: contexto vivo de turnos anteriores (antes de que este turno escriba intención).
+    contexto_vivo_al_entrar = _contexto_vivo(ctx)
     # 2.5D-4: handoff active + hilo ya en bot → invalidar confirmation stale
     # antes de un «sí» residual (validación ownership completa más abajo).
     try:
@@ -5337,20 +5350,29 @@ def procesar_mensaje_entrante(
     # Fase 5: Journey orchestration (capabilities existentes; flag off = Legacy N1).
     try:
         from app.services.eko_journeys import (
+            journey_release,
             journey_turn_to_response,
             maybe_handle_journey_turn,
         )
 
+        intencion_previa = ctx.get("intencion")
         jturn = maybe_handle_journey_turn(
             db, org_id, conv, abonado, texto, canal=canal, ctx=ctx
         )
         if _journey_hold_sin_texto(jturn):
             # Hold post-resolución sin cortesía: el journey no ejecutó Action/Runtime en
             # este turno, así que el Legacy N1 atiende (XOR: un solo camino por turno).
+            # RC-5: es un PASS — el legacy recibe la intención que tenía antes del turno
+            # (el journey la reescribe al entrar) y el estado del journey liberado.
             logger.info(
                 "eko_journeys: post_resolution_hold sin texto → Legacy N1 (journey=%s)",
                 jturn.journey,
             )
+            if intencion_previa is None:
+                ctx.pop("intencion", None)
+            else:
+                ctx["intencion"] = intencion_previa
+            journey_release(ctx, "post_resolution_hold")
             jturn = None
         if jturn is not None and jturn.handled:
             crepo.set_contexto(conv, ctx)
@@ -5899,6 +5921,10 @@ def procesar_mensaje_entrante(
 
     if abonado:
         conv.abonado_id = abonado.id
+        if not ctx.get("saludo") and contexto_vivo_al_entrar:
+            # RC-5: el 1.er turno ya abrió un tema (p. ej. salió por la transición de dominio):
+            # este texto lo continúa; no se reinterpreta como elección del menú inicial.
+            ctx["saludo"] = True
         if not ctx.get("saludo"):
             ctx["saludo"] = True
             ctx.pop("invitado", None)
