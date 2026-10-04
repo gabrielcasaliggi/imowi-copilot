@@ -35,6 +35,10 @@ Reglas duras (testeables):
 5. **Handoff.** El pedido explícito de agente se atiende **desde cualquier estado de journey** y **el pedido ES la confirmación**:
    deriva directo (crea el ticket) sin pedir un segundo «sí». Si el bot *ofrece* derivar (playbook agotado, sin sesión), ahí sí espera
    el «sí» del abonado. Nunca hay ticket sin una de las dos (I6, R1).
+   **Excepción implementada (H6):** con el journey **resuelto** (`done`, terminal) el pedido **confirma una vez** antes de crear el ticket;
+   lo exigen `test_eko_conversational_closure_2_7e`, `test_eko_turn_continuity` y `test_eko_deferred_close`. En cualquier otro estado
+   del journey, y sin journey activo (legacy, vía `_explicit_agent_request`), deriva directo.
+   «no necesito un agente» y «¿necesito hablar con un agente?» no son pedidos y no derivan.
 
 **Cuándo un journey está «terminado».** Una sola definición (extiende `_journey_is_resolved`, `eko_journeys.py:631`):
 `step == "done"` **y** sin `next_required_input` **y** sin `pending_confirmation` **y** sin `continuity_pending`.
@@ -100,10 +104,10 @@ Invariante resultante: **el journey nunca es dueño de la intención de la conve
 
 | Causa | Parte del contrato que la arregla | Riesgo | Orden |
 |---|---|---|---|
-| **H6** pedido de agente tras diagnóstico no deriva (el journey lo ignora o repite la confirmación) | §a regla 5 **Handoff**: el pedido explícito se atiende desde cualquier estado y deriva directo | bajo-medio (2.6K, 2.5D-4) | **0** |
-| RC-10 `_extract_service_id` toma «id» | (fuera del contrato) arreglo puntual de regex en 2.2B | bajo (1 línea + tests 2.2B) | 1 |
-| RC-11 solo logins `INT*` | resolver login contra el **catálogo** en vez de regex `INT*` | bajo-medio (2.2B/2.5D-2) | 2 |
-| RC-12 «sin Internet fijo» abierto | §a «terminado»: mensaje terminal → `done` | bajo | 3 |
+| **H6** ✅ `c6e2812` pedido de agente tras diagnóstico no deriva (el journey lo ignora o repite la confirmación) | §a regla 5 **Handoff**: el pedido explícito se atiende desde cualquier estado y deriva directo | bajo-medio (2.6K, 2.5D-4) | **0** |
+| RC-10 ✅ `544df29` `_extract_service_id` toma «id» | (fuera del contrato) arreglo puntual de regex en 2.2B | bajo (1 línea + tests 2.2B) | 1 |
+| RC-11 ✅ `1ca5c26` solo logins `INT*` | resolver login contra el **catálogo** en vez de regex `INT*` | bajo-medio (2.2B/2.5D-2) | 2 |
+| RC-12 ✅ `a6ea21e` «sin Internet fijo» abierto | §a «terminado»: mensaje terminal → `done` | bajo | 3 |
 | RC-9 selección = callejón / problema perdido | §a: tras selección, `RESPOND` con siguiente paso; guardar el problema en `eko_journey` | medio | 4 |
 | RC-1 confirmación atrapa el turno | §a: expiración + `PASS` ante texto no relacionado | medio (2.6K, 2.7D/E) | 5 |
 | RC-3 journey captura texto libre | §c lista blanca | **medio-alto** (2.7E cierre, continuidad) | 6 |
@@ -149,3 +153,5 @@ Implementación; cambios de copy; KB; el arreglo de planta real (Radius/UISP/BCM
    catálogo, con regresión dedicada (§12 del freeze). No se toca `get_selected_ref` ni `apply_service_ref`.
 
 Orden de implementación aceptado (tanda 1): Fase 0 docs → H6 → RC-10 → RC-11 → RC-12.
+**Tanda 1: IMPLEMENTADA** (H6 `c6e2812`, RC-10 `544df29`, RC-11 `1ca5c26`, RC-12 `a6ea21e`).
+Tanda 2 (en curso): pedido de agente sin journey (legacy) → RC-2 → RC-9.
