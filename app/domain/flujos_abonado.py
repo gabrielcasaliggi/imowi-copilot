@@ -3927,6 +3927,8 @@ def indica_resuelto(texto: str) -> bool:
         "ya quedo",
         "se solucionó",
         "se soluciono",
+        "ya se arregló",
+        "ya se arreglo",
         "ahora sí",
         "ahora si",
         "volvió todo",

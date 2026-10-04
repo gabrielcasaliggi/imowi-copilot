@@ -457,6 +457,47 @@ def _clear_stale_confirmation(ctx: dict[str, Any]) -> None:
         )
 
 
+_JOURNEY_OWNED_INTENTS = frozenset(
+    {"consulta_servicios", "facturacion", "estado_ticket", "seguimiento_instalacion"}
+)
+
+
+def journey_release(ctx: dict[str, Any], motivo: str, *, consumed_menu: bool = False) -> None:
+    """PASS del contrato de turno (ADR §b): único lugar que suelta el estado pendiente del journey.
+
+    El journey queda terminado (``done``) para no volver a capturar el texto siguiente; el turno
+    lo atiende el legacy. Nunca toca ``selected_service_ref`` ni planta, aviso de deuda o
+    ``eko_no_fixed_internet``. ``consumed_menu``: el journey consumió la respuesta al menú.
+    """
+    from app.services.eko_action_runtime import get_action_state, set_action_state
+
+    set_journey(
+        ctx,
+        step="done",
+        pending_confirmation=False,
+        confirmation_correlation="",
+        next_required_input="",
+        asked_selection=False,
+        selection_options=[],
+        reprompts=0,
+        released_reason=motivo,
+    )
+    act = get_action_state(ctx)
+    if act.get("status") == "confirmation_pending":
+        set_action_state(
+            ctx,
+            action=str(act.get("action") or ""),
+            status="released",
+            confirmation="CLEARED",
+        )
+    ctx.pop("multi_cuenta_pendiente", None)
+    if consumed_menu:
+        ctx.pop("menu_paso", None)
+        ctx.pop("menu_servicio", None)
+    if str(ctx.get("intencion") or "") in _JOURNEY_OWNED_INTENTS:
+        ctx.pop("intencion", None)
+
+
 def _is_resume_connectivity(texto: str) -> bool:
     t = (texto or "").lower().strip()
     if not t:
@@ -1024,6 +1065,7 @@ def _mark_confirmation_pending(ctx: dict[str, Any], *, corr: str) -> None:
         step="confirm_action",
         next_required_input="confirmation",
         confirmation_correlation=corr,
+        reprompts=0,
     )
 
 
@@ -1137,7 +1179,7 @@ def _advance_connectivity(
     texto: str,
     ctx: dict[str, Any],
     canal: str,
-) -> JourneyTurn:
+) -> JourneyTurn | None:
     st = get_journey(ctx)
     corr = str(st.get("correlation_id") or uuid.uuid4())
     set_journey(ctx, correlation_id=corr, intent="internet", domain="internet")
@@ -2013,7 +2055,8 @@ def _handle_ticket_confirmation(
     ctx: dict[str, Any],
     canal: str,
     corr: str,
-) -> JourneyTurn:
+) -> JourneyTurn | None:
+    """Oferta de derivación pendiente. ``None`` = PASS: la oferta expiró y atiende el legacy."""
     from app.services.canal_abonado import _ticket_via_runtime_o_legacy
 
     # RC-2: el «sí» solo confirma si el turno anterior del bot fue la oferta vigente de este journey.
@@ -2066,8 +2109,14 @@ def _handle_ticket_confirmation(
             correlation_id=corr,
         )
     if not rec:
-        # Still waiting — do not re-open menu; no stale mutation
+        # RC-1: la oferta expira. «ya anda» la cancela de una; otro texto se repregunta UNA vez
+        # y a la segunda el journey suelta el turno (PASS → legacy), sin ticket.
+        reprompts = int(get_journey(ctx).get("reprompts") or 0)
+        if _customer_confirmed_resolution(texto) or reprompts >= 1:
+            journey_release(ctx, "confirmation_expired")
+            return None
         _mark_confirmation_pending(ctx, corr=corr)
+        set_journey(ctx, reprompts=reprompts + 1)
         return JourneyTurn(
             handled=True,
             user_message=(

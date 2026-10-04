@@ -80,14 +80,13 @@ def test_05_movil_elegir_y_llamadas(canal):
     assert "línea 2235550001" in t[0].reply and "línea 2235550003" in t[0].reply  # menú distinguible (C)
 
 
-@xf("S6: tras un diagnóstico sin sesión, «ya funciona, muchas gracias» ofrece derivar a un agente en vez de cerrar")
 def test_06_gracias_tras_resolver(canal):
+    """RC-1: con la oferta de derivación pendiente, «ya funciona» la cancela (sin ticket) y el turno pasa al legacy."""
     t = converse(["no tengo internet", "ya funciona, muchas gracias"], canal=canal)
     sin_violaciones(t)
     assert not DERIVAR.search(t[1].reply), t[1].reply
 
 
-@xf("S7/H7: «ya se arregló» tras un diagnóstico no se reconoce como resuelto y ofrece derivar")
 def test_07_ya_se_arreglo(canal):
     t = converse(["no tengo internet", "ya se arregló"], canal=canal)
     sin_violaciones(t)
@@ -216,7 +215,7 @@ def test_h6c_negacion_o_pregunta_no_crea_ticket(canal, texto):
     assert not any(x.ticket_created for x in t), (texto, t[1].reply)
 
 
-@xf("H7: «ya se arregló» tras un diagnóstico ofrece derivar en lugar de acusar la resolución")
+@xf("H7 (tras RC-1): «ya se arregló» se acusa, pero el legacy cierra la conversación y el «gracias» siguiente abre una nueva con el saludo que pide DNI")
 def test_h7_ya_se_arreglo_tras_diagnostico(canal):
     t = converse(["no tengo internet", "ya se arregló", "gracias"], canal=canal)
     sin_violaciones(t)
@@ -410,3 +409,29 @@ def test_rc9_tv_tras_la_pregunta_siguiente_no_se_pierde_el_servicio(canal):
     t = converse(["no me anda la tele sensa", "no me abre la app de sensa"], canal=canal, profile="sensa")
     sin_violaciones(t, servicio=(-1, inv.VOCAB_TV, ()))
     assert not any(x.ticket_created for x in t) and t[1].reply, t[1].reply
+
+
+# ------------------------------------------------ RC-1: la oferta pendiente expira (repregunta una vez → PASS)
+def test_rc1_repregunta_una_vez_y_a_la_segunda_suelta_el_turno(canal):
+    t = converse(["no tengo internet", "sigue igual", "sigue igual"], canal=canal)
+    assert inv.CONFIRM_PROMPT.search(t[1].reply) and t[1].journey_state.get("reprompts") == 1, t[1].reply
+    assert t[2].reply and not inv.CONFIRM_PROMPT.search(t[2].reply), t[2].reply
+    assert t[2].branch.startswith("legacy:"), t[2].branch
+    js = t[2].journey_state
+    assert not js.get("pending_confirmation") and not js.get("next_required_input") and js.get("step") == "done", js
+    assert not any(x.ticket_created for x in t)
+
+
+def test_rc1_ya_anda_cancela_la_oferta_sin_repreguntar(canal):
+    t = converse(["no tengo internet", "ya anda"], canal=canal)
+    sin_violaciones(t)
+    assert t[1].branch.startswith("legacy:") and not inv.CONFIRM_PROMPT.search(t[1].reply), t[1].reply
+    assert not any(x.ticket_created for x in t)
+
+
+def test_rc1_el_pass_no_toca_la_seleccion(canal):
+    t = converse(["no tengo internet", "lemuramatiBAI", "sigue igual", "sigue igual"], canal=canal, profile="multi")
+    ref = t[1].journey_state.get("selected_service_ref")
+    assert ref and ref.get("login") == "lemuramatiBAI", t[1].journey_state
+    assert t[3].branch.startswith("legacy:"), t[3].branch
+    assert t[3].journey_state.get("selected_service_ref") == ref, t[3].journey_state
