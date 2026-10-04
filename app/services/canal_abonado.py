@@ -3705,6 +3705,39 @@ def _manejar_menu_consulta_n1(
     return None
 
 
+# Intenciones que solo deja un journey en ctx["intencion"] (eko_journeys._intent_for);
+# no son un playbook de diagnóstico y no deben pisar una intención explícita del menú.
+_INTENCIONES_DE_JOURNEY = frozenset(
+    {"consulta_servicios", "facturacion", "estado_ticket", "seguimiento_instalacion"}
+)
+
+
+def _intencion_tras_lifecycle(ctx: dict, explicita: str, trans: object) -> str:
+    """ctx.intencion (proyección del lifecycle) gana, salvo que sea un resto de journey.
+
+    Solo cede ante la intención explícita cuando: el lifecycle no cambió nada, la previa
+    es de un journey, la explícita es técnica específica y no hay un playbook de
+    diagnóstico legítimamente activo en el dominio.
+    """
+    previa = str(ctx.get("intencion") or "").strip()
+    if not previa:
+        return explicita
+    if (
+        previa in _INTENCIONES_DE_JOURNEY
+        and previa != explicita
+        and not (trans is not None and getattr(trans, "changed", False))
+    ):
+        from app.domain.conversation_state import hydrate_conversation_state
+        from app.services.diagnostico_n1 import es_diagnostico_tecnico_sin_facturacion
+
+        if es_diagnostico_tecnico_sin_facturacion(explicita):
+            slot = hydrate_conversation_state(ctx).active_slot()
+            activo = str(getattr(slot, "playbook", "") or "").strip()
+            if not es_diagnostico_tecnico_sin_facturacion(activo):
+                return explicita
+    return previa
+
+
 def _arrancar_intencion_menu(
     db: Session,
     org_id: str,
@@ -3746,7 +3779,7 @@ def _arrancar_intencion_menu(
             usar_llama=usar_llama,
         )
     trans = _aplicar_lifecycle_dominio(ctx, texto, playbook_hint=intencion)
-    intencion = str(ctx.get("intencion") or intencion)
+    intencion = _intencion_tras_lifecycle(ctx, intencion, trans)
     if not (trans and trans.resumed):
         ctx["intencion"] = intencion
         ctx["paso_idx"] = 0
