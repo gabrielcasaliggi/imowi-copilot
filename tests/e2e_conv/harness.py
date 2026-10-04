@@ -73,6 +73,7 @@ class Turn:
     ticket_id: str = ""
     branch: str = ""
     journey: dict | None = None
+    journey_state: dict = field(default_factory=dict)  # ctx['eko_journey'] persistido tras el turno
     error: str | None = None
 
     @property
@@ -206,6 +207,7 @@ def converse(
                     t.estado, t.modo = cv.estado, out.get("modo")
                     t.ticket_id = (cv.ticket_id or "").strip()
                     t.ticket_created = bool(t.ticket_id) and not antes
+                    t.journey_state = dict(crepo.get_contexto(cv).get("eko_journey") or {})
                 t.replies = list(sent)
                 t.journey = last_journey.get("j")
                 j = t.journey

@@ -3328,6 +3328,39 @@ def _wants_service_list(texto: str) -> bool:
     return any(p in t for p in _SERVICE_CATALOG_PHRASES)
 
 
+_PROBLEMA_DECLARADO = re.compile(
+    r"\b(problemas?|falla[sn]?|error|roto|lent[oa]|"
+    r"no\s+(?:me\s+)?(?:anda|funciona|va|carga|enciende|prende|se\s+ve|veo|puedo|tengo|llega)|"
+    r"se\s+(?:cae|corta|traba|congela)|sin\s+(?:se[ñn]al|datos|internet|servicio|imagen))\b",
+    re.I,
+)
+
+
+def _declares_problem(texto: str) -> bool:
+    return bool(_PROBLEMA_DECLARADO.search(texto or ""))
+
+
+def _next_step_question(ref: Any) -> str:
+    """Pregunta de arranque tras elegir servicio (mismo copy que el legacy del tipo de servicio)."""
+    tip = (getattr(ref, "service_type", "") or "").strip().lower()
+    if tip in ("movil", "móvil", "mobile", "imowi"):
+        return "¿Qué te pasa: sin señal, sin datos o no podés llamar?"
+    if tip in ("tv", "sensa"):
+        return "¿Es la app o web de Sensa, o la TV con decodificador?"
+    if tip in ("internet", "fibra", "radio", "adsl"):
+        return "¿Qué te pasa con ese Internet?"
+    return "Contame qué te pasa."
+
+
+def _selection_done_message(name: str, login: str, ref: Any, problema: str) -> str:
+    """«Listo» + siguiente paso; si el abonado ya había declarado un problema, lo retoma (RC-9)."""
+    msg = f"Listo: seleccioné «{name}»."
+    if login:
+        msg += f" (cuenta {login})"
+    pregunta = _next_step_question(ref)
+    return f"{msg} Retomo lo que me contabas: {pregunta}" if problema else f"{msg} {pregunta}"
+
+
 def _advance_service_catalog(
     *,
     db: Session | None,
@@ -3472,13 +3505,16 @@ def _advance_service_catalog(
             apply_service_ref(ctx, result.ref)
             ref = result.ref
             name = ref.product or ref.label or ref.service_type or ref.service_id
-            msg = f"Listo: seleccioné «{name}»."
-            if ref.login:
-                msg += f" (cuenta {ref.login})"
+            # RC-9: el problema declarado antes de elegir (guardado al abrir la selección) o en este mismo texto.
+            problema = str(get_journey(ctx).get("declared_problem") or "") or (
+                (texto or "").strip() if _declares_problem(texto) else ""
+            )
+            msg = _selection_done_message(name, ref.login, ref, problema)
             set_journey(
                 ctx,
                 step="done",
                 last_user_message=msg,
+                declared_problem="",
                 selection_options=pending_opts or [option_from_row(r) for r in rows],
             )
             return JourneyTurn(
@@ -3520,6 +3556,9 @@ def _advance_service_catalog(
             selection_options=options,
             asked_selection=True,
         )
+        if not pending_opts:
+            # RC-9: el texto que abre la selección puede traer el problema; no se pierde al elegir.
+            set_journey(ctx, declared_problem=(texto or "").strip() if _declares_problem(texto) else "")
         return JourneyTurn(
             handled=True,
             user_message=result.message or format_selection_options(options),

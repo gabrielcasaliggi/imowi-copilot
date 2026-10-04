@@ -20,7 +20,7 @@ def test_dos_unos_seguidos_dan_listo_y_un_acuse_distinto(chat):  # noqa: F811
     say = chat
     _arrancar(say)
     sent1, ctx1, _t = say("1")
-    assert sent1 == ["Listo: seleccioné «Imowi 5 GB». (cuenta 2235550001)"]
+    assert len(sent1) == 1 and sent1[0].startswith("Listo: seleccioné «Imowi 5 GB». (cuenta 2235550001)")  # RC-9: + siguiente paso
     sent2, ctx2, ticket = say("1")
     assert sent2 == ["Ya tengo seleccionado «Imowi 5 GB». Contame qué te pasa."]
     assert not sent2[0].startswith("Listo")
@@ -45,7 +45,7 @@ def test_cambio_real_de_servicio_confirma_con_listo(chat):  # noqa: F811
     _arrancar(say)
     say("1")
     sent, ctx, _t = say("2")
-    assert sent == ["Listo: seleccioné «Imowi 3 GB». (cuenta 2235550002)"]
+    assert len(sent) == 1 and sent[0].startswith("Listo: seleccioné «Imowi 3 GB». (cuenta 2235550002)")  # RC-9: + siguiente paso
     assert ctx["eko_journey"]["selected_service_ref"]["service_id"] == "m2"
     # y volver a repetir el nuevo servicio sí es acuse
     sent2, _ctx2, _t = say("2")

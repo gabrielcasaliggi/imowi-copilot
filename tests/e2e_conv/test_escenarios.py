@@ -107,7 +107,6 @@ def test_09_corte_activo(canal):
     assert re.search(r"(incidencia|corte|zona)", t[0].reply, re.I), t[0].reply
 
 
-@xf("S10/H8: elegir Sensa/TV responde «Listo: seleccioné…» sin pregunta ni guía siguiente (callejón)")
 def test_10_sensa_tv(canal):
     t = converse(["no me anda la tele sensa"], canal=canal, profile="sensa")
     sin_violaciones(t, servicio=(-1, inv.VOCAB_TV, ()))
@@ -224,7 +223,6 @@ def test_h7_ya_se_arreglo_tras_diagnostico(canal):
     assert ACUSE_RESUELTO.search(t[1].reply) and not DERIVAR.search(t[1].reply), t[1].reply
 
 
-@xf("H8: elegir Sensa/TV confirma la selección y no pregunta qué pasa con la TV")
 def test_h8_elegir_sensa(canal):
     t = converse(["quiero ver el servicio de sensa tv"], canal=canal, profile="sensa")
     sin_violaciones(t)
@@ -237,11 +235,25 @@ def test_h9_sin_fijo_y_luego_hola(canal):
     sin_violaciones(t)
 
 
-@xf("H10: el problema declarado antes de elegir servicio se pierde: tras elegir solo confirma, sin retomar el problema")
 def test_h10_problema_declarado_antes_de_elegir(canal):
     t = converse(["tengo problemas con mi línea de imowi", "1"], canal=canal, profile="movil")
     sin_violaciones(t)
     assert "?" in t[1].reply or "contame" in t[1].reply.lower() or "problema" in t[1].reply.lower(), t[1].reply
+    # RC-9: el problema se guardó en eko_journey al abrir la selección, se retoma y se consume al elegir.
+    assert t[0].journey_state.get("declared_problem") == "tengo problemas con mi línea de imowi", t[0].journey_state
+    assert "retomo lo que me contabas" in t[1].reply.lower(), t[1].reply
+    assert not t[1].journey_state.get("declared_problem"), t[1].journey_state
+
+
+def test_rc9_seleccion_sin_problema_no_dice_retomo(canal):
+    t = converse(["quiero ver el servicio de sensa tv"], canal=canal, profile="sensa")
+    assert "retomo" not in t[0].reply.lower() and "?" in t[0].reply, t[0].reply
+
+
+def test_rc9_tras_la_pregunta_siguiente_el_legacy_sigue_el_hilo(canal):
+    t = converse(["tengo problemas con mi línea de imowi", "1", "no puedo hacer llamadas"], canal=canal, profile="movil")
+    sin_violaciones(t)
+    assert PREGUNTA_LLAMADAS.search(t[2].reply), t[2].reply
 
 
 # =============================================================== comparación con journeys OFF (línea base legacy)
@@ -373,3 +385,9 @@ def test_rc2_no_a_la_oferta_no_crea_ticket(canal):
 def test_rc2_si_suelto_sin_oferta_no_crea_ticket(canal, script, perfil):
     t = converse(script, canal=canal, profile=perfil, ticket_abierto=script[0].startswith("cómo"))
     assert not any(x.ticket_created for x in t), [(x.user, x.reply[:80]) for x in t]
+
+
+def test_rc9_tv_tras_la_pregunta_siguiente_no_se_pierde_el_servicio(canal):
+    t = converse(["no me anda la tele sensa", "no me abre la app de sensa"], canal=canal, profile="sensa")
+    sin_violaciones(t, servicio=(-1, inv.VOCAB_TV, ()))
+    assert not any(x.ticket_created for x in t) and t[1].reply, t[1].reply
