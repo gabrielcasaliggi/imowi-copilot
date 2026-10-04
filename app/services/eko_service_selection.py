@@ -75,18 +75,26 @@ def option_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "label": str(row.get("label") or row.get("product") or "").strip(),
         "product": str(row.get("product") or "").strip(),
         "active": bool(row.get("active")),
+        # Solo presentación (distinguir líneas iguales); la selección nunca lo usa.
+        "line_msisdn": str(row.get("line_msisdn") or "").strip(),
     }
 
 
 def format_selection_options(options: list[dict[str, Any]]) -> str:
+    """Menú numerado. Misma etiqueta que el listado de servicios (tipo, nombre, línea)."""
     if not options:
         return "No tengo servicios para elegir en tu cuenta."
+    from app.services.eko_action_runtime import _SERVICE_TYPE_LABEL
+
     lines = ["¿Cuál servicio querés usar? Respondé con el número:"]
     for i, opt in enumerate(options, start=1):
-        name = str(opt.get("product") or opt.get("label") or opt.get("type") or "Servicio")
-        tip = str(opt.get("type") or "")
-        prefix = f"{tip}: " if tip and tip.lower() not in name.lower() else ""
-        lines.append(f"{i}) {prefix}{name}")
+        tip = str(opt.get("type") or "").strip()
+        tip_l = _SERVICE_TYPE_LABEL.get(tip, "Servicio") if tip else ""
+        name = str(opt.get("product") or opt.get("label") or tip_l or "Servicio")
+        prefix = f"{tip_l}: " if tip_l and tip_l.lower() not in name.lower() else ""
+        msisdn = str(opt.get("line_msisdn") or "").strip()
+        extra = f" · línea {msisdn}" if msisdn else ""
+        lines.append(f"{i}) {prefix}{name}{extra}")
     return "\n".join(lines)
 
 
@@ -107,6 +115,7 @@ def _normalize_options(raw: list[Any] | None) -> list[dict[str, Any]]:
                     "label": str(item.get("label") or item.get("product") or "").strip(),
                     "product": str(item.get("product") or "").strip(),
                     "active": bool(item.get("active", True)),
+                    "line_msisdn": str(item.get("line_msisdn") or "").strip(),
                 }
             )
         else:
