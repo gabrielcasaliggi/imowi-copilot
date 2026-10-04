@@ -2986,7 +2986,7 @@ def _ticket_via_runtime_o_legacy(
     canal: str = "",
     texto: str = "",
     decision_name: str = "create_ticket",
-    confirmado_por_pedido: bool = False,
+    confirmacion_determinista: bool = False,
 ) -> tuple[str | None, str | None]:
     """(ticket_id, pending_user_message).
 
@@ -3030,7 +3030,7 @@ def _ticket_via_runtime_o_legacy(
         parameters={"motivo": motivo, "intencion": intencion},
         historial=historial,
         texto=texto,
-        confirmation_received=True if confirmado_por_pedido else None,
+        confirmation_received=True if confirmacion_determinista else None,
     )
     # covers() era True: NUNCA Legacy mutante (ni si dispatch devolviera None).
     if ar is None:
@@ -5728,7 +5728,7 @@ def procesar_mensaje_entrante(
             texto=texto,
             decision_name="escape_agente",
             # ADR regla 5: el pedido explícito ES la confirmación (derivada del texto por código).
-            confirmado_por_pedido=_explicit_agent_request(texto),
+            confirmacion_determinista=_explicit_agent_request(texto),
         )
         if pending:
             crepo.set_contexto(conv, ctx)

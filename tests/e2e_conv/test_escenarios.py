@@ -347,3 +347,29 @@ def test_e16b_movil_sin_confirmacion_no_crea_ticket(canal):
     t = converse(script, canal=canal, profile="movil")
     sin_violaciones(t)
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
+
+
+# ------------------------------------------------ RC-2: el «sí» confirma solo una oferta vigente del propio bot
+def test_rc2_si_a_la_oferta_del_journey_crea_el_ticket(canal):
+    t = converse(["no tengo internet", "sí"], canal=canal)
+    sin_violaciones(t)
+    assert inv.CONFIRM_PROMPT.search(t[0].reply) and not t[0].ticket_created, t[0].reply
+    assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
+
+
+def test_rc2_si_tras_reofrecer_crea_el_ticket(canal):
+    t = converse(["no tengo internet", "sigue igual", "sí"], canal=canal)
+    assert not t[1].ticket_created
+    assert t[2].ticket_created, t[2].reply
+
+
+def test_rc2_no_a_la_oferta_no_crea_ticket(canal):
+    t = converse(["no tengo internet", "no"], canal=canal)
+    assert not any(x.ticket_created for x in t), t[1].reply
+
+
+@pytest.mark.parametrize("script,perfil", [(["hola", "sí"], "int1"), (["tengo deuda?", "sí"], "deuda"),
+                                           (["cómo va mi ticket", "sí"], "int1")])
+def test_rc2_si_suelto_sin_oferta_no_crea_ticket(canal, script, perfil):
+    t = converse(script, canal=canal, profile=perfil, ticket_abierto=script[0].startswith("cómo"))
+    assert not any(x.ticket_created for x in t), [(x.user, x.reply[:80]) for x in t]

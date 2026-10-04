@@ -73,8 +73,13 @@ def resolve_user_confirmation(
     intencion: str = "",
     action: str = "",
     texto: str = "",
+    offer_live: bool = False,
 ) -> tuple[bool, bool]:
     """Deriva confirmación confiable del usuario.
+
+    ``offer_live``: el llamador (código determinista) verificó que el turno anterior del bot fue una
+    oferta vigente de esta acción (p. ej. el journey con su confirmación pendiente); equivale al
+    estado ``confirmation_pending`` del Runtime para aceptar el «sí»/«no» corto.
 
     Returns:
         (confirmation_received, confirmation_rejected)
@@ -95,7 +100,7 @@ def resolve_user_confirmation(
 
     # Rechazo tras pending
     t = (texto or "").strip().lower()
-    pending = (
+    pending = offer_live or (
         st.get("status") == "confirmation_pending"
         and (not action_n or st.get("action") == action_n)
     )

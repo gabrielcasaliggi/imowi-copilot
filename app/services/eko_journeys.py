@@ -971,6 +971,31 @@ def _confirmation_is_live(ctx: dict[str, Any]) -> bool:
     return True
 
 
+def _inbound_count(db: Any, conv: Any) -> int | None:
+    """Mensajes del abonado en la conversación (None si no se pueden contar)."""
+    if db is None or conv is None:
+        return None
+    try:
+        from app.estate import canal_repo as crepo
+
+        return sum(1 for m in crepo.list_mensajes(db, conv.id) if m.direccion == "in")
+    except Exception:
+        logger.debug("journey: no se pudo contar mensajes", exc_info=True)
+        return None
+
+
+def _offer_is_previous_turn(db: Any, conv: Any, ctx: dict[str, Any]) -> bool:
+    """True si entre la oferta del journey y este mensaje no hubo otro turno del abonado (RC-2, I6).
+
+    Sin dato (estado previo al campo o sin DB) no se puede afirmar lo contrario: se acepta.
+    """
+    offered = get_journey(ctx).get("confirmation_offer_inbound")
+    now = _inbound_count(db, conv)
+    if offered is None or now is None:
+        return True
+    return now == int(offered) + 1
+
+
 def _mark_confirmation_pending(ctx: dict[str, Any], *, corr: str) -> None:
     set_journey(
         ctx,
@@ -1969,11 +1994,13 @@ def _handle_ticket_confirmation(
 ) -> JourneyTurn:
     from app.services.canal_abonado import _ticket_via_runtime_o_legacy
 
+    # RC-2: el «sí» solo confirma si el turno anterior del bot fue la oferta vigente de este journey.
     rec, rej = resolve_user_confirmation(
         ctx=ctx,
         action="create_ticket",
         texto=texto,
         intencion=str(ctx.get("intencion") or "internet"),
+        offer_live=_confirmation_is_live(ctx) and _offer_is_previous_turn(db, conv, ctx),
     )
     # ADR regla 5 (Handoff): el pedido explícito de agente ES la confirmación; deriva directo.
     por_pedido = _explicit_agent_request(texto)
@@ -2035,7 +2062,7 @@ def _handle_ticket_confirmation(
         canal=canal,
         texto=texto,
         decision_name="journey_connectivity_create_ticket",
-        confirmado_por_pedido=por_pedido,
+        confirmacion_determinista=rec,
     )
     if pending:
         _mark_confirmation_pending(ctx, corr=corr)
@@ -3611,6 +3638,27 @@ def _advance_service_catalog(
 
 
 def maybe_handle_journey_turn(
+    db: Session | None,
+    org_id: str,
+    conv: Any,
+    abonado: Any | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict[str, Any],
+) -> JourneyTurn | None:
+    """Avanza Journey si está habilitado. None → continuar Legacy N1.
+
+    Si el turno deja una confirmación pendiente (oferta de derivación) anota cuántos mensajes del
+    abonado había: el «sí» solo la confirma si es el mensaje inmediato siguiente (RC-2, I6).
+    """
+    turn = _maybe_handle_journey_turn(db, org_id, conv, abonado, texto, canal=canal, ctx=ctx)
+    if turn is not None and get_journey(ctx).get("pending_confirmation"):
+        set_journey(ctx, confirmation_offer_inbound=_inbound_count(db, conv))
+    return turn
+
+
+def _maybe_handle_journey_turn(
     db: Session | None,
     org_id: str,
     conv: Any,
