@@ -360,6 +360,11 @@ def detect_journey_name(texto: str) -> JourneyName | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
+    # RC-3 / H11b: «no te pregunté por la factura» nombra el tema para descartarlo; no abre el journey.
+    from app.domain.flujos_abonado import niega_tema
+
+    if niega_tema(t):
+        return None
     # Billing / ticket / catálogo antes que connectivity genérico
     if any(p in t for p in _TICKET_NOTE_PHRASES) or any(p in t for p in _TICKET_PHRASES):
         return "ticket_consulta"

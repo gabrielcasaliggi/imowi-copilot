@@ -1799,6 +1799,9 @@ def _menciona_tv_sensa(texto: str) -> bool:
 
 
 def clasificar_intencion(texto: str, servicio_abonado: str = "") -> str:
+    # RC-3 / H11b: «no te pregunté por la factura» nombra el tema para descartarlo: no clasifica a ese tema.
+    if niega_tema(texto):
+        return "general"
     intent = _clasificar_intencion_core(texto, servicio_abonado)
     return ajustar_intencion_a_padron(intent, servicio_abonado, texto)
 
@@ -3864,6 +3867,28 @@ def mensaje_espera_despeje_linea_vista(texto: str = "") -> str:
 
 def mensaje_confirmacion_mejora_linea_vista(texto: str = "") -> str:
     return "Bien. ¿Notás mejor señal o velocidad de internet ahora?"
+
+
+_NIEGA_TEMA = re.compile(
+    r"\bno\s+(te\s+|le\s+)?(pregunt[eé]|consult[eé]|habl[eé]|hablaba|hablo|dije|mencion[eé]|quer[ií]a|quiero|es|era)\s+"
+    r"(nada\s+)?(por|de|sobre|con)\s+(la\s+|el\s+|mi\s+|mis\s+|las\s+|los\s+)?\w+"
+    r"|\bno\s+(tiene|tenia|tenía)\s+que\s+ver\s+con\b"
+    r"|\bno\s+es\s+(un\s+tema\s+)?(de|por)\b",
+    re.I,
+)
+
+
+def niega_tema(texto: str) -> bool:
+    """«no te pregunté por la factura», «no es por la factura»: nombra un tema para descartarlo.
+
+    No debe reclamar el turno para ese dominio (RC-3 acotado, H11b). Es una negación del tema,
+    no un pedido de agente ni del servicio («no tengo internet» no entra: no usa esas fórmulas).
+    """
+    t = (texto or "").lower()
+    if not _NIEGA_TEMA.search(t):
+        return False
+    # «no es por internet, es por la factura» / «…sino por la factura»: niega uno y afirma otro.
+    return not re.search(r"\bsino\b|[,;]\s*(es|era|quiero|necesito|me\s+interesa)\b|\bpero\s+(es|quiero|necesito)\b", t)
 
 
 _SEGUIR_DIAGNOSTICO = re.compile(r"\b(segu[ií]\w*|sig[aou]\w*|continu\w+)\b[^.?!]*\bdiagn[oó]stic", re.I)

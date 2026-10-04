@@ -42,6 +42,7 @@ from app.domain.flujos_abonado import (
     intencion_es_internet,
     misma_queja,
     niega_producto_internet,
+    niega_tema,
     parece_consulta_nueva,
     parse_modalidad_titularidad,
     pide_humano,
@@ -6130,7 +6131,8 @@ def procesar_mensaje_entrante(
             if _account_status(abonado) == "baja"
             else ""
         )
-        gesto_ov = clasificar_gesto_ov(texto)
+        # RC-3 / H11b: «no te pregunté por la factura» no es un pedido de factura/OV.
+        gesto_ov = None if niega_tema(texto) else clasificar_gesto_ov(texto)
 
         # Gestos OV (factura/pagar/…) van al diagnóstico; no cortar a saldo genérico.
         if gesto_ov is None and _cliente_consulta_saldo(texto):

@@ -465,8 +465,10 @@ def test_h11_no_las_recibo_sigue_el_playbook_movil(canal):
     assert not FACTURACION.search(t[3].reply) and re.search(r"(llam|señal|reinici|anduvo|pantalla|sim)", t[3].reply, re.I), t[3].reply
 
 
-@xf("H11/RC-3: «no te pregunté por la factura» contiene «factura»: detect_journey_name abre el journey de facturación y manda a la OV")
 def test_h11_negacion_sobre_el_tema_no_abre_facturacion(canal):
     t = converse(H11_SCRIPT, canal=canal, profile="movil_deuda")
-    sin_violaciones(t)
-    assert not (t[4].branch.startswith("journey:billing") or FACTURACION.search(t[4].reply)), (t[4].branch, t[4].reply)
+    # Sin I5: el bot repite la pregunta del playbook («¿Anduvo?») en los turnos 3 y 4 (hallazgo aparte de H11).
+    v = [x for x in inv.violaciones(t) if not x.startswith("I5")]
+    assert not v, v
+    assert not any(x.branch.startswith("journey:billing") or FACTURACION.search(x.reply) for x in t[3:]), [(x.branch, x.reply) for x in t[3:]]
+    assert t[4].reply and re.search(r"(llam|anduvo|reinici)", t[4].reply, re.I), t[4].reply

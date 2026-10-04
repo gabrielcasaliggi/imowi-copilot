@@ -327,6 +327,17 @@ def apply_turn_domain(
             playbook=(previous.playbook if previous else "") or "",
         )
 
+    # RC-3 / H11b: negar un tema («no es por la factura») no lo activa; el turno sigue en el dominio activo.
+    from app.domain.flujos_abonado import niega_tema
+
+    if previous is not None and niega_tema(texto):
+        return DomainTransitionResult(
+            cs=cs,
+            previous_active_id=prev_id,
+            active_domain_id=cs.active_domain_id,
+            playbook=previous.playbook or "",
+            reason="noop",
+        )
     spans = domain_spans_in_order(texto)
     secondary_kind = spans[1] if len(spans) > 1 else None
     tramite_pb = _tramite_comercial_desde_texto(texto)
