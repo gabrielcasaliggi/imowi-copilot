@@ -179,8 +179,8 @@ def test_14b_respuesta_al_aviso_seguir(canal, journeys):
 
 
 # =============================================================== hallazgos abiertos (H5–H10)
-@xf("H5: un login que contiene «id» (tupaciretacuidaBAI) se toma como service_id → «Ese servicio no pertenece a tu cuenta»")
 def test_h5_login_con_id_en_multicuenta(canal):
+    """H5/RC-10: un login con «id» adentro no se toma como service_id (la resolución por texto es RC-11)."""
     t = converse(
         ["no tengo internet", "lemuramatiBAI", "ahora revisame el de tupaciretacuidaBAI"], canal=canal, profile="multi"
     )

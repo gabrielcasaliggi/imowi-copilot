@@ -157,8 +157,9 @@ def _ordinal_index(texto: str) -> int | None:
 def _extract_service_id(texto: str) -> str:
     t = (texto or "").strip()
     # UUID-like or numeric id explícito
+    # «id» como palabra: no dentro de otra (p. ej. «tupaciretacuidaBAI» → «aBAI»).
     m = re.search(
-        r"(?:service[_ ]?id|id)\s*[:=]?\s*([A-Za-z0-9-]{2,64})",
+        r"(?:\bservice[_ ]?id\b|\bid\b)\s*[:=]?\s*([A-Za-z0-9-]{2,64})",
         t,
         re.I,
     )
