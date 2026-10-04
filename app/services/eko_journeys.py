@@ -3281,11 +3281,15 @@ def _advance_service_catalog(
         looks_like_selection_utterance,
         option_from_row,
         resolve_service_selection,
+        selection_changed,
     )
     from app.services.portal_services import catalog_for_selection
 
     journey = "service_catalog"
     corr = str(get_journey(ctx).get("correlation_id") or uuid.uuid4())
+    # Estado previo al turno (el set_journey de abajo pasa step a «respond»).
+    step_previo = str(get_journey(ctx).get("step") or "")
+    pendiente_previo = str(get_journey(ctx).get("next_required_input") or "").strip()
     set_journey(
         ctx,
         name=journey,
@@ -3378,6 +3382,29 @@ def _advance_service_catalog(
             current_ref=get_selected_ref(ctx),
         )
         if result.status == "selected" and result.ref is not None:
+            prev_ref = get_selected_ref(ctx)
+            if (
+                prev_ref is not None
+                and not selection_changed(prev_ref, result.ref)
+                and step_previo == "done"
+                and not pendiente_previo
+            ):
+                # Mismo servicio ya seleccionado y nada pendiente: acuse breve, sin reabrir.
+                set_journey(ctx, step="done")
+                name = prev_ref.product or prev_ref.label or prev_ref.service_type or prev_ref.service_id
+                return JourneyTurn(
+                    handled=True,
+                    user_message=f"Ya tengo seleccionado «{name}». Contame qué te pasa.",
+                    journey=journey,
+                    step="done",
+                    intent="consulta_servicios",
+                    domain="services",
+                    action="service_selection",
+                    action_status="already_done",
+                    reason_code="selection_unchanged",
+                    correlation_id=corr,
+                    data={"execution_path": "deterministic", "selection_unchanged": True},
+                )
             apply_service_ref(ctx, result.ref)
             ref = result.ref
             name = ref.product or ref.label or ref.service_type or ref.service_id
