@@ -3,6 +3,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 asyncio_mode = "auto"
 addopts = "-q"
+markers = [
+    "e2e_conv: escenarios conversacionales multi-turno (tests/e2e_conv); correr aparte del resto de la suite",
+]
 
 [tool.ruff]
 target-version = "py312"
