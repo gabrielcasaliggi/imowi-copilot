@@ -451,3 +451,23 @@ def test_rc67_aviso_va_antes_de_la_respuesta_tecnica_y_no_cambia_la_intencion(ca
 def test_rc67_sin_saldo_no_hay_aviso(canal):
     t = converse(["no tengo internet"], canal=canal, profile="int1")
     assert avisos(t) == 0, t[0].reply
+
+
+# ------------------------------------------------ H11: el aviso de deuda no deja facturación viva
+H11_SCRIPT = ["hola", "por telefonia movil", "tencnico. no puedo hacer llamadas", "no las recibo", "no te pregunte por la factura"]
+FACTURACION = re.compile(r"(factura|aumento|cobro|c[oó]mo pagar|facturaci[oó]n|ov\.batan)", re.I)
+
+
+@xf("H11: «no las recibo» (respuesta al playbook móvil) se lee como «recibo» de factura: el lifecycle cambia a facturación y pregunta por aumentos/cobros")
+def test_h11_no_las_recibo_sigue_el_playbook_movil(canal):
+    t = converse(H11_SCRIPT[:4], canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    assert avisos(t) == 1 and DEBT_NOTICE.search(t[2].reply) and inv.VOCAB_MOVIL.search(t[2].reply + " llamada"), t[2].reply
+    assert not FACTURACION.search(t[3].reply) and re.search(r"(llam|señal|reinici|anduvo|pantalla|sim)", t[3].reply, re.I), t[3].reply
+
+
+@xf("H11 (consecuencia): tras caer en facturación, «no te pregunté por la factura» abre el journey de facturación y lista facturas / manda a la OV")
+def test_h11_negacion_sobre_el_tema_no_abre_facturacion(canal):
+    t = converse(H11_SCRIPT, canal=canal, profile="movil_deuda")
+    sin_violaciones(t)
+    assert not (t[4].branch.startswith("journey:billing") or FACTURACION.search(t[4].reply)), (t[4].branch, t[4].reply)
