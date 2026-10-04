@@ -212,6 +212,41 @@ def _tramite_comercial_desde_texto(texto: str) -> str | None:
     return None
 
 
+# Palabras de facturación que NO alcanzan solas para sacar al abonado de un diagnóstico técnico:
+# «no las recibo» (llamadas) contiene «recibo» (de factura). H11.
+_FACTURACION_FUERTE = (
+    "factur",
+    "boleta",
+    "saldo",
+    "deuda",
+    "debo",
+    "pago",
+    "pagar",
+    "pagué",
+    "cobr",
+    "aumento",
+    "abonar",
+    "qr",
+    "fiserv",
+    "mercado pago",
+    "cuenta corriente",
+)
+
+
+def _respuesta_a_pregunta_tecnica_pendiente(
+    cs: ConversationState, previous: DomainSlot | None, texto: str
+) -> bool:
+    """H11: con un diagnóstico técnico abierto y su pregunta pendiente, un texto sin términos fuertes de
+    facturación es la respuesta al playbook, aunque contenga una palabra ambigua («recibo»)."""
+    if previous is None or previous.kind != KIND_TECNICO or previous.status != "active":
+        return False
+    pending = cs.pending_bot or previous.pending_bot
+    if pending is None or getattr(pending, "status", "open") != "open":
+        return False
+    t = (texto or "").lower()
+    return not any(k in t for k in _FACTURACION_FUERTE)
+
+
 def _respuesta_en_tramite_comercial(previous: DomainSlot | None, texto: str) -> bool:
     """Producto/modalidad cortos dentro de baja/titularidad: no saltar a técnico."""
     if previous is None or previous.kind != KIND_COMERCIAL:
@@ -301,6 +336,19 @@ def apply_turn_domain(
         # «internet»/«sensa» en la baja no abren técnico secundario.
         secondary_kind = None
     elif _respuesta_en_tramite_comercial(previous, texto):
+        return DomainTransitionResult(
+            cs=cs,
+            previous_active_id=prev_id,
+            active_domain_id=cs.active_domain_id,
+            playbook=(previous.playbook if previous else "") or "",
+            reason="noop",
+            secondary_kind=None,
+        )
+    elif (
+        not spans
+        and _respuesta_a_pregunta_tecnica_pendiente(cs, previous, texto)
+        and kind_from_user_signal(texto) == KIND_ADMIN
+    ):
         return DomainTransitionResult(
             cs=cs,
             previous_active_id=prev_id,

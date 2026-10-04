@@ -458,7 +458,6 @@ H11_SCRIPT = ["hola", "por telefonia movil", "tencnico. no puedo hacer llamadas"
 FACTURACION = re.compile(r"(factura|aumento|cobro|c[oó]mo pagar|facturaci[oó]n|ov\.batan)", re.I)
 
 
-@xf("H11: «no las recibo» (respuesta al playbook móvil) se lee como «recibo» de factura: el lifecycle cambia a facturación y pregunta por aumentos/cobros")
 def test_h11_no_las_recibo_sigue_el_playbook_movil(canal):
     t = converse(H11_SCRIPT[:4], canal=canal, profile="movil_deuda")
     sin_violaciones(t)
@@ -466,7 +465,7 @@ def test_h11_no_las_recibo_sigue_el_playbook_movil(canal):
     assert not FACTURACION.search(t[3].reply) and re.search(r"(llam|señal|reinici|anduvo|pantalla|sim)", t[3].reply, re.I), t[3].reply
 
 
-@xf("H11 (consecuencia): tras caer en facturación, «no te pregunté por la factura» abre el journey de facturación y lista facturas / manda a la OV")
+@xf("H11/RC-3: «no te pregunté por la factura» contiene «factura»: detect_journey_name abre el journey de facturación y manda a la OV")
 def test_h11_negacion_sobre_el_tema_no_abre_facturacion(canal):
     t = converse(H11_SCRIPT, canal=canal, profile="movil_deuda")
     sin_violaciones(t)
