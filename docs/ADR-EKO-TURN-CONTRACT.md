@@ -108,10 +108,10 @@ Invariante resultante: **el journey nunca es dueño de la intención de la conve
 | RC-10 ✅ `544df29` `_extract_service_id` toma «id» | (fuera del contrato) arreglo puntual de regex en 2.2B | bajo (1 línea + tests 2.2B) | 1 |
 | RC-11 ✅ `1ca5c26` solo logins `INT*` | resolver login contra el **catálogo** en vez de regex `INT*` | bajo-medio (2.2B/2.5D-2) | 2 |
 | RC-12 ✅ `a6ea21e` «sin Internet fijo» abierto | §a «terminado»: mensaje terminal → `done` | bajo | 3 |
-| RC-9 selección = callejón / problema perdido | §a: tras selección, `RESPOND` con siguiente paso; guardar el problema en `eko_journey` | medio | 4 |
+| RC-9 ✅ `09bc9bc` selección = callejón / problema perdido | §a: tras selección, `RESPOND` con siguiente paso; guardar el problema en `eko_journey` | medio | 4 |
 | RC-1 confirmación atrapa el turno | §a: expiración + `PASS` ante texto no relacionado | medio (2.6K, 2.7D/E) | 5 |
 | RC-3 journey captura texto libre | §c lista blanca | **medio-alto** (2.7E cierre, continuidad) | 6 |
-| RC-2 «sí» no confirma | `journey_release`/prompt marca también el *action state* `confirmation_pending` (o el journey acepta el sí por su propio flag) | **alto** (2.6K create_ticket, XOR Runtime/Legacy) | 7 |
+| RC-2 ✅ `050a049` «sí» no confirma | `journey_release`/prompt marca también el *action state* `confirmation_pending` (o el journey acepta el sí por su propio flag) | **alto** (2.6K create_ticket, XOR Runtime/Legacy) | 7 |
 | RC-5 saludo genérico | §b: el PASS libera `menu_paso`/intención; el legacy no cae en `general` con contexto vivo | medio | 8 |
 | RC-6 / RC-7 aviso de saldo | un solo emisor del aviso, **informativo y único** (R2), antes de la rama técnica y también con journeys ON | medio (CTX-2, flujo de deuda) | 9 |
 | RC-4 escalación automática | el agotamiento **ofrece** derivar y espera confirmación (R1/I6) | **alto** (cambia tickets) | 10 |
@@ -154,4 +154,5 @@ Implementación; cambios de copy; KB; el arreglo de planta real (Radius/UISP/BCM
 
 Orden de implementación aceptado (tanda 1): Fase 0 docs → H6 → RC-10 → RC-11 → RC-12.
 **Tanda 1: IMPLEMENTADA** (H6 `c6e2812`, RC-10 `544df29`, RC-11 `1ca5c26`, RC-12 `a6ea21e`).
-Tanda 2 (en curso): pedido de agente sin journey (legacy) → RC-2 → RC-9.
+**Tanda 2: IMPLEMENTADA** (H6-legacy `20a1878`, RC-2 `050a049`, RC-9 `09bc9bc`).
+Pendiente: RC-1, RC-3, RC-5, RC-6/7, RC-4, RC-8 (orden de §e).
