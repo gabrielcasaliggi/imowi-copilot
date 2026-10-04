@@ -172,4 +172,7 @@ factura y el lifecycle pasaba a facturación: con un dominio técnico y su pregu
 sigue en el playbook (`_respuesta_a_pregunta_tecnica_pendiente`). RC-3 acotado: `niega_tema` («no te pregunté por la factura», «no es por…»)
 no reclama el turno (`clasificar_intencion` → `general`, `detect_journey_name`, lifecycle, gesto OV); «no es por X, es por Y» sí. La lista blanca
 completa de §c sigue pendiente. Abierto: el playbook repite la misma pregunta ante respuestas que no son sí/no (I5).
-Pendiente: RC-3 (lista blanca completa), RC-4, RC-8 (orden de §e).
+**Tanda 4 fase 0:** `niega_tema` pasó a fórmula estricta (la negación es todo el mensaje; 15 falsos positivos y 5 negaciones puras cubiertos en
+`tests/test_niega_tema_falsos_positivos.py`) y la tanda 2 se parte en dos corridas (2a/2b, ver `docs/TESTING-TANDAS.md`).
+Estado de tests: 140 passed + 10 xfailed (tanda 1) y 1370 + 698 passed (tanda 2a/2b).
+Pendiente: RC-13 (el playbook avanza con respuestas libres), RC-3 (lista blanca completa), RC-4, RC-8 (orden de §e).
