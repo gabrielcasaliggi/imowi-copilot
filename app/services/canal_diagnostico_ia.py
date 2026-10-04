@@ -94,6 +94,39 @@ def _extras_servicio_y_planta(ctx: dict, abonado, db) -> dict[str, str]:
     return extras_ctx
 
 
+def _avanzar_fallback_por_respuesta(
+    ctx: dict, checklist: list, texto: str, result: dict, cubiertos: list[str]
+) -> dict:
+    """RC-13. El fallback del playbook (LLM caído o sin respuesta) devuelve el primer paso no cubierto:
+    si ese es el paso que el abonado acaba de contestar, repetiría la misma frase.
+
+    - Respuesta reconocida (sí/no/«sigue igual»…, ``respuesta_paso_ok``): cubre el paso y pasa al siguiente.
+    - Respuesta que no se reconoce: repregunta UNA vez (otra frase) y a la segunda cubre el paso y sigue.
+    El camino con LLM no pasa por acá. Los pasos de derivación nunca se cubren por una respuesta.
+    """
+    if (result.get("motivo") or "") != "fallback_playbook" or (result.get("accion") or "ask") != "ask":
+        return result
+    from app.domain.conversation_state import hydrate_conversation_state, mark_covers
+    from app.domain.flujos_abonado import respuesta_paso_ok
+    from app.services.diagnostico_n1 import _fallback_ask
+
+    pending = hydrate_conversation_state(ctx).pending_bot
+    pid = str(getattr(pending, "step_id", "") or "")
+    if not pid or pid in cubiertos or str(result.get("paso_cubierto") or "") != pid or "deriv" in pid.lower():
+        return result
+    reprompts = ctx.get("playbook_reprompts") if isinstance(ctx.get("playbook_reprompts"), dict) else {}
+    if respuesta_paso_ok(texto) is None:
+        if int(reprompts.get(pid) or 0) < 1:
+            ctx["playbook_reprompts"] = {**reprompts, pid: 1}
+            out = dict(result)
+            out["mensaje"] = f"No te entendí del todo. {result.get('mensaje') or ''}".strip()
+            return out
+    mark_covers(ctx, pid)
+    ctx.pop("playbook_reprompts", None)
+    nuevos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
+    return _fallback_ask(checklist, nuevos, texto)
+
+
 def _aplicar_diagnostico_ia(
     db: Session,
     org_id: str,
@@ -608,6 +641,9 @@ def _aplicar_diagnostico_ia(
         ),
     )
 
+    # RC-13: sin LLM, la respuesta libre a la pregunta pendiente tiene que mover el playbook.
+    result = _avanzar_fallback_por_respuesta(ctx, checklist, texto, result, cubiertos)
+    cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     accion = result.get("accion") or "ask"
     mensaje = (result.get("mensaje") or "").strip()
     # Fase 10B: paso_cubierto del diagnóstico IA es sugerencia, no mutación.

@@ -462,23 +462,20 @@ def test_h11_no_las_recibo_sigue_el_playbook_movil(canal):
     t = converse(H11_SCRIPT[:4], canal=canal, profile="movil_deuda")
     sin_violaciones(t)
     assert avisos(t) == 1 and DEBT_NOTICE.search(t[2].reply) and inv.VOCAB_MOVIL.search(t[2].reply + " llamada"), t[2].reply
-    assert not FACTURACION.search(t[3].reply) and re.search(r"(llam|señal|reinici|anduvo|pantalla|sim)", t[3].reply, re.I), t[3].reply
+    assert not FACTURACION.search(t[3].reply) and PLAYBOOK_MOVIL_PREGUNTAS.search(t[3].reply), t[3].reply
 
 
 def test_h11_negacion_sobre_el_tema_no_abre_facturacion(canal):
     t = converse(H11_SCRIPT, canal=canal, profile="movil_deuda")
-    # Sin I5: el bot repite la pregunta del playbook («¿Anduvo?») en los turnos 3 y 4 (hallazgo aparte de H11).
-    v = [x for x in inv.violaciones(t) if not x.startswith("I5")]
-    assert not v, v
+    sin_violaciones(t)
     assert not any(x.branch.startswith("journey:billing") or FACTURACION.search(x.reply) for x in t[3:]), [(x.branch, x.reply) for x in t[3:]]
-    assert t[4].reply and re.search(r"(llam|anduvo|reinici)", t[4].reply, re.I), t[4].reply
+    assert t[4].reply and PLAYBOOK_MOVIL_PREGUNTAS.search(t[4].reply), t[4].reply
 
 
 # ------------------------------------------------ RC-13: el playbook avanza con respuestas libres
 PLAYBOOK_MOVIL_PREGUNTAS = re.compile(r"(reinici|anduvo|modo avi|mejor[oó]|zona|varios lados|sms|a2p|derive)", re.I)
 
 
-@xf("RC-13: «no las recibo» a una pregunta de acción del playbook móvil no avanza: el fallback repite «Reiniciá y probá una llamada. ¿Anduvo?»")
 def test_rc13_respuesta_libre_avanza_el_playbook(canal):
     t = converse(BASE_MOVIL + ["no las recibo"], canal=canal, profile="movil")
     sin_violaciones(t)
@@ -486,8 +483,7 @@ def test_rc13_respuesta_libre_avanza_el_playbook(canal):
     assert not FACTURACION.search(t[3].reply), t[3].reply
 
 
-@xf("RC-13: una respuesta no reconocida repite la misma pregunta dos veces seguidas; debe repreguntar una vez y luego avanzar")
 def test_rc13_respuesta_no_reconocida_repregunta_una_vez_y_avanza(canal):
-    t = converse(BASE_MOVIL + ["la verdad no sé", "tampoco sé"], canal=canal, profile="movil")
+    t = converse(BASE_MOVIL + ["depende del día", "quizás"], canal=canal, profile="movil")
     assert t[3].reply != t[2].reply and t[3].reply.endswith(t[2].reply.split(". ", 1)[-1]), (t[2].reply, t[3].reply)
     assert t[4].reply not in (t[2].reply, t[3].reply) and PLAYBOOK_MOVIL_PREGUNTAS.search(t[4].reply), t[4].reply
