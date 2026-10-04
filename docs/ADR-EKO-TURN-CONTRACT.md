@@ -1,8 +1,8 @@
 # ADR (borrador) — Contrato de turno de Eko: journeys ↔ legacy
 
-**Estado:** BORRADOR para revisión de Gabriel. **No implementado.** · **Fecha:** 2026-10-04 · **Base:** `17fd0d9`
+**Estado:** ACEPTADO por Gabriel (2026-10-04). Implementación por tandas; ver §e. · **Fecha:** 2026-10-04 · **Base:** `17fd0d9`
 **Insumos:** `docs/AUDIT-CONVERSACIONAL-2026-10.md` (Parte 1 y Parte 2, 12 causas raíz / 48 xfails) y `tests/e2e_conv`.
-**Reglas de producto vigentes:** R1 (móvil/Sensa/VoIP: playbook + KB; agente solo tras confirmación explícita) y
+**Reglas de producto vigentes:** R1 (móvil/Sensa/VoIP: playbook + KB; **pedido explícito de agente → deriva directo; playbook agotado → ofrece y espera «sí»; nunca ticket sin una de las dos**) y
 R2 (aviso de deuda: informativo, una vez por conversación, no bloquea).
 
 > **Aviso 2.5.** Algunos cambios (RC-10/11 sobre `resolve_service_selection`, §12 de `EKO-2.5-…FREEZE.md`) tocan piezas
@@ -30,8 +30,11 @@ Reglas duras (testeables):
 1. `handled=True` con texto vacío es **inválido** salvo `HOLD` por cortesía pura o cierre explícito (`mode="cerrado"`,
    ya enviado por `_cerrar_consulta_resuelta`). Hoy FIX-1 (`aa50ac9`) lo parchea en el canal; el contrato lo vuelve parte del tipo.
 2. Un journey solo responde `RESPOND` si **reclama** el texto (`claims(texto, ctx)`, §c). Si no lo reclama → `PASS`.
-3. `RESPOND` no puede ejecutar una acción de efecto (ticket, nota) sin confirmación vigente del abonado (I6, R1).
+3. `RESPOND` no puede ejecutar una acción de efecto (ticket, nota) sin confirmación vigente del abonado (I6, R1), **salvo** el pedido explícito de agente (regla 5).
 4. `PASS` y `RESPOND` son excluyentes en el mismo turno (XOR con el legacy, igual que el XOR Runtime/Legacy de 2.6).
+5. **Handoff.** El pedido explícito de agente se atiende **desde cualquier estado de journey** y **el pedido ES la confirmación**:
+   deriva directo (crea el ticket) sin pedir un segundo «sí». Si el bot *ofrece* derivar (playbook agotado, sin sesión), ahí sí espera
+   el «sí» del abonado. Nunca hay ticket sin una de las dos (I6, R1).
 
 **Cuándo un journey está «terminado».** Una sola definición (extiende `_journey_is_resolved`, `eko_journeys.py:631`):
 `step == "done"` **y** sin `next_required_input` **y** sin `pending_confirmation` **y** sin `continuity_pending`.
@@ -71,12 +74,14 @@ Propuesta: **lista blanca** de frases que reclaman un journey terminado; todo lo
 | Autoriza (sí) | No autoriza (PASS) |
 |---|---|
 | Reingreso explícito a Internet (`_wants_connectivity_reentry`) | Texto libre sin dominio («sigue igual», «ya probé todo») |
-| Seguimiento de incidente / ticket (`_wants_incident_followup`, frases de ticket, nota de cliente) | «sí»/«no» sin confirmación pendiente |
+| Seguimiento de incidente / ticket (`_wants_incident_followup`, frases de ticket, nota de cliente) | «sí»/«no» sin una oferta previa del propio bot |
 | Pedido explícito de listar servicios o cambiar de servicio (frases de `service_catalog`; login del catálogo en el texto) | Dígitos sueltos fuera del turno inmediato a un menú |
 | Acto de facturación **específico** (vencimiento, historial, factura, pagar) — no el «saldo» por defecto | Quejas o síntomas nuevos de otro dominio (los toma el legacy / lifecycle) |
 | Dígito/«el N» **solo** si el turno anterior del bot fue el menú de selección o su «Listo/Ya tengo seleccionado» | Cortesía pura (→ `HOLD`) |
+| «ya se arregló» / «ya anda» (**cierra el journey**: acuse y `done`) | — |
+| «sí»/«no» **inmediatamente después de una oferta del propio bot** (confirmación o selección) | — |
 
-El pedido de agente **no** pasa por esta función: lo maneja siempre la rama de handoff (§a, regla 3), desde cualquier estado.
+El pedido de agente **no** pasa por esta función: lo maneja siempre la rama de handoff (§a, regla 5), desde cualquier estado, y el pedido es la confirmación.
 
 ## d) Dueño de `ctx.intencion`
 
@@ -84,7 +89,7 @@ Hoy lo escriben **59 sitios en 7 archivos** (`canal_abonado.py` 43, `canal_diagn
 `turno_e1.py`, `comprension_abonado.py`, `canal_outage.py`, `conversation_motor.py` vía `apply_cs_to_legacy`, `:947`).
 
 Propuesta — **un único dueño: el lifecycle de dominios** (`ConversationState` / `apply_cs_to_legacy`), que proyecta la
-intención del dominio activo. Migración en tres pasos, cada uno con sus tests:
+intención del dominio activo. Migración en tres pasos, cada uno con sus tests. **Solo se ejecutan los pasos 1 y 2; el paso 3 queda diferido** (no se reduce ningún escritor del legacy en esta etapa):
 1. **Journeys dejan de escribir `ctx.intencion`** (`eko_journeys.py:3682`, `:3734`, `:3741`); usan solo `eko_journey.intent`.
    El helper `_intencion_tras_lifecycle` (`fa565f5`) queda como red de seguridad temporal.
 2. Todos los demás escritores pasan por `set_intencion(ctx, valor, fuente)` (sin cambio de comportamiento, con log de la fuente).
@@ -95,6 +100,7 @@ Invariante resultante: **el journey nunca es dueño de la intención de la conve
 
 | Causa | Parte del contrato que la arregla | Riesgo | Orden |
 |---|---|---|---|
+| **H6** pedido de agente tras diagnóstico no deriva (el journey lo ignora o repite la confirmación) | §a regla 5 **Handoff**: el pedido explícito se atiende desde cualquier estado y deriva directo | bajo-medio (2.6K, 2.5D-4) | **0** |
 | RC-10 `_extract_service_id` toma «id» | (fuera del contrato) arreglo puntual de regex en 2.2B | bajo (1 línea + tests 2.2B) | 1 |
 | RC-11 solo logins `INT*` | resolver login contra el **catálogo** en vez de regex `INT*` | bajo-medio (2.2B/2.5D-2) | 2 |
 | RC-12 «sin Internet fijo» abierto | §a «terminado»: mensaje terminal → `done` | bajo | 3 |
@@ -106,6 +112,8 @@ Invariante resultante: **el journey nunca es dueño de la intención de la conve
 | RC-6 / RC-7 aviso de saldo | un solo emisor del aviso, **informativo y único** (R2), antes de la rama técnica y también con journeys ON | medio (CTX-2, flujo de deuda) | 9 |
 | RC-4 escalación automática | el agotamiento **ofrece** derivar y espera confirmación (R1/I6) | **alto** (cambia tickets) | 10 |
 | RC-8 corte masivo vs journeys | el journey de conectividad consulta el corte antes de diagnosticar (o el corte se evalúa antes de journeys) | medio-alto (outages, proactivo) | 11 |
+
+**RC-2 es prerrequisito de RC-4:** hasta que el «sí» a una *oferta* del bot confirme de verdad, el agotamiento del playbook no puede pasar de «crear ticket» a «ofrecer y esperar». (H6 no depende de RC-2: el pedido explícito deriva sin segundo «sí».)
 
 Criterio: de menor a mayor riesgo y de menos a más superficie congelada (2.5/2.6/2.7). Cada paso se mide con `tests/e2e_conv`:
 al hacer pasar un xfail estricto, el test avisa y se retira el marcador en el mismo commit.
@@ -133,8 +141,11 @@ Cómo se protege:
 ## Fuera de alcance de este ADR
 Implementación; cambios de copy; KB; el arreglo de planta real (Radius/UISP/BCM); y el modo de LLM «normal» en los tests.
 
-## Decisiones que necesito de Gabriel
-1. ¿Se aprueba el contrato `RESPOND / PASS / HOLD` (§a) y el orden de (e)?
-2. ¿El dueño único de `ctx.intencion` es el lifecycle de dominios (§d)?
-3. ¿La lista blanca de §c es la correcta, o hay frases que deban seguir reclamando un journey resuelto?
-4. ¿RC-10/11 se tratan como cambio explícito de 2.5/2.2B (requiere regresión dedicada, §12 del freeze)?
+## Decisiones (APROBADAS por Gabriel, 2026-10-04)
+1. **APROBADA.** Contrato `RESPOND / PASS / HOLD` (§a) y orden de (e), con H6 como orden 0.
+2. **APROBADA.** Dueño único de `ctx.intencion`: el lifecycle de dominios (§d). Se ejecutan solo los pasos 1 y 2; el paso 3 queda diferido.
+3. **APROBADA.** La lista blanca de §c, con «ya se arregló / ya anda» y el «sí/no» tras una oferta del propio bot.
+4. **APROBADA.** RC-10/11 como cambio explícito de 2.5/2.2B, **acotado** a `_extract_service_id` y a la resolución de login contra el
+   catálogo, con regresión dedicada (§12 del freeze). No se toca `get_selected_ref` ni `apply_service_ref`.
+
+Orden de implementación aceptado (tanda 1): Fase 0 docs → H6 → RC-10 → RC-11 → RC-12.
