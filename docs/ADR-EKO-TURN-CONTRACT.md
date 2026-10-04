@@ -109,11 +109,11 @@ Invariante resultante: **el journey nunca es dueño de la intención de la conve
 | RC-11 ✅ `1ca5c26` solo logins `INT*` | resolver login contra el **catálogo** en vez de regex `INT*` | bajo-medio (2.2B/2.5D-2) | 2 |
 | RC-12 ✅ `a6ea21e` «sin Internet fijo» abierto | §a «terminado»: mensaje terminal → `done` | bajo | 3 |
 | RC-9 ✅ `09bc9bc` selección = callejón / problema perdido | §a: tras selección, `RESPOND` con siguiente paso; guardar el problema en `eko_journey` | medio | 4 |
-| RC-1 confirmación atrapa el turno | §a: expiración + `PASS` ante texto no relacionado | medio (2.6K, 2.7D/E) | 5 |
+| RC-1 ✅ `33ed8f8` confirmación atrapa el turno | §a: expiración + `PASS` ante texto no relacionado | medio (2.6K, 2.7D/E) | 5 |
 | RC-3 journey captura texto libre | §c lista blanca | **medio-alto** (2.7E cierre, continuidad) | 6 |
 | RC-2 ✅ `050a049` «sí» no confirma | `journey_release`/prompt marca también el *action state* `confirmation_pending` (o el journey acepta el sí por su propio flag) | **alto** (2.6K create_ticket, XOR Runtime/Legacy) | 7 |
-| RC-5 saludo genérico | §b: el PASS libera `menu_paso`/intención; el legacy no cae en `general` con contexto vivo | medio | 8 |
-| RC-6 / RC-7 aviso de saldo | un solo emisor del aviso, **informativo y único** (R2), antes de la rama técnica y también con journeys ON | medio (CTX-2, flujo de deuda) | 9 |
+| RC-5 ✅ `77130c1` saludo genérico | §b: el PASS libera `menu_paso`/intención; el legacy no cae en `general` con contexto vivo | medio | 8 |
+| RC-6 / RC-7 ✅ `55e653b` aviso de saldo | un solo emisor del aviso, **informativo y único** (R2), antes de la rama técnica y también con journeys ON | medio (CTX-2, flujo de deuda) | 9 |
 | RC-4 escalación automática | el agotamiento **ofrece** derivar y espera confirmación (R1/I6) | **alto** (cambia tickets) | 10 |
 | RC-8 corte masivo vs journeys | el journey de conectividad consulta el corte antes de diagnosticar (o el corte se evalúa antes de journeys) | medio-alto (outages, proactivo) | 11 |
 
@@ -155,4 +155,16 @@ Implementación; cambios de copy; KB; el arreglo de planta real (Radius/UISP/BCM
 Orden de implementación aceptado (tanda 1): Fase 0 docs → H6 → RC-10 → RC-11 → RC-12.
 **Tanda 1: IMPLEMENTADA** (H6 `c6e2812`, RC-10 `544df29`, RC-11 `1ca5c26`, RC-12 `a6ea21e`).
 **Tanda 2: IMPLEMENTADA** (H6-legacy `20a1878`, RC-2 `050a049`, RC-9 `09bc9bc`).
-Pendiente: RC-1, RC-3, RC-5, RC-6/7, RC-4, RC-8 (orden de §e).
+**Tanda 3: IMPLEMENTADA** (F0 `df56771`, RC-1 `33ed8f8`, RC-5 `77130c1`, RC-6/7 `55e653b`). Notas de implementación:
+- F0: «no necesito un agente» / «¿necesito hablar con un agente?» no abren confirmación ni ticket (`_agent_declined_or_questioned`).
+- RC-1: `journey_release(ctx, motivo)` existe y es el único que limpia (§b). Con la oferta pendiente, «ya anda / ya se arregló»
+  hacen `PASS` de inmediato; otro texto se repregunta **una** vez (`eko_journey.reprompts`) y a la segunda → `PASS`
+  (el corte inmediato de «sigue igual» rompería `test_rc2_si_tras_reofrecer_crea_el_ticket`).
+- RC-5: el hold sin texto de un journey resuelto es un `PASS` formal en el canal (devuelve la intención previa al turno);
+  con journeys OFF el bloque de «primer mensaje» no corre si al entrar al turno hay contexto vivo.
+- RC-6/7: un solo emisor (`_avisar_deuda_informativo`), mensaje propio antes de la respuesta técnica, journeys ON y OFF.
+  Ya no se escribe `intencion="aviso_deuda"`; la rama que la atiende queda solo para conversaciones en curso.
+Hallazgos abiertos de la tanda 3: H7 (tras el cierre del legacy, «gracias» abre conversación nueva con saludo que pide DNI);
+«no sigamos con el diagnóstico» continúa el diagnóstico; con journeys ON + móvil, «¿necesito hablar con un agente?» cae al menú
+genérico; verificar si la voz/TTS lee solo `respuesta` (el aviso de saldo es un mensaje aparte).
+Pendiente: RC-3, RC-4, RC-8 (orden de §e).
