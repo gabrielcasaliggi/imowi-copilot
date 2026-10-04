@@ -1,0 +1,22 @@
+---
+description: Modelo profesional — Cursor=IDE, Claude Code=copiloto, un hilo; sin multi-agente por defecto
+alwaysApply: true
+---
+
+# Un hilo / un copiloto
+
+Estándar del repo (ver `AGENTS.md`):
+
+- **Cursor** = espacio de trabajo (sin depender de Pro).
+- **Claude API + Claude Code** = IA de implementación por defecto.
+- Fases Architect→Dev→QA→Security = **serie en el mismo hilo**, no agentes separados.
+
+## Prohibido por defecto
+
+- `Task`, eko-*, explore espontáneo, best-of-n, Max Mode
+- Solo con pedido explícito + presupuesto dedicado
+
+## En este chat (si hay IA en Cursor)
+
+- Una tarea (WIP=1), herramientas mínimas, respuestas cortas
+- `@architect` / `@developer` / etc. = estilo aquí, no otro proceso

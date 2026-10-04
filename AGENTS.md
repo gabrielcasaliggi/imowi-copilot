@@ -21,10 +21,11 @@ Python 3.12+, Next.js en `frontend/`, Expo en `mobile/`. No introducir framework
 
 ## Cold start (bootstrap)
 
-1. Este archivo y `README.md`.
+1. Este archivo, `CLAUDE.md` (qué es Eko + mapa de lectura) y `README.md`.
 2. Si el entorno no está: `bash scripts/setup-dev.sh`.
 3. Estado del trabajo: git (`git status`, `git log -5`) y el brief de la sesión. Lo que no esté en el repo no existe para el agente.
 4. Confirmar una sola tarea y sus criterios de aceptación **antes** de editar.
+5. Abrir solo los docs del dominio en `CLAUDE.md` §5 — no todo `docs/EKO-*.md`.
 
 ## Alcance de cada sesión
 
@@ -32,6 +33,35 @@ Python 3.12+, Next.js en `frontend/`, Expo en `mobile/`. No introducir framework
 - **Done** no es una autoevaluación: es sensores en verde + evidencia.
 - Criterios en **default-FAIL**: no marcar cerrado sin prueba (comando, captura de flujo, o criterio de aceptación citado).
 - No ampliar alcance, no refactors colaterales, no archivos que el brief no pida.
+
+## Modelo de trabajo profesional (herramientas)
+
+Proceso de equipo, **un solo copiloto**, calidad por sensores y git — no por cantidad de agentes.
+
+| Pieza | Rol |
+|---|---|
+| **Cursor** | Espacio de trabajo (editor, git, terminal). Sin suscripción Pro; IA en Cursor solo si hay API y con disciplina |
+| **Claude API + Claude Code** | Ejecución asistida por defecto (implementar, diffs, explicación) |
+| **Claude app** (opcional) | Briefs, ADRs, copy — fuera del loop de archivos |
+| **Git + CI / sensores** | Verdad de “listo”; sin pass no hay cierre |
+
+### Un hilo, fases en serie
+
+Las fases Architect → Dev → QA → Security siguen siendo el rigor del oficio, pero **en el mismo hilo** (mismo chat / misma sesión Claude Code), no como flota de agentes:
+
+1. Decidir (brief / ADR corto)  
+2. Implementar  
+3. Verificar sensores  
+4. Revisar seguridad/datos solo si el cambio lo exige  
+
+Roles `@architect`, `@developer`, `@qa`, `@reviewer-security`: guía de **estilo en este hilo** si se invocan; no spawnear otro agente.
+
+### Prohibido por defecto
+
+- `Task` / multi-agente / ciclo EKO orquestado / best-of-n / Max Mode  
+- Solo con pedido explícito **y** presupuesto dedicado (API con tope o plan alto)
+
+Detalle operativo corto: `.cursor/rules/token-budget-pro.mdc`.
 
 ## Sensores (computacionales primero)
 
@@ -67,6 +97,7 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 
 | Pieza | Dónde |
 |---|---|
+| Orientación Eko (Claude Code) | `CLAUDE.md` |
 | API | `app/` · entrada `main.py` |
 | Consola + portal | `frontend/` |
 | App abonado | `mobile/` |
@@ -74,6 +105,7 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 | RBAC | `docs/RBAC-ROLES-PERMISOS.md` |
 | RAG / KB | `docs/rag-botmaker-2026-08-14/` |
 | QA N1 | `qa_bot/` |
+| Baseline / siguiente bloque Eko | `docs/EKO-2.5-…`, `docs/EKO-2.6T-…`, `docs/EKO-NEXT-BLOCK-ARCHITECTURE.md` |
 
 `frontend/AGENTS.md` es la guía de Next.js de este tree; no sustituye este archivo.
 
@@ -88,5 +120,10 @@ Anotar el cambio en la bitácora de abajo. Pregunta útil: *qué capacidad le fa
 | 2026-09-08 | Auth WA por MSISDN (F1) | `lookup_abonados_por_telefono` + desambiguación N cuentas; brief `docs/INTEGRACION-OV-FACTURAS-WA.md` |
 | 2026-09-10 | Rama de planta manda el turno N1 | BCM/UISP `enlace_ok` ya no cae al LLM; Sensa cuelga del acceso; ADSL/IMOWI no usan BCM; sensor `tests/test_guardrails_planta.py` |
 | 2026-09-10 | Eval masivo `--planta` | Replay Botmaker mockea BCM/Radius (`enlace_ok` / `onu_offline`); sensor `tests/test_eval_planta.py` |
+| 2026-09-28 | Reglas de fase en `.cursor/rules/` | `@architect`, `@developer`, `@qa`, `@reviewer-security`, `@design-system`. `alwaysApply: false`. El harness de este archivo sigue siempre activo |
+| 2026-09-29 | Austeridad tokens Pro ~USD 20 | Cupo debe alcanzar el mes; sin Task/EKO espontáneos; modelos caros prohibidos; migración Claude prevista |
+| 2026-10-01 | Solo chat principal | Multi-agente quemó el cupo; volver a un solo agente; roles @* = estilo en el mismo chat; Claude API como IA principal |
+| 2026-10-01 | Modelo profesional herramientas | Cursor=IDE; Claude Code=copiloto; un hilo fases en serie; multi-agente solo con presupuesto dedicado |
+| 2026-10-01 | `CLAUDE.md` orientación Eko | Índice profesional: qué es Eko, baseline, invariantes, mapa de lectura por dominio; evita dump exhaustivo |
 | 2026-10-02 | EKO 2.8A: login nombrado por texto → `selected_service_ref` | El canal por texto dejaba `login_seleccionado` sin ref y el diagnóstico volvía a pedir selección; `_sincronizar_login_desde_mensaje` ahora canonicaliza vía `_enrich_login_to_ref`; sensor `tests/test_eko_28a_login_sync_ref.py` |
 | 2026-10-02 | EKO CTX-1: servicio en foco en CONTEXTO_ABONADO | El prompt N1 no sabía qué servicio estaba en foco ni distinguía datos técnicos de otro login; sección `SERVICE IN FOCUS`, guarda por grupo pppoe/uisp/bcm y fecha de ticket; sensor `tests/test_eko_ctx_1_servicio_en_foco.py` |

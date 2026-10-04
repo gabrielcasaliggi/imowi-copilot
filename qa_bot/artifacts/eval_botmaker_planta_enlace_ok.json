@@ -1,0 +1,1128 @@
+{
+  "generado_at": "2026-09-10T16:02:52.461427+00:00",
+  "planta": "enlace_ok",
+  "resumen": {
+    "n": 30,
+    "con_error": 0,
+    "tickets": 2,
+    "bucles": 6,
+    "lectura_forzada_e1": 20,
+    "score_n1_promedio": 0.834,
+    "con_fallas": 20
+  },
+  "casos": [
+    {
+      "caso_id": "BM-2abe4b20a8",
+      "categoria": "internet",
+      "apertura": "Ecolan Internet pagar",
+      "turnos": [
+        {
+          "usuario": "Ecolan Internet pagar",
+          "bot": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+          "estado": "bot",
+          "intencion": "ecolan_b2b",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Muchas gracias",
+          "bot": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado",
+          "intencion": "ecolan_b2b",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "ecolan_b2b",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T1: No ofreció pasos de autodiagnóstico esperados",
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.75,
+      "latency_ms_total": 426,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-acc64266c8",
+      "categoria": "internet",
+      "apertura": "No tengo internet sabes si hay algún problema",
+      "turnos": [
+        {
+          "usuario": "No tengo internet sabes si hay algún problema",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 163,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-d5046fae3f",
+      "categoria": "internet",
+      "apertura": "Buen día internet dejo de funcionar",
+      "turnos": [
+        {
+          "usuario": "Buen día internet dejo de funcionar",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Buen día!! Me dejó de funcionar internet",
+          "bot": "Hasta la red la cuenta está activa; sigamos en tu casa. ¿No te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Anoche lo reinicie pero ya no anda",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": true,
+      "fallas": [
+        "T2: Posible bucle o respuesta repetida"
+      ],
+      "score_n1": 0.9,
+      "latency_ms_total": 625,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-39069c1bf8",
+      "categoria": "internet",
+      "apertura": "Querías saber cómo tengo que dar la baja de internet porque me mudo a Mar del Plata",
+      "turnos": [
+        {
+          "usuario": "Querías saber cómo tengo que dar la baja de internet porque me mudo a Mar del Plata",
+          "bot": "Entiendo que querés dar de baja el servicio. Si tenés fibra, la baja se toma con el equipo (ONT/router) en mano. Si no podés acercarte, puede ir otra persona con una nota firmada del titular autorizándola, con los datos de ambos. Desenchufar o apagar el equipo no da de baja el servicio: sigue activo en sistema hasta la gestión formal. ¿Es baja total o solo de internet, Sensa/app u otro producto?",
+          "estado": "bot",
+          "intencion": "baja_servicio",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Y ya tengo sva donde voy",
+          "bot": "Con deuda pendiente la baja formal requiere saldo en cero (lo revisa comercial). Si tenés fibra, la baja se toma con el equipo en mano; si no podés ir, puede ir otra persona con nota firmada del titular. Desenchufar no da de baja el servicio. ¿Querés que te derive con comercial?",
+          "estado": "bot",
+          "intencion": "baja_servicio",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Hasta qué hora están?",
+          "bot": "Para seguir ayudándote necesito un poco más de detalle. Con deuda pendiente la baja formal requiere saldo en cero (lo revisa comercial). Si tenés fibra, la baja se toma con el equipo en mano; si no podés ir, puede ir otra persona con nota firmada del titular. Desenchufar no da de baja el servicio. ¿Querés que te derive con comercial?",
+          "estado": "bot",
+          "intencion": "baja_servicio",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "baja_servicio",
+      "lectura_forzada_e1": false,
+      "bucle": true,
+      "fallas": [
+        "T3: Posible bucle o respuesta repetida"
+      ],
+      "score_n1": 0.9,
+      "latency_ms_total": 431,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-3155f50d69",
+      "categoria": "internet",
+      "apertura": "Hola Mauricio si mira no me funciona el internet no prende ninguna luz está a nombre de Claudio Pajon",
+      "turnos": [
+        {
+          "usuario": "Hola Mauricio si mira no me funciona el internet no prende ninguna luz está a nombre de Claudio Pajon",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "No estoy en casa  el route no entiende ninguna luz",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Es como si estuviera apagado",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": true,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados",
+        "T3: No ofreció pasos de autodiagnóstico esperados",
+        "T3: Posible bucle o respuesta repetida"
+      ],
+      "score_n1": 0.733,
+      "latency_ms_total": 657,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-70d98866ac",
+      "categoria": "internet",
+      "apertura": "Quisiera solicitar Internet para el cel",
+      "turnos": [
+        {
+          "usuario": "Quisiera solicitar Internet para el cel",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Me avían ofreciendo uno de 10 gb",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.875,
+      "latency_ms_total": 490,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-bb2629a692",
+      "categoria": "internet",
+      "apertura": "No anda el momento se ve que se quemo ennun corte de luz qué  tuve",
+      "turnos": [
+        {
+          "usuario": "No anda el momento se ve que se quemo ennun corte de luz qué  tuve",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Se puede.comprar en su local o tengo que esperar un técnico?",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "No tengo teléfono ase rato ya",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.917,
+      "latency_ms_total": 683,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-fed6233a85",
+      "categoria": "internet",
+      "apertura": "Hola buen día ,te quería hacer una consulta ,ya q no puedo conectarme a internet",
+      "turnos": [
+        {
+          "usuario": "Hola buen día ,te quería hacer una consulta ,ya q no puedo conectarme a internet",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Sí, lo sé",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Hola buenas tardes no me puedo conectar a la red de wifi",
+          "bot": "¿Te pasa en todos los dispositivos o solo en uno?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.917,
+      "latency_ms_total": 787,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-c4daaa5b61",
+      "categoria": "internet",
+      "apertura": "Quería saber si es posible contratar un servicio para la calle Camino La vigilancia, Barrio Colinas verdes entre Av. la brava y sierra del hacha",
+      "turnos": [
+        {
+          "usuario": "Quería saber si es posible contratar un servicio para la calle Camino La vigilancia, Barrio Colinas verdes entre Av. la brava y sierra del hacha",
+          "bot": "¿Alta nueva o cambio de plan? ¿Internet, móvil, Sensa u otro?",
+          "estado": "bot",
+          "intencion": "alta_plan",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "La ubicación no fue exacta porque ahora justo no estoy en mi domicilio, estoy en mi trabajo",
+          "bot": "¿En qué barrio o localidad lo necesitás?",
+          "estado": "bot",
+          "intencion": "alta_plan",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "alta_plan",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.875,
+      "latency_ms_total": 380,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-e684e0d71c",
+      "categoria": "internet",
+      "apertura": "Hola ! No tengo internet",
+      "turnos": [
+        {
+          "usuario": "Hola ! No tengo internet",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Sí, lo sé",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Hola !! Necesito internet !!!!!!!!",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": true,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados",
+        "T3: No ofreció pasos de autodiagnóstico esperados",
+        "T3: Posible bucle o respuesta repetida"
+      ],
+      "score_n1": 0.733,
+      "latency_ms_total": 825,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-2944204db3",
+      "categoria": "internet",
+      "apertura": "Wifi cabaña adelante\n\n ssid:Huinca Mapu\n\nPass: cabanias",
+      "turnos": [
+        {
+          "usuario": "Wifi cabaña adelante\n\n ssid:Huinca Mapu\n\nPass: cabanias",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Si porq recien m acaban dw atender",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "El router estaba reseteado",
+          "bot": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 612,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-b676072036",
+      "categoria": "internet",
+      "apertura": "Te escribo del Cementerio de Los Robles,  se cayó la señal de ínternet",
+      "turnos": [
+        {
+          "usuario": "Te escribo del Cementerio de Los Robles,  se cayó la señal de ínternet",
+          "bot": "Tu ONT está recibiendo -18 dBm, potencia buena. Lo ideal es estar por encima de -24 dBm o al menos por encima de -27 dBm.\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte",
+          "estado": "bot",
+          "intencion": "movil",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Hola hola",
+          "bot": "¡Hola! ¿Qué te pasa con el móvil IMOWI: sin señal, sin datos, no podés llamar, o robo/pérdida?",
+          "estado": "bot",
+          "intencion": "movil",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "No, a la hora aprox volvió el Internet",
+          "bot": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado",
+          "intencion": "movil",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "movil",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T3: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.917,
+      "latency_ms_total": 442,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-1135d765af",
+      "categoria": "internet",
+      "apertura": "Sin internet",
+      "turnos": [
+        {
+          "usuario": "Sin internet",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Estube una hora sin internet...conectando y desconectando probando todo lo posible desde acá...\nDespués de un tiempo regreso solo",
+          "bot": "Puedo cambiarlo desde acá en tu equipo de fibra (2.4 y 5 GHz). ¿Querés cambiar la contraseña, el nombre de la red, o las dos cosas?",
+          "estado": "bot",
+          "intencion": "cambio_clave_wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "cambio_clave_wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 423,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-1af2dcd265",
+      "categoria": "internet",
+      "apertura": "Tengo q llevar el modem de internet pero si lo llevo me quedo sin tel",
+      "turnos": [
+        {
+          "usuario": "Tengo q llevar el modem de internet pero si lo llevo me quedo sin tel",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 180,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-56579b9f57",
+      "categoria": "internet",
+      "apertura": "No me funciona internet ,  aparece la red , las luces del router están bien ,Pero no me deja conectarme",
+      "turnos": [
+        {
+          "usuario": "No me funciona internet ,  aparece la red , las luces del router están bien ,Pero no me deja conectarme",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Ya se solucionó el problema, muchas gracias 😊",
+          "bot": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.875,
+      "latency_ms_total": 367,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-2d0c5d8e17",
+      "categoria": "internet",
+      "apertura": "Buen dia el maetes ise el pago de la factura y aun no tengo internet",
+      "turnos": [
+        {
+          "usuario": "Buen dia el maetes ise el pago de la factura y aun no tengo internet",
+          "bot": "Dale. ¿Qué necesitás hacer: ver o descargar la factura, pagar, generar el talón/QR, o es otra gestión (pack o portabilidad)?",
+          "estado": "bot",
+          "intencion": "facturacion",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "facturacion",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 202,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-5e8e041b1f",
+      "categoria": "internet",
+      "apertura": "Tenia turno de instalación de internet por fibra óptica para hoy 2 de enero",
+      "turnos": [
+        {
+          "usuario": "Tenia turno de instalación de internet por fibra óptica para hoy 2 de enero",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet_ftth",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Sí, lo sé",
+          "bot": "Con esto ya no lo resolvemos a distancia. ¿Querés que abra un ticket para visita técnica?",
+          "estado": "bot",
+          "intencion": "internet_ftth",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet_ftth",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: Derivación/ticket prematuro sin agotar N1"
+      ],
+      "score_n1": 0.575,
+      "latency_ms_total": 482,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-684e9acc92",
+      "categoria": "internet",
+      "apertura": "Buenos días, nuevamente estoy sin internet",
+      "turnos": [
+        {
+          "usuario": "Buenos días, nuevamente estoy sin internet",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Sí, lo sé",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.875,
+      "latency_ms_total": 426,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-d6190f3d24",
+      "categoria": "internet",
+      "apertura": "Esperando para ver si me llega el wifi",
+      "turnos": [
+        {
+          "usuario": "Esperando para ver si me llega el wifi",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Me mataste",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Te pago todo en efectivo si es antes",
+          "bot": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 779,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-be7faf984c",
+      "categoria": "internet",
+      "apertura": "Quisiera hacer un reclamo por mi wifi a nombre de Fanny Fabres, me dejo de funcionar el día 30/12 y aún no me funciona",
+      "turnos": [
+        {
+          "usuario": "Quisiera hacer un reclamo por mi wifi a nombre de Fanny Fabres, me dejo de funcionar el día 30/12 y aún no me funciona",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "No, no lo sé",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Quisiera hacer un reclamo por mi wifi a nombre de Fanny Fabres, me dejo de funcionar el día 30/12 y aún no me funciona",
+          "bot": "Dale, entonces el acceso anda y el tema es el Wi‑Fi. ¿Les pasa a todos los equipos Wi‑Fi o solo a uno?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 755,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-63658d9b4a",
+      "categoria": "internet",
+      "apertura": "Hola mira paso un camión y arranco el cable de teléfono y otros cables más no tengo tel tampoco internet",
+      "turnos": [
+        {
+          "usuario": "Hola mira paso un camión y arranco el cable de teléfono y otros cables más no tengo tel tampoco internet",
+          "bot": "Con un daño así (cable arrancado o equipo quemado) ya no lo resolvemos a distancia. Te derivo con un agente para coordinar la visita. Ya generé el ticket IBOT-1007 y te derivo con un agente. Te van a responder por este mismo chat.",
+          "estado": "espera_agente",
+          "intencion": "internet",
+          "ticket_id": "IBOT-1007",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": true,
+      "ticket_id": "IBOT-1007",
+      "estado_final": "espera_agente",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T1: Derivación/ticket prematuro sin agotar N1"
+      ],
+      "score_n1": 0.15,
+      "latency_ms_total": 415,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-7d46a4bc73",
+      "categoria": "internet",
+      "apertura": "No tengo internet",
+      "turnos": [
+        {
+          "usuario": "No tengo internet",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Lo necesito",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Para trabajar",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": true,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados",
+        "T3: No ofreció pasos de autodiagnóstico esperados",
+        "T3: Posible bucle o respuesta repetida"
+      ],
+      "score_n1": 0.733,
+      "latency_ms_total": 775,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-2aa456997f",
+      "categoria": "internet",
+      "apertura": "Quiero bajar la boleta del wifi",
+      "turnos": [
+        {
+          "usuario": "Quiero bajar la boleta del wifi",
+          "bot": "No figuran deudas pendientes (saldo 0 pesos).\nTodavía no te adjunto el PDF por este chat, pero podés verla y descargarla acá:\nhttps://ov.batan.coop/#/my\n¿Pudiste abrirla? Si el link no entra o ves otra cuenta, avisame.",
+          "estado": "bot",
+          "intencion": "facturacion",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "facturacion",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T1: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.75,
+      "latency_ms_total": 321,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-9b649ef6b5",
+      "categoria": "internet",
+      "apertura": "Estamos sin servicio",
+      "turnos": [
+        {
+          "usuario": "Estamos sin servicio",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "No, no lo sé",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Buena s",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": true,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados",
+        "T3: No ofreció pasos de autodiagnóstico esperados",
+        "T3: Posible bucle o respuesta repetida"
+      ],
+      "score_n1": 0.733,
+      "latency_ms_total": 749,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-0fc7704175",
+      "categoria": "internet",
+      "apertura": "Tengo problemas con el wifi se corta constantemente hace unos día q viene asi",
+      "turnos": [
+        {
+          "usuario": "Tengo problemas con el wifi se corta constantemente hace unos día q viene asi",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Arroyo mariana",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "En todos",
+          "bot": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 735,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-e04cb0181a",
+      "categoria": "internet",
+      "apertura": "Hola buen dia no tengo linea 5 dias mas o menos yo di baja el internet no el telefono [dni]",
+      "turnos": [
+        {
+          "usuario": "Hola buen dia no tengo linea 5 dias mas o menos yo di baja el internet no el telefono [dni]",
+          "bot": "Entiendo que querés dar de baja el servicio. Si tenés fibra, la baja se toma con el equipo (ONT/router) en mano. Si no podés acercarte, puede ir otra persona con una nota firmada del titular autorizándola, con los datos de ambos. Desenchufar o apagar el equipo no da de baja el servicio: sigue activo en sistema hasta la gestión formal. ¿Es baja total o solo de internet, Sensa/app u otro producto?",
+          "estado": "bot",
+          "intencion": "baja_servicio",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "baja_servicio",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 149,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-e5c9d58507",
+      "categoria": "internet",
+      "apertura": "Se está cortando bastante el internet ni en el tele quiere agarrar",
+      "turnos": [
+        {
+          "usuario": "Se está cortando bastante el internet ni en el tele quiere agarrar",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Santander Débora roxana",
+          "bot": "Entiendo. ¿No te carga nada, anda lento, se corta, o es solo el WiFi?",
+          "estado": "bot",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Ok gracias",
+          "bot": "De nada María. Cualquier otra consulta, no dudes en escribirme. ¡Que tengas un lindo día!",
+          "estado": "cerrado",
+          "intencion": "internet",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "cerrado",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [
+        "T2: No ofreció pasos de autodiagnóstico esperados",
+        "T3: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.833,
+      "latency_ms_total": 751,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-7a74a1f6f3",
+      "categoria": "internet",
+      "apertura": "2 ecolan internet",
+      "turnos": [
+        {
+          "usuario": "2 ecolan internet",
+          "bot": "Te ayudo con Ecolan. ¿Es PBX, Cloud/VM, housing/hosting, enlace dedicado/IP fija, VPN de sucursal, o una cotización/consulta comercial?",
+          "estado": "bot",
+          "intencion": "ecolan_b2b",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "2 ecolan",
+          "bot": "¿Afecta a un solo usuario, a toda una sede/sucursal, o a todos los sitios?",
+          "estado": "bot",
+          "intencion": "ecolan_b2b",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Sí, lo sé",
+          "bot": "¿Hay un servicio caído ahora con impacto operativo, o es una consulta/cotización sin urgencia?",
+          "estado": "bot",
+          "intencion": "ecolan_b2b",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "ecolan_b2b",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T1: No ofreció pasos de autodiagnóstico esperados",
+        "T3: No ofreció pasos de autodiagnóstico esperados"
+      ],
+      "score_n1": 0.833,
+      "latency_ms_total": 784,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-5102f5b82e",
+      "categoria": "internet",
+      "apertura": "Se me quemo el internet",
+      "turnos": [
+        {
+          "usuario": "Se me quemo el internet",
+          "bot": "Con un daño así (cable arrancado o equipo quemado) ya no lo resolvemos a distancia. Te derivo con un agente para coordinar la visita. Ya generé el ticket IBOT-1008 y te derivo con un agente. Te van a responder por este mismo chat.",
+          "estado": "espera_agente",
+          "intencion": "internet",
+          "ticket_id": "IBOT-1008",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": true,
+      "ticket_id": "IBOT-1008",
+      "estado_final": "espera_agente",
+      "intencion_final": "internet",
+      "lectura_forzada_e1": false,
+      "bucle": false,
+      "fallas": [
+        "T1: Derivación/ticket prematuro sin agotar N1"
+      ],
+      "score_n1": 0.15,
+      "latency_ms_total": 477,
+      "error": ""
+    },
+    {
+      "caso_id": "BM-b2c4d5ad1b",
+      "categoria": "internet",
+      "apertura": "Hola hace un rato me llamo un técnico porque no me anda en wifi, me dijo que siga ciertos pasos pero sigue sin funcionar",
+      "turnos": [
+        {
+          "usuario": "Hola hace un rato me llamo un técnico porque no me anda en wifi, me dijo que siga ciertos pasos pero sigue sin funcionar",
+          "bot": "Tu conexión está activa (IP 181.41.1.20, hace 4 días). La línea hasta la red está bien. Revisé tu ONT: está en línea y la potencia óptica se ve bien (-18 dBm). Sigamos en tu casa:\n📊 Potencia de tu ONT: -18 dBm  🟢 zona verde (ideal)\n🟥🟥🟧🟩🟩🟢🟩🟧🟥\nfloja ←— ideal —→ fuerte\n¿no te anda en ningún dispositivo o solo por Wi‑Fi? Si podés, conectá un cable al router y fijate si navega.",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Tiene unos años, no se si llega un momento donde quizás caducan los transformadores",
+          "bot": "¿Reiniciaste el router 30 segundos? ¿Mejoró?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        },
+        {
+          "usuario": "Buenísimo le agradezco!!",
+          "bot": "Si no recordás la clave WiFi, en la etiqueta del módem/router están el nombre y la clave de fábrica. ¿Pudiste entrar?",
+          "estado": "bot",
+          "intencion": "wifi",
+          "ticket_id": "",
+          "lectura_forzada_e1": false
+        }
+      ],
+      "ticket": false,
+      "ticket_id": "",
+      "estado_final": "bot",
+      "intencion_final": "wifi",
+      "lectura_forzada_e1": true,
+      "bucle": false,
+      "fallas": [],
+      "score_n1": 1.0,
+      "latency_ms_total": 675,
+      "error": ""
+    }
+  ]
+}

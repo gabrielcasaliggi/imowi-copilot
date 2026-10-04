@@ -32,3 +32,4 @@ Si falla: no reñir al modelo. Faltaba guía, sensor, alcance o legibilidad. El 
 - Secretos o `.env` en el chat o en git.
 - Varias tareas en paralelo “para ahorrar contexto”.
 - Instrucciones genéricas (“sé riguroso”) en lugar de una convención o un sensor.
+- Spawnear subagentes / ciclo EKO multi-agente sin pedido explícito (ver `token-budget-pro.mdc`: un hilo / un copiloto).

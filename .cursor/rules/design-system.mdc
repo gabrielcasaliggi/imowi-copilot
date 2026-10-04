@@ -1,0 +1,36 @@
+---
+description: Sistema visual de Operations Hub / Eko — tokens Ecolan y reglas de UI. Se aplica al editar frontend. El Desarrollador lo trata como restricción, igual que un ADR.
+globs: frontend/**/*.tsx,frontend/**/*.css
+alwaysApply: false
+---
+
+# Sistema de diseño — Operations Hub / Eko
+
+Fuente de verdad visual: `frontend/src/app/globals.css`. No introducir una paleta paralela.
+
+## Tokens
+
+Usar las variables ya definidas. No hardcodear hex en componentes.
+
+- Marca: `--brand` `#2298A6`, `--brand-dark` `#1A7985`
+- Fondos: `--background`, `--surface`, `--surface-elevated`, `--card-bg`
+- Texto: `--foreground`, `--text-readable`, `--text-muted`, `--text-dim`
+- Bordes: `--border-subtle`, `--border-accent`
+- Tema: `data-theme=dark` (default) y `data-theme=light`. Un cambio de color tiene que funcionar en los dos.
+
+Clases ya existentes, extender antes de crear otra: `.glass`, `.enterprise-panel`, `.enterprise-panel-header`, `.chip`.
+
+## Reglas de uso
+
+- Ningún componente nuevo si uno existente cubre el caso. Extender antes que duplicar.
+- Foco visible ya está en `:focus-visible` con `--brand`. No pisarlo.
+- Contraste de texto legible contra el fondo del tema activo.
+- Estados vacío, carga y error usan el mismo patrón de la pantalla vecina. No mezclar skeleton y spinner en la misma vista.
+- `alert()` nativo no es feedback de producto.
+- Mobile (`mobile/`) no usa estas clases CSS. No aplicar este archivo ahí.
+
+## Cómo lo usa cada agente
+
+- **Arquitecto**: solo si la decisión cambia la superficie visual de forma estructural.
+- **Desarrollador**: implementa contra estos tokens. Si falta un patrón, lo señala; no improvisa un estilo suelto.
+- **QA**: en UI, verifica que no haya hex suelto ni una paleta distinta de `globals.css`, en claro y en oscuro.

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Informe ejecutivo al Directorio — Soporte Batán / Operations Hub</title>
+<style>
+  @page {
+    size: A4;
+    margin: 14mm 15mm 14mm 15mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Liberation Serif", "Times New Roman", Times, serif;
+    color: #1a1d21;
+    font-size: 10.2pt;
+    line-height: 1.38;
+    margin: 0;
+  }
+  .sans { font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif; }
+  header.mast {
+    border-bottom: 2.5px solid #0f3d4c;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+  .kicker {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 8.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #0f3d4c;
+    margin: 0 0 4px;
+  }
+  h1 {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 18.5pt;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: #0f3d4c;
+    line-height: 1.2;
+  }
+  h2 {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 12pt;
+    color: #0f3d4c;
+    margin: 13px 0 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #c5d0d4;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 10.5pt;
+    margin: 12px 0 4px;
+    color: #1a1d21;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 6px; }
+  .meta {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 8.5pt;
+    color: #4a5560;
+    margin: 0;
+  }
+  .badge {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    display: inline-block;
+    background: #0f3d4c;
+    color: #fff;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    vertical-align: middle;
+    margin-left: 8px;
+  }
+  .thesis {
+    background: #eef4f6;
+    border-left: 4px solid #0f3d4c;
+    padding: 10px 12px;
+    margin: 10px 0 12px;
+    page-break-inside: avoid;
+  }
+  .thesis strong { font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif; }
+  .callout {
+    border-left: 4px solid #2a6fad;
+    background: #f3f7fb;
+    padding: 8px 12px;
+    margin: 10px 0 12px;
+    page-break-inside: avoid;
+  }
+  .callout.warn {
+    border-left-color: #9a6b18;
+    background: #faf6ee;
+  }
+  .callout.ok {
+    border-left-color: #1b6b45;
+    background: #eef6f1;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 10px 0 14px;
+    page-break-inside: avoid;
+  }
+  .stat {
+    border: 1px solid #c5d0d4;
+    padding: 8px 6px;
+    text-align: center;
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+  }
+  .stat strong {
+    display: block;
+    font-size: 15pt;
+    color: #0f3d4c;
+    line-height: 1.15;
+  }
+  .stat span {
+    display: block;
+    font-size: 7.5pt;
+    color: #4a5560;
+    margin-top: 3px;
+    line-height: 1.25;
+  }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 8px 0 12px;
+  }
+  .grid3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 8px 0 12px;
+  }
+  .card {
+    border: 1px solid #c5d0d4;
+    padding: 8px 10px;
+    page-break-inside: avoid;
+  }
+  .card h3 { margin-top: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.7pt;
+    margin: 6px 0 10px;
+    page-break-inside: auto;
+  }
+  th, td {
+    border: 1px solid #c5d0d4;
+    padding: 4px 6px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #eef4f6;
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 8pt;
+    font-weight: 600;
+    color: #0f3d4c;
+  }
+  .hbar {
+    display: grid;
+    grid-template-columns: 148px 1fr 52px;
+    gap: 6px;
+    align-items: center;
+    margin: 3px 0;
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 8.5pt;
+  }
+  .hbar-track {
+    height: 11px;
+    background: #e6ecee;
+  }
+  .hbar-fill {
+    height: 11px;
+    background: #0f3d4c;
+  }
+  .hbar-fill.alt { background: #3a7a8c; }
+  .hbar-fill.warn { background: #9a6b18; }
+  .hbar-fill.danger { background: #8b3a3a; }
+  .hbar-val { text-align: right; color: #4a5560; }
+  .cmp {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr;
+    gap: 0;
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 8.5pt;
+    margin: 8px 0 12px;
+    border: 1px solid #c5d0d4;
+    page-break-inside: avoid;
+  }
+  .cmp div { padding: 6px 8px; border-bottom: 1px solid #e6ecee; }
+  .cmp .hd {
+    background: #eef4f6;
+    font-weight: 600;
+    color: #0f3d4c;
+  }
+  .muted { color: #4a5560; font-size: 8.5pt; }
+  .src {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 8pt;
+    color: #5a656e;
+    margin: 2px 0 10px;
+  }
+  .pedido {
+    border: 2px solid #0f3d4c;
+    padding: 10px 12px;
+    margin: 12px 0;
+    page-break-inside: avoid;
+  }
+  .pedido h2 { border: 0; margin: 0 0 6px; padding: 0; }
+  footer.doc {
+    font-family: "Liberation Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 7.8pt;
+    color: #5a656e;
+    border-top: 1px solid #c5d0d4;
+    margin-top: 10px;
+    padding-top: 6px;
+    page-break-inside: avoid;
+  }
+  ul { margin: 4px 0 8px; padding-left: 18px; }
+  li { margin: 2px 0; }
+  .avoid { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <p class="kicker">Cooperativa Batán · Informe al Directorio</p>
+  <h1>Soporte Batán / Operations Hub <span class="badge">PRODUCTO 1.0</span></h1>
+  <p class="meta">
+    Desarrollo del canal de atención con inteligencia artificial · Por qué, qué y cómo ·
+    Corte 4 de septiembre de 2026<br />
+    Destinatarios: Directorio. Confidencial — uso interno.
+  </p>
+</header>
+
+<div class="thesis">
+  <strong>Tesis.</strong>
+  Lo que se puso en marcha no es “un chatbot más”. Es el primer tramo de un
+  <strong>cambio cultural y generacional</strong>: incorporar la inteligencia
+  artificial como <em>método de trabajo</em>. El abonado se atiende en lenguaje
+  cotidiano; el agente deja de improvisar y opera con procedimientos compartidos;
+  la cooperativa deja de tener el saber en la cabeza de cada persona o en un
+  proveedor externo, y lo convierte en activo institucional. El software ya está
+  en producción. El cambio de hábito recién empieza.
+</div>
+
+<div class="stats">
+  <div class="stat"><strong>80.848</strong><span>Sesiones Botmaker analizadas</span></div>
+  <div class="stat"><strong>66.056</strong><span>Casos útiles curados</span></div>
+  <div class="stat"><strong>0</strong><span>Tickets N2 evitables (lote N1)</span></div>
+  <div class="stat"><strong>GO 1.0</strong><span>Fase 1 en producción</span></div>
+</div>
+
+<h2>1. Por qué se hizo</h2>
+<p>
+  Entre enero 2025 y junio 2026 el canal digital acumuló evidencia masiva:
+  decenas de miles de asociados que intentaron resolverse solos y, en una
+  proporción alta, terminaron navegando menús rígidos o pidiendo una persona.
+  El modelo anterior (Botmaker) digitalizó el acceso, pero no digitalizó el
+  oficio de atender. El saber N1 —qué preguntar, cuándo reiniciar un módem,
+  cuándo no tocar la fibra, cuándo sí derivar— no era de la cooperativa: estaba
+  encerrado en un árbol de menús de un tercero.
+</p>
+<p>
+  Tres hechos del propio Botmaker justifican el proyecto.
+</p>
+<ol>
+  <li><strong>Volumen.</strong> 80.848 sesiones y 66.056 casos útiles en el paquete
+    RAG; un barrido de comprensión sobre 76.096 sesiones (393.166 mensajes de usuario).</li>
+  <li><strong>Forma de hablar.</strong> El 52&nbsp;% de las respuestas del abonado
+    tienen 8 caracteres o menos —típico de menú numérico, no de una conversación de ayuda.</li>
+  <li><strong>Demanda real.</strong> Casi la mitad de los casos clasificados es
+    facturación y pagos; un tercio es Internet caído o lento; 1.590 personas
+    pidieron explícitamente un agente. Eso no se resuelve con “más operadores”:
+    se resuelve con método.</li>
+</ol>
+
+<h3>Demanda histórica por familia (casos clasificados = 36.785)</h3>
+<div class="avoid">
+  <div class="hbar"><span>Facturación y pagos</span><div class="hbar-track"><div class="hbar-fill" style="width:45.5%"></div></div><span class="hbar-val">16.721</span></div>
+  <div class="hbar"><span>Soporte Internet</span><div class="hbar-track"><div class="hbar-fill alt" style="width:35.5%"></div></div><span class="hbar-val">13.065</span></div>
+  <div class="hbar"><span>Comercial / administración</span><div class="hbar-track"><div class="hbar-fill" style="width:9.1%;background:#6b7c4c"></div></div><span class="hbar-val">3.337</span></div>
+  <div class="hbar"><span>TV, móvil, fija y accesos</span><div class="hbar-track"><div class="hbar-fill" style="width:5.6%;background:#6a6f74"></div></div><span class="hbar-val">2.072</span></div>
+  <div class="hbar"><span>Pedido de agente humano</span><div class="hbar-track"><div class="hbar-fill danger" style="width:4.3%"></div></div><span class="hbar-val">1.590</span></div>
+</div>
+<p class="src">
+  Fuente: RAGs Botmaker 14 ago 2026 (colecciones 01–05), derivado de 80.848 sesiones /
+  66.056 casos útiles. Los ~29.000 casos útiles no mapeados a estas 23 intenciones
+  no se estiman aquí. Composición: facturación 45&nbsp;% · Internet 36&nbsp;% ·
+  comercial 9&nbsp;% · otros servicios 6&nbsp;% · pedido de humano 4&nbsp;%.
+</p>
+
+<h3>Las ocho intenciones que más aparecen</h3>
+<div class="avoid">
+  <div class="hbar"><span>Pagar factura</span><div class="hbar-track"><div class="hbar-fill" style="width:100%"></div></div><span class="hbar-val">6.495</span></div>
+  <div class="hbar"><span>Sin Internet</span><div class="hbar-track"><div class="hbar-fill" style="width:96%"></div></div><span class="hbar-val">6.255</span></div>
+  <div class="hbar"><span>Descargar factura</span><div class="hbar-track"><div class="hbar-fill alt" style="width:69%"></div></div><span class="hbar-val">4.484</span></div>
+  <div class="hbar"><span>Cortes / intermitencia</span><div class="hbar-track"><div class="hbar-fill alt" style="width:52%"></div></div><span class="hbar-val">3.350</span></div>
+  <div class="hbar"><span>Informar pago</span><div class="hbar-track"><div class="hbar-fill alt" style="width:41%"></div></div><span class="hbar-val">2.636</span></div>
+  <div class="hbar"><span>Wi-Fi cobertura</span><div class="hbar-track"><div class="hbar-fill alt" style="width:29%"></div></div><span class="hbar-val">1.905</span></div>
+  <div class="hbar"><span>Hablar con agente</span><div class="hbar-track"><div class="hbar-fill warn" style="width:24%"></div></div><span class="hbar-val">1.590</span></div>
+  <div class="hbar"><span>Solicitud de baja</span><div class="hbar-track"><div class="hbar-fill alt" style="width:22%"></div></div><span class="hbar-val">1.431</span></div>
+</div>
+<p class="src">
+  Lectura para el Directorio: el asociado entra primero a pagar o a decir
+  “no tengo Internet”. Ahí tiene que resolverse el N1. Pedir un humano es la
+  séptima causa, no la primera. En el minado de comprensión, 71.757 intercambios
+  cortos cayeron en aviso de deuda; una parte seguía después con un problema
+  técnico. El método nuevo no trata factura y corte como mundos separados.
+</p>
+
+<h2>2. Qué se hizo</h2>
+<p>
+  Se construyó y puso en producción una capa operativa propia: <strong>Operations Hub</strong>
+  para la cooperativa y <strong>Eko</strong> como asistente virtual del abonado.
+  No reemplaza la facturación, ni JSC, ni el NOC. Ordena lo que pasa entre el
+  vecino, el agente N1 y el ticket N2.
+</p>
+
+<div class="grid3">
+  <div class="card">
+    <h3>Abonado — Eko</h3>
+    <p>Portal en <strong>soporte.ecolan.com</strong> y app nativa. Identificación por DNI + OTP/PIN. Conversación en español argentino, una pregunta por vez. Si corresponde, el hilo pasa a un agente en la misma conversación.</p>
+  </div>
+  <div class="card">
+    <h3>Agente — consola</h3>
+    <p><strong>ibot.ecolan.com</strong>: bandeja, tickets N2 con historial de pruebas, base de conocimiento, roles (administrador, supervisor, ejecutivo, agente). El agente recibe intención, síntomas, acciones ya hechas y motivo de derivación.</p>
+  </div>
+  <div class="card">
+    <h3>Institución — el saber</h3>
+    <p>5 colecciones, 23 intenciones, 27 blueprints N1, 31 documentos y 301 fragmentos. Playbooks para fibra, radio, ADSL, Wi-Fi, factura, Sensa, móvil y B2B Ecolan. La IA redacta; no inventa saldos.</p>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Capa</th><th>Antes (Botmaker)</th><th>Ahora (Soporte Batán)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Canal</td><td>Menús numéricos de un proveedor</td><td>Portal + app propios; consola de agentes</td></tr>
+    <tr><td>Lenguaje</td><td>Dígitos y respuestas de 8 caracteres o menos (52&nbsp;%)</td><td>Conversación natural con Eko; tolerancia a typos</td></tr>
+    <tr><td>Diagnóstico</td><td>Árbol rígido; el saber está afuera</td><td>Playbooks N1 propios (FTTH, radio, factura, etc.)</td></tr>
+    <tr><td>Escalamiento</td><td>Pedir humano como escape (1.590 casos)</td><td>Handoff con pruebas; ticket solo si corresponde</td></tr>
+    <tr><td>Personas</td><td>Operador solo frente al reclamo</td><td>Copiloto + bandeja + roles y auditoría</td></tr>
+    <tr><td>Aprendizaje</td><td>Ajustes opacos en la plataforma del proveedor</td><td>Entrenamiento semanal medible (0 N2 evitables)</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Cómo se hizo</h2>
+<p>
+  El método importa tanto como el producto, porque es el que se pide institucionalizar:
+  no comprar un “cerebro mágico”, sino convertir 18 meses de atención real en
+  procedimientos que la cooperativa posee, audita y mejora.
+  Principio rector: <strong>inteligente antes de IA</strong> (reglas y conocimiento primero;
+  el modelo solo redacta).
+</p>
+
+<table>
+  <thead>
+    <tr><th>Tramo</th><th>Qué se hizo</th><th>Evidencia</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1. Minar sin PII</td>
+      <td>Sesiones históricas sin versionar chats ni datos de abonados. Teléfonos, DNI y mails anonimizados en memoria.</td>
+      <td>80.848 sesiones RAG · 76.096 en comprensión · privacy_scan: 0 hallazgos</td>
+    </tr>
+    <tr>
+      <td>2. Curar el oficio</td>
+      <td>23 intenciones y 27 blueprints N1 (pasos, cuándo no escalar, límites). Ejemplo: 6.255 casos de “sin Internet” → protocolo FTTH (PON/LOS; no tocar fibra si LOS roja).</td>
+      <td>Paquete RAG 14 ago 2026 · contrato N1 + handoff N2</td>
+    </tr>
+    <tr>
+      <td>3. Codificar</td>
+      <td>Playbooks en la API, KB por cooperativa, motor conversacional. La IA no consulta la base ni inventa saldos.</td>
+      <td>FastAPI + Next.js + Expo + PostgreSQL</td>
+    </tr>
+    <tr>
+      <td>4. Entrenar como sensor</td>
+      <td>Harness con personas hogareñas y B2B. Meta de corte: 0 tickets N2 que un N1 bien hecho habría evitado.</td>
+      <td>15 escenarios (3 ago) · lote 32/32 (25 ago)</td>
+    </tr>
+    <tr>
+      <td>5. Producir</td>
+      <td>Dos hosts HTTPS, auth dual, backups diarios, alerta de salud. Verificado en servidor el 3 sep 2026.</td>
+      <td>Fase 1: 9 OK, 0 FAIL · ibot.ecolan.com + soporte.ecolan.com</td>
+    </tr>
+    <tr>
+      <td>6. Ritual semanal</td>
+      <td>Correr el lote → leer 3–5 tickets reales → bajar un artículo o un paso → sumar una persona nueva. El automatizado evita regresiones; la calle enseña los casos nuevos.</td>
+      <td>Entrenamiento N1 documentado</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. Antes y después — calidad de atención N1</h2>
+<p>
+  Hay dos relojes y no hay que mezclarlos. El reloj histórico es Botmaker (cómo se atendía).
+  El reloj de ingeniería es el harness de calidad (cómo se comporta Eko ante los mismos oficios).
+  <strong>Aún no hay un trimestre de tickets reales de la plataforma nueva</strong> para
+  mostrar como “ahorro de horas”; eso es el siguiente informe, no este.
+</p>
+
+<div class="stats">
+  <div class="stat"><strong>~53&nbsp;%</strong><span>Resolutividad N1 · 3 ago (15 casos)</span></div>
+  <div class="stat"><strong>27&nbsp;%</strong><span>Tickets prematuros · 3 ago</span></div>
+  <div class="stat"><strong>32/32</strong><span>Personas OK · 25 ago</span></div>
+  <div class="stat"><strong>0</strong><span>N2 evitables · 25 ago</span></div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Métrica</th><th>Antes (QA 3 ago 2026)</th><th>Después (lote 25 ago 2026)</th><th>Meta de canal digital</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Resolutividad N1</td>
+      <td>~53&nbsp;% (8/15, revisión senior)</td>
+      <td>100&nbsp;% del lote (32/32)</td>
+      <td>≥75–80&nbsp;% sin ticket prematuro</td>
+    </tr>
+    <tr>
+      <td>Tickets prematuros / N2 evitables</td>
+      <td>27&nbsp;% (4/15)</td>
+      <td>0 N2 evitables (23 cierres N1 + 9 handoffs legítimos)</td>
+      <td>&lt;10&nbsp;% prematuros</td>
+    </tr>
+  </tbody>
+</table>
+<p class="src">
+  El 3 de agosto todavía rompía: pedir “una persona” abría ticket en el primer turno;
+  repetir “no tengo Internet” también; “en el living anda bien, lejos no” se leía como
+  resuelto; el QR de pago no se entregaba en invitado. El 25 de agosto el lote exhaustivo
+  pasa entero. El 3 de septiembre el smoke de producción verifica guía QR y anti-ticket;
+  Fase 1 cierra con 0 FAIL. Pendiente de higiene, no de producto: una semana estable con
+  agentes Batán (objetivo al 8 sep), drill de restore en staging, WhatsApp en el sprint siguiente.
+</p>
+
+<div class="callout warn">
+  <strong>Criterio de honestidad.</strong>
+  Los números grandes son del canal histórico Botmaker. Los de calidad N1 son del
+  laboratorio (harness). Mezclarlos con volúmenes de producción de Eko sería vestir
+  un piloto con estadística que todavía no existe.
+</div>
+
+<h2>5. Objetivos</h2>
+<p>Los objetivos no son de software. Son de operación cooperativa. El producto es el medio.</p>
+
+<table>
+  <thead>
+    <tr><th>Objetivo</th><th>Para quién</th><th>Indicador</th><th>Estado</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Contener en N1 lo que N1 sabe resolver (pago, Wi-Fi, reinicio, APN)</td>
+      <td>Abonado y mesa</td>
+      <td>0 N2 evitables en harness; meta live ≥75&nbsp;% autónomo</td>
+      <td>Cumplido en laboratorio · a medir en vivo</td>
+    </tr>
+    <tr>
+      <td>Escalar solo con contexto (no “el cliente dice que no anda”)</td>
+      <td>Agentes y NOC</td>
+      <td>Handoff con síntomas, pruebas y motivo</td>
+      <td>Contrato escrito e implementado</td>
+    </tr>
+    <tr>
+      <td>Que el saber no se vaya con la persona ni con el proveedor</td>
+      <td>La cooperativa</td>
+      <td>23 intenciones + 27 blueprints + KB propia</td>
+      <td>Activo propio · falta sello humano RAG</td>
+    </tr>
+    <tr>
+      <td>IA como método, no como oráculo</td>
+      <td>Toda la organización</td>
+      <td>Reglas → KB → IA redacta; ritual semanal</td>
+      <td>En vigor en el 1.0</td>
+    </tr>
+    <tr>
+      <td>Canal digital de la cooperativa, no alquiler de menú</td>
+      <td>Abonado (todas las generaciones)</td>
+      <td>Portal + app + (luego) WhatsApp sobre el mismo motor</td>
+      <td>Portal y app vivos · WA próximo sprint</td>
+    </tr>
+    <tr>
+      <td>Cuidar a las personas: N1 no toca fibra con LOS roja ni promete plazos inventados</td>
+      <td>Abonado y técnicos</td>
+      <td>Límites de seguridad N1</td>
+      <td>Documentado; a ratificar con N1/N2</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>6. Cambio cultural y generacional</h2>
+<p>
+  El Directorio no está frente a un gasto de sistemas. Está frente a un cambio de oficio.
+  Tres generaciones conviven: el asociado que todavía llama; el que ya escribe por chat
+  y se cansa del menú; el que espera una app. El método nuevo no elige una generación:
+  le da a cada una el mismo estándar, con Eko adelante y un agente cuando hace falta.
+</p>
+
+<div class="grid3">
+  <div class="card">
+    <h3>Para el asociado</h3>
+    <p>Deja de “apretar 7” y pasa a decir lo que le pasa. El adulto mayor no necesita saber si es fibra o radio: Eko pregunta una cosa por vez. El joven no necesita horario de mostrador para pagar o reiniciar. Eso es inclusión generacional, no un gadget.</p>
+  </div>
+  <div class="card">
+    <h3>Para quien atiende</h3>
+    <p>El trabajo N1 deja de ser memoria individual. El agente nuevo no “aprende sufriendo tickets”: opera el mismo playbook que Eko ya recorrió. El senior se reserva para lo que sí requiere criterio humano (óptica, B2B caído, reclamo de monto).</p>
+  </div>
+  <div class="card">
+    <h3>Para la cooperativa</h3>
+    <p>La IA no reemplaza al cooperativista. Lo vuelve reproducible. Cada ticket evitable es tiempo de mesa que vuelve a la visita que sí hay que hacer. Cada procedimiento curado es patrimonio: sigue existiendo si cambia el proveedor, el agente o la generación de socios.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>Qué no es este proyecto.</strong>
+  No es un recorte de personal disfrazado. El contrato N1 dice lo contrario: derivar
+  cuando hay daño físico, riesgo eléctrico, LOS óptica, sede B2B caída o el asociado
+  insiste en hablar con alguien. La IA sostiene el estándar; las personas sostienen
+  el lazo y los casos que el procedimiento no cubre. Pedirle a Eko que “reemplace la
+  mesa” sería el error cultural inverso al que se está corrigiendo.
+</div>
+
+<h2>7. Estado al 4 de septiembre de 2026</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Ya es de la cooperativa</h3>
+    <ul>
+      <li>Producto 1.0 Batán en dos dominios propios.</li>
+      <li>Eko en portal y app, con voz y tono definidos.</li>
+      <li>Consola con cuatro roles y aislamiento por cooperativa.</li>
+      <li>Playbooks N1 + harness en verde (0 N2 evitables).</li>
+      <li>Backup diario y chequeo de salud en servidor.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Lo que convierte el 1.0 en hábito</h3>
+    <ul>
+      <li>Una semana de operación estable con agentes Batán (cierre operativo hacia el 8 sep).</li>
+      <li>Aprobación humana de los 31 documentos RAG (hoy en borrador: el saber está curado, falta el sello N1/N2).</li>
+      <li>WhatsApp sobre el mismo motor (firma HMAC ya preparada).</li>
+      <li>Informe n.º 2 al Directorio: métricas en vivo (contención, recontacto 24/72 h, tickets con contexto vs. tickets vacíos).</li>
+    </ul>
+  </div>
+</div>
+
+<div class="cierre avoid">
+<div class="pedido">
+  <h2>Pedido al Directorio</h2>
+  <p style="margin:0">
+    Se solicita tomar conocimiento de que el desarrollo cumplió su tramo de producto
+    y abrir, de forma explícita, el tramo cultural: que la mesa use Eko y la consola
+    como método cotidiano; que los responsables N1/N2 firmen los blueprints; y que el
+    siguiente informe se mida con tickets reales, no con el laboratorio. Sin ese mandato,
+    el 1.0 queda en un sistema. Con ese mandato, empieza el cambio generacional.
+  </p>
+</div>
+
+<footer class="doc">
+  <p style="margin:0 0 4px"><strong>Fuentes (repositorio del proyecto)</strong></p>
+  <p style="margin:0">
+    RAGs Botmaker 2026-08-14 (README, manifest, router, colecciones 01–05, contrato N1,
+    handoff N2, límites de seguridad, validación y métricas, approval-matrix).
+    COMPRENSION-DATOS.md (76.096 sesiones, 393.166 mensajes).
+    reporte_qa_bot.md (3 ago 2026). ENTRENAMIENTO-N1.md y lote exhaustivo 25 ago 2026.
+    FASE-1-BATAN.md (3 sep 2026, 9 OK / 0 FAIL).
+    OPERATIONS-HUB-RESUMEN.md · PORTAL-ABONADO.md · EKO-VOICE.md · RBAC ·
+    ARQUITECTURA_PLATAFORMA.md.
+  </p>
+  <p style="margin:8px 0 0">
+    Cooperativa Batán · Soporte Batán / Operations Hub · Informe ejecutivo al Directorio ·
+    4 de septiembre de 2026 · Uso interno.
+  </p>
+</footer>
+</div>
+
+</body>
+</html>
