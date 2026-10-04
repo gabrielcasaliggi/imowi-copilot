@@ -167,4 +167,9 @@ Orden de implementación aceptado (tanda 1): Fase 0 docs → H6 → RC-10 → RC
 Hallazgos abiertos de la tanda 3: H7 (tras el cierre del legacy, «gracias» abre conversación nueva con saludo que pide DNI);
 «no sigamos con el diagnóstico» continúa el diagnóstico; con journeys ON + móvil, «¿necesito hablar con un agente?» cae al menú
 genérico; verificar si la voz/TTS lee solo `respuesta` (el aviso de saldo es un mensaje aparte).
-Pendiente: RC-3, RC-4, RC-8 (orden de §e).
+**Tanda 4 fase A: H11 IMPLEMENTADO** (repro `94bd6e8`, H11a `d9968bf`, H11b `ecf037e`). «no las recibo» (llamadas) se leía como «recibo» de
+factura y el lifecycle pasaba a facturación: con un dominio técnico y su pregunta pendiente, un texto sin términos fuertes de facturación
+sigue en el playbook (`_respuesta_a_pregunta_tecnica_pendiente`). RC-3 acotado: `niega_tema` («no te pregunté por la factura», «no es por…»)
+no reclama el turno (`clasificar_intencion` → `general`, `detect_journey_name`, lifecycle, gesto OV); «no es por X, es por Y» sí. La lista blanca
+completa de §c sigue pendiente. Abierto: el playbook repite la misma pregunta ante respuestas que no son sí/no (I5).
+Pendiente: RC-3 (lista blanca completa), RC-4, RC-8 (orden de §e).
