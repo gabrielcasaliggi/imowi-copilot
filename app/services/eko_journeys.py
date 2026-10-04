@@ -735,6 +735,28 @@ def _continuity_offer_turn(ctx: dict[str, Any]) -> JourneyTurn:
     )
 
 
+_AGENTE_PEDIDO = re.compile(
+    r"\b(quiero|necesito|prefiero|pasame|pas[aá]me|derivame|deriv[aá]me|comunicame|comunic[aá]me|hablar|me pas[aá]s)\b"
+    r".*\b(agente|operador|persona|humano|alguien|asesor|representante)\b",
+    re.I,
+)
+_NEGACION = re.compile(r"\b(no|sin|tampoco|nunca|ni)\b", re.I)
+
+
+def _explicit_agent_request(texto: str) -> bool:
+    """Pedido afirmativo e inequívoco de agente (el pedido ES la confirmación, ADR regla 5).
+
+    Conservador a propósito: sin negaciones ni preguntas. ``pide_humano`` solo no alcanza
+    («no quiero hablar con un agente» también da True) y acá se crea un ticket.
+    """
+    t = (texto or "").strip().lower()
+    if not t or "?" in t or "¿" in t or _NEGACION.search(t):
+        return False
+    if not _explicit_handoff(t):
+        return False
+    return bool(_AGENTE_PEDIDO.search(t)) or t in ("agente", "un agente", "quiero un agente")
+
+
 def _explicit_handoff(texto: str) -> bool:
     try:
         from app.domain.flujos_abonado import pide_humano
@@ -1594,6 +1616,15 @@ def _advance_connectivity(
         and not _is_pure_courtesy(texto)
     )
     if (
+        _explicit_agent_request(texto)
+        and ctx.get("pppoe_informado")
+        and st.get("last_diagnostic_result")
+        and not _journey_is_resolved(st)
+    ):
+        return _handle_ticket_confirmation(
+            db=db, org_id=org_id, conv=conv, abonado=abonado, texto=texto, ctx=ctx, canal=canal, corr=corr
+        )
+    if (
         ctx.get("pppoe_informado")
         and st.get("last_diagnostic_result")
         and detected_here in (None, "internet_sin_conectividad")
@@ -1943,6 +1974,10 @@ def _handle_ticket_confirmation(
         texto=texto,
         intencion=str(ctx.get("intencion") or "internet"),
     )
+    # ADR regla 5 (Handoff): el pedido explícito de agente ES la confirmación; deriva directo.
+    por_pedido = _explicit_agent_request(texto)
+    if por_pedido and not rej:
+        rec = True
     if rej:
         set_journey(
             ctx,
@@ -1999,6 +2034,7 @@ def _handle_ticket_confirmation(
         canal=canal,
         texto=texto,
         decision_name="journey_connectivity_create_ticket",
+        confirmado_por_pedido=por_pedido,
     )
     if pending:
         _mark_confirmation_pending(ctx, corr=corr)

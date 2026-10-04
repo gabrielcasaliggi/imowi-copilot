@@ -186,8 +186,12 @@ def dispatch_runtime(
     historial: list[dict] | None = None,
     texto: str = "",
     source: str = "decision",
+    confirmation_received: bool | None = None,
 ) -> ActionResult | None:
     """Ejecuta vía Runtime si el gate cubre la acción.
+
+    ``confirmation_received`` solo lo setea código determinista que derivó la confirmación del
+    texto del abonado (p. ej. pedido explícito de agente); nunca el LLM. ``None`` = sin cambios.
 
     Returns:
         ActionResult si Runtime manejó la acción (caller NO debe ejecutar Legacy).
@@ -209,6 +213,7 @@ def dispatch_runtime(
         historial=historial,
         action=name,
         texto=texto,
+        confirmation_received=confirmation_received,
         correlation_id=corr,
     )
     req = ActionRequest(

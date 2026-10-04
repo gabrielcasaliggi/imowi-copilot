@@ -2986,6 +2986,7 @@ def _ticket_via_runtime_o_legacy(
     canal: str = "",
     texto: str = "",
     decision_name: str = "create_ticket",
+    confirmado_por_pedido: bool = False,
 ) -> tuple[str | None, str | None]:
     """(ticket_id, pending_user_message).
 
@@ -3029,6 +3030,7 @@ def _ticket_via_runtime_o_legacy(
         parameters={"motivo": motivo, "intencion": intencion},
         historial=historial,
         texto=texto,
+        confirmation_received=True if confirmado_por_pedido else None,
     )
     # covers() era True: NUNCA Legacy mutante (ni si dispatch devolviera None).
     if ar is None:

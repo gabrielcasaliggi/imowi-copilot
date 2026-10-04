@@ -17,6 +17,7 @@ from tests.e2e_conv import invariants as inv
 from tests.e2e_conv.harness import converse
 
 DERIVAR = re.compile(r"(derivar|derive|confirmame con un|ticket [a-z]+-\d+)", re.I)
+HANDOFF_OK = re.compile(r"(te derivo|ticket [a-z]+-\d+|derivado|derivé)", re.I)
 ACUSE_RESUELTO = re.compile(r"(me alegra|solucion|resuelt|de nada|cualquier otra|escribime|que bueno)", re.I)
 
 
@@ -113,10 +114,11 @@ def test_10_sensa_tv(canal):
     assert "?" in t[0].reply or "contame" in t[0].reply.lower(), t[0].reply
 
 
-def test_11_pedir_agente_pide_confirmacion(canal):
+def test_11_pedir_agente_deriva_directo(canal):
+    """R1 + ADR regla 5: el pedido explícito de agente ES la confirmación; deriva directo."""
     t = converse(["no tengo internet", "quiero hablar con un agente"], canal=canal)
     sin_violaciones(t)
-    assert not t[1].ticket_created  # I6: confirma antes de crear el ticket
+    assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
 
 
 @xf("S12: «ahora revisame el de tupaciretaBAI» (cambio de servicio) vuelve a mostrar el menú en vez de cambiar de servicio")
@@ -192,11 +194,26 @@ def test_h5b_login_con_id_solo_funciona(canal):
     assert "no pertenece" not in t[1].reply.lower()
 
 
-@xf("H6: el «sí» a la confirmación de derivación repite la confirmación y nunca crea el ticket (journeys ON, solo create_ticket)")
 def test_h6_diagnostico_agente_si(canal):
+    """H6: pedido de agente tras el diagnóstico deriva directo; el «sí» posterior no crea otro ticket."""
     t = converse(["no tengo internet", "quiero hablar con un agente", "sí"], canal=canal)
     sin_violaciones(t)
-    assert t[2].ticket_created, t[2].reply
+    assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
+    assert not t[2].ticket_created and t[2].reply, t[2].reply
+
+
+def test_h6b_agente_con_diagnostico_hecho_sin_confirmacion_pendiente(canal):
+    """El journey queda en «respond» tras el diagnóstico (set completo de acciones): el pedido también deriva."""
+    acciones = ("create_ticket", "run_diagnostic_pppoe", "service_list", "show_balance", "show_ticket", "request_account_selection")
+    t = converse(["no tengo internet", "quiero hablar con un agente"], canal=canal, runtime_actions=acciones)
+    sin_violaciones(t)
+    assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
+
+
+@pytest.mark.parametrize("texto", ["no quiero hablar con un agente", "no necesito un agente", "¿necesito hablar con un agente?"])
+def test_h6c_negacion_o_pregunta_no_crea_ticket(canal, texto):
+    t = converse(["no tengo internet", texto], canal=canal)
+    assert not any(x.ticket_created for x in t), (texto, t[1].reply)
 
 
 @xf("H7: «ya se arregló» tras un diagnóstico ofrece derivar en lugar de acusar la resolución")
