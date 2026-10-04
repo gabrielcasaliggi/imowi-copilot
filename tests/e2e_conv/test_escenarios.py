@@ -25,6 +25,19 @@ def canal(request):
     return request.param
 
 
+DEBT_NOTICE = re.compile(r"(saldo pendiente|figura un saldo|tenés una deuda|deuda pendiente)", re.I)
+BLOQUEA = re.compile(r"(primero a pagar|o seguimos con el diagn)", re.I)
+PAGO = re.compile(r"(oficina virtual|https?://|ov\.batan)", re.I)
+BASE_MOVIL = ["tengo problemas con mi línea de imowi", "1", "no puedo hacer llamadas"]
+PREGUNTA_LLAMADAS = re.compile(r"(llamar|llamada|te entran|se cortan)", re.I)
+
+
+def avisos(turns) -> int:
+    return sum(1 for t in turns if DEBT_NOTICE.search(t.reply))
+
+
+
+
 def xf(reason: str):
     return pytest.mark.xfail(strict=True, reason=reason)
 
@@ -115,45 +128,52 @@ def test_12_cambio_de_servicio_tras_diagnostico(canal):
     assert "¿Cuál servicio querés usar?" not in t[2].reply, t[2].reply
 
 
-def _on_off_aviso(reason_off: str | None, reason_on: str | None):
-    marks = lambda r: [xf(r)] if r else []  # noqa: E731
-    return [
-        pytest.param(True, marks=marks(reason_on), id="journeys_on"),
-        pytest.param(False, marks=marks(reason_off), id="journeys_off"),
-    ]
-
-
-@pytest.mark.parametrize(
-    "journeys",
-    _on_off_aviso(
-        "legacy: «no sigamos con el diagnóstico» tras el aviso de deuda cae en el saludo genérico",
-        "S13: con journeys ON no hay aviso de deuda y «no sigamos con el diagnóstico» ofrece derivar a un agente",
+JOURNEYS_R2 = [
+    pytest.param(
+        True,
+        marks=xf("R2/journeys: con journeys ON no hay aviso de saldo (el journey de conectividad responde «No veo una sesión…» antes de la rama de deuda)"),
+        id="journeys_on",
     ),
-)
+    pytest.param(
+        False,
+        marks=xf("R2/legacy: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar…?») y las respuestas al aviso caen al saludo genérico"),
+        id="journeys_off",
+    ),
+]
+
+
+# Viejos 13/14 (Internet con saldo pendiente) bajo R2: el aviso es informativo, una vez por conversación, no bloquea.
+def _aviso_internet_ok(t):
+    r = t[0].reply
+    assert avisos(t) == 1 and DEBT_NOTICE.search(r), r
+    assert inv.VOCAB_INTERNET.search(r) and "?" in r and not BLOQUEA.search(r), r
+
+
+@pytest.mark.parametrize("journeys", JOURNEYS_R2)
 def test_13_aviso_de_deuda_y_no_sigamos(canal, journeys):
     t = converse(["no tengo internet", "no sigamos con el diagnóstico"], canal=canal, profile="deuda", journeys=journeys)
     sin_violaciones(t)
-    assert re.search(r"(pag|factura|saldo|deuda|oficina|de acuerdo|ok)", t[1].reply, re.I) and not DERIVAR.search(t[1].reply), t[1].reply
+    _aviso_internet_ok(t)
+    assert PAGO.search(t[1].reply) or inv.VOCAB_INTERNET.search(t[1].reply), t[1].reply
+    assert avisos(t) == 1
 
 
-@pytest.mark.parametrize(
-    "journeys",
-    _on_off_aviso("legacy: «quiero pagar» tras el aviso de deuda cae en el saludo genérico", None),
-)
+@pytest.mark.parametrize("journeys", JOURNEYS_R2)
 def test_14a_respuesta_al_aviso_pagar(canal, journeys):
     t = converse(["no tengo internet", "quiero pagar"], canal=canal, profile="deuda", journeys=journeys)
     sin_violaciones(t)
-    assert re.search(r"(oficina virtual|pagar|pago)", t[1].reply, re.I), t[1].reply
+    _aviso_internet_ok(t)
+    assert PAGO.search(t[1].reply), t[1].reply
+    assert avisos(t) == 1
 
 
-@pytest.mark.parametrize(
-    "journeys",
-    _on_off_aviso(None, "S14b: con journeys ON «seguí con el diagnóstico» ofrece derivar a un agente en vez de seguir"),
-)
+@pytest.mark.parametrize("journeys", JOURNEYS_R2)
 def test_14b_respuesta_al_aviso_seguir(canal, journeys):
     t = converse(["no tengo internet", "seguí con el diagnóstico"], canal=canal, profile="deuda", journeys=journeys)
     sin_violaciones(t)
+    _aviso_internet_ok(t)
     assert inv.VOCAB_INTERNET.search(t[1].reply) and not DERIVAR.search(t[1].reply), t[1].reply
+    assert avisos(t) == 1
 
 
 # =============================================================== hallazgos abiertos (H5–H10)
@@ -234,17 +254,6 @@ def test_base_off_sensa_pregunta(canal):
 # =============================================================== reglas de producto R1/R2 (móvil + saldo pendiente)
 #   R1 móvil/Sensa/VoIP: playbook + KB; si no se resuelve, ofrece agente y crea el ticket SOLO tras confirmar.
 #   R2 deuda: aviso informativo, una sola vez por conversación; no bloquea y no se repite.
-DEBT_NOTICE = re.compile(r"(saldo pendiente|figura un saldo|tenés una deuda|deuda pendiente)", re.I)
-BLOQUEA = re.compile(r"(primero a pagar|o seguimos con el diagn)", re.I)
-PAGO = re.compile(r"(oficina virtual|https?://|ov\.batan)", re.I)
-BASE_MOVIL = ["tengo problemas con mi línea de imowi", "1", "no puedo hacer llamadas"]
-PREGUNTA_LLAMADAS = re.compile(r"(llamar|llamada|te entran|se cortan)", re.I)
-
-
-def avisos(turns) -> int:
-    return sum(1 for t in turns if DEBT_NOTICE.search(t.reply))
-
-
 @xf("E13/R2: el aviso de saldo bloquea («¿Querés que te ayude primero a pagar, o seguimos…?») en vez de ser informativo y seguir con la pregunta del playbook")
 def test_e13_movil_con_saldo_aviso_una_vez_y_sigue_playbook(canal):
     t = converse(BASE_MOVIL, canal=canal, profile="movil_deuda")
