@@ -180,6 +180,25 @@ def _extract_login(texto: str) -> str:
     return ""
 
 
+def _login_from_catalog(texto: str, rows: list[dict[str, Any]]) -> str:
+    """Login del catálogo nombrado como palabra completa en el texto (sin regex ``INT*``).
+
+    Devuelve el login solo si exactamente uno del catálogo aparece; con 0 o 2+ no adivina.
+    Compara contra el catálogo confiable del abonado, así que no puede nombrar un login ajeno.
+    """
+    t = (texto or "").lower()
+    if not t:
+        return ""
+    hits: list[str] = []
+    for r in rows:
+        lg = str(r.get("login") or "").strip()
+        if len(lg) < 3 or lg.lower() in {h.lower() for h in hits}:
+            continue
+        if re.search(rf"(?<![\w.-]){re.escape(lg.lower())}(?![\w-])(?!\.\w)", t):
+            hits.append(lg)
+    return hits[0] if len(hits) == 1 else ""
+
+
 def _natural_matches(texto: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     t = (texto or "").lower().strip()
     if not t:
@@ -438,7 +457,7 @@ def resolve_service_selection(
     sid_txt = _extract_service_id(texto)
     login_txt = _extract_login(texto)
     sid = sid_prop or sid_txt
-    login = login_prop or login_txt
+    login = login_prop or login_txt or _login_from_catalog(texto, rows)
 
     if sid:
         matches = [r for r in rows if str(r.get("id") or "").strip() == sid]

@@ -121,13 +121,14 @@ def test_11_pedir_agente_deriva_directo(canal):
     assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
 
 
-@xf("S12: «ahora revisame el de tupaciretaBAI» (cambio de servicio) vuelve a mostrar el menú en vez de cambiar de servicio")
 def test_12_cambio_de_servicio_tras_diagnostico(canal):
+    """RC-11: nombrar el login (no INT*) cambia de servicio sin volver a mostrar el menú."""
     t = converse(
         ["no tengo internet", "lemuramatiBAI", "ahora revisame el de tupaciretaBAI"], canal=canal, profile="multi"
     )
     sin_violaciones(t)
     assert "¿Cuál servicio querés usar?" not in t[2].reply, t[2].reply
+    assert "tupaciretaBAI" in t[2].reply, t[2].reply
 
 
 JOURNEYS_R2 = [
