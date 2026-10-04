@@ -1186,12 +1186,12 @@ def _advance_connectivity(
                 "En esta cuenta no tengo Internet fijo para diagnosticar. "
                 "Si es por móvil IMOWI, Sensa/TV o factura, decime."
             )
-            set_journey(ctx, step="respond", last_user_message=msg)
+            set_journey(ctx, step="done", last_user_message=msg)
             return JourneyTurn(
                 handled=True,
                 user_message=msg,
                 journey="internet_sin_conectividad",
-                step="respond",
+                step="done",
                 intent="internet",
                 domain="internet",
                 action="run_diagnostic_pppoe",
@@ -1209,9 +1209,10 @@ def _advance_connectivity(
             "para diagnosticar. "
             "Si tu consulta es por móvil IMOWI, Sensa/TV o factura, decime y te ayudo por ese lado."
         )
+        # Mensaje terminal (ADR §a): el journey queda «done» y suelta el turno siguiente (RC-12).
         set_journey(
             ctx,
-            step="respond",
+            step="done",
             last_action="run_diagnostic_pppoe",
             last_action_status="unavailable",
             last_diagnostic_result="no_fixed_internet",
@@ -1224,7 +1225,7 @@ def _advance_connectivity(
             handled=True,
             user_message=msg,
             journey="internet_sin_conectividad",
-            step="respond",
+            step="done",
             intent="internet",
             domain="internet",
             action="run_diagnostic_pppoe",

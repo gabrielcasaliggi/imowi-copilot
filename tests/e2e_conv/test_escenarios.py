@@ -231,8 +231,8 @@ def test_h8_elegir_sensa(canal):
     assert "?" in t[0].reply or "contame" in t[0].reply.lower(), t[0].reply
 
 
-@xf("H9: abonado sin Internet fijo: «hola» repite el mensaje de «sin Internet fijo» (el journey queda abierto)")
 def test_h9_sin_fijo_y_luego_hola(canal):
+    """RC-12: el mensaje «sin Internet fijo» es terminal; el «hola» siguiente ya no lo repite."""
     t = converse(["no tengo internet", "hola"], canal=canal, profile="movil")
     sin_violaciones(t)
 
