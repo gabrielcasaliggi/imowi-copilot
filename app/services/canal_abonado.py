@@ -3339,7 +3339,9 @@ def _oferta_derivacion_vigente(db: Session, conv: ConversacionCanal, ctx: dict, 
         return 0 <= cs.turn - pb.turn <= 1
     hist = crepo.list_mensajes(db, conv.id)
     previos = [m for m in hist if not (m.direccion == "in" and (m.texto or "") == texto)] if hist else []
-    return bool(previos) and previos[-1].direccion != "in" and texto_ofrece_derivacion(previos[-1].texto or "")
+    # Una oferta termina con una pregunta (I7): «…querés que te derive, escribí *agente*.» es un aviso, no una oferta viva.
+    ultimo = (previos[-1].texto or "").strip() if previos else ""
+    return bool(previos) and previos[-1].direccion != "in" and texto_ofrece_derivacion(ultimo) and ultimo.endswith("?")
 
 
 def _paso_pending_oferta(ctx: dict) -> str:

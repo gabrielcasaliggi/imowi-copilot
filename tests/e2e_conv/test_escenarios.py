@@ -780,23 +780,12 @@ REINICIO_LLAMADAS = [("reinicio_llamadas", re.compile(r"Reinici[aá] y prob[aá]
 H14_BASE = ["tengo problemas con mi línea de imowi", "1", "tecnico, no puedo recibir llamadas", "se me cortan"]
 
 
-# Reproduce solo con el proveedor «sms_red» (un LLM que pregunta por SMS fuera del playbook): el resto pasa y queda de regresión.
-_H14_FALLA = {("no, solo las llamadas", False), ("solo llamadas", False), ("no", True), ("no", False)}
+# Reproducía solo con el proveedor «sms_red» (un LLM que pregunta por SMS fuera del playbook y responde a una pregunta
+# propia): el «no» cubría reinicio_llamadas sin que nadie lo hubiera preguntado.
+H14_CASOS = [(llm, j, r) for llm in ("down", "normal", "sms_red") for j in (True, False) for r in ("no, solo las llamadas", "no", "solo llamadas")]
 
 
-def _h14_casos():
-    casos = []
-    for llm in ("down", "normal", "sms_red"):
-        for journeys in (True, False):
-            for respuesta in ("no, solo las llamadas", "no", "solo llamadas"):
-                marks = []
-                if llm == "sms_red" and (respuesta, journeys) in _H14_FALLA:
-                    marks = [pytest.mark.xfail(strict=True, reason="H14: la respuesta «no…» cubre reinicio_llamadas sin haberlo preguntado")]
-                casos.append(pytest.param(llm, journeys, respuesta, marks=marks, id=f"{llm}-{'on' if journeys else 'off'}-{respuesta}"))
-    return casos
-
-
-@pytest.mark.parametrize(("llm", "journeys", "respuesta"), _h14_casos())
+@pytest.mark.parametrize(("llm", "journeys", "respuesta"), H14_CASOS)
 def test_h14_el_reinicio_va_antes_de_ofrecer_derivar(canal, llm, journeys, respuesta):
     t = converse(H14_BASE + [respuesta], canal=canal, profile="movil_deuda", journeys=journeys, llm=llm, playbooks_prod=True)
     sin_violaciones(t, pasos_antes_de_derivar=REINICIO_LLAMADAS)

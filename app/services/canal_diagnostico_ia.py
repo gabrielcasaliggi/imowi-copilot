@@ -121,8 +121,16 @@ def _repite_pregunta_del_paso(checklist: list, pid: str, mensaje: str) -> bool:
     return False
 
 
+def _ultimo_texto_bot(historial: list) -> str:
+    """Último mensaje saliente del bot (el del turno anterior al del abonado)."""
+    for m in reversed(list(historial or [])):
+        if getattr(m, "direccion", "") != "in":
+            return str(getattr(m, "texto", "") or "")
+    return ""
+
+
 def _avanzar_fallback_por_respuesta(
-    ctx: dict, checklist: list, texto: str, result: dict, cubiertos: list[str]
+    ctx: dict, checklist: list, texto: str, result: dict, cubiertos: list[str], ultimo_bot: str | None = None
 ) -> dict:
     """RC-13 / F1. Si lo que se enviaría es OTRA VEZ la pregunta del paso que el abonado acaba de contestar, el
     paso se mueve con la respuesta en vez de repetir la frase (I5). Casos: el fallback del playbook (LLM caído) o
@@ -131,6 +139,8 @@ def _avanzar_fallback_por_respuesta(
     - Respuesta reconocida (sí/no/«no puedo»/«sigue igual»…, ``respuesta_paso_ok``): cubre el paso y pasa al siguiente.
     - Respuesta que no se reconoce: repregunta UNA vez (otra frase) y a la segunda cubre el paso y sigue.
     Los pasos de derivación nunca se cubren por una respuesta.
+    H14: el paso solo se cubre si el último mensaje del bot era REALMENTE la pregunta de ese paso (``ultimo_bot``): si el
+    bot hizo una pregunta propia (p. ej. un LLM que pregunta por SMS), el «no» le responde a esa pregunta, no al paso.
     """
     if (result.get("accion") or "ask") != "ask":
         return result
@@ -141,6 +151,8 @@ def _avanzar_fallback_por_respuesta(
     pending = hydrate_conversation_state(ctx).pending_bot
     pid = str(getattr(pending, "step_id", "") or "")
     if not pid or pid in cubiertos or "deriv" in pid.lower():
+        return result
+    if ultimo_bot is not None and not _repite_pregunta_del_paso(checklist, pid, ultimo_bot):
         return result
     es_fallback = (result.get("motivo") or "") == "fallback_playbook" and str(result.get("paso_cubierto") or "") == pid
     if not es_fallback and not _repite_pregunta_del_paso(checklist, pid, str(result.get("mensaje") or "")):
@@ -676,7 +688,9 @@ def _aplicar_diagnostico_ia(
     )
 
     # RC-13: sin LLM, la respuesta libre a la pregunta pendiente tiene que mover el playbook.
-    result = _avanzar_fallback_por_respuesta(ctx, checklist, texto, result, cubiertos)
+    result = _avanzar_fallback_por_respuesta(
+        ctx, checklist, texto, result, cubiertos, ultimo_bot=_ultimo_texto_bot(historial)
+    )
     cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     accion = result.get("accion") or "ask"
     mensaje = (result.get("mensaje") or "").strip()
@@ -1047,6 +1061,12 @@ def _aplicar_diagnostico_ia(
             if pid and pid not in cub_set:
                 paso_stamp = pid
                 break
+    # H14: el paso pendiente es el que el bot realmente PREGUNTÓ (el fallback puede saltar pasos ya contestados).
+    for p_ in checklist:
+        pid_ = str(getattr(p_, "id", "") or "")
+        if pid_ and pid_ not in cub_set and _repite_pregunta_del_paso(checklist, pid_, mensaje):
+            paso_stamp = pid_
+            break
     # «seguimos con el diagnóstico» sin dato nuevo: se retoma el paso pendiente, dicho como
     # continuación y no como copia literal del mensaje anterior.
     from app.domain.flujos_abonado import responde_seguir_diagnostico

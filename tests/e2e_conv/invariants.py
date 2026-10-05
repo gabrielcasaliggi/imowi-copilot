@@ -122,13 +122,16 @@ def i8_sin_vocabulario_de_internet_fijo(turns: list[Turn]) -> list[str]:
     ]
 
 
+OFERTA_DERIVAR = re.compile(r"(te derivo|que te derive|derivar con|te paso con un agente|derive el caso)", re.I)
+
+
 def i9_no_ofrece_derivar_con_pasos_sin_preguntar(turns: list[Turn], pasos: list[tuple[str, re.Pattern[str]]]) -> list[str]:
     """En servicios con playbook propio no se ofrece derivar mientras quede un paso sin preguntar (``pasos``: id y patrón de
     su pregunta). Excepciones: pedido explícito de agente del abonado, planta/óptica y pack_acreditado_sin_datos (esos
     escenarios no pasan ``pasos``)."""
     out = []
     for i, t in enumerate(turns):
-        if not CONFIRM_PROMPT.search(t.reply) or any(USER_ASKS_AGENT.search(x.user) for x in turns[: i + 1]):
+        if not (CONFIRM_PROMPT.search(t.reply) or OFERTA_DERIVAR.search(t.reply)) or any(USER_ASKS_AGENT.search(x.user) for x in turns[: i + 1]):
             continue
         antes = " ".join(r for x in turns[:i] for r in x.replies)
         faltan = [pid for pid, rx in pasos if not rx.search(antes)]

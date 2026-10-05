@@ -27,6 +27,8 @@ from app.estate.models import Abonado, ConversacionCanal, NetworkOutage, Organiz
 from app.radius.contract import ServicioConectividad
 from app.services import canal_abonado as c
 
+_ENVIAR_REAL = c._enviar_respuesta  # antes de que el harness lo reemplace
+
 
 # --------------------------------------------------------------------------- perfiles
 def _sc(login: str) -> ServicioConectividad:
@@ -143,8 +145,13 @@ def _llm(modo: str):
                 {"accion": "escalate", "mensaje": "Es un tema de red: hace falta revisar la línea.", "paso_cubierto": "", "motivo": "falla_de_red_los"},
                 ensure_ascii=False,
             )
-        msg = "¿Te pasa lo mismo con los SMS o solo con las llamadas?"
-        return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
+        if "no puedo recibir llamadas" in ultimo:  # el LLM de prod reformuló la pregunta del primer paso
+            msg = "¿no podés hacer llamadas, no las recibís o se cortan?"
+            return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
+        if "se me cortan" in ultimo:
+            msg = "¿Te pasa lo mismo con los SMS o solo con las llamadas?"
+            return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
+        return primer_paso(messages)
 
     return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso, "sms_red": sms_red}[modo]
 
@@ -279,6 +286,8 @@ def converse(
                 frames: list[str] = []
 
                 def _enviar(_d, _o, _c, resp, *, _sent=sent, _frames=frames, **_k):
+                    # Como en prod, el mensaje saliente se persiste (el historial lo leen las heurísticas); solo no sale al canal.
+                    _ENVIAR_REAL(_d, _o, _c, resp, enviar_externo=False)
                     _sent.append(resp)
                     if not _frames:
                         _frames.extend(
