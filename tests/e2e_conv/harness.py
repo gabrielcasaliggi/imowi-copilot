@@ -92,7 +92,23 @@ def _llm(modo: str):
         msg = f"Gracias por contarme ({n['i']}). ¿Podés darme un poco más de detalle?"
         return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
 
-    return down if modo == "down" else normal
+    def avisame(messages=None, *_a, **_k):
+        # Proveedor falso fiel a la prueba en prod: pregunta «… Avisame si funciona.» y, ante un afirmativo
+        # ambiguo («ok si funciona», «ok, aviso si funciona»), propone «resuelto» como hizo el LLM real.
+        ultimo = ""
+        for m in reversed(list(messages or [])):
+            if isinstance(m, dict) and m.get("role") == "user":
+                ultimo = str(m.get("content") or "").lower()
+                break
+        if "ok si funciona" in ultimo or "ok, aviso si funciona" in ultimo:
+            return json.dumps(
+                {"accion": "resolved", "mensaje": "¡Genial, me alegra que ya funcione!", "paso_cubierto": "", "motivo": "ia"},
+                ensure_ascii=False,
+            )
+        msg = "Reiniciá el teléfono y probá hacer una llamada de prueba. Avisame si funciona."
+        return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
+
+    return {"down": down, "normal": normal, "avisame": avisame}[modo]
 
 
 def converse(
