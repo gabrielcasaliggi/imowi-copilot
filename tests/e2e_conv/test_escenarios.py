@@ -204,7 +204,6 @@ def test_h6c_negacion_o_pregunta_no_crea_ticket(canal, texto):
     assert not any(x.ticket_created for x in t), (texto, t[1].reply)
 
 
-@xf("H7 (tras RC-1): «ya se arregló» se acusa, pero el legacy cierra la conversación y el «gracias» siguiente abre una nueva con el saludo que pide DNI")
 def test_h7_ya_se_arreglo_tras_diagnostico(canal):
     t = converse(["no tengo internet", "ya se arregló", "gracias"], canal=canal)
     sin_violaciones(t)
@@ -321,7 +320,6 @@ def test_e14a_no_sigamos_ofrece_pago_o_repregunta(canal):
     assert PAGO.search(r) or inv.VOCAB_MOVIL.search(r), r
 
 
-@xf("E14b: «sí, pagar» tras el aviso responde «No encuentro servicios contratados…» (el journey de servicios captura el texto) en vez de dar los links de pago")
 def test_e14b_si_pagar_da_links(canal):
     t = converse(BASE_MOVIL + ["sí, pagar"], canal=canal, profile="movil_deuda")
     sin_violaciones(t)
@@ -408,9 +406,11 @@ def test_rc1_repregunta_una_vez_y_a_la_segunda_suelta_el_turno(canal):
 
 
 def test_rc1_ya_anda_cancela_la_oferta_sin_repreguntar(canal):
+    """RC-1 + RC-3 fase B (§c): «ya anda» cancela la oferta; el journey acusa y pasa a done (sin ticket, sin repreguntar)."""
     t = converse(["no tengo internet", "ya anda"], canal=canal)
     sin_violaciones(t)
-    assert t[1].branch.startswith("legacy:") and not inv.CONFIRM_PROMPT.search(t[1].reply), t[1].reply
+    assert ACUSE_RESUELTO.search(t[1].reply) and not inv.CONFIRM_PROMPT.search(t[1].reply), t[1].reply
+    assert t[1].journey_state.get("step") == "done" and not t[1].journey_state.get("pending_confirmation"), t[1].journey_state
     assert not any(x.ticket_created for x in t)
 
 
@@ -487,3 +487,21 @@ def test_rc13_respuesta_no_reconocida_repregunta_una_vez_y_avanza(canal):
     t = converse(BASE_MOVIL + ["depende del día", "quizás"], canal=canal, profile="movil")
     assert t[3].reply != t[2].reply and t[3].reply.endswith(t[2].reply.split(". ", 1)[-1]), (t[2].reply, t[3].reply)
     assert t[4].reply not in (t[2].reply, t[3].reply) and PLAYBOOK_MOVIL_PREGUNTAS.search(t[4].reply), t[4].reply
+
+
+# ------------------------------------------------ RC-3 fase B: lista blanca de §c para un journey resuelto
+def test_rc3b_texto_libre_sin_dominio_no_reclama_el_journey_resuelto(canal):
+    t = converse(["no tengo internet", "ya se arregló", "sigue igual", "gracias"], canal=canal)
+    assert not any(x.ticket_created for x in t)
+    assert not any(re.search(r"(servicios contratados|facturas|ov\.batan)", x.reply, re.I) for x in t[2:]), [x.reply for x in t[2:]]
+
+
+def test_rc3b_gracias_tras_ya_anda_es_silencio_del_journey(canal):
+    t = converse(["no tengo internet", "ya anda", "gracias"], canal=canal)
+    sin_violaciones(t)
+    assert t[2].branch.startswith("journey-silencio:") and not t[2].reply, (t[2].branch, t[2].reply)
+
+
+def test_rc3b_acto_de_facturacion_reclama_el_journey_resuelto(canal):
+    t = converse(["no tengo internet", "ya se arregló", "sí, pagar"], canal=canal, profile="deuda")
+    assert PAGO.search(t[2].reply) and t[2].branch.startswith("journey:billing"), (t[2].branch, t[2].reply)

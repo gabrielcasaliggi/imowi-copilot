@@ -30,6 +30,7 @@ logger = logging.getLogger("operations_hub")
 
 JOURNEY_KEY = "eko_journey"
 CONTINUITY_OFFER_MESSAGE = "Perfecto. ¿Necesitás algo más?"
+RESOLVED_ACK_MESSAGE = "Me alegra que se haya solucionado. ¿Necesitás algo más?"
 CONTINUITY_OFFER_TTL = timedelta(minutes=30)
 CONTINUITY_SWEEP_INTERVAL_S = 60
 _CONTINUITY_REOPEN_GRACE = timedelta(seconds=2 * CONTINUITY_SWEEP_INTERVAL_S)
@@ -753,7 +754,8 @@ def _is_continuity_decline(texto: str) -> bool:
         return False
 
 
-def _continuity_offer_turn(ctx: dict[str, Any]) -> JourneyTurn:
+def _continuity_offer_turn(ctx: dict[str, Any], message: str = "") -> JourneyTurn:
+    message = message or CONTINUITY_OFFER_MESSAGE
     st = get_journey(ctx)
     offered_at = datetime.now(UTC).isoformat()
     set_journey(
@@ -764,11 +766,11 @@ def _continuity_offer_turn(ctx: dict[str, Any]) -> JourneyTurn:
         resolved_ack=True,
         next_required_input="",
         pending_confirmation=False,
-        last_user_message=CONTINUITY_OFFER_MESSAGE,
+        last_user_message=message,
     )
     return JourneyTurn(
         handled=True,
-        user_message=CONTINUITY_OFFER_MESSAGE,
+        user_message=message,
         journey=str(st.get("name") or ""),
         step="done",
         intent=str(st.get("intent") or ""),
@@ -2120,7 +2122,12 @@ def _handle_ticket_confirmation(
         from app.domain.flujos_abonado import responde_seguir_diagnostico
 
         reprompts = int(get_journey(ctx).get("reprompts") or 0)
-        if _customer_confirmed_resolution(texto) or responde_seguir_diagnostico(texto) or reprompts >= 1:
+        if _customer_confirmed_resolution(texto):
+            # RC-3 fase B (§c): «ya anda / ya se arregló» cierra el journey: acuse y done. El «gracias»
+            # siguiente cae en el silencio de cortesía del journey terminado, no en un saludo nuevo.
+            journey_release(ctx, "resolved_by_user")
+            return _continuity_offer_turn(ctx, RESOLVED_ACK_MESSAGE)
+        if responde_seguir_diagnostico(texto) or reprompts >= 1:
             journey_release(ctx, "confirmation_expired")
             return None
         _mark_confirmation_pending(ctx, corr=corr)
@@ -3828,6 +3835,16 @@ def _maybe_handle_journey_turn(
         detected = _canonical_journey(detected)  # type: ignore[assignment]
     st = get_journey(ctx)
     active = _canonical_journey(str(st.get("name") or "").strip())
+    # RC-3 fase B (§c): un acto de facturación específico («sí, pagar») reclama un journey resuelto
+    # aunque no nombre el journey; si no, lo toma el journey resuelto de otro dominio (listado de servicios).
+    if (
+        not detected
+        and active
+        and active != "billing_self_service"
+        and _journey_is_resolved(st)
+        and _billing_user_act(texto) != "balance"
+    ):
+        detected = "billing_self_service"
     started = False
     switched = False
     previous_journey = ""
