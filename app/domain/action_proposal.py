@@ -216,6 +216,7 @@ def evaluate_escalate(
     *,
     turnos_diagnostico: int = 0,
     intencion: str = "",
+    pasos_sin_preguntar: list[str] | None = None,
 ) -> PolicyDecision:
     """Policy de escalate: reutiliza guardrails de diagnostico_n1 (min turnos, etc.).
 
@@ -244,6 +245,20 @@ def evaluate_escalate(
             allow=False,
             reason="bloqueado_escalate_cierre_facturacion",
             message=proposal.message,
+            demote_to=ACTION_ASK,
+        )
+
+    # H14 (I9): servicio con playbook propio (móvil/Sensa/TV): ni el LLM ni una heurística escalan con pasos sin
+    # preguntar. Planta y pedido humano conservan su autoridad; pack_acreditado_sin_datos queda exento.
+    if (
+        pasos_sin_preguntar
+        and proposal.source in (SOURCE_LLM, SOURCE_HEURISTIC)
+        and (proposal.reason or "").strip().lower() not in ("pack_acreditado_sin_datos", "pedido_humano")
+    ):
+        return PolicyDecision(
+            allow=False,
+            reason="bloqueado_escalate_pasos_sin_preguntar",
+            message="",
             demote_to=ACTION_ASK,
         )
 

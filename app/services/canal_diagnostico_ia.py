@@ -121,6 +121,16 @@ def _repite_pregunta_del_paso(checklist: list, pid: str, mensaje: str) -> bool:
     return False
 
 
+def _pasos_sin_preguntar_ids(ctx: dict, checklist: list, intencion: str, extras_ctx: dict) -> list[str]:
+    """H14 (I9): en servicios con playbook propio (móvil/Sensa/TV), ids de pasos sin preguntar ni cubrir; si no, []."""
+    from app.services.diagnostico_n1 import _foco_no_es_internet_fijo, pasos_sin_preguntar
+
+    if not _foco_no_es_internet_fijo(intencion, str((extras_ctx or {}).get("servicio_foco_tipo") or "")):
+        return []
+    cub = [str(x) for x in (ctx.get("pasos_cubiertos") or [])]
+    return [i for i, _ in pasos_sin_preguntar(checklist, cub, [str(x) for x in (ctx.get("pasos_preguntados") or [])])]
+
+
 def _ultimo_texto_bot(historial: list) -> str:
     """Último mensaje saliente del bot (el del turno anterior al del abonado)."""
     for m in reversed(list(historial or [])):
@@ -685,6 +695,7 @@ def _aplicar_diagnostico_ia(
             abonado, org_id=org_id, extras=extras_ctx or None, db=db
         ),
         servicio_foco_tipo=extras_ctx.get("servicio_foco_tipo", ""),
+        pasos_preguntados=[str(x) for x in (ctx.get("pasos_preguntados") or [])],
     )
 
     # RC-13: sin LLM, la respuesta libre a la pregunta pendiente tiene que mover el playbook.
@@ -868,6 +879,7 @@ def _aplicar_diagnostico_ia(
             ctx,
             turnos_diagnostico=int(ctx.get("diag_turnos") or 0),
             intencion=intencion,
+            pasos_sin_preguntar=_pasos_sin_preguntar_ids(ctx, checklist, intencion, extras_ctx),
         )
         if list(ctx.get("pasos_cubiertos") or []) != cub_before:
             from app.domain.conversation_state import replace_covers
@@ -1077,6 +1089,14 @@ def _aplicar_diagnostico_ia(
         and not mensaje.lower().startswith("dale")
     ):
         mensaje = f"Dale, seguimos: {mensaje}"
+    # H14: se registran los pasos del playbook cuya pregunta se acaba de hacer (para «sin preguntar», no «sin cubrir»).
+    preguntados = [str(x) for x in (ctx.get("pasos_preguntados") or [])]
+    for p_ in checklist:
+        pid_ = str(getattr(p_, "id", "") or "")
+        if pid_ and pid_ not in preguntados and _repite_pregunta_del_paso(checklist, pid_, mensaje):
+            preguntados.append(pid_)
+    if preguntados != list(ctx.get("pasos_preguntados") or []):
+        ctx["pasos_preguntados"] = preguntados
     if mensaje_confirmacion:
         mensaje, paso_stamp = mensaje_confirmacion, MSG_CONFIRMAR_DERIVACION_STEP
     if paso_stamp or mensaje:

@@ -690,6 +690,7 @@ def authorize_escalate(
     *,
     turnos_diagnostico: int = 0,
     intencion: str = "",
+    pasos_sin_preguntar: list[str] | None = None,
 ) -> EscalateAuthorization:
     """Motor: autoriza ESCALATE o demota a ASK. No crea tickets ni notifica.
 
@@ -724,6 +725,7 @@ def authorize_escalate(
         mensaje_cliente,
         turnos_diagnostico=turnos,
         intencion=intent,
+        pasos_sin_preguntar=pasos_sin_preguntar,
     )
     did = cs.active_domain_id
     if decision.allow:

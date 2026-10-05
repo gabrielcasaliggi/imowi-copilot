@@ -2533,6 +2533,25 @@ def _log_plantilla_fuera_de_intencion(
 _TIPOS_INTERNET_FIJO = ("internet", "fibra", "radio", "adsl")
 
 
+def pasos_sin_preguntar(checklist, pasos_cubiertos: list[str], pasos_preguntados: list[str]) -> list[tuple[str, str]]:
+    """H14: pasos del playbook (sin los de derivación) que el bot no preguntó ni quedaron cubiertos por un hecho del
+    abonado. «Sin preguntar», no «sin cubrir»: un paso preguntado y aún sin respuesta no bloquea."""
+    hechos = {str(x) for x in (pasos_cubiertos or [])} | {str(x) for x in (pasos_preguntados or [])}
+    out: list[tuple[str, str]] = []
+    for p in checklist or []:
+        pid = str(p.get("id") if isinstance(p, dict) else getattr(p, "id", "") or "")
+        preg = str(p.get("pregunta") if isinstance(p, dict) else getattr(p, "pregunta", "") or "")
+        if not pid or not preg or pid in hechos:
+            continue
+        if es_paso_derivacion(PasoPlaybook(pid, preg)):
+            continue
+        out.append((pid, preg))
+    return out
+
+
+_MOTIVOS_ESCALADA_EXENTA = frozenset({"pack_acreditado_sin_datos", "pedido_humano"})
+
+
 def _foco_no_es_internet_fijo(intencion: str, servicio_foco_tipo: str = "") -> bool:
     """El servicio en foco es móvil/Sensa/TV: ``selected_service_ref.service_type`` (CTX-1) y, sin ref, la intención."""
     tipo = (servicio_foco_tipo or "").strip().lower()
@@ -2554,6 +2573,7 @@ def diagnosticar_turno(
     forzar_agente: bool = False,
     contexto_abonado: str = "",
     servicio_foco_tipo: str = "",
+    pasos_preguntados: list[str] | None = None,
 ) -> dict[str, str]:
     """Pide a la IA el próximo acto de diagnóstico. Fallback = siguiente paso del playbook.
 
@@ -3707,6 +3727,26 @@ def diagnosticar_turno(
             motivo = g_wifi["motivo"]
             if g_wifi.get("paso_cubierto"):
                 paso = g_wifi["paso_cubierto"]
+
+        # H14 (I9): en móvil/Sensa/TV una escalada del LLM o heurística no se autoriza mientras queden pasos del playbook
+        # sin PREGUNTAR (la planta, el pedido de agente y pack_acreditado_sin_datos quedan exentos).
+        if (
+            accion == "escalate"
+            and foco_no_internet
+            and pasos_preguntados is not None
+            and motivo not in _MOTIVOS_ESCALADA_EXENTA
+        ):
+            faltan = pasos_sin_preguntar(checklist, pasos_cubiertos, pasos_preguntados)
+            if faltan:
+                logger.info(
+                    "diag_escalada_bloqueada_pasos_sin_preguntar motivo=%s intencion=%s pendientes=%s",
+                    (motivo or "")[:60],
+                    (intencion or "")[:40],
+                    ",".join(i for i, _ in faltan)[:120],
+                )
+                accion = "ask"
+                motivo = "bloqueado_escalate_pasos_sin_preguntar"
+                paso, mensaje = faltan[0]
 
         if len(mensaje) > 420:
             mensaje = mensaje[:417] + "…"
