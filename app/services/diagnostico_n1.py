@@ -2511,6 +2511,25 @@ def _pregunta_pago_fuera_de_lugar(mensaje: str, mensaje_cliente: str) -> bool:
     )
 
 
+def _log_plantilla_fuera_de_intencion(
+    *, accion: str, motivo: str, intencion: str, servicio_foco_tipo: str, turnos: int, plantilla: str
+) -> None:
+    """H14: observabilidad de la plantilla «hace falta un agente con acceso interno» (bloque óptica fuera de intención).
+    Sin PII: solo la fuente inferida del motivo, el motivo recortado, la intención y el tipo de servicio en foco."""
+    from app.domain.action_proposal import infer_proposal_source
+
+    logger.info(
+        "diag_plantilla_fuera_de_intencion plantilla=%s fuente=%s accion=%s motivo=%s intencion=%s servicio_foco=%s turnos=%s",
+        plantilla,
+        infer_proposal_source({"motivo": motivo}),
+        accion,
+        (motivo or "")[:60],
+        (intencion or "")[:40],
+        (servicio_foco_tipo or "sin_ref")[:20],
+        turnos,
+    )
+
+
 _TIPOS_INTERNET_FIJO = ("internet", "fibra", "radio", "adsl")
 
 
@@ -3355,6 +3374,14 @@ def diagnosticar_turno(
             or _parece_diagnostico_optica_fuera_de_lugar(mensaje)
         ):
             if accion == "escalate" or _motivo_es_optico(motivo):
+                _log_plantilla_fuera_de_intencion(
+                    accion=accion,
+                    motivo=motivo,
+                    intencion=intencion,
+                    servicio_foco_tipo=servicio_foco_tipo,
+                    turnos=turnos,
+                    plantilla="sensa" if es_tv_sensa else "acceso_interno",
+                )
                 accion = "escalate"
                 motivo = "bloqueado_optica_fuera_de_intencion"
                 if es_tv_sensa:

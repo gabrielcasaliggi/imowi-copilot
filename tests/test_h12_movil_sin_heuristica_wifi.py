@@ -48,3 +48,25 @@ def test_h12e_forzar_confirmacion_derivacion():
     assert forzar_confirmacion_derivacion("Si persiste, te derivo con un agente. ¿Querés?") is None  # ya pregunta
     assert forzar_confirmacion_derivacion("Reiniciá y probá una llamada. ¿Anduvo?") is None  # no ofrece derivar
     assert forzar_confirmacion_derivacion("Modo avión 15 segundos y volvé a probar.") is None
+
+
+def test_h14_log_de_la_plantilla_acceso_interno(monkeypatch, caplog):
+    """Un escalate del LLM con motivo «óptico» en un servicio móvil emite la plantilla y deja un log INFO sin PII."""
+    import logging
+
+    llm = {"accion": "escalate", "mensaje": "Es un tema de red.", "paso_cubierto": "", "motivo": "falla_de_red_los"}
+    monkeypatch.setattr(app.llm, "chat_completion", lambda *a, **k: json.dumps(llm))
+    with caplog.at_level(logging.INFO, logger="operations_hub"):
+        r = dn.diagnosticar_turno(
+            intencion="movil_llamadas",
+            checklist=PLAYBOOKS["movil_llamadas"][:1],
+            historial_mensajes=HISTORIAL_MOVIL,
+            mensaje_cliente="no, solo las llamadas",
+            turnos_diagnostico=6,
+            pasos_cubiertos=[],
+            contexto_abonado="",
+            servicio_foco_tipo="movil",
+        )
+    assert "acceso interno" in r["mensaje"]
+    logs = [m for m in caplog.messages if m.startswith("diag_plantilla_fuera_de_intencion")]
+    assert logs and "plantilla=acceso_interno" in logs[0] and "servicio_foco=movil" in logs[0] and "fuente=" in logs[0], caplog.messages
