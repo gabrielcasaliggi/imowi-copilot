@@ -505,3 +505,12 @@ def test_rc3b_gracias_tras_ya_anda_es_silencio_del_journey(canal):
 def test_rc3b_acto_de_facturacion_reclama_el_journey_resuelto(canal):
     t = converse(["no tengo internet", "ya se arregló", "sí, pagar"], canal=canal, profile="deuda")
     assert PAGO.search(t[2].reply) and t[2].branch.startswith("journey:billing"), (t[2].branch, t[2].reply)
+
+
+# ------------------------------------------------ Tanda 5 F0: H11 con el camino de LLM (proveedor falso «normal»)
+@pytest.mark.parametrize("journeys", JOURNEYS_R2)
+@xf("H11/LLM: con LLM, el Motor consume el paso pendiente (ASK_FACT) con «no las recibo» y, en la misma vuelta, el 2.º lifecycle (canal_abonado:6955) ya no ve pending_bot: la guarda de H11a no aplica y crea el dominio de facturación")
+def test_h11_con_llm_no_las_recibo_no_cae_en_facturacion(canal, journeys):
+    t = converse(["tengo problemas con mi línea de imowi", "1", "llamadas", "no las recibo"],
+                 canal=canal, profile="movil", llm="normal", journeys=journeys)
+    assert t[3].reply and not FACTURACION.search(t[3].reply), (t[3].branch, t[3].reply)
