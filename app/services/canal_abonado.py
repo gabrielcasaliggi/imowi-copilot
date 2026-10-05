@@ -5875,30 +5875,19 @@ def procesar_mensaje_entrante(
         )
         if contenido_b2b is not None:
             return contenido_b2b
-        paso = int(ctx.get("paso_idx") or 0)
-        tid = _crear_ticket_n2(
+        # R1: la frustración OFRECE derivar; el ticket lo crea el «sí» (``_responder_oferta_derivacion``).
+        from app.services.eko_action_bridge import MSG_CONFIRMAR_DERIVACION
+
+        return _ofrecer_derivacion_agotado(
             db,
             org_id,
             conv,
-            abonado,
-            "Reiteración/frustración del abonado sin resolución N1",
+            ctx,
+            canal=canal,
             intencion=intent,
-            paso_idx=paso,
-            ctx=ctx,
+            motivo="frustracion",
+            mensaje=MSG_CONFIRMAR_DERIVACION,
         )
-        resp = (
-            f"Entiendo la molestia. Te derivo con un agente con el historial. "
-            f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
-        )
-        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-        return {
-            "ok": True,
-            "modo": "espera_agente",
-            "conversacion_id": conv.id,
-            "respuesta": resp,
-            "estado": conv.estado,
-            "ticket_id": tid,
-        }
 
     # Reiteración temprana (mismo síntoma sin progreso): reformular, no ticket.
     # No aplicar si está pidiendo persona: eso es 2ª insistencia, no síntoma repetido.
