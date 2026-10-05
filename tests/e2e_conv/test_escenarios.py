@@ -509,8 +509,16 @@ def test_rc3b_acto_de_facturacion_reclama_el_journey_resuelto(canal):
 
 # ------------------------------------------------ Tanda 5 F0: H11 con el camino de LLM (proveedor falso «normal»)
 @pytest.mark.parametrize("journeys", JOURNEYS_R2)
-@xf("H11/LLM: con LLM, el Motor consume el paso pendiente (ASK_FACT) con «no las recibo» y, en la misma vuelta, el 2.º lifecycle (canal_abonado:6955) ya no ve pending_bot: la guarda de H11a no aplica y crea el dominio de facturación")
 def test_h11_con_llm_no_las_recibo_no_cae_en_facturacion(canal, journeys):
     t = converse(["tengo problemas con mi línea de imowi", "1", "llamadas", "no las recibo"],
                  canal=canal, profile="movil", llm="normal", journeys=journeys)
     assert t[3].reply and not FACTURACION.search(t[3].reply), (t[3].branch, t[3].reply)
+
+
+@pytest.mark.parametrize("texto", ["quiero pagar mi factura", "tengo una duda con la factura"])
+@pytest.mark.parametrize("journeys", JOURNEYS_R2)
+def test_h11_con_llm_un_pedido_real_de_facturacion_tras_la_pregunta_sigue_yendo_a_facturacion(canal, journeys, texto):
+    """La guarda de «respuesta al playbook» no puede tapar un pedido real de facturación."""
+    t = converse(["tengo problemas con mi línea de imowi", "1", "llamadas", texto],
+                 canal=canal, profile="movil", llm="normal", journeys=journeys)
+    assert re.search(r"(factura|pagar|pago|saldo|oficina virtual|ov\.batan|aumento|cobro)", t[3].reply, re.I), (t[3].branch, t[3].reply)

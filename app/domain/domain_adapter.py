@@ -7,6 +7,7 @@ desde el dominio activo. No decide el texto de la respuesta.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 from app.domain.conversation_state import (
@@ -233,18 +234,37 @@ _FACTURACION_FUERTE = (
 )
 
 
+# «recibo» como sustantivo de facturación («el recibo», «mi recibo», «recibo de pago»): es un pedido real.
+_RECIBO_SUSTANTIVO = re.compile(r"\b(el|mi|mis|un|ese|este|tu|su|del|los)\s+recibos?\b|\brecibos?\s+de\b", re.I)
+_PREGUNTAS_PLAYBOOK = ("ASK_FACT", "ASK_ACTION", "ASK_SYMPTOM", "ASK_CONFIRMATION")
+
+
+def _pregunta_de_playbook_respondida_en_este_turno(cs: ConversationState, previous: DomainSlot) -> bool:
+    """El Motor puede cubrir el paso pendiente ANTES de la 2.ª llamada del lifecycle del mismo turno
+    (pending_bot ya es None, pero el paso quedó en covered_steps). Exige que el último acto del bot
+    sea una pregunta de playbook del turno anterior y que su paso figure cubierto."""
+    last = cs.last_bot_act or previous.last_bot_act
+    if last is None or not last.step_id or last.act not in _PREGUNTAS_PLAYBOOK:
+        return False
+    if last.domain_id and previous.id and last.domain_id != previous.id:
+        return False
+    return last.step_id in previous.covered_steps and 0 <= cs.turn - last.turn <= 1
+
+
 def _respuesta_a_pregunta_tecnica_pendiente(
     cs: ConversationState, previous: DomainSlot | None, texto: str
 ) -> bool:
-    """H11: con un diagnóstico técnico abierto y su pregunta pendiente, un texto sin términos fuertes de
-    facturación es la respuesta al playbook, aunque contenga una palabra ambigua («recibo»)."""
+    """H11: con un diagnóstico técnico abierto y su pregunta pendiente (o cubierta en este mismo turno),
+    un texto sin términos fuertes de facturación es la respuesta al playbook, aunque contenga una
+    palabra ambigua («recibo» como verbo)."""
     if previous is None or previous.kind != KIND_TECNICO or previous.status != "active":
         return False
     pending = cs.pending_bot or previous.pending_bot
-    if pending is None or getattr(pending, "status", "open") != "open":
+    abierta = pending is not None and getattr(pending, "status", "open") == "open"
+    if not abierta and not _pregunta_de_playbook_respondida_en_este_turno(cs, previous):
         return False
     t = (texto or "").lower()
-    return not any(k in t for k in _FACTURACION_FUERTE)
+    return not (any(k in t for k in _FACTURACION_FUERTE) or _RECIBO_SUSTANTIVO.search(t))
 
 
 def _respuesta_en_tramite_comercial(previous: DomainSlot | None, texto: str) -> bool:
