@@ -175,4 +175,9 @@ completa de §c sigue pendiente. Abierto: el playbook repite la misma pregunta a
 **Tanda 4 fase 0:** `niega_tema` pasó a fórmula estricta (la negación es todo el mensaje; 15 falsos positivos y 5 negaciones puras cubiertos en
 `tests/test_niega_tema_falsos_positivos.py`) y la tanda 2 se parte en dos corridas (2a/2b, ver `docs/TESTING-TANDAS.md`).
 Estado de tests: 140 passed + 10 xfailed (tanda 1) y 1370 + 698 passed (tanda 2a/2b).
-Pendiente: RC-13 (el playbook avanza con respuestas libres), RC-3 (lista blanca completa), RC-4, RC-8 (orden de §e).
+**Tanda 4 fase 1 (RC-13) y fase 2 (RC-3 fase B): IMPLEMENTADAS.** RC-13: sin LLM, el fallback del playbook cubre el paso que el abonado acaba de
+contestar (respuesta reconocida) o repregunta una vez y avanza (no reconocida); el camino con LLM no cambia. RC-3 fase B (§c): «ya anda / ya se arregló» con la
+oferta pendiente → el journey acusa y pasa a `done` (el «gracias» siguiente es silencio de cortesía); un acto de facturación específico reclama un journey resuelto
+como `billing_self_service`. Estado de tests: 146 passed + 6 xfailed (tanda 1), 1370 + 698 passed (2a/2b).
+Abierto: con LLM «normal» y sin paso pendiente estampado, «no las recibo» puede volver a caer en facturación (la guarda de H11a depende de `pending_bot`).
+Pendiente: RC-4, RC-8 (orden de §e).
