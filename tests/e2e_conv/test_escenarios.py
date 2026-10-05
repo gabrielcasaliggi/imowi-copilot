@@ -693,3 +693,47 @@ def test_t7f2_resuelto_por_el_bot_sigue_pidiendo_la_calificacion(canal, journeys
     t = converse(["no tengo internet", "ya funciona", "no, nada más"], canal=canal, profile="int1", journeys=journeys)
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
     assert any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
+
+
+# ------------------------------------------------ H12 (a): la secuencia de prod. NO reproduce con el harness (ver informe de la fase 1)
+H12 = ["tengo problemas con mi línea de imowi", "1", "tecnico, no puedo hacer llamadas", "se me cortan", "no", "que tiene que ver el wifi"]
+
+
+@pytest.mark.parametrize("llm", ["down", "normal", "primer_paso"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h12_conversacion_movil_no_habla_de_internet_fijo(canal, journeys, llm):
+    """I8 sobre la secuencia de prod con los playbooks de prod. Pasa hoy: el texto de Wi-Fi sale de la rama del LLM real
+    (ver tests/test_h12_movil_sin_heuristica_wifi.py), que el harness no puede imitar sin conocer su respuesta."""
+    t = converse(H12, canal=canal, profile="movil_deuda", journeys=journeys, llm=llm, playbooks_prod=True)
+    sin_violaciones(t, servicio_sin_internet_fijo=True)
+
+
+# ------------------------------------------------ H12 (e): un paso de derivación del playbook no deriva solo, se confirma
+# Textos reales del editor de playbooks de prod. El código fuerza la confirmación sin importar cómo lo redactó el admin.
+_PROD_LLAMADAS = ["tengo problemas con mi línea de imowi", "1", "tecnico, no puedo hacer llamadas", "se me cortan", "no"]  # → derivar_llamadas
+_PROD_MOVIL = ["tengo problemas con mi línea de imowi", "1", "tecnico, no tengo señal", "no", "no", "no", "no"]  # → otra_ubicacion
+
+
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("script,perfil", [(_PROD_LLAMADAS, "movil_deuda"), (_PROD_MOVIL, "movil")], ids=["derivar_llamadas", "otra_ubicacion"])
+def test_h12e_paso_de_derivacion_no_crea_ticket_por_si_solo(canal, journeys, script, perfil):
+    t = converse(script, canal=canal, profile=perfil, journeys=journeys, playbooks_prod=True)
+    assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
+
+
+@pytest.mark.xfail(strict=True, reason="H12e: el paso «…Te paso con un agente.» sale tal cual, sin pregunta ni oferta pendiente")
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h12e_paso_de_derivacion_sin_pregunta_fuerza_la_confirmacion(canal, journeys):
+    t = converse(_PROD_MOVIL, canal=canal, profile="movil", journeys=journeys, playbooks_prod=True)
+    assert t[-1].reply.rstrip().endswith("?") and t[-1].pending_offer, (t[-1].reply, t[-1].pending_offer)
+    assert inv.CONFIRM_PROMPT.search(t[-1].reply), t[-1].reply
+    t = converse(_PROD_MOVIL + ["sí"], canal=canal, profile="movil", journeys=journeys, playbooks_prod=True)
+    assert t[-1].ticket_created, t[-1].reply
+
+
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h12e_paso_de_derivacion_con_pregunta_deja_la_oferta_y_el_si_deriva(canal, journeys):
+    t = converse(_PROD_LLAMADAS, canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
+    assert t[-1].reply.rstrip().endswith("?") and t[-1].pending_offer, (t[-1].reply, t[-1].pending_offer)
+    t = converse(_PROD_LLAMADAS + ["sí"], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
+    assert t[-1].ticket_created, t[-1].reply

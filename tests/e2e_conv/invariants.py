@@ -1,4 +1,4 @@
-"""Invariantes conversacionales verificables turno a turno (I1–I6)."""
+"""Invariantes conversacionales verificables turno a turno (I1–I8)."""
 
 from __future__ import annotations
 
@@ -108,9 +108,23 @@ def i7_oferta_termina_en_pregunta(turns: list[Turn]) -> list[str]:
     return out
 
 
+OTRO_DOMINIO_FIJO = re.compile(r"(wi-?\s?fi|router|equipos|\bont\b|fibra|acceso a la red)", re.I)
+
+
+def i8_sin_vocabulario_de_internet_fijo(turns: list[Turn]) -> list[str]:
+    """En una conversación de servicio móvil/Sensa/TV ninguna respuesta habla de Internet fijo (Wi-Fi, router, equipos, ONT, fibra,
+    «acceso a la red»). Solo se evalúa cuando el escenario declara el foco con ``servicio_sin_internet_fijo=True``."""
+    return [
+        f"I8 turno {i} ({t.user!r}): vocabulario de Internet fijo en un servicio móvil/Sensa/TV: {m.group(0)!r} en {r[:90]!r} [{t.branch}]"
+        for i, t in enumerate(turns)
+        for r in t.replies
+        if (m := OTRO_DOMINIO_FIJO.search(r))
+    ]
+
+
 def violaciones(
     turns: list[Turn], *, servicio: tuple[int, re.Pattern[str], tuple[str, ...]] | None = None,
-    solo: tuple[str, ...] | None = None,
+    solo: tuple[str, ...] | None = None, servicio_sin_internet_fijo: bool = False,
 ) -> list[str]:
     checks = {
         "I1": i1_sin_respuesta_vacia(turns),
@@ -122,6 +136,8 @@ def violaciones(
     }
     if servicio is not None:
         checks["I4"] = i4_habla_del_servicio(turns, despues_de=servicio[0], vocab=servicio[1], etiquetas=servicio[2])
+    if servicio_sin_internet_fijo:
+        checks["I8"] = i8_sin_vocabulario_de_internet_fijo(turns)
     out: list[str] = []
     for k, v in checks.items():
         if solo is None or k in solo:

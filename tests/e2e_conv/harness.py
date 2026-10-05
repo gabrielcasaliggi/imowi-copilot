@@ -133,6 +133,31 @@ def _llm(modo: str):
     return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso}[modo]
 
 
+# Override del editor de playbooks de prod (WhatsApp, server en 277d278): reemplaza por completo estas dos claves.
+PLAYBOOKS_PROD = {
+    "movil_llamadas": [
+        {"id": "tipo_problema_llamada", "pregunta": "¿No podés llamar, no te entran, o se cortan?"},
+        {"id": "reinicio_llamadas", "pregunta": "Reiniciá y probá una llamada. ¿Anduvo?"},
+        {"id": "derivar_llamadas", "pregunta": "Si persiste, es un tema que necesitamos revisar en red. Te derivo con un agente que puede verificar tu línea en el HLR. ¿Querés?"},
+    ],
+    "movil": [
+        {"id": "reinicio_imovi", "pregunta": "¿Probaste reiniciar el teléfono?"},
+        {"id": "modo_avion", "pregunta": "Modo avión 15 segundos y desactivalo. ¿Volvió?"},
+        {"id": "red_manual", "pregunta": "Probá elegir la red manualmente en Ajustes > Redes móviles. ¿Mejoró?"},
+        {"id": "apn_imovi", "pregunta": "Revisá el APN: nombre imowi, APN apn1.catel.org.ar. ¿Quedó bien?"},
+        {"id": "otra_ubicacion", "pregunta": "¿El problema es en una sola zona o en varias ubicaciones? Si es solo en un punto, puede ser una zona sin cobertura. Si pasa en todos lados, hay que revisar la línea. Te paso con un agente."},
+    ],
+}
+
+
+def _playbooks_prod(db=None):
+    from app.domain.flujos_abonado import PLAYBOOKS
+
+    out = {n: [{"id": p.id, "pregunta": p.pregunta} for p in ps] for n, ps in PLAYBOOKS.items()}
+    out.update(PLAYBOOKS_PROD)
+    return out
+
+
 def _oferta_pendiente(ctx: dict) -> str:
     """Qué capa dejó una oferta de derivar/ticket esperando el «sí» del abonado (vacío si ninguna)."""
     if (ctx.get("eko_journey") or {}).get("pending_confirmation"):
@@ -155,6 +180,7 @@ def converse(
     llm: str = "down",
     ticket_abierto: bool = False,
     corte_activo: bool = False,
+    playbooks_prod: bool = False,
 ) -> list[Turn]:
     prof = PROFILES[profile]
     uid = uuid.uuid4().int
@@ -227,6 +253,8 @@ def converse(
                 },
             ))
             stack.enter_context(patch("app.services.handoff_notify.notify_espera_agente", lambda *a, **k: 0))
+            if playbooks_prod:
+                stack.enter_context(patch("app.services.platform_settings.resolve_playbooks", _playbooks_prod))
             if corte_activo:
                 stack.enter_context(patch("app.services.outages.resolver_nas_abonado", lambda db, abonado: "apposada"))
 
