@@ -189,4 +189,8 @@ Abierto: con LLM «normal» y sin paso pendiente estampado, «no las recibo» pu
 - F3b: `evaluate_resolved` demota los afirmativos condicionales («ok si funciona») y pide confirmar la prueba.
 - Fuera del código: el texto «…llamada de prueba al *99# o a otro número» del playbook móvil sale de `platform_config.payload_json.playbooks.movil_llamadas`
   (editor de playbooks, que reemplaza al del código; `*99#` es USSD de datos, no de voz). Se corrige desde la consola, no por código.
+**Tanda 6: IMPLEMENTADA** (F1 `a4c8fbf`, F2). Estado: 218 passed + 0 xfailed (tanda 1), 1382 + 716 passed (2a/2b); suite completa en un proceso con base limpia: 2316 passed.
+- F1: «no» / «no puedo» a un paso del playbook mueven el paso (también con un LLM que repite la pregunta); el Motor solo cubre sí / «sigue igual», así que se resuelve en `_avanzar_fallback_por_respuesta`.
+- F2: toda oferta con confirmación pendiente termina con una pregunta (invariante I7 en e2e; constante `MSG_CONFIRMAR_DERIVACION`).
+Abierto: el ticket automático por «Frustración / reiteración» (`canal_abonado`, `detecta_frustracion`) no pasa por la oferta de RC-4; decisión de producto pendiente.
 Pendiente: nada de la lista de §e. Abiertos: bucles de preguntas del playbook con LLM, caso de WhatsApp tras cierre de conversación (identificación por teléfono).

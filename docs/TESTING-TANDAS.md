@@ -6,11 +6,11 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 
 | Tanda | Qué corre | Comando | Total esperado | Tiempo medido |
 |---|---|---|---|---|
-| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **194 passed, 0 xfailed** (2090 deseleccionados) | 53 s |
-| 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–103 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -103)` | **1382 passed** | 215 s |
-| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 104 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +104)` | **708 passed** | 246 s |
+| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **218 passed, 0 xfailed** (2098 deseleccionados) | 73 s |
+| 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–103 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -103)` | **1382 passed** | 80 s |
+| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 104 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +104)` | **716 passed** | 65 s |
 
-Total del repo: **2284 passed + 0 xfailed** (194 + 1382 + 708 passed).
+Total del repo: **2316 passed + 0 xfailed** (218 + 1382 + 716 passed).
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,
@@ -22,6 +22,7 @@ Notas
 - Hoy no queda ningún `xfail`. Cuando se agregue uno, es **estricto** (`xfail(strict=True)`): cuando un arreglo hace pasar uno, el test falla con XPASS y hay que
   retirar el marcador. Para ver que cada uno reproduce su bug: `pytest -m e2e_conv --runxfail` (deben fallar exactamente los marcados).
 - Las tandas usan la misma base SQLite de tests (`data/test_estate.db`): **no correrlas en paralelo**.
+- **Antes de subir**, correr la suite completa como el CI: un solo proceso, con la base de tests **limpia** (mover `data/test_estate.db`) y `ruff check .`. Una base local vieja puede esconder fallos que el CI sí ve (pasó con los tests de RC-4: el playbook de la base tenía otros pasos).
 - Siempre con `timeout`. Una corrida con `timeout 570` se cortó sin dejar resultado: guardar la salida completa en un archivo, no filtrar con `grep`.
 - `ruff`: `.venv/bin/ruff check .`
 - CI (`.github/workflows/ci.yml`) todavía corre `python -m pytest` completo; separarlo en tandas queda pendiente de decisión.
