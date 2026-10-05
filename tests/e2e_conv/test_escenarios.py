@@ -545,42 +545,51 @@ def test_rc8_sin_corte_el_journey_diagnostica_como_siempre(canal):
 
 
 # ------------------------------------------------ RC-4 / R1: el agotamiento OFRECE derivar, el «sí» crea el ticket
-def _llegar_a_la_oferta(canal):
-    script = BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar"]
-    return converse(script, canal=canal, profile="movil")
+RELLENO_PLAYBOOK = ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "nada", "nada"]  # sin repetir «sigue sin andar»: eso dispara la vía de frustración
+
+
+def _hasta_la_oferta(canal, **kw):
+    """Cantidad de turnos de relleno hasta que el bot ofrece derivar. Depende del playbook vigente (código o
+    override de la base: 4 o 6 pasos), así que se mide en vez de fijarlo."""
+    t = converse(BASE_MOVIL + RELLENO_PLAYBOOK, canal=canal, profile="movil", **kw)
+    for i, x in enumerate(t[3:], start=1):
+        if inv.CONFIRM_PROMPT.search(x.reply):
+            return i
+    raise AssertionError(f"nunca ofreció derivar: {[x.reply[:50] for x in t]}")
 
 
 def test_rc4_la_oferta_no_crea_ticket_y_el_si_posterior_lo_crea(canal):
-    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "sí"], canal=canal, profile="movil")
-    assert inv.CONFIRM_PROMPT.search(t[5].reply) and not any(x.ticket_created for x in t[:5]), t[5].reply
-    assert t[6].ticket_created and HANDOFF_OK.search(t[6].reply), t[6].reply
+    n = _hasta_la_oferta(canal)
+    t = converse(BASE_MOVIL + RELLENO_PLAYBOOK[:n] + ["sí"], canal=canal, profile="movil")
+    assert inv.CONFIRM_PROMPT.search(t[2 + n].reply) and not any(x.ticket_created for x in t[: 3 + n]), t[2 + n].reply
+    assert t[3 + n].ticket_created and HANDOFF_OK.search(t[3 + n].reply), t[3 + n].reply
 
 
 def test_rc4_un_no_cancela_la_oferta_sin_ticket(canal):
-    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "no, gracias"], canal=canal, profile="movil")
-    assert not any(x.ticket_created for x in t) and t[6].reply and not inv.CONFIRM_PROMPT.search(t[6].reply), t[6].reply
+    n = _hasta_la_oferta(canal)
+    t = converse(BASE_MOVIL + RELLENO_PLAYBOOK[:n] + ["no, gracias"], canal=canal, profile="movil")
+    assert not any(x.ticket_created for x in t) and t[3 + n].reply and not inv.CONFIRM_PROMPT.search(t[3 + n].reply), t[3 + n].reply
 
 
 def test_rc4_un_texto_no_relacionado_cancela_la_oferta_y_un_si_posterior_no_deriva(canal):
-    t = converse(
-        BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "¿hasta qué hora atienden?", "sí"],
-        canal=canal, profile="movil",
-    )
+    n = _hasta_la_oferta(canal)
+    t = converse(BASE_MOVIL + RELLENO_PLAYBOOK[:n] + ["¿hasta qué hora atienden?", "sí"], canal=canal, profile="movil")
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
 
 
 def test_rc4_una_respuesta_corta_confusa_repregunta_una_vez_y_luego_el_si_deriva(canal):
-    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "sí"], canal=canal, profile="movil")
-    assert "No te entendí" in t[6].reply and not t[6].ticket_created, t[6].reply
-    assert t[7].ticket_created, t[7].reply
+    n = _hasta_la_oferta(canal)
+    t = converse(BASE_MOVIL + RELLENO_PLAYBOOK[:n] + ["nada", "sí"], canal=canal, profile="movil")
+    assert "No te entendí" in t[3 + n].reply and not t[3 + n].ticket_created, t[3 + n].reply
+    assert t[4 + n].ticket_created, t[4 + n].reply
 
 
 def test_rc4_el_pedido_explicito_de_agente_sigue_derivando_directo(canal):
     """Sin journey resuelto (journeys OFF; con el journey resuelto rige la excepción H6 del ADR) el pedido ES la
     confirmación, también con una oferta de derivar vigente."""
-    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "quiero hablar con un agente"],
-                 canal=canal, profile="movil", journeys=False)
-    assert not any(x.ticket_created for x in t[:6]) and t[6].ticket_created and HANDOFF_OK.search(t[6].reply), t[6].reply
+    n = _hasta_la_oferta(canal, journeys=False)
+    t = converse(BASE_MOVIL + RELLENO_PLAYBOOK[:n] + ["quiero hablar con un agente"], canal=canal, profile="movil", journeys=False)
+    assert not any(x.ticket_created for x in t[: 3 + n]) and t[3 + n].ticket_created and HANDOFF_OK.search(t[3 + n].reply), t[3 + n].reply
 
 
 def test_rc3b_seguimiento_de_incidente_no_lo_toma_el_journey_de_servicios(canal):
