@@ -2511,6 +2511,18 @@ def _pregunta_pago_fuera_de_lugar(mensaje: str, mensaje_cliente: str) -> bool:
     )
 
 
+_TIPOS_INTERNET_FIJO = ("internet", "fibra", "radio", "adsl")
+
+
+def _foco_no_es_internet_fijo(intencion: str, servicio_foco_tipo: str = "") -> bool:
+    """El servicio en foco es móvil/Sensa/TV: ``selected_service_ref.service_type`` (CTX-1) y, sin ref, la intención."""
+    tipo = (servicio_foco_tipo or "").strip().lower()
+    if tipo:
+        return tipo not in _TIPOS_INTERNET_FIJO
+    intent = (intencion or "").strip()
+    return intent.startswith("movil") or intent == "tv_sensa"
+
+
 def diagnosticar_turno(
     *,
     intencion: str,
@@ -2522,8 +2534,12 @@ def diagnosticar_turno(
     kb_fragmento: str = "",
     forzar_agente: bool = False,
     contexto_abonado: str = "",
+    servicio_foco_tipo: str = "",
 ) -> dict[str, str]:
-    """Pide a la IA el próximo acto de diagnóstico. Fallback = siguiente paso del playbook."""
+    """Pide a la IA el próximo acto de diagnóstico. Fallback = siguiente paso del playbook.
+
+    ``servicio_foco_tipo``: tipo del ``selected_service_ref`` (CTX-1). Con un servicio móvil/Sensa/TV en foco no rigen
+    las heurísticas de Wi-Fi ni la planta de Internet fijo (H12)."""
     if forzar_agente:
         return {
             "accion": "escalate",
@@ -2535,6 +2551,7 @@ def diagnosticar_turno(
             "motivo": "pedido_humano",
         }
 
+    foco_no_internet = _foco_no_es_internet_fijo(intencion, servicio_foco_tipo)
     motivo_optico = None
     from app.services.conexion_pppoe import (
         enriquecer_pasos_por_pppoe,
@@ -2553,6 +2570,7 @@ def diagnosticar_turno(
         or "NO pedir reinicio de ONT" in (contexto_abonado or "")
         or "onu_ftth_enlace_ok" in (contexto_abonado or "")
     )
+    linea_ya_ok = linea_ya_ok and not foco_no_internet  # la planta de otro servicio no cuenta
     sin_sesion_ppp = rama_pppoe == "sin_sesion"
     # Si PPPoE/triage ya dijo línea OK, no correr heurísticas ópticas ni preguntar PON.
     aplica_optica_turno = es_intencion_optica(intencion) and not linea_ya_ok
@@ -2752,7 +2770,6 @@ def diagnosticar_turno(
     from app.domain.flujos_abonado import (
         MSG_WIFI_SIN_CABLE_MOVIL,
         MSG_WIFI_UN_DISPOSITIVO_MOVIL,
-        contexto_diagnostico_wifi,
         dispositivo_sin_puerto_ethernet,
         indica_paso_diagnostico_completado,
         interpreta_alcance_dispositivos,
@@ -2761,6 +2778,10 @@ def diagnosticar_turno(
         pregunta_confirmacion_mejora_senal_wifi,
         respuesta_guardrail_cable_dispositivo_movil,
     )
+    from app.domain.flujos_abonado import contexto_diagnostico_wifi as _ctx_wifi
+
+    def contexto_diagnostico_wifi(historial, *, intencion: str = "") -> bool:
+        return not foco_no_internet and _ctx_wifi(historial, intencion=intencion)
 
     if contexto_diagnostico_wifi(
         historial_mensajes, intencion=intencion
@@ -3210,7 +3231,7 @@ def diagnosticar_turno(
         mid_luces_ont = _historial_pide_luces_ont(historial_mensajes)
         if mid_luces_ont and not tech_confirmada:
             tech_confirmada = "internet_ftth"
-        wifi_en_curso = diagnostico_wifi_en_curso(
+        wifi_en_curso = not foco_no_internet and diagnostico_wifi_en_curso(
             historial_mensajes,
             intencion=intencion,
             pasos_cubiertos=pasos_cubiertos,
@@ -3272,6 +3293,7 @@ def diagnosticar_turno(
         )
         if (
             accion == "ask"
+            and not foco_no_internet
             and parece_pregunta_alcance_dispositivos(mensaje)
             and alcance_ya
         ):

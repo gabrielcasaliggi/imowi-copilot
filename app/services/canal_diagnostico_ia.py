@@ -672,6 +672,7 @@ def _aplicar_diagnostico_ia(
         contexto_abonado=build_contexto_abonado(
             abonado, org_id=org_id, extras=extras_ctx or None, db=db
         ),
+        servicio_foco_tipo=extras_ctx.get("servicio_foco_tipo", ""),
     )
 
     # RC-13: sin LLM, la respuesta libre a la pregunta pendiente tiene que mover el playbook.

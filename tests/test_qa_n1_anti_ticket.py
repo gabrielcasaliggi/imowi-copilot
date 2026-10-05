@@ -1782,7 +1782,7 @@ def test_listo_ya_lo_movi_no_cierra_pregunta_mejora_wifi():
     hist = [
         {"autor": "cliente", "texto": "internet"},
         {"autor": "bot", "texto": "¿Notás lentitud solo por Wi‑Fi en algunos dispositivos?"},
-        {"autor": "cliente", "texto": "solo en algunos, en el fondo de mi casa"},
+        {"autor": "cliente", "texto": "solo por wifi en algunos, en el fondo de mi casa"},
         {
             "autor": "bot",
             "texto": (

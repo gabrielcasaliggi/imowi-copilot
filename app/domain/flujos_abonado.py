@@ -3457,54 +3457,54 @@ def _texto_blob_historial(historial) -> str:
     return " ".join(parts).lower()
 
 
+_ROLES_BOT = frozenset({"bot", "asistente", "out", "eco", "agente", "sistema"})
+
+
+def _texto_blob_abonado(historial) -> str:
+    """Solo lo que escribió el abonado (nunca el texto del bot: su vocabulario no es evidencia del problema)."""
+    parts: list[str] = []
+    for m in historial or []:
+        if isinstance(m, dict):
+            roles = (m.get("rol"), m.get("autor"), m.get("direccion"))
+            txt = m.get("texto") or m.get("contenido") or ""
+        else:
+            roles = (getattr(m, "rol", ""), getattr(m, "autor", ""), getattr(m, "direccion", ""))
+            txt = getattr(m, "texto", "") or ""
+        if any(str(r or "").lower() in _ROLES_BOT for r in roles):
+            continue
+        parts.append(str(txt))
+    return " ".join(parts).lower()
+
+
+_RE_WIFI_REPETIDOR = re.compile(r"\b(repetidor\w*|rayitas?)\b")
+_RE_WIFI_MARCA = re.compile(r"\b(wifi|wi-fi|wi fi|router|televisor|smart tv|tele)\b")
+_RE_WIFI_SINTOMA = re.compile(
+    r"\b(se[ñn]al|potencia|cobertura|llega|rayitas?|lent[oa]|lentitud|fondo|inal[aá]mbr\w*|interferenc\w*)"
+)
+_RE_WIFI_CABLE = re.compile(r"\b(por cable|con cable|cable funciona|cable anda)\b")
+_RE_WIFI_RADIO = re.compile(r"\b(wifi|wi-fi|wi fi|inal[aá]mbr\w*)")
+_RE_WIFI_FRASES = re.compile(
+    r"\b(se[ñn]al inal[aá]mbrica|objetos? met[aá]licos?|libre de interferencias|dispositivos conectados|m[aá]s cerca del router)\b"
+)
+
+
 def contexto_diagnostico_wifi(historial, *, intencion: str = "") -> bool:
-    """True si el hilo es diagnóstico WiFi/cobertura (repetidor, router, etc.)."""
+    """True si el hilo es diagnóstico WiFi/cobertura (repetidor, router, etc.).
+
+    Lee SOLO los mensajes del abonado y palabras completas: «telefonía» no es «tele» y la pregunta del bot
+    «¿sin señal…?» no cuenta como síntoma de Wi-Fi (H12).
+    """
     intent = (intencion or "").strip()
     if intent in ("wifi", "cambio_clave_wifi"):
         return True
-    blob = _texto_blob_historial(historial)
-    if any(k in blob for k in ("repetidor", "rayita", "rayitas")):
+    blob = _texto_blob_abonado(historial)
+    if _RE_WIFI_REPETIDOR.search(blob):
         return True
-    wifi_markers = ("wifi", "wi-fi", "wi fi", "router", "televisor", "smart tv", "tele")
-    if any(k in blob for k in wifi_markers) and any(
-        k in blob
-        for k in (
-            "señal",
-            "senal",
-            "potencia",
-            "cobertura",
-            "llega",
-            "rayita",
-            "lento",
-            "lentitud",
-            "lenta",
-            "fondo",
-            "inalámbr",
-            "inalambr",
-            "interferenc",
-        )
-    ):
+    if _RE_WIFI_MARCA.search(blob) and _RE_WIFI_SINTOMA.search(blob):
         return True
-    if any(k in blob for k in ("por cable", "con cable", "cable funciona", "cable anda")) and any(
-        k in blob for k in ("wifi", "wi-fi", "wi fi", "inalámbr", "inalambr")
-    ):
+    if _RE_WIFI_CABLE.search(blob) and _RE_WIFI_RADIO.search(blob):
         return True
-    if any(
-        k in blob
-        for k in (
-            "señal inalámbrica",
-            "senal inalambrica",
-            "objeto metálico",
-            "objeto metalico",
-            "objetos metálicos",
-            "libre de interferencias",
-            "dispositivos conectados",
-            "más cerca del router",
-            "mas cerca del router",
-        )
-    ):
-        return True
-    return False
+    return bool(_RE_WIFI_FRASES.search(blob))
 
 
 _MARCADORES_CONSULTA_CABLE_MOVIL = (
