@@ -592,7 +592,6 @@ def test_rc3b_seguimiento_de_incidente_no_lo_toma_el_journey_de_servicios(canal)
 
 # ------------------------------------------------ Tanda 5 F3b: un afirmativo ambiguo no resuelve el caso
 @pytest.mark.parametrize("texto", ["ok si funciona", "ok, aviso si funciona"])
-@xf("F3b: «ok si funciona» / «ok, aviso si funciona» ante «Avisame si funciona» es una promesa de probar, no «ya funciona»: la política evaluate_resolved autoriza la propuesta «resuelto» del LLM y cierra la conversación con calificación")
 def test_f3b_afirmativo_ambiguo_no_resuelve_ni_cierra(canal, texto):
     t = converse(["tengo problemas con mi línea de imowi", "1", "llamadas", texto], canal=canal, profile="movil", llm="avisame")
     assert t[3].estado != "cerrado" and t[3].modo != "cerrado", (t[3].estado, t[3].reply)

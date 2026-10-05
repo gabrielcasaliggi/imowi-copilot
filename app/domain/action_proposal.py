@@ -6,6 +6,7 @@ El canal ejecuta efectos. Nunca es cover (contrato 10B).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 SOURCE_LLM = "llm"
@@ -129,6 +130,13 @@ def proposal_from_diag_result(result: dict | None, *, message: str = "") -> Acti
     )
 
 
+# Condicional / a futuro: «si funciona», «aviso si…», «te aviso», «cuando pruebe», «voy a probar».
+_AFIRMATIVO_CONDICIONAL = re.compile(
+    r"\bsi\s+funciona\b|\bavis[oa]\w*\s+si\b|\b(te|les)\s+avis[oa]\b|\bcuando\s+(pruebe|llame|pueda)\b|\bvoy\s+a\s+(probar|intentar)\b",
+    re.I,
+)
+
+
 def evaluate_resolved(
     proposal: ActionProposal,
     mensaje_cliente: str,
@@ -180,6 +188,17 @@ def evaluate_resolved(
             or (
                 "Contame un poco más: ¿seguís sin servicio o ya te quedó andando?"
             ),
+            demote_to=ACTION_ASK,
+        )
+
+    # F3b: «ok si funciona» / «ok, aviso si funciona» es una promesa de probar, no «ya funciona».
+    from app.domain.flujos_abonado import indica_resuelto
+
+    if _AFIRMATIVO_CONDICIONAL.search(t) and not indica_resuelto(mensaje_cliente):
+        return PolicyDecision(
+            allow=False,
+            reason="bloqueado_resolved_afirmativo_condicional",
+            message="¿Pudiste hacer la prueba (por ejemplo, recibir la llamada de prueba)? Contame si ya funciona o si sigue igual.",
             demote_to=ACTION_ASK,
         )
 
