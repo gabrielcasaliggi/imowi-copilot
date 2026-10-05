@@ -628,3 +628,50 @@ def test_f1_respuesta_de_una_palabra_no_repite_el_paso(canal, journeys, llm, res
     if llm != "normal":  # el proveedor «normal» no pregunta pasos: solo se exige no repetir ni derivar
         assert t[3].reply != t[2].reply and PASO_MOVIL.search(t[3].reply), (t[2].reply, t[3].reply)
         assert t[4].reply != t[3].reply, (t[3].reply, t[4].reply)
+
+
+# ------------------------------------------------ Tanda 7 F1: la frustración OFRECE derivar (R1), no crea ticket
+BASE_FRUSTRACION = ["tengo problemas con mi línea de imowi", "1", "tecnico"]
+FRUSTRACION = ["sin señal", "sin señal", "sin señal"]  # la misma queja repetida con el playbook ya avanzado (paso_idx ≥ 2)
+
+
+_XF_T7F1 = pytest.mark.xfail(strict=True, reason="Tanda 7 F1: la segunda «sin señal» seguida crea ticket sin pedido ni confirmación")
+_FRUS = BASE_FRUSTRACION + FRUSTRACION[:2]  # el 2.º «sin señal» (índice 4) es el que dispara la frustración
+
+
+@_XF_T7F1
+@pytest.mark.parametrize("llm", ["down", "normal"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_t7f1_frustracion_ofrece_derivar_y_no_crea_ticket(canal, journeys, llm):
+    t = converse(_FRUS, canal=canal, profile="movil", journeys=journeys, llm=llm)
+    assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
+    assert inv.CONFIRM_PROMPT.search(t[-1].reply) and t[-1].reply.rstrip().endswith("?"), t[-1].reply
+
+
+@_XF_T7F1
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_t7f1_el_si_a_la_oferta_por_frustracion_crea_el_ticket(canal, journeys):
+    t = converse(_FRUS + ["sí"], canal=canal, profile="movil", journeys=journeys)
+    assert not any(x.ticket_created for x in t[:5]) and t[5].ticket_created and HANDOFF_OK.search(t[5].reply), [x.reply for x in t[4:]]
+
+
+@_XF_T7F1
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_t7f1_el_no_cancela_la_oferta_sin_ticket(canal, journeys):
+    t = converse(_FRUS + ["no, gracias"], canal=canal, profile="movil", journeys=journeys)
+    assert not any(x.ticket_created for x in t) and inv.CONFIRM_PROMPT.search(t[4].reply) and not inv.CONFIRM_PROMPT.search(t[5].reply), [x.reply for x in t[4:]]
+
+
+@_XF_T7F1
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_t7f1_texto_ajeno_cancela_la_oferta_y_un_si_posterior_no_deriva(canal, journeys):
+    t = converse(_FRUS + ["¿hasta qué hora atienden?", "sí"], canal=canal, profile="movil", journeys=journeys)
+    assert inv.CONFIRM_PROMPT.search(t[4].reply) and not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
+
+
+@_XF_T7F1
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_t7f1_respuesta_confusa_repregunta_una_vez_y_luego_el_si_deriva(canal, journeys):
+    t = converse(_FRUS + ["nada", "sí"], canal=canal, profile="movil", journeys=journeys)
+    assert inv.CONFIRM_PROMPT.search(t[4].reply) and "No te entendí" in t[5].reply and not t[5].ticket_created, [x.reply for x in t[4:]]
+    assert t[6].ticket_created, t[6].reply
