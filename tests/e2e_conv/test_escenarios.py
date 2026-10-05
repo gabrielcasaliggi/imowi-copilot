@@ -342,7 +342,6 @@ def test_e15_el_aviso_no_se_repite_en_el_turno_siguiente(canal):
     assert avisos(t) == 1, [x.reply[:60] for x in t]
 
 
-@xf("E16a/R1: tras las preguntas del playbook móvil el bot escala solo (ticket sin confirmación) y textos libres caen al listado de servicios")
 def test_e16a_movil_sin_resolver_ofrece_agente_y_con_si_crea_ticket(canal):
     script = BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "sí"]
     t = converse(script, canal=canal, profile="movil")
@@ -353,7 +352,6 @@ def test_e16a_movil_sin_resolver_ofrece_agente_y_con_si_crea_ticket(canal):
     assert t[-1].ticket_created, t[-1].reply
 
 
-@xf("E16b/R1: sin confirmación explícita el bot igual crea el ticket (agotamiento del playbook)")
 def test_e16b_movil_sin_confirmacion_no_crea_ticket(canal):
     script = BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "no, gracias"]
     t = converse(script, canal=canal, profile="movil")
@@ -544,3 +542,49 @@ def test_rc8_sin_corte_el_journey_diagnostica_como_siempre(canal):
     t = converse(["no tengo internet"], canal=canal, profile="int1")
     assert "No veo una sesión" in t[0].reply or inv.VOCAB_INTERNET.search(t[0].reply), t[0].reply
     assert not CORTE.search(t[0].reply) or "No veo una sesión" in t[0].reply, t[0].reply
+
+
+# ------------------------------------------------ RC-4 / R1: el agotamiento OFRECE derivar, el «sí» crea el ticket
+def _llegar_a_la_oferta(canal):
+    script = BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar"]
+    return converse(script, canal=canal, profile="movil")
+
+
+def test_rc4_la_oferta_no_crea_ticket_y_el_si_posterior_lo_crea(canal):
+    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "sí"], canal=canal, profile="movil")
+    assert inv.CONFIRM_PROMPT.search(t[5].reply) and not any(x.ticket_created for x in t[:5]), t[5].reply
+    assert t[6].ticket_created and HANDOFF_OK.search(t[6].reply), t[6].reply
+
+
+def test_rc4_un_no_cancela_la_oferta_sin_ticket(canal):
+    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "no, gracias"], canal=canal, profile="movil")
+    assert not any(x.ticket_created for x in t) and t[6].reply and not inv.CONFIRM_PROMPT.search(t[6].reply), t[6].reply
+
+
+def test_rc4_un_texto_no_relacionado_cancela_la_oferta_y_un_si_posterior_no_deriva(canal):
+    t = converse(
+        BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "¿hasta qué hora atienden?", "sí"],
+        canal=canal, profile="movil",
+    )
+    assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
+
+
+def test_rc4_una_respuesta_corta_confusa_repregunta_una_vez_y_luego_el_si_deriva(canal):
+    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "nada", "sí"], canal=canal, profile="movil")
+    assert "No te entendí" in t[6].reply and not t[6].ticket_created, t[6].reply
+    assert t[7].ticket_created, t[7].reply
+
+
+def test_rc4_el_pedido_explicito_de_agente_sigue_derivando_directo(canal):
+    """Sin journey resuelto (journeys OFF; con el journey resuelto rige la excepción H6 del ADR) el pedido ES la
+    confirmación, también con una oferta de derivar vigente."""
+    t = converse(BASE_MOVIL + ["sigue igual", "ya probé todo", "sigue sin andar", "quiero hablar con un agente"],
+                 canal=canal, profile="movil", journeys=False)
+    assert not any(x.ticket_created for x in t[:6]) and t[6].ticket_created and HANDOFF_OK.search(t[6].reply), t[6].reply
+
+
+def test_rc3b_seguimiento_de_incidente_no_lo_toma_el_journey_de_servicios(canal):
+    """§c: «sigue igual» tras elegir un servicio móvil lo atiende el playbook, no el listado de servicios."""
+    t = converse(BASE_MOVIL + ["sigue igual"], canal=canal, profile="movil")
+    sin_violaciones(t)
+    assert not re.search(r"servicios contratados", t[3].reply, re.I) and t[3].branch.startswith("legacy:"), (t[3].branch, t[3].reply)

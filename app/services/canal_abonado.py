@@ -3263,6 +3263,222 @@ def _espera_docs_tramite(db: Session, conv: ConversacionCanal) -> bool:
     return False
 
 
+MSG_OFERTA_DERIVACION_AGOTADO = (
+    "Con lo que me contaste ya no lo resolvemos a distancia. ¿Querés que te derive con un agente?"
+)
+
+
+def _ofrecer_derivacion_agotado(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    ctx: dict,
+    *,
+    canal: str,
+    intencion: str,
+    motivo: str = "",
+    mensaje: str = "",
+) -> dict:
+    """RC-4 (R1): al agotar el playbook sin solución se OFRECE derivar y se espera el «sí». Nunca ticket solo.
+
+    El «sí» (o «dale», «ok»…) lo recoge ``_responder_oferta_derivacion`` en el turno siguiente; «no» o un
+    texto no relacionado cancelan la oferta sin ticket.
+    """
+    from app.domain.conversation_motor import stamp_bot_question
+    from app.domain.flujos_abonado import texto_ofrece_derivacion
+
+    if ctx.get("oferta_derivacion_cancelada") is not None:
+        # Ya se ofreció y el abonado la dejó sin efecto: no se vuelve a ofrecer con las mismas palabras.
+        n = int(ctx.get("oferta_derivacion_cancelada") or 0) + 1
+        ctx["oferta_derivacion_cancelada"] = n
+        msg = (
+            "Dale, seguimos por acá. Si cambiás de idea y querés que te derive, escribí *agente*."
+            if n % 2
+            else "Sigo acá para ayudarte. Contame cualquier novedad, o escribí *agente* si preferís que te derive."
+        )
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": msg,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+    msg = (mensaje or "").strip()
+    if not texto_ofrece_derivacion(msg):
+        msg = MSG_OFERTA_DERIVACION_AGOTADO
+    stamp_bot_question(ctx, step_id="derivar_oferta_agotado", pregunta=msg, intencion=intencion)
+    ctx["oferta_derivacion_motivo"] = (motivo or "playbook_agotado")[:200]
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "oferta_derivacion": True,
+    }
+
+
+def _oferta_derivacion_vigente(db: Session, conv: ConversacionCanal, ctx: dict, texto: str) -> bool:
+    """La oferta de derivar es lo ÚLTIMO que dijo el bot: pending_bot de oferta del turno anterior (estado del
+    Motor) o, si no, el último mensaje saliente persistido ofrece derivar sin mensajes del abonado en el medio."""
+    from app.domain.conversation_state import hydrate_conversation_state
+    from app.domain.flujos_abonado import texto_ofrece_derivacion
+
+    cs = hydrate_conversation_state(ctx)
+    pb = cs.pending_bot
+    if pb is not None and pb.act == "OFFER_DERIVATION" and getattr(pb, "status", "open") == "open":
+        return 0 <= cs.turn - pb.turn <= 1
+    hist = crepo.list_mensajes(db, conv.id)
+    previos = [m for m in hist if not (m.direccion == "in" and (m.texto or "") == texto)] if hist else []
+    return bool(previos) and previos[-1].direccion != "in" and texto_ofrece_derivacion(previos[-1].texto or "")
+
+
+def _paso_pending_oferta(ctx: dict) -> str:
+    from app.domain.conversation_state import hydrate_conversation_state
+
+    pb = hydrate_conversation_state(ctx).pending_bot
+    return str(pb.step_id or "") if pb is not None and pb.act == "OFFER_DERIVATION" else ""
+
+
+def _limpiar_pending_oferta(ctx: dict) -> None:
+    from app.domain.conversation_motor import CS_KEY
+    from app.domain.conversation_state import hydrate_conversation_state
+
+    cs = hydrate_conversation_state(ctx)
+    if cs.pending_bot is not None and cs.pending_bot.act == "OFFER_DERIVATION":
+        cs.pending_bot = None
+        slot = cs.active_slot()
+        if slot is not None:
+            slot.pending_bot = None
+        ctx[CS_KEY] = cs.to_dict()
+
+
+def _responder_oferta_derivacion(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    abonado: Abonado | None,
+    texto: str,
+    *,
+    canal: str,
+    ctx: dict,
+) -> dict | None:
+    """RC-4: respuesta al ÚLTIMO mensaje del bot si ofrecía derivar (playbook o agotamiento), en un
+    diagnóstico técnico. «sí» crea el ticket; «no» cancela; otro texto no relacionado deja la oferta sin
+    efecto (None: el turno sigue su camino). No toca las ofertas del journey (pending_confirmation)."""
+    from app.domain.flujos_abonado import acepta_derivacion_clara, rechaza_derivacion_clara
+    from app.services.eko_journeys import get_journey
+
+    if abonado is None or get_journey(ctx).get("pending_confirmation"):
+        return None
+    intencion = str(ctx.get("intencion") or "")
+    if not _intencion_es_tecnica(intencion) or es_tramite_admin(intencion):
+        return None
+    if not _oferta_derivacion_vigente(db, conv, ctx, texto):
+        return None
+    # La oferta se consume en este turno (sí, no o texto ajeno): no queda viva para el siguiente.
+    paso_oferta = _paso_pending_oferta(ctx)
+    _limpiar_pending_oferta(ctx)
+    if rechaza_derivacion_clara(texto):
+        ctx.pop("oferta_derivacion_reprompt", None)
+        resp = (
+            "Entendido, no te derivo por ahora. Si más adelante necesitás ayuda "
+            "o querés hablar con un agente, escribí *agente*."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intencion,
+        }
+    if not acepta_derivacion_clara(texto):
+        # Respuesta corta que no se entiende («nada», «quizás»): se repregunta UNA vez con otras palabras.
+        palabras = len((texto or "").split())
+        if palabras <= 2 and "?" not in (texto or "") and not ctx.get("oferta_derivacion_reprompt"):
+            from app.domain.conversation_motor import stamp_bot_question
+
+            ctx["oferta_derivacion_reprompt"] = True
+            resp = "No te entendí. ¿Querés que te derive con un agente? Respondé sí o no."
+            stamp_bot_question(ctx, step_id=paso_oferta or "derivar_oferta_agotado", pregunta=resp, intencion=intencion)
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+            return {
+                "ok": True,
+                "modo": "bot",
+                "conversacion_id": conv.id,
+                "respuesta": resp,
+                "estado": conv.estado,
+                "intencion": intencion,
+                "oferta_derivacion": True,
+            }
+        # Texto ajeno (o 2.ª respuesta que no se entiende): la oferta queda cancelada SIN ticket y ese
+        # paso de derivación no se repite.
+        ctx.pop("oferta_derivacion_reprompt", None)
+        if paso_oferta:
+            from app.domain.conversation_state import mark_covers
+
+            mark_covers(ctx, paso_oferta)
+        ctx["oferta_derivacion_cancelada"] = int(ctx.get("oferta_derivacion_cancelada") or 0)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        return None
+    ctx.pop("oferta_derivacion_reprompt", None)
+    tid, pending = _ticket_via_runtime_o_legacy(
+        db,
+        org_id,
+        conv,
+        abonado,
+        "Cliente confirmó la derivación ofrecida (playbook agotado)",
+        intencion=intencion,
+        paso_idx=int(ctx.get("paso_idx") or ctx.get("diag_turnos") or 0),
+        ctx=ctx,
+        canal=canal,
+        texto=texto,
+        decision_name="oferta_derivacion_confirmada",
+        confirmacion_determinista=True,
+    )
+    if pending or not tid:
+        resp = pending or "No pude generar el ticket ahora."
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+        }
+    resp = (
+        f"Dale, te derivo con un agente y le paso lo que charlamos. "
+        f"Ticket {tid}.{_nota_temas_pendientes(ctx)} Quedate en este chat."
+    )
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "espera_agente",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "ticket_id": tid,
+        "intencion": intencion,
+    }
+
+
 def _cerrar_si_rechaza_derivacion(
     db: Session,
     org_id: str,
@@ -5379,6 +5595,13 @@ def procesar_mensaje_entrante(
             maybe_handle_journey_turn,
             turn_is_connectivity,
         )
+
+        # RC-4: respuesta («sí»/«no») a una oferta de derivación del propio bot, antes de que un journey la capture.
+        oferta_resp = _responder_oferta_derivacion(
+            db, org_id, conv, abonado, texto, canal=canal, ctx=ctx
+        )
+        if oferta_resp is not None:
+            return oferta_resp
 
         # RC-8 (planta manda el turno): con un corte masivo activo en la zona del abonado, el aviso del
         # corte va ANTES de que el journey de conectividad diagnostique o ofrezca derivar.
@@ -7635,6 +7858,11 @@ def procesar_mensaje_entrante(
         if intencion == "alta_plan":
             return _ofrecer_contacto_alta_comercial(
                 db, org_id, conv, canal=canal, ctx=ctx
+            )
+        # RC-4 (R1): el agotamiento del playbook OFRECE derivar y espera el «sí»; nunca ticket por su cuenta.
+        if "agotado" in (motivo or "").lower() and not es_tramite_admin(intencion):
+            return _ofrecer_derivacion_agotado(
+                db, org_id, conv, ctx, canal=canal, intencion=intencion, motivo=motivo
             )
         tid = _crear_ticket_n2(
             db,

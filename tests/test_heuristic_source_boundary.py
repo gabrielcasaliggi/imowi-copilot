@@ -269,6 +269,9 @@ def test_13c_b_real_heuristic_ticket_productivo():
         },
         tickets=tickets,
     )
-    assert tickets
+    # R1 (tanda 5, RC-4): el agotamiento heurístico conserva su fuente y su autorización, pero OFRECE derivar;
+    # el ticket sale con el «sí» del abonado (antes se creaba solo).
+    assert not tickets
+    assert out.get("oferta_derivacion") is True
     assert out.get("escalate_source") == SOURCE_HEURISTIC
     assert out.get("escalate_authorized") is True

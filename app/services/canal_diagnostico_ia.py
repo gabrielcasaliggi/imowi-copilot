@@ -94,6 +94,10 @@ def _extras_servicio_y_planta(ctx: dict, abonado, db) -> dict[str, str]:
     return extras_ctx
 
 
+# Motivos del diagnóstico que derivan directo: no son «agotamiento del playbook» (guardrail de pack/bono).
+_ESCALADAS_DIRECTAS = frozenset({"pack_acreditado_sin_datos"})
+
+
 def _avanzar_fallback_por_respuesta(
     ctx: dict, checklist: list, texto: str, result: dict, cubiertos: list[str]
 ) -> dict:
@@ -827,6 +831,35 @@ def _aplicar_diagnostico_ia(
             replace_covers(ctx, cub_before)
         if hydrate_conversation_state(ctx).active_domain_id != active_before:
             pass
+        # RC-4 (R1): el agotamiento (propuesta LLM o heurística, no planta ni pedido humano) se OFRECE; el
+        # ticket sale con el «sí» del abonado. Planta y pedido explícito de agente siguen derivando directo.
+        if (
+            auth.allow
+            and auth.action.type == ACT_ESCALATE
+            and auth.proposal_source in ("llm", "heuristic")
+            and not forzar
+            and str(result.get("motivo") or "") not in _ESCALADAS_DIRECTAS
+        ):
+            oferta = c._ofrecer_derivacion_agotado(
+                db,
+                org_id,
+                conv,
+                ctx,
+                canal=canal,
+                intencion=intencion,
+                motivo=str(result.get("motivo") or "agotado"),
+                mensaje=auth.message or mensaje,
+            )
+            oferta.update(
+                {
+                    "diagnostico_ia": True,
+                    "escalate_authorized": True,
+                    "escalate_offered": True,
+                    "escalate_source": auth.proposal_source,
+                    "escalate_reason": auth.reason,
+                }
+            )
+            return oferta
         if auth.allow and auth.action.type == ACT_ESCALATE:
             tid = _crear_ticket_n2(
                 db,

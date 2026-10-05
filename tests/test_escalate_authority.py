@@ -375,16 +375,18 @@ def test_e2_llm_escalate_allow_crea_ticket():
         },
         tickets=tickets,
     )
+    # R1 (tanda 5, RC-4): la escalada autorizada por el LLM es agotamiento del playbook → se OFRECE derivar y
+    # se espera el «sí»; antes creaba el ticket por su cuenta.
     Session = get_session_factory()
     with Session() as db:
         conv = db.get(ConversacionCanal, conv_id)
-        assert conv.estado == "espera_agente"
-        assert (conv.ticket_id or "").strip()
-    assert tickets
-    assert out.get("modo") == "espera_agente"
+        assert conv.estado == "bot"
+        assert not (conv.ticket_id or "").strip()
+    assert not tickets
+    assert out.get("modo") == "bot" and out.get("oferta_derivacion") is True
     assert out.get("escalate_authorized") is True
     assert out.get("escalate_source") == SOURCE_LLM
-    assert out.get("ticket_id")
+    assert not out.get("ticket_id")
 
 
 def test_e3_llm_json_alone_insufficient():
@@ -477,10 +479,11 @@ def test_e6_heuristic_b_sigue_escalando():
         },
         tickets=tickets,
     )
-    assert tickets
+    # R1 (tanda 5, RC-4): «agotamiento_checklist» (heurística) ofrece derivar; el ticket sale con el «sí».
+    assert not tickets
     assert out.get("escalate_authorized") is True
     assert out.get("escalate_source") == SOURCE_HEURISTIC
-    assert out.get("modo") == "espera_agente"
+    assert out.get("modo") == "bot" and out.get("oferta_derivacion") is True
     ctx = _load_ctx(conv_id)
     assert "consumo_paquete" not in (ctx.get("pasos_cubiertos") or [])
 
