@@ -790,3 +790,22 @@ def test_h14_el_reinicio_va_antes_de_ofrecer_derivar(canal, llm, journeys, respu
     t = converse(H14_BASE + [respuesta], canal=canal, profile="movil_deuda", journeys=journeys, llm=llm, playbooks_prod=True)
     sin_violaciones(t, pasos_antes_de_derivar=REINICIO_LLAMADAS)
     assert not any(x.ticket_created for x in t)
+
+
+# ------------------------------------------------ H15: «ya funciona» con un ticket derivado abierto no cierra ni califica
+_XF_H15 = pytest.mark.xfail(strict=True, reason="H15: «ya funciona» con ticket derivado cierra la conversación con el ticket abierto")
+
+
+@_XF_H15
+@pytest.mark.parametrize("resuelto", ["ya funciona", "ya anda", "ya se arregló"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("via", list(DERIVACIONES))
+def test_h15_resuelto_con_ticket_derivado_no_cierra_ni_califica(canal, via, journeys, resuelto):
+    script, profile, idx = DERIVACIONES[via]
+    t = converse(script + [resuelto], canal=canal, profile=profile, journeys=journeys)
+    assert t[idx].ticket_created and t[idx].estado in ("espera_agente", "con_agente"), (t[idx].estado, t[idx].reply)
+    u = t[-1]
+    assert u.estado in ("espera_agente", "con_agente"), (u.estado, u.reply)
+    assert t[idx].ticket_id in u.reply and re.search(r"agente", u.reply, re.I), (t[idx].ticket_id, u.reply)
+    assert not u.reply.rstrip().endswith("?") and not re.search(r"(lindo d[ií]a|cualquier otra consulta)", u.reply, re.I), u.reply
+    assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
