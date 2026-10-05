@@ -6,6 +6,8 @@ runtime para no romper monkeypatches de tests.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.orm import Session
 
 from app.estate.models import Abonado, ConversacionCanal
@@ -98,17 +100,39 @@ def _extras_servicio_y_planta(ctx: dict, abonado, db) -> dict[str, str]:
 _ESCALADAS_DIRECTAS = frozenset({"pack_acreditado_sin_datos"})
 
 
+def _norm_pregunta(texto: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", (texto or "").lower())
+    t = "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+    return " ".join(re.sub(r"[^\w\s]", " ", t).split())
+
+
+def _repite_pregunta_del_paso(checklist: list, pid: str, mensaje: str) -> bool:
+    """El mensaje es (o contiene) la pregunta del paso ``pid`` del checklist, ignorando mayúsculas y signos."""
+    m = _norm_pregunta(mensaje)
+    if len(m) < 10:
+        return False
+    for p in checklist or []:
+        pp = p if isinstance(p, dict) else {"id": getattr(p, "id", ""), "pregunta": getattr(p, "pregunta", "")}
+        if str(pp.get("id") or "") == pid:
+            q = _norm_pregunta(str(pp.get("pregunta") or ""))
+            return len(q) >= 10 and (q in m or m in q)
+    return False
+
+
 def _avanzar_fallback_por_respuesta(
     ctx: dict, checklist: list, texto: str, result: dict, cubiertos: list[str]
 ) -> dict:
-    """RC-13. El fallback del playbook (LLM caído o sin respuesta) devuelve el primer paso no cubierto:
-    si ese es el paso que el abonado acaba de contestar, repetiría la misma frase.
+    """RC-13 / F1. Si lo que se enviaría es OTRA VEZ la pregunta del paso que el abonado acaba de contestar, el
+    paso se mueve con la respuesta en vez de repetir la frase (I5). Casos: el fallback del playbook (LLM caído) o
+    un LLM que repite la pregunta del paso pendiente (los pasos solo los cubre el Motor, no el LLM).
 
-    - Respuesta reconocida (sí/no/«sigue igual»…, ``respuesta_paso_ok``): cubre el paso y pasa al siguiente.
+    - Respuesta reconocida (sí/no/«no puedo»/«sigue igual»…, ``respuesta_paso_ok``): cubre el paso y pasa al siguiente.
     - Respuesta que no se reconoce: repregunta UNA vez (otra frase) y a la segunda cubre el paso y sigue.
-    El camino con LLM no pasa por acá. Los pasos de derivación nunca se cubren por una respuesta.
+    Los pasos de derivación nunca se cubren por una respuesta.
     """
-    if (result.get("motivo") or "") != "fallback_playbook" or (result.get("accion") or "ask") != "ask":
+    if (result.get("accion") or "ask") != "ask":
         return result
     from app.domain.conversation_state import hydrate_conversation_state, mark_covers
     from app.domain.flujos_abonado import respuesta_paso_ok
@@ -116,10 +140,15 @@ def _avanzar_fallback_por_respuesta(
 
     pending = hydrate_conversation_state(ctx).pending_bot
     pid = str(getattr(pending, "step_id", "") or "")
-    if not pid or pid in cubiertos or str(result.get("paso_cubierto") or "") != pid or "deriv" in pid.lower():
+    if not pid or pid in cubiertos or "deriv" in pid.lower():
+        return result
+    es_fallback = (result.get("motivo") or "") == "fallback_playbook" and str(result.get("paso_cubierto") or "") == pid
+    if not es_fallback and not _repite_pregunta_del_paso(checklist, pid, str(result.get("mensaje") or "")):
         return result
     reprompts = ctx.get("playbook_reprompts") if isinstance(ctx.get("playbook_reprompts"), dict) else {}
-    if respuesta_paso_ok(texto) is None:
+    # Una pregunta de síntoma con opciones («sin señal, sin datos, no podés llamar…») no se contesta con sí/no.
+    sin_respuesta_valida = respuesta_paso_ok(texto) is None or getattr(pending, "act", "") == "ASK_SYMPTOM"
+    if sin_respuesta_valida:
         if int(reprompts.get(pid) or 0) < 1:
             ctx["playbook_reprompts"] = {**reprompts, pid: 1}
             out = dict(result)

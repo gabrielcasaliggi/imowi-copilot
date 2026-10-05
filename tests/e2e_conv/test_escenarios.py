@@ -613,11 +613,7 @@ PASO_MOVIL = re.compile(r"(modo avi|reinici|datos|se[ñn]al|apn|sim|chip|zona|ll
 LLM_UNA_PALABRA = [
     pytest.param("down", id="llm_down"),
     pytest.param("normal", id="llm_normal"),
-    pytest.param(
-        "primer_paso",
-        marks=xf("F1: con un LLM que repite el primer paso sin cubrir, «no» / «no puedo» no cubren el paso (el Motor solo cubre sí / «sigue igual») y el bot repite la misma pregunta"),
-        id="llm_primer_paso",
-    ),
+    pytest.param("primer_paso", id="llm_primer_paso"),
 ]
 
 
