@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -108,7 +109,26 @@ def _llm(modo: str):
         msg = "Reiniciá el teléfono y probá hacer una llamada de prueba. Avisame si funciona."
         return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
 
-    return {"down": down, "normal": normal, "avisame": avisame}[modo]
+    def primer_paso(messages=None, *_a, **_k):
+        # Proveedor falso de un LLM diligente: pregunta el primer paso del checklist SIN cubrir (los pasos solo
+        # los cubre el Motor: lo que diga el LLM es sugerencia), así que repite mientras nada lo cubra.
+        ultimo = ""
+        for m in reversed(list(messages or [])):
+            if isinstance(m, dict) and m.get("role") == "user":
+                ultimo = str(m.get("content") or "")
+                break
+        for linea in ultimo.splitlines():
+            m = re.match(r"^- \[ \] ([\w.-]+): (.+)$", linea.strip())
+            if m:
+                return json.dumps(
+                    {"accion": "ask", "mensaje": m.group(2).strip(), "paso_cubierto": "", "motivo": "ia"},
+                    ensure_ascii=False,
+                )
+        return json.dumps(
+            {"accion": "ask", "mensaje": "Contame un poco más.", "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False
+        )
+
+    return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso}[modo]
 
 
 def converse(

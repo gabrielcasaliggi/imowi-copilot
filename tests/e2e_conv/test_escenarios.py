@@ -606,3 +606,29 @@ def test_f3b_afirmativo_ambiguo_no_resuelve_ni_cierra(canal, texto):
     assert t[3].estado != "cerrado" and t[3].modo != "cerrado", (t[3].estado, t[3].reply)
     assert re.search(r"(pudiste|recibir la llamada|llamada de prueba)", t[3].reply, re.I) and "?" in t[3].reply, t[3].reply
     assert not re.search(r"(me alegra|genial|resuelto|calificaci)", t[3].reply, re.I), t[3].reply
+
+
+# ------------------------------------------------ Tanda 6 F1: respuestas de una palabra a un paso del playbook
+PASO_MOVIL = re.compile(r"(modo avi|reinici|datos|se[ñn]al|apn|sim|chip|zona|llam|derive|qu[eé] te pasa)", re.I)
+LLM_UNA_PALABRA = [
+    pytest.param("down", id="llm_down"),
+    pytest.param("normal", id="llm_normal"),
+    pytest.param(
+        "primer_paso",
+        marks=xf("F1: con un LLM que repite el primer paso sin cubrir, «no» / «no puedo» no cubren el paso (el Motor solo cubre sí / «sigue igual») y el bot repite la misma pregunta"),
+        id="llm_primer_paso",
+    ),
+]
+
+
+@pytest.mark.parametrize("llm", LLM_UNA_PALABRA)
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("respuesta", ["no", "no puedo"])
+def test_f1_respuesta_de_una_palabra_no_repite_el_paso(canal, journeys, llm, respuesta):
+    t = converse(["tengo problemas con mi línea de imowi", "1", "se me cortan", respuesta, respuesta],
+                 canal=canal, profile="movil", journeys=journeys, llm=llm)
+    sin_violaciones(t)  # I5: nunca dos veces seguidas el mismo texto
+    assert not any(x.ticket_created for x in t)
+    if llm != "normal":  # el proveedor «normal» no pregunta pasos: solo se exige no repetir ni derivar
+        assert t[3].reply != t[2].reply and PASO_MOVIL.search(t[3].reply), (t[2].reply, t[3].reply)
+        assert t[4].reply != t[3].reply, (t[3].reply, t[4].reply)
