@@ -180,4 +180,13 @@ contestar (respuesta reconocida) o repregunta una vez y avanza (no reconocida); 
 oferta pendiente → el journey acusa y pasa a `done` (el «gracias» siguiente es silencio de cortesía); un acto de facturación específico reclama un journey resuelto
 como `billing_self_service`. Estado de tests: 146 passed + 6 xfailed (tanda 1), 1370 + 698 passed (2a/2b).
 Abierto: con LLM «normal» y sin paso pendiente estampado, «no las recibo» puede volver a caer en facturación (la guarda de H11a depende de `pending_bot`).
-Pendiente: RC-4, RC-8 (orden de §e).
+**Tanda 5: IMPLEMENTADA** (H11/LLM `2d0c6bf`, RC-8 `1146993`, RC-3 `235a2f8`, RC-4 `fbab696`, F3b). Estado: 194 passed + 0 xfailed (tanda 1), 1382 + 708 passed (2a/2b).
+- H11 con LLM: la guarda de «respuesta al playbook» vale también si el Motor cubrió el paso en el mismo turno.
+- RC-8: el corte masivo se evalúa antes del journey cuando el turno es de conectividad (`turn_is_connectivity`).
+- RC-4 (R1): el agotamiento del playbook OFRECE derivar (`_ofrecer_derivacion_agotado`) y `_responder_oferta_derivacion` atiende la respuesta: «sí» crea el ticket,
+  «no» cancela, respuesta corta confusa repregunta una vez, texto ajeno cancela. Siguen derivando directo: pedido explícito de agente, planta (óptica) y `pack_acreditado_sin_datos`.
+- RC-3: el seguimiento de incidente solo reclama a los journeys de conectividad/ticket; otro journey resuelto hace PASS.
+- F3b: `evaluate_resolved` demota los afirmativos condicionales («ok si funciona») y pide confirmar la prueba.
+- Fuera del código: el texto «…llamada de prueba al *99# o a otro número» del playbook móvil sale de `platform_config.payload_json.playbooks.movil_llamadas`
+  (editor de playbooks, que reemplaza al del código; `*99#` es USSD de datos, no de voz). Se corrige desde la consola, no por código.
+Pendiente: nada de la lista de §e. Abiertos: bucles de preguntas del playbook con LLM, caso de WhatsApp tras cierre de conversación (identificación por teléfono).
