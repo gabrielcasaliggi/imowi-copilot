@@ -758,3 +758,21 @@ def test_h12_pregunta_de_otro_tema_sigue_cancelando_la_oferta(canal, journeys):
     t = converse(_PROD_LLAMADAS + ["cuánto debo", "sí"], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
     assert not any(x.ticket_created for x in t), [(x.user, x.reply[:60]) for x in t[-2:]]
     assert re.search(r"(15\.000|saldo|deuda|factura)", t[-2].reply, re.I) and not inv.CONFIRM_PROMPT.search(t[-2].reply), t[-2].reply
+
+
+# ------------------------------------------------ H13: la cortesía pura con derivación pendiente no cierra el hilo
+_XF_H13 = pytest.mark.xfail(strict=True, reason="H13: «gracias» tras derivar cierra la conversación con el ticket abierto")
+
+
+@_XF_H13
+@pytest.mark.parametrize("cortesia", ["gracias", "ok gracias", "listo"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("via", list(DERIVACIONES))
+def test_h13_cortesia_tras_derivar_no_cierra(canal, via, journeys, cortesia):
+    script, profile, idx = DERIVACIONES[via]
+    t = converse(script + [cortesia], canal=canal, profile=profile, journeys=journeys)
+    assert t[idx].ticket_created and t[idx].estado in ("espera_agente", "con_agente"), (t[idx].estado, t[idx].reply)
+    u = t[-1]
+    assert u.estado in ("espera_agente", "con_agente"), (u.estado, u.reply)
+    assert re.search(r"agente", u.reply, re.I) and not re.search(r"(lindo d[ií]a|cualquier otra consulta)", u.reply, re.I), u.reply
+    assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
