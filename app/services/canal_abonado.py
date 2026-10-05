@@ -5377,7 +5377,17 @@ def procesar_mensaje_entrante(
             journey_release,
             journey_turn_to_response,
             maybe_handle_journey_turn,
+            turn_is_connectivity,
         )
+
+        # RC-8 (planta manda el turno): con un corte masivo activo en la zona del abonado, el aviso del
+        # corte va ANTES de que el journey de conectividad diagnostique o ofrezca derivar.
+        if abonado and turn_is_connectivity(ctx, texto):
+            outage_resp = _talvez_respuesta_outage(
+                db, org_id, conv, abonado, ctx, canal=canal, texto=texto
+            )
+            if outage_resp is not None:
+                return outage_resp
 
         intencion_previa = ctx.get("intencion")
         jturn = maybe_handle_journey_turn(

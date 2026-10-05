@@ -846,6 +846,14 @@ def _resolved_turn_authorizes_handler(texto: str) -> bool:
     return _billing_user_act(texto) != "balance"
 
 
+def turn_is_connectivity(ctx: dict[str, Any], texto: str) -> bool:
+    """El turno lo atendería el journey de conectividad (activo o por el texto). RC-8: el corte masivo
+    se evalúa ANTES de que ese journey diagnostique."""
+    if _canonical_journey(str(get_journey(ctx).get("name") or "").strip()) == "internet_sin_conectividad":
+        return True
+    return detect_journey_name(texto) == "internet_sin_conectividad"
+
+
 def _resolved_handoff_turn(ctx: dict[str, Any]) -> JourneyTurn:
     st = get_journey(ctx)
     corr = str(st.get("correlation_id") or uuid.uuid4())

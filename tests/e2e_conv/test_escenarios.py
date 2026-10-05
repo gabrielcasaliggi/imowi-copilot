@@ -99,7 +99,6 @@ def test_08_consulta_de_ticket_abierto(canal):
     assert re.search(r"ticket .*abierto", t[0].reply, re.I)
 
 
-@xf("S9: con journeys ON el corte masivo activo se ignora («No veo una sesión…»); el aviso de corte solo existe en el legacy")
 def test_09_corte_activo(canal):
     t = converse(["no tengo internet"], canal=canal, corte_activo=True)
     sin_violaciones(t)
@@ -522,3 +521,26 @@ def test_h11_con_llm_un_pedido_real_de_facturacion_tras_la_pregunta_sigue_yendo_
     t = converse(["tengo problemas con mi línea de imowi", "1", "llamadas", texto],
                  canal=canal, profile="movil", llm="normal", journeys=journeys)
     assert re.search(r"(factura|pagar|pago|saldo|oficina virtual|ov\.batan|aumento|cobro)", t[3].reply, re.I), (t[3].branch, t[3].reply)
+
+
+# ------------------------------------------------ RC-8: el corte masivo manda sobre el journey de conectividad
+CORTE = re.compile(r"(incidencia|corte|zona)", re.I)
+
+
+def test_rc8_corte_activo_no_ofrece_derivar_ni_crea_ticket(canal):
+    t = converse(["no tengo internet", "sigue igual"], canal=canal, corte_activo=True)
+    sin_violaciones(t)
+    assert not any(x.ticket_created for x in t)
+    assert not any(inv.CONFIRM_PROMPT.search(x.reply) or "No veo una sesión" in x.reply for x in t), [x.reply for x in t]
+    assert all(CORTE.search(x.reply) for x in t), [x.reply for x in t]
+
+
+def test_rc8_con_corte_activo_la_facturacion_no_queda_bloqueada(canal):
+    t = converse(["cuánto debo"], canal=canal, profile="deuda", corte_activo=True)
+    assert re.search(r"(15\.000|saldo|deuda)", t[0].reply, re.I), t[0].reply
+
+
+def test_rc8_sin_corte_el_journey_diagnostica_como_siempre(canal):
+    t = converse(["no tengo internet"], canal=canal, profile="int1")
+    assert "No veo una sesión" in t[0].reply or inv.VOCAB_INTERNET.search(t[0].reply), t[0].reply
+    assert not CORTE.search(t[0].reply) or "No veo una sesión" in t[0].reply, t[0].reply
