@@ -3338,13 +3338,13 @@ def diagnosticar_turno(
                 if es_tv_sensa:
                     mensaje = (
                         "Con ese error de usuario/cuenta de Sensa hace falta revisarlo "
-                        "adentro. Te derivo con un agente; le paso el dispositivo y el "
-                        "mensaje que te aparece."
+                        "adentro; el agente necesitaría el dispositivo y el mensaje que te "
+                        "aparece. ¿Querés que te derive con un agente?"
                     )
                 else:
                     mensaje = (
                         "Con lo que me contaste hace falta un agente con acceso interno. "
-                        "Te derivo y le paso el historial."
+                        "¿Querés que te derive con un agente y le paso el historial?"
                     )
             else:
                 motivo = "bloqueado_optica_fuera_de_intencion"

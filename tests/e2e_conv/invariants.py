@@ -96,6 +96,18 @@ def i6_ticket_con_confirmacion(turns: list[Turn]) -> list[str]:
     return out
 
 
+def i7_oferta_termina_en_pregunta(turns: list[Turn]) -> list[str]:
+    """Toda respuesta que deja una oferta pendiente de confirmación (derivar, ticket) termina con una pregunta."""
+    out = []
+    for i, t in enumerate(turns):
+        if not t.pending_offer:
+            continue
+        ultimo = (t.replies[-1] if t.replies else "").strip()
+        if not ultimo.endswith("?"):
+            out.append(f"I7 turno {i} ({t.user!r}): oferta pendiente ({t.pending_offer}) sin pregunta final: {ultimo[-90:]!r} [{t.branch}]")
+    return out
+
+
 def violaciones(
     turns: list[Turn], *, servicio: tuple[int, re.Pattern[str], tuple[str, ...]] | None = None,
     solo: tuple[str, ...] | None = None,
@@ -106,6 +118,7 @@ def violaciones(
         "I3": i3_agente_deriva(turns),
         "I5": i5_sin_respuestas_repetidas(turns),
         "I6": i6_ticket_con_confirmacion(turns),
+        "I7": i7_oferta_termina_en_pregunta(turns),
     }
     if servicio is not None:
         checks["I4"] = i4_habla_del_servicio(turns, despues_de=servicio[0], vocab=servicio[1], etiquetas=servicio[2])

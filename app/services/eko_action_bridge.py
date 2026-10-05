@@ -250,17 +250,20 @@ def dispatch_runtime(
     return result
 
 
+# Toda oferta que deja una confirmación pendiente TERMINA con una pregunta explícita (no con una decisión).
+MSG_CONFIRMAR_DERIVACION = (
+    "Si preferís seguir en el chat, decime «no». ¿Querés que te derive con un agente y genere un ticket?"
+)
+
+
 def confirmation_prompt_for(action: str) -> str:
     if action == "create_ticket":
-        return (
-            "Para escalar con un agente y generar un ticket, confirmame con un «sí». "
-            "Si preferís seguir en el chat, decime «no»."
-        )
+        return MSG_CONFIRMAR_DERIVACION
     if action == "escalate_human":
-        return "¿Confirmás que querés hablar con un agente? Respondé «sí» o «no»."
+        return "Respondé «sí» o «no»: ¿querés hablar con un agente?"
     if action == "close_conversation":
-        return "¿Cerramos la consulta? Respondé «sí» o «no»."
-    return "¿Confirmás esta acción? Respondé «sí» o «no»."
+        return "Respondé «sí» o «no»: ¿cerramos la consulta?"
+    return "Respondé «sí» o «no»: ¿confirmás esta acción?"
 
 
 def apply_needs_confirmation_to_ctx(ctx: dict[str, Any], result: ActionResult) -> str:

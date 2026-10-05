@@ -3308,7 +3308,8 @@ def _ofrecer_derivacion_agotado(
             "intencion": intencion,
         }
     msg = (mensaje or "").strip()
-    if not texto_ofrece_derivacion(msg):
+    # La oferta TERMINA con una pregunta explícita; un texto redactado como decisión («Te derivo…») no sirve.
+    if not texto_ofrece_derivacion(msg) or not msg.endswith("?"):
         msg = MSG_OFERTA_DERIVACION_AGOTADO
     stamp_bot_question(ctx, step_id="derivar_oferta_agotado", pregunta=msg, intencion=intencion)
     ctx["oferta_derivacion_motivo"] = (motivo or "playbook_agotado")[:200]
@@ -3389,6 +3390,8 @@ def _responder_oferta_derivacion(
     _limpiar_pending_oferta(ctx)
     if rechaza_derivacion_clara(texto):
         ctx.pop("oferta_derivacion_reprompt", None)
+        crepo.set_contexto(conv, ctx)  # la oferta ya no queda viva en el estado persistido
+        db.commit()
         resp = (
             "Entendido, no te derivo por ahora. Si más adelante necesitás ayuda "
             "o querés hablar con un agente, escribí *agente*."
@@ -3409,7 +3412,7 @@ def _responder_oferta_derivacion(
             from app.domain.conversation_motor import stamp_bot_question
 
             ctx["oferta_derivacion_reprompt"] = True
-            resp = "No te entendí. ¿Querés que te derive con un agente? Respondé sí o no."
+            resp = "No te entendí. Respondé sí o no: ¿querés que te derive con un agente?"
             stamp_bot_question(ctx, step_id=paso_oferta or "derivar_oferta_agotado", pregunta=resp, intencion=intencion)
             crepo.set_contexto(conv, ctx)
             db.commit()
@@ -5189,6 +5192,7 @@ def _mensaje_cierre_escalamiento(
 
     # Si la IA / detector ya explicó el caso, conservar tono y solo sumar ticket
     if ia and "ticket" not in ia.lower():
+        ia = re.sub(r"\s*¿Querés que te derive[^?]*\?\s*$", "", ia, flags=re.I).strip() or ia
         base = ia.rstrip(" .")
         # Evitar dejar la pregunta "¿te derivo?" si ya estamos derivando
         for q in (

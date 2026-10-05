@@ -75,6 +75,7 @@ class Turn:
     branch: str = ""
     journey: dict | None = None
     journey_state: dict = field(default_factory=dict)  # ctx['eko_journey'] persistido tras el turno
+    pending_offer: str = ""  # «journey» | «runtime» | «motor»: el turno dejó una oferta pendiente de confirmación
     error: str | None = None
 
     @property
@@ -129,6 +130,18 @@ def _llm(modo: str):
         )
 
     return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso}[modo]
+
+
+def _oferta_pendiente(ctx: dict) -> str:
+    """Qué capa dejó una oferta de derivar/ticket esperando el «sí» del abonado (vacío si ninguna)."""
+    if (ctx.get("eko_journey") or {}).get("pending_confirmation"):
+        return "journey"
+    if ((ctx.get("eko_action") or ctx.get("action_state") or {}) or {}).get("status") == "confirmation_pending":
+        return "runtime"
+    pb = ((ctx.get("cs") or {}).get("pending") or {}).get("bot") or {}
+    if pb.get("act") == "OFFER_DERIVATION" and pb.get("status", "open") == "open":
+        return "motor"
+    return ""
 
 
 def converse(
@@ -243,7 +256,9 @@ def converse(
                     t.estado, t.modo = cv.estado, out.get("modo")
                     t.ticket_id = (cv.ticket_id or "").strip()
                     t.ticket_created = bool(t.ticket_id) and not antes
-                    t.journey_state = dict(crepo.get_contexto(cv).get("eko_journey") or {})
+                    ctx_post = crepo.get_contexto(cv)
+                    t.journey_state = dict(ctx_post.get("eko_journey") or {})
+                    t.pending_offer = _oferta_pendiente(ctx_post)
                 t.replies = list(sent)
                 t.journey = last_journey.get("j")
                 j = t.journey

@@ -20,6 +20,7 @@ from typing import Any, Literal
 from sqlalchemy.orm import Session
 
 from app.services.eko_action_bridge import (
+    MSG_CONFIRMAR_DERIVACION,
     dispatch_runtime,
     resolve_user_confirmation,
 )
@@ -871,8 +872,7 @@ def _resolved_handoff_turn(ctx: dict[str, Any]) -> JourneyTurn:
     return JourneyTurn(
         handled=True,
         user_message=(
-            "Para derivar con un agente y generar un ticket, confirmame con un «sí». "
-            "Si preferís seguir en el chat, decime «no»."
+            MSG_CONFIRMAR_DERIVACION
         ),
         journey=name,
         step="confirm_action",
@@ -1687,8 +1687,7 @@ def _advance_connectivity(
         return JourneyTurn(
             handled=True,
             user_message=(
-                "Para derivar con un agente y generar un ticket, confirmame con un «sí». "
-                "Si preferís seguir en el chat, decime «no»."
+                MSG_CONFIRMAR_DERIVACION
             ),
             journey="internet_sin_conectividad",
             step="confirm_action",
@@ -2152,8 +2151,7 @@ def _handle_ticket_confirmation(
         return JourneyTurn(
             handled=True,
             user_message=(
-                "Para derivar con un agente y generar un ticket, confirmame con un «sí». "
-                "Si preferís seguir en el chat, decime «no»."
+                MSG_CONFIRMAR_DERIVACION
             ),
             journey="internet_sin_conectividad",
             step="confirm_action",

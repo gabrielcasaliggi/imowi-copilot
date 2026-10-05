@@ -577,8 +577,8 @@ PLAYBOOKS: dict[str, list[PasoPlaybook]] = {
         ),
         PasoPlaybook(
             "derivar_ecolan",
-            "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo? "
-            "Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico.",
+            "Si es solo cotización, puedo pasarte el contacto comercial sin abrir ticket técnico. "
+            "Si sigue caído o necesitás especialista Ecolan (SLA/visita), ¿te derivo?",
         ),
     ],
     "alta_plan": [
