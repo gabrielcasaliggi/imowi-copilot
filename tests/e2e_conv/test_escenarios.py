@@ -721,7 +721,6 @@ def test_h12e_paso_de_derivacion_no_crea_ticket_por_si_solo(canal, journeys, scr
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
 
 
-@pytest.mark.xfail(strict=True, reason="H12e: el paso «…Te paso con un agente.» sale tal cual, sin pregunta ni oferta pendiente")
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 def test_h12e_paso_de_derivacion_sin_pregunta_fuerza_la_confirmacion(canal, journeys):
     t = converse(_PROD_MOVIL, canal=canal, profile="movil", journeys=journeys, playbooks_prod=True)

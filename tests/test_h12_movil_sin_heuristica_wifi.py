@@ -35,3 +35,16 @@ def test_h12_pregunta_de_acceso_fijo_del_llm_en_movil_no_se_reescribe_como_wifi(
         contexto_abonado="",
     )
     assert not any(k in r["mensaje"].lower() for k in FIJO), r
+
+
+def test_h12e_forzar_confirmacion_derivacion():
+    from app.domain.flujos_abonado import forzar_confirmacion_derivacion
+    from app.services.eko_action_bridge import MSG_CONFIRMAR_DERIVACION
+
+    out = forzar_confirmacion_derivacion(
+        "¿El problema es en una sola zona o en varias ubicaciones? Si pasa en todos lados, hay que revisar la línea. Te paso con un agente."
+    )
+    assert out and out.endswith(MSG_CONFIRMAR_DERIVACION) and "Te paso con un agente" not in out and out.endswith("?")
+    assert forzar_confirmacion_derivacion("Si persiste, te derivo con un agente. ¿Querés?") is None  # ya pregunta
+    assert forzar_confirmacion_derivacion("Reiniciá y probá una llamada. ¿Anduvo?") is None  # no ofrece derivar
+    assert forzar_confirmacion_derivacion("Modo avión 15 segundos y volvé a probar.") is None

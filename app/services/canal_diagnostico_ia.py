@@ -1014,6 +1014,13 @@ def _aplicar_diagnostico_ia(
             db.commit()
     from app.domain.conversation_motor import stamp_bot_question
     from app.domain.conversation_state import hydrate_conversation_state as _hydrate_cs
+    from app.domain.flujos_abonado import (
+        MSG_CONFIRMAR_DERIVACION_STEP,
+        forzar_confirmacion_derivacion,
+    )
+
+    # Un paso que anuncia la derivación sin preguntar no deriva ni queda sin respuesta: se fuerza la confirmación.
+    mensaje_confirmacion = forzar_confirmacion_derivacion(mensaje) if accion == "ask" else None
 
     # Stamp pending para todo diagnóstico (no solo DISCURSO_INTENCIONES):
     # ecolan/factura/sensa también necesitan ASK_FACT cubierta por el Motor.
@@ -1050,6 +1057,8 @@ def _aplicar_diagnostico_ia(
         and not mensaje.lower().startswith("dale")
     ):
         mensaje = f"Dale, seguimos: {mensaje}"
+    if mensaje_confirmacion:
+        mensaje, paso_stamp = mensaje_confirmacion, MSG_CONFIRMAR_DERIVACION_STEP
     if paso_stamp or mensaje:
         stamp_bot_question(
             ctx, step_id=paso_stamp, pregunta=mensaje, intencion=intencion

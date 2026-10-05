@@ -3405,6 +3405,30 @@ def texto_ofrece_derivacion(texto: str) -> bool:
     return es_paso_derivacion(PasoPlaybook("oferta_derivacion", t))
 
 
+_RE_DERIVA_DECLARATIVO = re.compile(
+    r"\bte\s+(derivo|paso|pas[oó]|conecto|comunico|transfiero|pongo)\b[^.!?]*\b(agente|operador|t[eé]cnico|persona|soporte)\b",
+    re.IGNORECASE,
+)
+MSG_CONFIRMAR_DERIVACION_STEP = "derivar_oferta_agotado"
+
+
+def forzar_confirmacion_derivacion(mensaje: str) -> str | None:
+    """Paso de playbook que anuncia la derivación SIN preguntar («… Te paso con un agente.»).
+
+    El texto lo redacta el admin: el código no deja que ese paso derive ni quede sin respuesta posible. Devuelve el
+    mensaje con la frase declarativa reemplazada por la pregunta de ``MSG_CONFIRMAR_DERIVACION``, o ``None`` si no
+    aplica (no ofrece derivar o ya termina en pregunta)."""
+    from app.services.eko_action_bridge import MSG_CONFIRMAR_DERIVACION
+
+    t = (mensaje or "").strip()
+    if not t or t.endswith("?") or not _RE_DERIVA_DECLARATIVO.search(t):
+        return None
+    oraciones = re.split(r"(?<=[.!])\s+", t)
+    restantes = [o for o in oraciones if not _RE_DERIVA_DECLARATIVO.search(o)]
+    base = " ".join(restantes).strip()
+    return f"{base} {MSG_CONFIRMAR_DERIVACION}".strip()
+
+
 def rechaza_derivacion_clara(texto: str) -> bool:
     """True si el abonado rechaza el handoff (no síntomas tipo «no tengo internet»)."""
     t = (texto or "").lower().strip()
