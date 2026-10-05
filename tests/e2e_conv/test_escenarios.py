@@ -669,3 +669,29 @@ def test_t7f1_respuesta_confusa_repregunta_una_vez_y_luego_el_si_deriva(canal, j
     t = converse(_FRUS + ["nada", "sí"], canal=canal, profile="movil", journeys=journeys)
     assert inv.CONFIRM_PROMPT.search(t[4].reply) and "No te entendí" in t[5].reply and not t[5].ticket_created, [x.reply for x in t[4:]]
     assert t[6].ticket_created, t[6].reply
+
+
+# ------------------------------------------------ Tanda 7 F2: derivado a un agente no se califica en el cierre del bot
+DERIVACIONES = {
+    "oferta_confirmada": (_FRUS + ["sí"], "movil", 5),
+    "pedido_de_agente": (["no tengo internet", "quiero hablar con un agente"], "int1", 1),
+}
+_XF_T7F2 = pytest.mark.xfail(strict=True, reason="Tanda 7 F2: tras derivar, un «gracias» cierra el hilo como resuelto por el bot y pide la calificación")
+
+
+@_XF_T7F2
+@pytest.mark.parametrize("cierre", ["gracias", "ya funciona"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@pytest.mark.parametrize("via", list(DERIVACIONES))
+def test_t7f2_derivado_a_un_agente_no_pide_calificacion(canal, via, journeys, cierre):
+    script, profile, idx = DERIVACIONES[via]
+    t = converse(script + [cierre], canal=canal, profile=profile, journeys=journeys)
+    assert t[idx].ticket_created, [(x.user, x.reply) for x in t]
+    assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
+
+
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_t7f2_resuelto_por_el_bot_sigue_pidiendo_la_calificacion(canal, journeys):
+    t = converse(["no tengo internet", "ya funciona", "no, nada más"], canal=canal, profile="int1", journeys=journeys)
+    assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]
+    assert any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]

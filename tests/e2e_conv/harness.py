@@ -76,6 +76,7 @@ class Turn:
     journey: dict | None = None
     journey_state: dict = field(default_factory=dict)  # ctx['eko_journey'] persistido tras el turno
     pending_offer: str = ""  # «journey» | «runtime» | «motor»: el turno dejó una oferta pendiente de confirmación
+    encuesta: bool = False  # la calificación (CSAT) quedó enviada en la conversación tras el turno
     error: str | None = None
 
     @property
@@ -258,6 +259,7 @@ def converse(
                     t.ticket_created = bool(t.ticket_id) and not antes
                     ctx_post = crepo.get_contexto(cv)
                     t.journey_state = dict(ctx_post.get("eko_journey") or {})
+                    t.encuesta = bool(ctx_post.get("encuesta_enviada"))
                     t.pending_offer = _oferta_pendiente(ctx_post)
                 t.replies = list(sent)
                 t.journey = last_journey.get("j")
