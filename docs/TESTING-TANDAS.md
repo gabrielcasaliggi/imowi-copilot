@@ -6,11 +6,11 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 
 | Tanda | Qué corre | Comando | Total esperado | Tiempo medido |
 |---|---|---|---|---|
-| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **262 passed, 0 xfailed** (2098 deseleccionados) | 73 s |
+| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **314 passed, 0 xfailed** (2098 deseleccionados) | 73 s |
 | 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–103 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -103)` | **1382 passed** | 80 s |
 | 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 104 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +104)` | **716 passed** | 65 s |
 
-Total del repo: **2360 passed + 0 xfailed** (262 + 1382 + 716 passed).
+Total del repo: **2417 passed + 0 xfailed** (314 + 1381 + 722 passed).
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,

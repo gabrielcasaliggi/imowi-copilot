@@ -3375,7 +3375,11 @@ def _responder_oferta_derivacion(
     """RC-4: respuesta al ÚLTIMO mensaje del bot si ofrecía derivar (playbook o agotamiento), en un
     diagnóstico técnico. «sí» crea el ticket; «no» cancela; otro texto no relacionado deja la oferta sin
     efecto (None: el turno sigue su camino). No toca las ofertas del journey (pending_confirmation)."""
-    from app.domain.flujos_abonado import acepta_derivacion_clara, rechaza_derivacion_clara
+    from app.domain.flujos_abonado import (
+        acepta_derivacion_clara,
+        es_pregunta_de_aclaracion,
+        rechaza_derivacion_clara,
+    )
     from app.services.eko_journeys import get_journey
 
     if abonado is None or get_journey(ctx).get("pending_confirmation"):
@@ -3405,10 +3409,43 @@ def _responder_oferta_derivacion(
             "estado": conv.estado,
             "intencion": intencion,
         }
+    if not acepta_derivacion_clara(texto) and es_pregunta_de_aclaracion(texto):
+        # «¿qué tiene que ver…?», «por qué», «no entiendo»: pide entender la oferta, no la rechaza. Respuesta breve y
+        # se repite la oferta (queda viva); no se cancela.
+        from app.domain.conversation_motor import stamp_bot_question
+        from app.services.eko_action_bridge import MSG_CONFIRMAR_DERIVACION
+
+        veces = int(ctx.get("oferta_derivacion_aclaraciones") or 0)
+        ctx["oferta_derivacion_aclaraciones"] = veces + 1
+        previa = (
+            "Te lo explico en corto: es algo que desde el chat no puedo revisar y un agente sí puede."
+            if veces % 2 == 0
+            else "Lo que necesitás lo tiene que ver una persona del equipo con acceso a tu servicio."
+        )
+        resp = f"{previa} {MSG_CONFIRMAR_DERIVACION}"
+        stamp_bot_question(ctx, step_id=paso_oferta or "derivar_oferta_agotado", pregunta=resp, intencion=intencion)
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "bot",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "intencion": intencion,
+            "oferta_derivacion": True,
+        }
     if not acepta_derivacion_clara(texto):
         # Respuesta corta que no se entiende («nada», «quizás»): se repregunta UNA vez con otras palabras.
+        # Una pregunta de otro tema («cuánto debo») no es «no se entiende»: cancela la oferta y se contesta lo nuevo.
         palabras = len((texto or "").split())
-        if palabras <= 2 and "?" not in (texto or "") and not ctx.get("oferta_derivacion_reprompt"):
+        if (
+            palabras <= 2
+            and "?" not in (texto or "")
+            and not ctx.get("oferta_derivacion_reprompt")
+            and clasificar_intencion(texto) in ("", "general")
+        ):
             from app.domain.conversation_motor import stamp_bot_question
 
             ctx["oferta_derivacion_reprompt"] = True

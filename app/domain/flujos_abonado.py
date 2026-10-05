@@ -3412,6 +3412,18 @@ _RE_DERIVA_DECLARATIVO = re.compile(
 MSG_CONFIRMAR_DERIVACION_STEP = "derivar_oferta_agotado"
 
 
+_RE_ACLARACION = re.compile(
+    r"\b(que|qu[eé])\s+(tiene|tendr[ií]a)\s+que\s+ver\b|\bpor\s*qu[eé]\b|\bpara\s*qu[eé]\b|\bno\s+(lo\s+)?entiendo\b|"
+    r"\bqu[eé]\s+(significa|quiere\s+decir)\b|\ba\s+qu[eé]\s+te\s+refer[ií]s\b|\bc[oó]mo\s+as[ií]\b",
+    re.IGNORECASE,
+)
+
+
+def es_pregunta_de_aclaracion(texto: str) -> bool:
+    """«¿qué tiene que ver el wifi?», «por qué», «para qué», «no entiendo», «qué significa»: pide entender la oferta."""
+    return bool(_RE_ACLARACION.search(texto or ""))
+
+
 def forzar_confirmacion_derivacion(mensaje: str) -> str | None:
     """Paso de playbook que anuncia la derivación SIN preguntar («… Te paso con un agente.»).
 

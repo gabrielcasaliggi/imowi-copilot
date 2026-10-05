@@ -739,11 +739,7 @@ def test_h12e_paso_de_derivacion_con_pregunta_deja_la_oferta_y_el_si_deriva(cana
 
 
 # ------------------------------------------------ H12 (fase 2): una pregunta de aclaración no cancela la oferta pendiente
-_XF_ACLARA = pytest.mark.xfail(strict=True, reason="H12 F2: la aclaración de más de 2 palabras se toma como texto ajeno y cancela la oferta")
-ACLARACIONES = [
-    pytest.param("que tiene que ver el wifi", marks=_XF_ACLARA),
-    "por qué", "para qué", "no entiendo", "qué significa",  # ≤2 palabras: hoy caen en «No te entendí» y repiten la oferta
-]
+ACLARACIONES = ["que tiene que ver el wifi", "por qué", "para qué", "no entiendo", "qué significa"]
 
 
 @pytest.mark.parametrize("pregunta", ACLARACIONES)
@@ -757,7 +753,6 @@ def test_h12_aclaracion_repite_la_oferta_y_no_la_cancela(canal, journeys, pregun
     assert t[-1].ticket_created, t[-1].reply
 
 
-@pytest.mark.xfail(strict=True, reason="H12 F2: «cuánto debo» (2 palabras) cae en el «No te entendí» y el «sí» siguiente deriva")
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 def test_h12_pregunta_de_otro_tema_sigue_cancelando_la_oferta(canal, journeys):
     t = converse(_PROD_LLAMADAS + ["cuánto debo", "sí"], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
