@@ -676,10 +676,8 @@ DERIVACIONES = {
     "oferta_confirmada": (_FRUS + ["sí"], "movil", 5),
     "pedido_de_agente": (["no tengo internet", "quiero hablar con un agente"], "int1", 1),
 }
-_XF_T7F2 = pytest.mark.xfail(strict=True, reason="Tanda 7 F2: tras derivar, un «gracias» cierra el hilo como resuelto por el bot y pide la calificación")
 
 
-@_XF_T7F2
 @pytest.mark.parametrize("cierre", ["gracias", "ya funciona"])
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 @pytest.mark.parametrize("via", list(DERIVACIONES))

@@ -3627,6 +3627,12 @@ def _mensaje_cierre_calido(nombre: str = "") -> str:
     )
 
 
+def _derivado_a_agente(conv: ConversacionCanal, estado_previo: str) -> bool:
+    """El caso ya está en manos de un agente (ticket ligado o hilo en espera/atendido por humano): la
+    calificación la pide el cierre del agente (inbox / ticket), no el cierre cortés del bot."""
+    return bool((conv.ticket_id or "").strip()) or (estado_previo or "") in ("espera_agente", "agente")
+
+
 def _cerrar_consulta_resuelta(
     db: Session,
     org_id: str,
@@ -3639,6 +3645,7 @@ def _cerrar_consulta_resuelta(
 ) -> dict:
     """Cierra el hilo N1 como resuelto (opcional: anota el ticket si había)."""
     tid = (conv.ticket_id or "").strip()
+    derivado = _derivado_a_agente(conv, conv.estado)
     if tid and nota_ticket:
         _append_evidencia_ticket(db, org_id, tid, nota_ticket)
     conv.estado = "cerrado"
@@ -3652,9 +3659,10 @@ def _cerrar_consulta_resuelta(
             nom = _primer_nombre_cliente(abo)
         resp = _mensaje_cierre_calido(nom)
     _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-    enviar_encuesta_cierre(
-        db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
-    )
+    if not derivado:
+        enviar_encuesta_cierre(
+            db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
+        )
     return {
         "ok": True,
         "modo": "cerrado",
