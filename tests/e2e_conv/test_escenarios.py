@@ -773,3 +773,31 @@ def test_h13_cortesia_tras_derivar_no_cierra(canal, via, journeys, cortesia):
     assert u.estado in ("espera_agente", "con_agente"), (u.estado, u.reply)
     assert re.search(r"agente", u.reply, re.I) and not re.search(r"(lindo d[ií]a|cualquier otra consulta)", u.reply, re.I), u.reply
     assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
+
+
+# ------------------------------------------------ H14: el paso de reinicio se prueba SIEMPRE antes de ofrecer derivar en móvil
+REINICIO_LLAMADAS = [("reinicio_llamadas", re.compile(r"Reinici[aá] y prob[aá] una llamada", re.I))]
+H14_BASE = ["tengo problemas con mi línea de imowi", "1", "tecnico, no puedo recibir llamadas", "se me cortan"]
+
+
+# Reproduce solo con el proveedor «sms_red» (un LLM que pregunta por SMS fuera del playbook): el resto pasa y queda de regresión.
+_H14_FALLA = {("no, solo las llamadas", False), ("solo llamadas", False), ("no", True), ("no", False)}
+
+
+def _h14_casos():
+    casos = []
+    for llm in ("down", "normal", "sms_red"):
+        for journeys in (True, False):
+            for respuesta in ("no, solo las llamadas", "no", "solo llamadas"):
+                marks = []
+                if llm == "sms_red" and (respuesta, journeys) in _H14_FALLA:
+                    marks = [pytest.mark.xfail(strict=True, reason="H14: la respuesta «no…» cubre reinicio_llamadas sin haberlo preguntado")]
+                casos.append(pytest.param(llm, journeys, respuesta, marks=marks, id=f"{llm}-{'on' if journeys else 'off'}-{respuesta}"))
+    return casos
+
+
+@pytest.mark.parametrize(("llm", "journeys", "respuesta"), _h14_casos())
+def test_h14_el_reinicio_va_antes_de_ofrecer_derivar(canal, llm, journeys, respuesta):
+    t = converse(H14_BASE + [respuesta], canal=canal, profile="movil_deuda", journeys=journeys, llm=llm, playbooks_prod=True)
+    sin_violaciones(t, pasos_antes_de_derivar=REINICIO_LLAMADAS)
+    assert not any(x.ticket_created for x in t)

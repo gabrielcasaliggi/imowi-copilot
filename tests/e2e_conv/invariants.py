@@ -1,4 +1,4 @@
-"""Invariantes conversacionales verificables turno a turno (I1–I8)."""
+"""Invariantes conversacionales verificables turno a turno (I1–I9)."""
 
 from __future__ import annotations
 
@@ -122,9 +122,25 @@ def i8_sin_vocabulario_de_internet_fijo(turns: list[Turn]) -> list[str]:
     ]
 
 
+def i9_no_ofrece_derivar_con_pasos_sin_preguntar(turns: list[Turn], pasos: list[tuple[str, re.Pattern[str]]]) -> list[str]:
+    """En servicios con playbook propio no se ofrece derivar mientras quede un paso sin preguntar (``pasos``: id y patrón de
+    su pregunta). Excepciones: pedido explícito de agente del abonado, planta/óptica y pack_acreditado_sin_datos (esos
+    escenarios no pasan ``pasos``)."""
+    out = []
+    for i, t in enumerate(turns):
+        if not CONFIRM_PROMPT.search(t.reply) or any(USER_ASKS_AGENT.search(x.user) for x in turns[: i + 1]):
+            continue
+        antes = " ".join(r for x in turns[:i] for r in x.replies)
+        faltan = [pid for pid, rx in pasos if not rx.search(antes)]
+        if faltan:
+            out.append(f"I9 turno {i} ({t.user!r}): ofrece derivar sin haber preguntado {faltan}: {t.reply[:80]!r} [{t.branch}]")
+    return out
+
+
 def violaciones(
     turns: list[Turn], *, servicio: tuple[int, re.Pattern[str], tuple[str, ...]] | None = None,
     solo: tuple[str, ...] | None = None, servicio_sin_internet_fijo: bool = False,
+    pasos_antes_de_derivar: list[tuple[str, re.Pattern[str]]] | None = None,
 ) -> list[str]:
     checks = {
         "I1": i1_sin_respuesta_vacia(turns),
@@ -138,6 +154,8 @@ def violaciones(
         checks["I4"] = i4_habla_del_servicio(turns, despues_de=servicio[0], vocab=servicio[1], etiquetas=servicio[2])
     if servicio_sin_internet_fijo:
         checks["I8"] = i8_sin_vocabulario_de_internet_fijo(turns)
+    if pasos_antes_de_derivar:
+        checks["I9"] = i9_no_ofrece_derivar_con_pasos_sin_preguntar(turns, pasos_antes_de_derivar)
     out: list[str] = []
     for k, v in checks.items():
         if solo is None or k in solo:

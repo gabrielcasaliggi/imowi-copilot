@@ -130,7 +130,23 @@ def _llm(modo: str):
             {"accion": "ask", "mensaje": "Contame un poco más.", "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False
         )
 
-    return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso}[modo]
+    def sms_red(messages=None, *_a, **_k):
+        # Proveedor falso fiel a la prueba H14 en prod: ante «se me cortan» pregunta por los SMS (pregunta propia, no del
+        # playbook) y, con la respuesta, propone escalar por «falla de red» (lo que hizo el LLM real).
+        ultimo = ""
+        for m in reversed(list(messages or [])):
+            if isinstance(m, dict) and m.get("role") == "user":
+                ultimo = str(m.get("content") or "").lower()
+                break
+        if "solo las llamadas" in ultimo or "solo llamadas" in ultimo or "mensaje del abonado: no" in ultimo:
+            return json.dumps(
+                {"accion": "escalate", "mensaje": "Es un tema de red: hace falta revisar la línea.", "paso_cubierto": "", "motivo": "falla_de_red_los"},
+                ensure_ascii=False,
+            )
+        msg = "¿Te pasa lo mismo con los SMS o solo con las llamadas?"
+        return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
+
+    return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso, "sms_red": sms_red}[modo]
 
 
 # Override del editor de playbooks de prod (WhatsApp, server en 277d278): reemplaza por completo estas dos claves.
