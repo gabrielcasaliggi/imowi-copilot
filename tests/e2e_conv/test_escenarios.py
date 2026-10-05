@@ -736,3 +736,30 @@ def test_h12e_paso_de_derivacion_con_pregunta_deja_la_oferta_y_el_si_deriva(cana
     assert t[-1].reply.rstrip().endswith("?") and t[-1].pending_offer, (t[-1].reply, t[-1].pending_offer)
     t = converse(_PROD_LLAMADAS + ["sí"], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
     assert t[-1].ticket_created, t[-1].reply
+
+
+# ------------------------------------------------ H12 (fase 2): una pregunta de aclaración no cancela la oferta pendiente
+_XF_ACLARA = pytest.mark.xfail(strict=True, reason="H12 F2: la aclaración de más de 2 palabras se toma como texto ajeno y cancela la oferta")
+ACLARACIONES = [
+    pytest.param("que tiene que ver el wifi", marks=_XF_ACLARA),
+    "por qué", "para qué", "no entiendo", "qué significa",  # ≤2 palabras: hoy caen en «No te entendí» y repiten la oferta
+]
+
+
+@pytest.mark.parametrize("pregunta", ACLARACIONES)
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h12_aclaracion_repite_la_oferta_y_no_la_cancela(canal, journeys, pregunta):
+    t = converse(_PROD_LLAMADAS + [pregunta], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
+    assert not any(x.ticket_created for x in t)
+    assert inv.CONFIRM_PROMPT.search(t[-1].reply) and t[-1].reply.rstrip().endswith("?") and t[-1].pending_offer, t[-1].reply
+    assert t[-1].reply != t[-2].reply and not inv.OTRO_DOMINIO_FIJO.search(t[-1].reply), (t[-2].reply, t[-1].reply)
+    t = converse(_PROD_LLAMADAS + [pregunta, "sí"], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
+    assert t[-1].ticket_created, t[-1].reply
+
+
+@pytest.mark.xfail(strict=True, reason="H12 F2: «cuánto debo» (2 palabras) cae en el «No te entendí» y el «sí» siguiente deriva")
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h12_pregunta_de_otro_tema_sigue_cancelando_la_oferta(canal, journeys):
+    t = converse(_PROD_LLAMADAS + ["cuánto debo", "sí"], canal=canal, profile="movil_deuda", journeys=journeys, playbooks_prod=True)
+    assert not any(x.ticket_created for x in t), [(x.user, x.reply[:60]) for x in t[-2:]]
+    assert re.search(r"(15\.000|saldo|deuda|factura)", t[-2].reply, re.I) and not inv.CONFIRM_PROMPT.search(t[-2].reply), t[-2].reply
