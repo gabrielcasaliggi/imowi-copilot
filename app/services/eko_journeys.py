@@ -835,9 +835,18 @@ def _explicit_handoff(texto: str) -> bool:
         return False
 
 
-def _resolved_turn_authorizes_handler(texto: str) -> bool:
-    """Acto o seguimiento explícito. El balance por defecto de billing no cuenta."""
-    if _wants_connectivity_reentry(texto) or _wants_incident_followup(texto):
+_JOURNEYS_DE_INCIDENTE = ("", "internet_sin_conectividad", "ticket_consulta")
+
+
+def _resolved_turn_authorizes_handler(texto: str, active: str = "") -> bool:
+    """Acto o seguimiento explícito. El balance por defecto de billing no cuenta.
+
+    El seguimiento de incidente («sigue igual») reclama solo a los journeys de conectividad y ticket (2.7D);
+    un journey resuelto de otro dominio (servicios, facturación) no lo procesa: el turno es del legacy (§c).
+    """
+    if _wants_connectivity_reentry(texto):
+        return True
+    if _wants_incident_followup(texto) and active in _JOURNEYS_DE_INCIDENTE:
         return True
     if _wants_ticket_customer_note(texto):
         return True
@@ -4008,7 +4017,7 @@ def _maybe_handle_journey_turn(
             turn = _resolved_handoff_turn(ctx)
             observe_journey_turn(turn, canal=canal)
             return turn
-        if _resolved_turn_authorizes_handler(texto):
+        if _resolved_turn_authorizes_handler(texto, active):
             _clear_continuity_pending(ctx)
         elif st_now.get("continuity_pending") and _is_continuity_decline(texto):
             turn = _explicit_close_turn(db, org_id, conv, ctx, canal=canal)
