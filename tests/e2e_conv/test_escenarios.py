@@ -761,10 +761,7 @@ def test_h12_pregunta_de_otro_tema_sigue_cancelando_la_oferta(canal, journeys):
 
 
 # ------------------------------------------------ H13: la cortesía pura con derivación pendiente no cierra el hilo
-_XF_H13 = pytest.mark.xfail(strict=True, reason="H13: «gracias» tras derivar cierra la conversación con el ticket abierto")
 
-
-@_XF_H13
 @pytest.mark.parametrize("cortesia", ["gracias", "ok gracias", "listo"])
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 @pytest.mark.parametrize("via", list(DERIVACIONES))

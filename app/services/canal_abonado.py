@@ -3667,7 +3667,15 @@ def _mensaje_cierre_calido(nombre: str = "") -> str:
 def _derivado_a_agente(conv: ConversacionCanal, estado_previo: str) -> bool:
     """El caso ya está en manos de un agente (ticket ligado o hilo en espera/atendido por humano): la
     calificación la pide el cierre del agente (inbox / ticket), no el cierre cortés del bot."""
-    return bool((conv.ticket_id or "").strip()) or (estado_previo or "") in ("espera_agente", "agente")
+    return bool((conv.ticket_id or "").strip()) or (estado_previo or "") in ("espera_agente", "con_agente")
+
+
+def _enviar_encuesta_cierre_n1(db: Session, conv: ConversacionCanal, *, canal: str, estado_previo: str) -> bool:
+    """Cierre N1 resuelto por el bot: pide la calificación salvo que el caso esté derivado a un agente."""
+    if _derivado_a_agente(conv, estado_previo):
+        return False
+    enviar_encuesta_cierre(db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal))
+    return True
 
 
 def _cerrar_consulta_resuelta(
@@ -3682,7 +3690,7 @@ def _cerrar_consulta_resuelta(
 ) -> dict:
     """Cierra el hilo N1 como resuelto (opcional: anota el ticket si había)."""
     tid = (conv.ticket_id or "").strip()
-    derivado = _derivado_a_agente(conv, conv.estado)
+    estado_previo = conv.estado
     if tid and nota_ticket:
         _append_evidencia_ticket(db, org_id, tid, nota_ticket)
     conv.estado = "cerrado"
@@ -3696,10 +3704,7 @@ def _cerrar_consulta_resuelta(
             nom = _primer_nombre_cliente(abo)
         resp = _mensaje_cierre_calido(nom)
     _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-    if not derivado:
-        enviar_encuesta_cierre(
-            db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
-        )
+    _enviar_encuesta_cierre_n1(db, conv, canal=canal, estado_previo=estado_previo)
     return {
         "ok": True,
         "modo": "cerrado",
@@ -4736,6 +4741,21 @@ def _responder_espera_agente(
     )
     if identificado is not None:
         return identificado
+
+    # H13: la cortesía pura («gracias», «ok gracias», «listo») no cierra un caso derivado: el agente sigue en el chat.
+    from app.services.eko_journeys import _courtesy_text, _is_pure_courtesy
+
+    if _is_pure_courtesy(texto) and _courtesy_text(texto) != "no gracias":
+        resp = "De nada. Un agente te va a responder por acá."
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": conv.ticket_id,
+        }
 
     if _cliente_desiste_o_resuelto(texto):
         return _cerrar_consulta_resuelta(
@@ -8071,6 +8091,7 @@ def procesar_mensaje_entrante(
         crepo.set_contexto(conv, ctx)
         db.commit()
         if nxt >= len(pasos):
+            estado_previo = conv.estado
             conv.estado = "cerrado"
             db.commit()
             resp = (
@@ -8078,9 +8099,7 @@ def procesar_mensaje_entrante(
                 "¡Gracias!"
             )
             _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
-            enviar_encuesta_cierre(
-                db, conv, origen=ORIGEN_BOT, enviar_externo=_enviar_externo(canal)
-            )
+            _enviar_encuesta_cierre_n1(db, conv, canal=canal, estado_previo=estado_previo)
             return {
                 "ok": True,
                 "modo": "cerrado",
