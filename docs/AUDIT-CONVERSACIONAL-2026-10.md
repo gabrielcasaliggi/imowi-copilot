@@ -234,3 +234,22 @@ primer paso sin cubrir con `paso_cubierto` vacío). Un kwarg en `_fallback_ask` 
 y **pisa el `pending_bot`** del paso diagnóstico en curso (`reinicio_lento`). Al turno siguiente el paso queda «preguntado y sin cubrir» sin dueño.
 Un fix de raíz implica que una consulta lateral (potencia, saldo…) conserve/restaure el `pending_bot` del diagnóstico; toca estado conversacional (2.5).
 **Deuda para después de consolidar `ctx.intencion`**; requiere propuesta explícita.
+
+
+## H17-B — `usuario_confirmo_ticket` (cerrado, 2026-10-06)
+
+**Fix** (`app/domain/conversacion.py`): el detector acepta solo (a) afirmación corta de <=4 tokens, todos del conjunto de aceptación y con al menos
+un núcleo («sí», «dale», «ok», «confirmo»…), o (b) frase explícita («generá/abrí/registrá el ticket», «derivame», «sí quiero»). Normaliza
+mayúsculas, tildes, signos y espacios (el texto llega igual desde portal, mobile y WhatsApp). Sin substring de «si»/«dale»/«confirmo»/«adelante»
+dentro de frases largas; negaciones y preguntas no aceptan. Ya no depende de `clasificar_polaridad` (cuya rama `CONFIRMAR_TICKET` sigue
+usando substring: no se tocó, fuera de alcance).
+
+**H17-1: no reproducido e2e, endurecimiento defensivo.** En 5 escenarios e2e no se reprodujo la confirmación laxa: el Motor y el journey interceptan la
+oferta de derivación antes de que llegue al Runtime. El fix endurece el detector igualmente porque el camino estructural existe:
+`_ticket_via_runtime_o_legacy` arma el historial completo y `dispatch_runtime` → `build_trusted_context` → `resolve_user_confirmation` → `usuario_confirmo_ticket`
+no verifica que el último mensaje del bot haya sido una oferta.
+
+## H20 (abierto, sin tocar) — oferta de derivación cancelada en silencio en móvil
+
+En móvil `derivar_llamadas`, un mensaje no relacionado con una oferta pendiente cancela la oferta en silencio («Si cambiás de idea… escribí agente»).
+Pendiente de decidir si la oferta debe sobrevivir al mensaje no relacionado.

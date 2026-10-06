@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from enum import Enum
 
 
@@ -243,19 +244,40 @@ def interpretar_accion_operador(accion: str | None) -> AccionOperador | None:
         return None
 
 
-def usuario_confirmo_ticket(historial: list[dict], intencion_pendiente: str = "") -> bool:
-    polaridad = clasificar_polaridad(historial, intencion_pendiente)
-    if polaridad == PolaridadMensaje.AFIRMACION:
-        return True
-    ultimo = _ultimo_mensaje_usuario(historial)
+_ACEPTACION_NUCLEO = frozenset(
+    {"si", "sip", "dale", "ok", "okay", "confirmo", "confirmado", "adelante", "hacelo", "bueno", "listo",
+     "claro", "perfecto", "acuerdo", "registralo"}
+)
+_ACEPTACION_MODIFICADOR = frozenset({"por", "favor", "quiero", "de", "ya", "derivame", "gracias"})
+_NEGADORES_TICKET = frozenset({"no", "nunca", "tampoco", "sin", "ni"})
+_ACEPTACION_FRASE_EXPLICITA = re.compile(
+    r"\b(?:(?:genera|crea|abri|registra|hace|generes?|registres?|crees?|abras?)(?:me)?(?:lo)?\s+(?:el|un)\s+ticket|derivame|registralo|"
+    r"si\s+quiero)\b"
+)
 
-    for frase in CONFIRMACION_TICKET:
-        if len(frase) <= 3:
-            if re.search(rf"\b{re.escape(frase)}\b", ultimo):
-                return True
-        elif frase in ultimo:
+
+def _normalizar_aceptacion(texto: str) -> str:
+    """Minúsculas, sin tildes ni signos: «Sí.» / «SI» / « sí, dale! » llegan igual desde cualquier canal."""
+    sin_tildes = "".join(c for c in unicodedata.normalize("NFD", texto.lower()) if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s?]", " ", sin_tildes)).strip()
+
+
+def usuario_confirmo_ticket(historial: list[dict], intencion_pendiente: str = "") -> bool:
+    """Acepta solo (a) afirmación corta (<=4 tokens, todos de aceptación, >=1 núcleo) o (b) frase explícita.
+
+    Nunca por substring dentro de frases largas («dale pero no entendí», «si no anda te aviso»).
+    Preguntas y negaciones no aceptan. ``intencion_pendiente`` se conserva por compatibilidad de firma.
+    """
+    msg = _normalizar_aceptacion(_ultimo_mensaje_usuario(historial))
+    if not msg or "?" in msg:
+        return False
+    tokens = msg.split()
+    if _NEGADORES_TICKET.intersection(tokens):
+        return False
+    if len(tokens) <= 4 and all(t in _ACEPTACION_NUCLEO or t in _ACEPTACION_MODIFICADOR for t in tokens):
+        if any(t in _ACEPTACION_NUCLEO for t in tokens):
             return True
-    return False
+    return bool(_ACEPTACION_FRASE_EXPLICITA.search(msg))
 
 
 def usuario_confirmo_resolucion(historial: list[dict], intencion_pendiente: str = "") -> bool:
