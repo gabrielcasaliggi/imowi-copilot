@@ -31,10 +31,11 @@ _ENVIAR_REAL = c._enviar_respuesta  # antes de que el harness lo reemplace
 
 
 # --------------------------------------------------------------------------- perfiles
-def _sc(login: str) -> ServicioConectividad:
+def _sc(login: str, product: str = "Internet Fibra 100", fibra: bool = False) -> ServicioConectividad:
     return ServicioConectividad(
-        login=login, service_type_code="INTBA", service_type_label="ACCESO INTERNET INALAMBRICO",
-        product="Internet Fibra 100", locality="", service_on=True,
+        login=login, service_type_code="INTFO" if fibra else "INTBA",
+        service_type_label="ACCESO INTERNET FIBRA OPTICA" if fibra else "ACCESO INTERNET INALAMBRICO",
+        product=product, locality="", service_on=True,
     )
 
 
@@ -55,7 +56,12 @@ TV = [{"id": "tv1", "login": "", "type": "tv", "label": "Sensa", "product": "Sen
 LOGIN1 = ["lemuramatiBAI"]
 LOGIN3 = ["lemuramatiBAI", "tupaciretacuidaBAI", "tupaciretaBAI"]
 
+FIBRA_FO = "Internet acceso Fo Hogar 100MB+LINEA IP"
+FIBRA_ROWS = [{"id": "int1", "login": "lemuramatiBAI", "type": "internet", "label": FIBRA_FO, "product": FIBRA_FO, "active": True}]
+
 PROFILES: dict[str, dict[str, Any]] = {
+    # Abonado de la evidencia H16: Internet por fibra («Fo»), con deuda.
+    "fibra_deuda": dict(servicio="internet", deuda="15000.00", logins=LOGIN1, catalogo=FIBRA_ROWS, product=FIBRA_FO, fibra=True),
     "int1": dict(servicio="internet", deuda="0", logins=LOGIN1, catalogo=_internet_rows(LOGIN1)),
     "multi": dict(servicio="internet", deuda="0", logins=LOGIN3, catalogo=_internet_rows(LOGIN3)),
     "deuda": dict(servicio="internet", deuda="15000.00", logins=LOGIN1, catalogo=_internet_rows(LOGIN1)),
@@ -251,7 +257,7 @@ def converse(
         }
         return t
 
-    svcs = [_sc(lg) for lg in prof["logins"]]
+    svcs = [_sc(lg, prof.get("product", "Internet Fibra 100"), prof.get("fibra", False)) for lg in prof["logins"]]
     try:
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(app_config, "EKO_JOURNEYS_ENABLED", journeys))

@@ -1,4 +1,4 @@
-"""Invariantes conversacionales verificables turno a turno (I1–I9)."""
+"""Invariantes conversacionales verificables turno a turno (I1–I9 + I8 internet)."""
 
 from __future__ import annotations
 
@@ -122,6 +122,20 @@ def i8_sin_vocabulario_de_internet_fijo(turns: list[Turn]) -> list[str]:
     ]
 
 
+OTRO_DOMINIO_MOVIL = re.compile(r"(\bsms\b|llamadas?|\bapn\b|modo avi[oó]n|l[ií]nea m[oó]vil|\bsim\b|datos m[oó]viles)", re.I)
+
+
+def i8_sin_vocabulario_movil_en_internet(turns: list[Turn]) -> list[str]:
+    """Espejo de I8: en una conversación de Internet fijo no aparecen SMS, llamadas, APN, modo avión ni línea móvil.
+    Solo se evalúa cuando el escenario declara ``servicio_solo_internet=True``."""
+    return [
+        f"I8i turno {i} ({t.user!r}): vocabulario móvil en una conversación de Internet: {m.group(0)!r} en {r[:90]!r} [{t.branch}]"
+        for i, t in enumerate(turns)
+        for r in t.replies
+        if (m := OTRO_DOMINIO_MOVIL.search(r))
+    ]
+
+
 OFERTA_DERIVAR = re.compile(r"(te derivo|que te derive|derivar con|te paso con un agente|derive el caso)", re.I)
 
 
@@ -144,6 +158,7 @@ def violaciones(
     turns: list[Turn], *, servicio: tuple[int, re.Pattern[str], tuple[str, ...]] | None = None,
     solo: tuple[str, ...] | None = None, servicio_sin_internet_fijo: bool = False,
     pasos_antes_de_derivar: list[tuple[str, re.Pattern[str]]] | None = None,
+    servicio_solo_internet: bool = False,
 ) -> list[str]:
     checks = {
         "I1": i1_sin_respuesta_vacia(turns),
@@ -157,6 +172,8 @@ def violaciones(
         checks["I4"] = i4_habla_del_servicio(turns, despues_de=servicio[0], vocab=servicio[1], etiquetas=servicio[2])
     if servicio_sin_internet_fijo:
         checks["I8"] = i8_sin_vocabulario_de_internet_fijo(turns)
+    if servicio_solo_internet:
+        checks["I8i"] = i8_sin_vocabulario_movil_en_internet(turns)
     if pasos_antes_de_derivar:
         checks["I9"] = i9_no_ofrece_derivar_con_pasos_sin_preguntar(turns, pasos_antes_de_derivar)
     out: list[str] = []

@@ -806,3 +806,65 @@ def test_h15_resuelto_con_ticket_derivado_no_cierra_ni_califica(canal, via, jour
     assert t[idx].ticket_id in u.reply and re.search(r"agente", u.reply, re.I), (t[idx].ticket_id, u.reply)
     assert not u.reply.rstrip().endswith("?") and not re.search(r"(lindo d[ií]a|cualquier otra consulta)", u.reply, re.I), u.reply
     assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
+
+
+# ------------------------------------------------ H16: Internet fibra con deuda (evidencia de prod): tres bucles
+H16 = [
+    "internet",
+    "ya lo hice. la potencia de la fibra es buena?",
+    "me anda lento. tengo buena potencia?",
+    "si esta en verde pero me anda lento. que potencia tengo en la fibra",
+    "me anda lento",
+    "100",
+    "ok y la potencia de la fibra esta bien?",
+]
+H16_POTENCIA = (1, 3, 6)  # turnos en que el abonado pregunta por la potencia de la fibra
+RESPUESTA_POTENCIA = re.compile(r"(potencia|dbm|no puedo (leer|ver|consultar)|no tengo (el )?dato|lectura)", re.I)
+_H16_LLMS = ("down", "normal", "primer_paso")
+H16_CASOS = [(llm, j) for llm in _H16_LLMS for j in (True, False)]
+
+
+def _h16_casos(falla: set[tuple[str, bool]], motivo: str):
+    """Los casos que HOY reproducen el bug llevan xfail estricto; el resto queda de regresión."""
+    return [
+        pytest.param(llm, j, marks=[pytest.mark.xfail(strict=True, reason=motivo)] if (llm, j) in falla else [], id=f"{llm}-{'on' if j else 'off'}")
+        for llm, j in H16_CASOS
+    ]
+
+
+_XF_POTENCIA = _h16_casos(set(H16_CASOS), "H16: a «¿qué potencia tengo en la fibra?» no se le responde (selección de servicio / diagnóstico lo pisan)")
+_XF_ONT = _h16_casos({("primer_paso", False)}, "H16: «ya lo hice» no cubre el paso de la ONT y el LLM lo repite literal")
+_XF_QUE_TE_PASA = _h16_casos({(llm, True) for llm in _H16_LLMS}, "H16: con el problema ya declarado vuelve a «Contame qué te pasa» (selección repetida)")
+
+
+def _h16(canal, llm, journeys):
+    return converse(H16, canal=canal, profile="fibra_deuda", journeys=journeys, llm=llm)
+
+
+@pytest.mark.parametrize(("llm", "journeys"), _XF_POTENCIA)
+def test_h16_a_la_pregunta_de_potencia_se_le_responde(canal, llm, journeys):
+    t = _h16(canal, llm, journeys)
+    sin_respuesta = [i for i in H16_POTENCIA if not RESPUESTA_POTENCIA.search(t[i].reply)]
+    assert not sin_respuesta, [(i, t[i].user, t[i].reply[:80]) for i in sin_respuesta]
+
+
+@pytest.mark.parametrize(("llm", "journeys"), _XF_ONT)
+def test_h16_no_repite_el_paso_de_la_ont_ya_hecho(canal, llm, journeys):
+    t = _h16(canal, llm, journeys)
+    sin_violaciones(t, solo=("I5",))
+    paso_ont = t[0].replies[-1]  # el paso de la ONT del primer turno; «ya lo hice» lo cubre
+    repetidos = [i for i in range(2, len(t)) if t[i].reply and t[i].reply == paso_ont]
+    assert not repetidos, [(i, t[i].user, t[i].reply[:80]) for i in repetidos]
+
+
+@pytest.mark.parametrize(("llm", "journeys"), _XF_QUE_TE_PASA)
+def test_h16_no_vuelve_a_preguntar_que_le_pasa_con_el_problema_declarado(canal, llm, journeys):
+    t = _h16(canal, llm, journeys)
+    vuelve = [i for i in range(2, len(t)) if re.search(r"(contame qu[eé] te pasa|qu[eé] te pasa con ese internet)", t[i].reply, re.I)]
+    assert not vuelve, [(i, t[i].user, t[i].reply[:80]) for i in vuelve]
+
+
+@pytest.mark.parametrize(("llm", "journeys"), H16_CASOS)
+def test_h16_la_conversacion_de_internet_no_habla_de_telefonia_movil(canal, llm, journeys):
+    t = _h16(canal, llm, journeys)
+    sin_violaciones(t, solo=("I8i",), servicio_solo_internet=True)
