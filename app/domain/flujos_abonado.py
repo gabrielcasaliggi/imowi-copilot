@@ -4230,9 +4230,44 @@ def cliente_pregunta_calidad_enlace(texto: str) -> bool:
     )
 
 
+def _dl_distancia_hasta_1(a: str, b: str) -> bool:
+    """Damerau-Levenshtein (transposición adyacente) <= 1 entre ``a`` y ``b``."""
+    if a == b:
+        return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la == lb:
+        difs = [i for i in range(la) if a[i] != b[i]]
+        if len(difs) == 1:
+            return True
+        return len(difs) == 2 and difs[1] == difs[0] + 1 and a[difs[0]] == b[difs[1]] and a[difs[1]] == b[difs[0]]
+    corta, larga = (a, b) if la < lb else (b, a)
+    i = 0
+    while i < len(corta) and corta[i] == larga[i]:
+        i += 1
+    return corta[i:] == larga[i + 1 :]
+
+
+# «potencial» es una palabra real (a distancia 1 de «potencia»): no es un typo.
+_NO_TYPO_POTENCIA = frozenset({"potencial"})
+
+
+def _corrige_typo_potencia(texto: str) -> str:
+    """H18: «potnecia», «poetncia», «potenciaa»… -> «potencia» (solo palabras de 7+ letras a distancia <= 1)."""
+
+    def _fix(m: re.Match) -> str:
+        w = m.group(0)
+        if len(w) >= 7 and w not in _NO_TYPO_POTENCIA and _dl_distancia_hasta_1(w, "potencia"):
+            return "potencia"
+        return w
+
+    return re.sub(r"[a-záéíóúñ]+", _fix, texto)
+
+
 def cliente_pregunta_potencia_onu(texto: str) -> bool:
     """Fibra: pregunta por RX/potencia de la cajita (no antena)."""
-    t = (texto or "").lower()
+    t = _corrige_typo_potencia((texto or "").lower())
     if "antena" in t:
         return False
     if cliente_pregunta_calidad_enlace(texto):
