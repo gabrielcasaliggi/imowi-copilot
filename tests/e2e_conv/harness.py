@@ -59,7 +59,12 @@ LOGIN3 = ["lemuramatiBAI", "tupaciretacuidaBAI", "tupaciretaBAI"]
 FIBRA_FO = "Internet acceso Fo Hogar 100MB+LINEA IP"
 FIBRA_ROWS = [{"id": "int1", "login": "lemuramatiBAI", "type": "internet", "label": FIBRA_FO, "product": FIBRA_FO, "active": True}]
 
+CAPITAL = {"id": "cap1", "login": "", "type": "otro", "label": "Servicio Capital Social", "product": "Servicio Capital Social", "active": True}
+# Cuenta de la evidencia H18 (portal): fibra con deuda y 4 servicios — 1) Internet Fo Hogar, 2) TV, 3) Móvil, 4) Capital Social.
+CATALOGO_4 = FIBRA_ROWS + [{**TV[0], "label": "Sensa TV"}, {**MOVILES[0], "label": "Imowi 5 GB"}, CAPITAL]
+
 PROFILES: dict[str, dict[str, Any]] = {
+    "cuatro": dict(servicio="ambos", deuda="15000.00", logins=LOGIN1, catalogo=CATALOGO_4, product=FIBRA_FO, fibra=True),
     # Abonado de la evidencia H16: Internet por fibra («Fo»), con deuda.
     "fibra_deuda": dict(servicio="internet", deuda="15000.00", logins=LOGIN1, catalogo=FIBRA_ROWS, product=FIBRA_FO, fibra=True),
     "int1": dict(servicio="internet", deuda="0", logins=LOGIN1, catalogo=_internet_rows(LOGIN1)),
@@ -159,7 +164,22 @@ def _llm(modo: str):
             return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
         return primer_paso(messages)
 
-    return {"down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso, "sms_red": sms_red}[modo]
+    def cable_movil(messages=None, *_a, **_k):
+        # Proveedor falso fiel a la prueba H18 en prod: ante «un dispositivo / es un teléfono / sí» propone conectar el celular
+        # por cable (lo que reescribe el guardrail «Las tablets y celulares no se conectan por cable…»); en el resto diligente.
+        ultimo = ""
+        for m in reversed(list(messages or [])):
+            if isinstance(m, dict) and m.get("role") == "user":
+                ultimo = str(m.get("content") or "").lower()
+                break
+        actual = re.search(r"\[ultimo_mensaje_cliente\]\s*(.*?)\s*(?:<<<|\Z)", ultimo, re.S)
+        actual = (actual.group(1) if actual else ultimo).strip()
+        if not (re.search(r"dispositivo|tel[eé]fono|celular", actual) or re.fullmatch(r"s[ií]\W*", actual)):
+            return primer_paso(messages)
+        msg = "Probá conectar el celular por cable al router y decime si navega."
+        return json.dumps({"accion": "ask", "mensaje": msg, "paso_cubierto": "", "motivo": "ia"}, ensure_ascii=False)
+
+    return {"cable_movil": cable_movil, "down": down, "normal": normal, "avisame": avisame, "primer_paso": primer_paso, "sms_red": sms_red}[modo]
 
 
 # Override del editor de playbooks de prod (WhatsApp, server en 277d278): reemplaza por completo estas dos claves.

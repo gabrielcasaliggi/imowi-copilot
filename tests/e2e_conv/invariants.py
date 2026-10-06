@@ -1,4 +1,4 @@
-"""Invariantes conversacionales verificables turno a turno (I1–I9 + I8 internet)."""
+"""Invariantes conversacionales verificables turno a turno (I1–I10)."""
 
 from __future__ import annotations
 
@@ -136,6 +136,24 @@ def i8_sin_vocabulario_movil_en_internet(turns: list[Turn]) -> list[str]:
     ]
 
 
+REPREGUNTA_EXPLICITA = re.compile(r"(repet[ií]|no entend|qu[eé]\s*\?|c[oó]mo\??$|otra vez|de nuevo)", re.I)
+
+
+def i10_no_repite_paso_ya_preguntado(turns: list[Turn], ventana: int = 6) -> list[str]:
+    """I10: el bot no repite una pregunta de paso ya hecha en los últimos ``ventana`` turnos (I5 cubre el turno consecutivo),
+    salvo repregunta explícita del abonado o una repregunta por respuesta no reconocida («No te entendí…»)."""
+    out = []
+    for i, t in enumerate(turns):
+        r = _norm(t.reply)
+        if not r or not r.endswith("?") or r.startswith("no te entend") or REPREGUNTA_EXPLICITA.search(t.user):
+            continue
+        for j in range(max(0, i - ventana), i - 1):  # i-1 lo cubre I5
+            if _norm(turns[j].reply) == r and _norm(turns[j].user) != _norm(t.user):
+                out.append(f"I10 turno {i} ({t.user!r}): repite la pregunta del turno {j}: {t.reply[:80]!r} [{t.branch}]")
+                break
+    return out
+
+
 OFERTA_DERIVAR = re.compile(r"(te derivo|que te derive|derivar con|te paso con un agente|derive el caso)", re.I)
 
 
@@ -159,6 +177,7 @@ def violaciones(
     solo: tuple[str, ...] | None = None, servicio_sin_internet_fijo: bool = False,
     pasos_antes_de_derivar: list[tuple[str, re.Pattern[str]]] | None = None,
     servicio_solo_internet: bool = False,
+    i10: bool = False,
 ) -> list[str]:
     checks = {
         "I1": i1_sin_respuesta_vacia(turns),
@@ -172,6 +191,8 @@ def violaciones(
         checks["I4"] = i4_habla_del_servicio(turns, despues_de=servicio[0], vocab=servicio[1], etiquetas=servicio[2])
     if servicio_sin_internet_fijo:
         checks["I8"] = i8_sin_vocabulario_de_internet_fijo(turns)
+    if i10:
+        checks["I10"] = i10_no_repite_paso_ya_preguntado(turns)
     if servicio_solo_internet:
         checks["I8i"] = i8_sin_vocabulario_movil_en_internet(turns)
     if pasos_antes_de_derivar:

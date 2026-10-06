@@ -865,3 +865,55 @@ def test_h16_servicio_ya_seleccionado_y_problema_declarado_retoma_el_diagnostico
     u = t[-1]
     assert u.reply and not re.search(r"(ya tengo seleccionado|contame qu[eé] te pasa|qu[eé] te pasa con ese internet)", u.reply, re.I), u.reply
     sin_violaciones(t, solo=("I8i",), servicio_solo_internet=True)
+
+
+# ------------------------------------------------ H18: cuenta fibra con 4 servicios, diagnóstico de Wi-Fi (evidencia de prod, portal)
+H18 = [
+    "internet",
+    "ya lo hice",
+    "me anda lento",
+    "ok, la potnecia esta bien?",
+    "ok me anda lento en un dispositivo",
+    "es un telefono",
+    "si",
+    "ya lo reinicie",
+    "ok pruebo la de 5",
+]
+H18_LLMS = ("down", "normal", "primer_paso", "cable_movil")
+H18_CASOS = [(llm, j) for llm in H18_LLMS for j in (True, False)]
+MENU_SERVICIOS = re.compile(r"¿Cu[aá]l servicio quer[eé]s usar", re.I)
+
+
+def _h18_casos(falla: set[tuple[str, bool]], motivo: str):
+    """Los casos que HOY reproducen el bug llevan xfail estricto; el resto queda de regresión."""
+    return [
+        pytest.param(llm, j, marks=[pytest.mark.xfail(strict=True, reason=motivo)] if (llm, j) in falla else [], id=f"{llm}-{'on' if j else 'off'}")
+        for llm, j in H18_CASOS
+    ]
+
+
+_XF_MENU = _h18_casos({(llm, True) for llm in H18_LLMS}, "H18: «ok pruebo la de 5» abre el menú de servicios («la de » + dígito) en medio del diagnóstico")
+_XF_SI = _h18_casos({("cable_movil", True), ("cable_movil", False)}, "H18: el «sí» no se consume y el guardrail repite el paso anterior («Las tablets y celulares…»)")
+_XF_TYPO = _h18_casos(set(H18_CASOS), "H18: «potnecia» (typo) no llega al handler de potencia")
+
+
+def _h18(canal, llm, journeys):
+    return converse(H18, canal=canal, profile="cuatro", journeys=journeys, llm=llm)
+
+
+@pytest.mark.parametrize(("llm", "journeys"), _XF_MENU)
+def test_h18_pruebo_la_de_5_no_abre_el_menu_de_servicios(canal, llm, journeys):
+    t = _h18(canal, llm, journeys)
+    assert not MENU_SERVICIOS.search(t[-1].reply), t[-1].reply
+
+
+@pytest.mark.parametrize(("llm", "journeys"), _XF_SI)
+def test_h18_el_si_se_consume_y_no_retrocede_a_un_paso_anterior(canal, llm, journeys):
+    t = _h18(canal, llm, journeys)
+    sin_violaciones(t, solo=("I10",), i10=True)
+
+
+@pytest.mark.parametrize(("llm", "journeys"), _XF_TYPO)
+def test_h18_la_potnecia_con_typo_llega_al_handler_de_potencia(canal, llm, journeys):
+    t = _h18(canal, llm, journeys)
+    assert RESPUESTA_POTENCIA.search(t[3].reply), t[3].reply
