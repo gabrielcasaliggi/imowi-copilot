@@ -4759,6 +4759,29 @@ def _responder_espera_agente(
             "ticket_id": conv.ticket_id,
         }
 
+    # H15: con un caso derivado un afirmativo claro de resolución («ya funciona», «ya anda») no cierra ni califica: el
+    # agente lo revisa y lo cierra él (su cierre es el que pide la calificación).
+    if indica_resuelto(texto) and not re.search(
+        r"\bno\s+necesito\b|\bno\s+hace\s+falta\b|\bya\s+est[aá]\s+todo\b|\bno\s+quiero\s+(un\s+)?agente\b", texto or "", re.I
+    ):
+        tid_h15 = (conv.ticket_id or "").strip()
+        resp = (
+            f"Me alegra que ya te ande. Dejo el ticket {tid_h15} con el agente para que lo revise y lo cierre; "
+            "si algo vuelve a fallar, escribime por acá."
+            if tid_h15
+            else "Me alegra que ya te ande. Dejo el caso con el agente para que lo revise y lo cierre; "
+            "si algo vuelve a fallar, escribime por acá."
+        )
+        _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+        return {
+            "ok": True,
+            "modo": "espera_agente",
+            "conversacion_id": conv.id,
+            "respuesta": resp,
+            "estado": conv.estado,
+            "ticket_id": conv.ticket_id,
+        }
+
     if _cliente_desiste_o_resuelto(texto):
         return _cerrar_consulta_resuelta(
             db,

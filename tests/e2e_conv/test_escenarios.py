@@ -793,10 +793,7 @@ def test_h14_el_reinicio_va_antes_de_ofrecer_derivar(canal, llm, journeys, respu
 
 
 # ------------------------------------------------ H15: «ya funciona» con un ticket derivado abierto no cierra ni califica
-_XF_H15 = pytest.mark.xfail(strict=True, reason="H15: «ya funciona» con ticket derivado cierra la conversación con el ticket abierto")
 
-
-@_XF_H15
 @pytest.mark.parametrize("resuelto", ["ya funciona", "ya anda", "ya se arregló"])
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 @pytest.mark.parametrize("via", list(DERIVACIONES))
