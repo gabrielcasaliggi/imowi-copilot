@@ -19,6 +19,11 @@ NO_ACEPTA = [
     "¿necesito un agente?",
     "me anda lento",
     "gracias, igual no quiero que me deriven",
+    "¿y el ticket anterior?",
+    "¿el ticket sigue abierto?",
+    "¿qué pasó con mi ticket?",
+    "¿qué pasa con mi ticket?",
+    "¿no me derivás con un agente?",
 ]
 
 ACEPTA = [
@@ -35,6 +40,12 @@ ACEPTA = [
     "sí, dale",
     "si por favor",
     "quiero que me deriven",
+    "¿me derivás con un agente?",
+    "¿me pasás con un agente?",
+    "¿podés derivarme?",
+    "¿puedo hablar con un agente?",
+    "me derivás con un agente?",
+    "¿me creás un ticket?",
 ]
 
 

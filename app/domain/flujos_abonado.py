@@ -3412,6 +3412,14 @@ _RE_PIDE_DERIVACION = re.compile(
     r"[^.!?]*\b(?:ticket|agente|operador|persona|humano)\b",
     re.I,
 )
+# H17-A (R1): una pregunta solo acepta si le pide algo al bot (2ª persona / «puedo hablar con»); «¿necesito un agente?»,
+# «¿qué pasa con mi ticket?» o «¿y el ticket anterior?» son consultas, no pedidos.
+_RE_PIDE_DERIVACION_PREGUNTA = re.compile(
+    r"\bderiv(?:ame|alo|arme|arlo|[aáe]|es|en|[aá]s|ar)\b|"
+    r"\b(?:pas[aá]s|pasame|comunic[aá]s|comunicame|conect[aá]s|conectame|abr[ií]s|abrime|cre[aá]s|gener[aá]s|"
+    r"registr[aá]s|hablar|hablame|contactame|mandame)\b[^.!?]*\b(?:ticket|agente|operador|persona|humano)\b",
+    re.I,
+)
 
 
 def acepta_derivacion_clara(texto: str) -> bool:
@@ -3422,8 +3430,10 @@ def acepta_derivacion_clara(texto: str) -> bool:
     if not t:
         return False
     # H17-A: una negación («no quiero ticket», «no necesito agente») o una pregunta («¿y el ticket anterior?») no aceptan.
-    if "?" in t or "¿" in t or _RE_NIEGA_DERIVACION.search(t):
+    if _RE_NIEGA_DERIVACION.search(t):
         return False
+    if "?" in t or "¿" in t:
+        return bool(_RE_PIDE_DERIVACION_PREGUNTA.search(t))
     if _RE_PIDE_DERIVACION.search(t):
         return True
     # «sí» / «dale» cortos sin «tengo»

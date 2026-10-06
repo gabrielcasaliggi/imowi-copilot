@@ -8,9 +8,9 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 |---|---|---|---|---|
 | 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **502 passed, 0 xfailed** (2196 deseleccionados) | 73 s |
 | 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–103 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -103)` | **1394 passed** | 80 s |
-| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 104 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +104)` | **887 passed, 35 xfailed** | 65 s |
+| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 104 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +104)` | **898 passed, 35 xfailed** | 65 s |
 
-Total del repo: **2783 passed + 35 xfailed** (502 + 1394 + 887 passed; los 35 xfailed son los de H17 B y C, pendientes de sus fixes).
+Total del repo: **2794 passed + 35 xfailed** (502 + 1394 + 898 passed; los 35 xfailed son los de H17 B y C, pendientes de sus fixes).
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,
