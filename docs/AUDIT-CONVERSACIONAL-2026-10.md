@@ -219,3 +219,18 @@ Cada xfail se asigna a **una** causa primaria; las secundarias se anotan aparte.
 3. **Escalación sin confirmación** (RC-4): el legacy crea tickets por agotamiento.
 4. **Selección de servicio frágil** (RC-9, RC-10, RC-11): regex y mensajes de la 2.2B/2.5.
 
+
+## Deuda H19-raíz (abierta)
+
+H19 (paso Wi-Fi/router re-emitido tras responder la potencia) se cerró con un fix **acotado** en `_avanzar_fallback_por_respuesta`
+(`canal_diagnostico_ia.py`, helper `_saltar_paso_ya_emitido`), común al LLM caído y al LLM vivo. Regla: sin `pending_bot`, con el último mensaje del
+bot que no es la pregunta de ningún paso (venía de una respuesta lateral) y un paso que ya salió en los últimos 6 turnos (I10), se avanza al siguiente.
+Excluye pasos de derivación, repreguntas (el último mensaje del bot era el paso) y no muta `ctx`.
+
+**Corrección de la Fase 1:** el perfil `primer_paso` no repite por el `except` de `diagnosticar_turno` sino por el camino de **LLM vivo** (devuelve el
+primer paso sin cubrir con `paso_cubierto` vacío). Un kwarg en `_fallback_ask` solo cubría LLM caído y además rompía rc4/rc5/rc13/h12e, que re-emiten a propósito.
+
+**Raíz sin tocar:** `_responder_potencia_cualitativa` (`canal_abonado.py`, rama sin dato) hace `stamp_bot_question(step_id="derivar_oferta_agotado")`
+y **pisa el `pending_bot`** del paso diagnóstico en curso (`reinicio_lento`). Al turno siguiente el paso queda «preguntado y sin cubrir» sin dueño.
+Un fix de raíz implica que una consulta lateral (potencia, saldo…) conserve/restaure el `pending_bot` del diagnóstico; toca estado conversacional (2.5).
+**Deuda para después de consolidar `ctx.intencion`**; requiere propuesta explícita.

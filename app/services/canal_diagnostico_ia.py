@@ -157,8 +157,37 @@ def _ultimo_texto_bot(historial: list) -> str:
     return ""
 
 
+def _saltar_paso_ya_emitido(checklist: list, result: dict, cubiertos: list[str], historial: list, ultimo_bot: str) -> dict:
+    """H19 (I10): sin ``pending_bot``, si el bot venía de contestar OTRA cosa (potencia…: su último mensaje no es la pregunta de
+    ningún paso) y el diagnóstico repetiría un paso que ya salió en los últimos 6 turnos, se avanza al siguiente paso.
+    No aplica a la derivación ni a una repregunta (el último mensaje del bot era el paso). Camino común LLM caído / LLM vivo."""
+    from app.domain.flujos_abonado import PasoPlaybook, es_paso_derivacion, ya_emitido_reciente
+    from app.services.diagnostico_n1 import _fallback_ask
+
+    pasos = [
+        (str(p.get("id") if isinstance(p, dict) else getattr(p, "id", "")), str(p.get("pregunta") if isinstance(p, dict) else getattr(p, "pregunta", "")))
+        for p in checklist or []
+    ]
+    if any(q and _repite_pregunta_del_paso(checklist, i, ultimo_bot) for i, q in pasos):
+        return result
+    preguntas = dict(pasos)
+    msg = str(result.get("mensaje") or "")
+    # El paso repetido se identifica por el texto: un LLM vivo puede mandar ``paso_cubierto`` vacío.
+    rid = next((i for i, q in pasos if q and _repite_pregunta_del_paso(checklist, i, msg)), "")
+    if not rid or es_paso_derivacion(PasoPlaybook(rid, preguntas[rid])) or not ya_emitido_reciente(preguntas[rid], historial):
+        return result
+    salteados = {i for i, q in pasos if q and ya_emitido_reciente(q, historial)}
+    return _fallback_ask(checklist, [*cubiertos, *salteados], "")
+
+
 def _avanzar_fallback_por_respuesta(
-    ctx: dict, checklist: list, texto: str, result: dict, cubiertos: list[str], ultimo_bot: str | None = None
+    ctx: dict,
+    checklist: list,
+    texto: str,
+    result: dict,
+    cubiertos: list[str],
+    ultimo_bot: str | None = None,
+    historial: list | None = None,
 ) -> dict:
     """RC-13 / F1. Si lo que se enviaría es OTRA VEZ la pregunta del paso que el abonado acaba de contestar, el
     paso se mueve con la respuesta en vez de repetir la frase (I5). Casos: el fallback del playbook (LLM caído) o
@@ -178,6 +207,8 @@ def _avanzar_fallback_por_respuesta(
 
     pending = hydrate_conversation_state(ctx).pending_bot
     pid = str(getattr(pending, "step_id", "") or "")
+    if not pid and historial is not None and ultimo_bot is not None:
+        return _saltar_paso_ya_emitido(checklist, result, cubiertos, historial, ultimo_bot)
     if not pid or pid in cubiertos or "deriv" in pid.lower():
         return result
     if ultimo_bot is not None and not _repite_pregunta_del_paso(checklist, pid, ultimo_bot):
@@ -722,7 +753,7 @@ def _aplicar_diagnostico_ia(
 
     # RC-13: sin LLM, la respuesta libre a la pregunta pendiente tiene que mover el playbook.
     result = _avanzar_fallback_por_respuesta(
-        ctx, checklist, texto, result, cubiertos, ultimo_bot=_ultimo_texto_bot(historial)
+        ctx, checklist, texto, result, cubiertos, ultimo_bot=_ultimo_texto_bot(historial), historial=historial
     )
     cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     accion = result.get("accion") or "ask"

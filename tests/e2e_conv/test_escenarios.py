@@ -904,14 +904,7 @@ def test_h18_pruebo_la_de_5_no_abre_el_menu_de_servicios(canal, llm, journeys):
     assert not MENU_SERVICIOS.search(t[-1].reply), t[-1].reply
 
 
-_XF_PASO_PENDIENTE = _h18_casos(
-    {(llm, j) for llm in ("down", "primer_paso") for j in (True, False)},
-    "H19 (hallazgo nuevo, destapado al reconocer «potnecia»): tras responder la potencia, «ok me anda lento en un dispositivo» "
-    "repite el paso pendiente del turno 2 («Reiniciá módem/router…»); pasa igual con «potencia» bien escrita",
-)
-
-
-@pytest.mark.parametrize(("llm", "journeys"), _XF_PASO_PENDIENTE)
+@pytest.mark.parametrize(("llm", "journeys"), H18_CASOS)
 def test_h18_el_si_se_consume_y_no_retrocede_a_un_paso_anterior(canal, llm, journeys):
     t = _h18(canal, llm, journeys)
     sin_violaciones(t, solo=("I10",), i10=True)
