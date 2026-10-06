@@ -689,7 +689,19 @@ def ownership_matches_ref(ref: ServiceRef | None, client_number: str) -> bool:
     return True
 
 
-def looks_like_selection_utterance(texto: str) -> bool:
+# H16: «la fibra» / «el internet» / «mi internet» son ambiguas: nombran un servicio pero también aparecen dentro de una
+# pregunta o de un síntoma («¿la potencia de la fibra es buena?», «me anda lento mi internet»).
+_REFERENCIAS_AMBIGUAS = ("la fibra", "el internet", "mi internet")
+_NO_ES_SOLO_SELECCION = re.compile(
+    r"\?|¿|\b(potencia|se[ñn]al|velocidad|lent[oa]|lentitud|anda|andan|funciona|falla|fallas|problemas?|error|"
+    r"corta|cortan|cae|cuanto|cu[aá]nto|por\s*qu[eé]|ya\s+lo\s+hice)\b",
+    re.I,
+)
+
+
+def looks_like_selection_utterance(texto: str, *, selected_ref: ServiceRef | None = None) -> bool:
+    """¿El texto parece elegir un servicio? Las referencias ambiguas («la fibra», «el internet», «mi internet») solo
+    cuentan si son la ÚNICA intención del mensaje (sin pregunta ni síntoma) y no hay ya un servicio seleccionado."""
     t = (texto or "").lower().strip()
     if not t:
         return False
@@ -710,6 +722,8 @@ def looks_like_selection_utterance(texto: str) -> bool:
     # 2.5D-2 reference phrases (same selection path; does not change "ese" rules)
     if _is_fijo_reference(texto) or _is_otro_reference(texto):
         return True
+    if any(k in t for k in _REFERENCIAS_AMBIGUAS) and selected_ref is None and not _NO_ES_SOLO_SELECCION.search(t):
+        return True
     if any(
         k in t
         for k in (
@@ -719,9 +733,6 @@ def looks_like_selection_utterance(texto: str) -> bool:
             "sensa",
             "imowi",
             "imovi",
-            "la fibra",
-            "el internet",
-            "mi internet",
             "la línea",
             "la linea",
             "el móvil",

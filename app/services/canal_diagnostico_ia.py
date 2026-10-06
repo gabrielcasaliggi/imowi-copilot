@@ -155,7 +155,7 @@ def _avanzar_fallback_por_respuesta(
     if (result.get("accion") or "ask") != "ask":
         return result
     from app.domain.conversation_state import hydrate_conversation_state, mark_covers
-    from app.domain.flujos_abonado import respuesta_paso_ok
+    from app.domain.flujos_abonado import confirma_paso_hecho, respuesta_paso_ok
     from app.services.diagnostico_n1 import _fallback_ask
 
     pending = hydrate_conversation_state(ctx).pending_bot
@@ -169,7 +169,9 @@ def _avanzar_fallback_por_respuesta(
         return result
     reprompts = ctx.get("playbook_reprompts") if isinstance(ctx.get("playbook_reprompts"), dict) else {}
     # Una pregunta de síntoma con opciones («sin señal, sin datos, no podés llamar…») no se contesta con sí/no.
-    sin_respuesta_valida = respuesta_paso_ok(texto) is None or getattr(pending, "act", "") == "ASK_SYMPTOM"
+    sin_respuesta_valida = (respuesta_paso_ok(texto) is None and not confirma_paso_hecho(texto)) or getattr(
+        pending, "act", ""
+    ) == "ASK_SYMPTOM"
     if sin_respuesta_valida:
         if int(reprompts.get(pid) or 0) < 1:
             ctx["playbook_reprompts"] = {**reprompts, pid: 1}

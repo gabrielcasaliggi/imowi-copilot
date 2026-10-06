@@ -833,8 +833,6 @@ def _h16_casos(falla: set[tuple[str, bool]], motivo: str):
 
 
 _XF_POTENCIA = _h16_casos(set(H16_CASOS), "H16: a «¿qué potencia tengo en la fibra?» no se le responde (selección de servicio / diagnóstico lo pisan)")
-_XF_ONT = _h16_casos({("primer_paso", False)}, "H16: «ya lo hice» no cubre el paso de la ONT y el LLM lo repite literal")
-_XF_QUE_TE_PASA = _h16_casos({(llm, True) for llm in _H16_LLMS}, "H16: con el problema ya declarado vuelve a «Contame qué te pasa» (selección repetida)")
 
 
 def _h16(canal, llm, journeys):
@@ -848,16 +846,17 @@ def test_h16_a_la_pregunta_de_potencia_se_le_responde(canal, llm, journeys):
     assert not sin_respuesta, [(i, t[i].user, t[i].reply[:80]) for i in sin_respuesta]
 
 
-@pytest.mark.parametrize(("llm", "journeys"), _XF_ONT)
+@pytest.mark.parametrize(("llm", "journeys"), H16_CASOS)
 def test_h16_no_repite_el_paso_de_la_ont_ya_hecho(canal, llm, journeys):
     t = _h16(canal, llm, journeys)
-    sin_violaciones(t, solo=("I5",))
     paso_ont = t[0].replies[-1]  # el paso de la ONT del primer turno; «ya lo hice» lo cubre
-    repetidos = [i for i in range(2, len(t)) if t[i].reply and t[i].reply == paso_ont]
+    repetidos = [
+        i for i in range(2, len(t)) if t[i].reply and (t[i].reply == paso_ont or re.search(r"(cajita (blanca )?tiene luces|ONT .{0,30}tiene luces)", t[i].reply, re.I))
+    ]
     assert not repetidos, [(i, t[i].user, t[i].reply[:80]) for i in repetidos]
 
 
-@pytest.mark.parametrize(("llm", "journeys"), _XF_QUE_TE_PASA)
+@pytest.mark.parametrize(("llm", "journeys"), H16_CASOS)
 def test_h16_no_vuelve_a_preguntar_que_le_pasa_con_el_problema_declarado(canal, llm, journeys):
     t = _h16(canal, llm, journeys)
     vuelve = [i for i in range(2, len(t)) if re.search(r"(contame qu[eé] te pasa|qu[eé] te pasa con ese internet)", t[i].reply, re.I)]

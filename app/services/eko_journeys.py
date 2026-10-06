@@ -1371,7 +1371,7 @@ def _advance_connectivity(
             resolve_service_selection,
         )
 
-        if looks_like_selection_utterance(texto):
+        if looks_like_selection_utterance(texto, selected_ref=_prev_ref):
             try:
                 from app.services.portal_services import catalog_for_selection
 
@@ -3569,7 +3569,7 @@ def _advance_service_catalog(
     wants_list = _wants_service_list(texto)
     pending_opts = list(get_journey(ctx).get("selection_options") or [])
     wants_sel = (not wants_list) and (
-        looks_like_selection_utterance(texto)
+        looks_like_selection_utterance(texto, selected_ref=get_selected_ref(ctx))
         or bool(pending_opts and re.fullmatch(r"\s*\d{1,2}\s*", (texto or "")))
     )
 

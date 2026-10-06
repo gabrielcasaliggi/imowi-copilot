@@ -3290,6 +3290,16 @@ def confirma_contacto_sin_servicio(texto: str) -> bool:
     return True
 
 
+_RE_PASO_HECHO = re.compile(
+    r"^\s*(ya\s+(lo\s+|la\s+)?(hice|hicimos|prob[eé]|reinici[eé]|desenchuf[eé]|enchuf[eé]|apagu[eé]|revis[eé])|listo|hecho)\b", re.I
+)
+
+
+def confirma_paso_hecho(texto: str) -> bool:
+    """«ya lo hice. …», «listo, …»: el abonado dice que cumplió el paso aunque agregue otra pregunta a continuación."""
+    return bool(_RE_PASO_HECHO.match(texto or ""))
+
+
 def respuesta_paso_ok(texto: str) -> bool | None:
     t = (texto or "").lower().strip()
     if not t:
