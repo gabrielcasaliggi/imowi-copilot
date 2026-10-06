@@ -33,7 +33,9 @@ def test_una_pregunta_o_un_sintoma_no_es_seleccion(texto):
 def test_con_un_servicio_ya_seleccionado_la_referencia_ambigua_no_re_selecciona():
     assert not looks_like_selection_utterance("la fibra", selected_ref=REF)
     assert looks_like_selection_utterance("el fijo", selected_ref=REF)  # las referencias de 2.5D-2 no cambian
-    assert looks_like_selection_utterance("2", selected_ref=REF)
+    # H18: el dígito suelto selecciona solo con el menú abierto
+    assert not looks_like_selection_utterance("2", selected_ref=REF)
+    assert looks_like_selection_utterance("2", selected_ref=REF, menu_open=True)
 
 
 @pytest.mark.parametrize("texto", ["ya lo hice. la potencia de la fibra es buena?", "listo, y la potencia?", "Ya reinicié"])

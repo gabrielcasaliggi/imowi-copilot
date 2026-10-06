@@ -892,7 +892,6 @@ def _h18_casos(falla: set[tuple[str, bool]], motivo: str):
     ]
 
 
-_XF_MENU = _h18_casos({(llm, True) for llm in H18_LLMS}, "H18: «ok pruebo la de 5» abre el menú de servicios («la de » + dígito) en medio del diagnóstico")
 _XF_SI = _h18_casos({("cable_movil", True), ("cable_movil", False)}, "H18: el «sí» no se consume y el guardrail repite el paso anterior («Las tablets y celulares…»)")
 _XF_TYPO = _h18_casos(set(H18_CASOS), "H18: «potnecia» (typo) no llega al handler de potencia")
 
@@ -901,7 +900,7 @@ def _h18(canal, llm, journeys):
     return converse(H18, canal=canal, profile="cuatro", journeys=journeys, llm=llm)
 
 
-@pytest.mark.parametrize(("llm", "journeys"), _XF_MENU)
+@pytest.mark.parametrize(("llm", "journeys"), H18_CASOS)
 def test_h18_pruebo_la_de_5_no_abre_el_menu_de_servicios(canal, llm, journeys):
     t = _h18(canal, llm, journeys)
     assert not MENU_SERVICIOS.search(t[-1].reply), t[-1].reply

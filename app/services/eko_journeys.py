@@ -343,6 +343,26 @@ def get_journey(ctx: dict[str, Any] | None) -> dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
+# El estado del menú se congela al entrar al turno: arrancar/cambiar de journey borra asked_selection antes de que se
+# evalúe el dígito.
+_MENU_OPEN_TURN_KEY = "_menu_open_turn"
+
+
+def _selection_menu_open(ctx: dict[str, Any] | None) -> bool:
+    """H18: el último mensaje del bot fue el menú de selección de servicio (abierto y sin resolver), o la selección
+    acaba de cerrarse en el catálogo (repetir el número da el acuse idempotente de EKO D)."""
+    if ctx and ctx.get(_MENU_OPEN_TURN_KEY) is not None:
+        return bool(ctx[_MENU_OPEN_TURN_KEY])
+    st = get_journey(ctx)
+    return bool(
+        st.get("asked_selection")
+        or st.get("selection_options")
+        or st.get("next_required_input") in ("service_selection", "login")
+        or st.get("step") == "service_selection"
+        or (st.get("name") == "service_catalog" and st.get("step") == "done")
+    )
+
+
 def set_journey(ctx: dict[str, Any], **fields: Any) -> None:
     st = get_journey(ctx)
     st.update(fields)
@@ -358,7 +378,7 @@ def clear_journey(ctx: dict[str, Any]) -> None:
     ctx.pop(JOURNEY_KEY, None)
 
 
-def detect_journey_name(texto: str) -> JourneyName | None:
+def detect_journey_name(texto: str, *, menu_open: bool = False) -> JourneyName | None:
     t = (texto or "").lower().strip()
     if not t:
         return None
@@ -386,7 +406,7 @@ def detect_journey_name(texto: str) -> JourneyName | None:
     try:
         from app.services.eko_service_selection import looks_like_selection_utterance
 
-        if looks_like_selection_utterance(t):
+        if looks_like_selection_utterance(t, menu_open=menu_open):
             return "service_catalog"
     except Exception:
         pass
@@ -839,7 +859,7 @@ def _explicit_handoff(texto: str) -> bool:
 _JOURNEYS_DE_INCIDENTE = ("", "internet_sin_conectividad", "ticket_consulta")
 
 
-def _resolved_turn_authorizes_handler(texto: str, active: str = "") -> bool:
+def _resolved_turn_authorizes_handler(texto: str, active: str = "", *, menu_open: bool = False) -> bool:
     """Acto o seguimiento explícito. El balance por defecto de billing no cuenta.
 
     El seguimiento de incidente («sigue igual») reclama solo a los journeys de conectividad y ticket (2.7D);
@@ -851,7 +871,7 @@ def _resolved_turn_authorizes_handler(texto: str, active: str = "") -> bool:
         return True
     if _wants_ticket_customer_note(texto):
         return True
-    if detect_journey_name(texto):
+    if detect_journey_name(texto, menu_open=menu_open):
         return True
     return _billing_user_act(texto) != "balance"
 
@@ -1371,7 +1391,7 @@ def _advance_connectivity(
             resolve_service_selection,
         )
 
-        if looks_like_selection_utterance(texto, selected_ref=_prev_ref):
+        if looks_like_selection_utterance(texto, selected_ref=_prev_ref, menu_open=_selection_menu_open(ctx)):
             try:
                 from app.services.portal_services import catalog_for_selection
 
@@ -1629,7 +1649,7 @@ def _advance_connectivity(
                 ctx=ctx,
                 canal=canal,
             )
-        detected_here = detect_journey_name(texto)
+        detected_here = detect_journey_name(texto, menu_open=_selection_menu_open(ctx))
         if _wants_incident_followup(texto) or detected_here == "internet_sin_conectividad":
             # Incidente vivo: ya hubo diagnóstico o create_ticket en este journey
             has_incident_ctx = bool(
@@ -1702,7 +1722,7 @@ def _advance_connectivity(
     # Idempotency: diagnóstico ya informado → no re-probe salvo pedido explícito.
     # Incluye textos que no matchean connectivity (p.ej. frases LLM) para que
     # no reinterpreten autoridad ni disparen side effects.
-    detected_here = detect_journey_name(texto)
+    detected_here = detect_journey_name(texto, menu_open=_selection_menu_open(ctx))
     # 2.7E-R1: done no vuelve a respond si no hay una intención explícita.
     if st.get("step") == "done" and not _explicit_intent_after_resolution(texto):
         pure = _is_pure_courtesy(texto)
@@ -3569,7 +3589,9 @@ def _advance_service_catalog(
     wants_list = _wants_service_list(texto)
     pending_opts = list(get_journey(ctx).get("selection_options") or [])
     wants_sel = (not wants_list) and (
-        looks_like_selection_utterance(texto, selected_ref=get_selected_ref(ctx))
+        looks_like_selection_utterance(
+            texto, selected_ref=get_selected_ref(ctx), menu_open=_selection_menu_open(ctx)
+        )
         or bool(pending_opts and re.fullmatch(r"\s*\d{1,2}\s*", (texto or "")))
     )
 
@@ -3855,13 +3877,16 @@ def _maybe_handle_journey_turn(
         record_security_signal,
     )
 
+    ctx.pop(_MENU_OPEN_TURN_KEY, None)
+    ctx[_MENU_OPEN_TURN_KEY] = _selection_menu_open(ctx)
+
     # El cierre explícito gana sobre cualquier journey activa.
     if _wants_explicit_conversation_close(texto):
         turn = _explicit_close_turn(db, org_id, conv, ctx, canal=canal)
         observe_journey_turn(turn, canal=canal)
         return turn
 
-    detected = detect_journey_name(texto)
+    detected = detect_journey_name(texto, menu_open=_selection_menu_open(ctx))
     if detected:
         detected = _canonical_journey(detected)  # type: ignore[assignment]
     st = get_journey(ctx)
@@ -4011,7 +4036,7 @@ def _maybe_handle_journey_turn(
     name = _canonical_journey(str(get_journey(ctx).get("name") or active))
 
     # Domain contamination guard: no diagnostic from billing/ticket/catalog journeys
-    if name in ("billing_self_service", "service_catalog") and detect_journey_name(texto) is None:
+    if name in ("billing_self_service", "service_catalog") and detect_journey_name(texto, menu_open=_selection_menu_open(ctx)) is None:
         # stay in current domain
         pass
 
@@ -4031,7 +4056,7 @@ def _maybe_handle_journey_turn(
             turn = _resolved_handoff_turn(ctx)
             observe_journey_turn(turn, canal=canal)
             return turn
-        if _resolved_turn_authorizes_handler(texto, active):
+        if _resolved_turn_authorizes_handler(texto, active, menu_open=_selection_menu_open(ctx)):
             _clear_continuity_pending(ctx)
         elif st_now.get("continuity_pending") and _is_continuity_decline(texto):
             turn = _explicit_close_turn(db, org_id, conv, ctx, canal=canal)

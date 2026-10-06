@@ -699,14 +699,29 @@ _NO_ES_SOLO_SELECCION = re.compile(
 )
 
 
-def looks_like_selection_utterance(texto: str, *, selected_ref: ServiceRef | None = None) -> bool:
+# H18: «el de » / «la de » solo eligen servicio seguidos de un nombre de servicio («la de 5», «el de 100» no).
+_DE_SERVICIO = re.compile(
+    r"\b(?:el|la)\s+de\s+(?:internet|fibra|radio|antena|cable|tv|tele|televisi[oó]n|wifi|m[oó]vil|movil|l[ií]nea|linea|"
+    r"tel[eé]fono|telefon[ií]a|sensa|imowi|imovi)\b",
+    re.I,
+)
+# «el de tupaciretaBAI» / «la de 2235550001»: seguido de un login (camelCase, ≥7 dígitos o un token largo), no de un número
+# chico («la de 5»).
+_DE_LOGIN_CASE = re.compile(r"\b(?:[Ee]l|[Ll]a)\s+de\s+[A-Za-z]*[a-z][A-Z][A-Za-z0-9._-]*")
+
+
+def looks_like_selection_utterance(
+    texto: str, *, selected_ref: ServiceRef | None = None, menu_open: bool = False
+) -> bool:
     """¿El texto parece elegir un servicio? Las referencias ambiguas («la fibra», «el internet», «mi internet») solo
-    cuentan si son la ÚNICA intención del mensaje (sin pregunta ni síntoma) y no hay ya un servicio seleccionado."""
+    cuentan si son la ÚNICA intención del mensaje (sin pregunta ni síntoma) y no hay ya un servicio seleccionado.
+    H18: un dígito suelto u ordinal («2», «el 2», «la 3») solo selecciona con el menú abierto (``menu_open``: el último
+    mensaje del bot fue el menú); un número dentro de una frase nunca selecciona."""
     t = (texto or "").lower().strip()
     if not t:
         return False
     if re.fullmatch(r"(?:el\s+|la\s+)?\d{1,2}", t):
-        return True
+        return menu_open
     if re.search(r"\bINT(?!ERNET)[\w.-]+\b", t, re.I):
         return True
     if t in (
@@ -722,13 +737,15 @@ def looks_like_selection_utterance(texto: str, *, selected_ref: ServiceRef | Non
     # 2.5D-2 reference phrases (same selection path; does not change "ese" rules)
     if _is_fijo_reference(texto) or _is_otro_reference(texto):
         return True
+    if _DE_SERVICIO.search(t) or _DE_LOGIN_CASE.search(texto or "") or re.search(
+        r"\b(?:el|la)\s+de\s+(?:\d{7,}|[a-z][a-z0-9._-]{8,})\b", t
+    ):
+        return True
     if any(k in t for k in _REFERENCIAS_AMBIGUAS) and selected_ref is None and not _NO_ES_SOLO_SELECCION.search(t):
         return True
     if any(
         k in t
         for k in (
-            "el de ",
-            "la de ",
             "megas",
             "sensa",
             "imowi",
