@@ -6,10 +6,6 @@ import pytest
 
 from app.domain.flujos_abonado import acepta_derivacion_clara
 
-XF = pytest.mark.xfail(strict=True, reason="H17-A: acepta_derivacion_clara matchea 'ticket'/'agente' por substring")
-
-OK_HOY = {"me anda lento"}  # ya pasan hoy (H16)
-
 NO_ACEPTA = [
     "no quiero ticket",
     "no me derives a un agente",
@@ -42,7 +38,7 @@ ACEPTA = [
 ]
 
 
-@pytest.mark.parametrize("texto", [pytest.param(t, marks=XF) if t not in OK_HOY else t for t in NO_ACEPTA])
+@pytest.mark.parametrize("texto", NO_ACEPTA)
 def test_no_acepta_derivacion(texto):
     assert not acepta_derivacion_clara(texto)
 

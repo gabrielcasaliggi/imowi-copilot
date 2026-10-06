@@ -3398,6 +3398,22 @@ def es_afirmacion_estado_movil(texto: str) -> bool:
     return False
 
 
+_RE_NIEGA_DERIVACION = re.compile(
+    r"\bno\s+(quiero|necesito|preciso|hace\s+falta|me\s+(deriv|pas|abr|cre|gener)|te\s+deriv)|"
+    r"\bsin\s+(agente|ticket|operador)\b|\bya\s+habl[eé]\s+con\b|\bel\s+ticket\s+(sigue|est[aá]|anterior|que)\b|"
+    r"\bno\s+(ticket|agente)\b",
+    re.I,
+)
+# «ticket»/«agente» solo cuentan acompañados de un verbo de pedido; «derivame» (imperativo/subjuntivo) pide por sí solo.
+_RE_PIDE_DERIVACION = re.compile(
+    r"\bderiv(?:ame|alo|arme|arlo|[aáe]|es|en|[aá]s|ar)\b|"
+    r"\b(?:quiero|necesito|preciso|pasame|pas[aá]|comunicame|comunic[aá]|conectame|conect[aá]|abrime|abr[ií]|abre|"
+    r"cre[aá]|crea|crear|gener[aá]|genera|generar|registr[aá]|registra|registrar|hablar|hablame|contactame|mandame)\b"
+    r"[^.!?]*\b(?:ticket|agente|operador|persona|humano)\b",
+    re.I,
+)
+
+
 def acepta_derivacion_clara(texto: str) -> bool:
     """True solo si el abonado acepta handoff (no «si tengo» / señal)."""
     if es_afirmacion_estado_movil(texto):
@@ -3405,21 +3421,10 @@ def acepta_derivacion_clara(texto: str) -> bool:
     t = (texto or "").lower().strip()
     if not t:
         return False
-    if any(
-        k in t
-        for k in (
-            "deriv",
-            "ticket",
-            "agente",
-            "operador",
-            "abrí",
-            "abri",
-            "abrí el",
-            "pasame",
-            "pasame con",
-            "quiero que me deriven",
-        )
-    ):
+    # H17-A: una negación («no quiero ticket», «no necesito agente») o una pregunta («¿y el ticket anterior?») no aceptan.
+    if "?" in t or "¿" in t or _RE_NIEGA_DERIVACION.search(t):
+        return False
+    if _RE_PIDE_DERIVACION.search(t):
         return True
     # «sí» / «dale» cortos sin «tengo»
     if "tengo" in t:

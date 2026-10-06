@@ -8090,11 +8090,13 @@ def procesar_mensaje_entrante(
 
     # Confirmó derivación en el último paso tipo "¿Querés que te derive?"
     if veredicto is True and es_paso_derivacion(paso_actual):
-        if acepta_derivacion_clara(texto) and intencion == "alta_plan":
+        # H17-A: un rechazo se evalúa antes que la aceptación y nunca crea ticket.
+        acepta_deriv = acepta_derivacion_clara(texto) and not rechaza_derivacion_clara(texto)
+        if acepta_deriv and intencion == "alta_plan":
             return _ofrecer_contacto_alta_comercial(
                 db, org_id, conv, canal=canal, ctx=ctx
             )
-        if acepta_derivacion_clara(texto):
+        if acepta_deriv:
             return _escalar(f"Abonado aceptó derivación en playbook {intencion}")
         # «si tengo» / señal: no es aceptar ticket — seguir N1
         if es_afirmacion_estado_movil(texto) and intencion in (
