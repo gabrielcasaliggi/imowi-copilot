@@ -40,3 +40,33 @@ def test_con_un_servicio_ya_seleccionado_la_referencia_ambigua_no_re_selecciona(
 def test_confirma_paso_hecho_aunque_siga_una_pregunta(texto):
     assert confirma_paso_hecho(texto)
     assert not confirma_paso_hecho("no lo hice todavía")
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "ya lo hice. la potencia de la fibra es buena?",
+        "me anda lento. tengo buena potencia?",
+        "si esta en verde pero me anda lento. que potencia tengo en la fibra",
+        "ok y la potencia de la fibra esta bien?",
+        "señal de la fibra",
+    ],
+)
+def test_las_preguntas_por_la_potencia_de_la_fibra_se_reconocen(texto):
+    from app.domain.flujos_abonado import cliente_pregunta_potencia_onu
+
+    assert cliente_pregunta_potencia_onu(texto)
+
+
+@pytest.mark.parametrize("texto", ["más potencia al wifi", "el router tiene poca potencia", "la antena tiene buena potencia", "me anda lento"])
+def test_otras_cosas_no_son_pregunta_por_la_potencia_de_la_ont(texto):
+    from app.domain.flujos_abonado import cliente_pregunta_potencia_onu
+
+    assert not cliente_pregunta_potencia_onu(texto)
+
+
+@pytest.mark.parametrize(("texto", "acepta"), [("sí", True), ("dale", True), ("si por favor", True), ("ok", True), ("me anda lento", False), ("ya anda", False), ("100", False)])
+def test_acepta_derivacion_solo_con_afirmativos_explicitos(texto, acepta):
+    from app.domain.flujos_abonado import acepta_derivacion_clara
+
+    assert acepta_derivacion_clara(texto) is acepta

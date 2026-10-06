@@ -1276,6 +1276,69 @@ def _tecnologia_acceso_ctx(ctx: dict, intencion: str) -> str:
     return intent
 
 
+def _potencia_ctx_del_servicio_en_foco(ctx: dict, clave: str) -> str:
+    """Dato óptico del ctx solo si corresponde al servicio en foco (planta manda, sin adivinar): se descarta con evidencia de
+    que el último dato técnico es de OTRO login (``pppoe_login`` distinto del login del ``selected_service_ref``)."""
+    from app.services.eko_service_selection import get_selected_ref
+
+    valor = str((ctx or {}).get(clave) or "").strip()
+    ref = get_selected_ref(ctx)
+    have = str((ctx or {}).get("pppoe_login") or "").strip().lower()
+    if valor and ref is not None and have and ref.login and have != ref.login.strip().lower():
+        return ""
+    return valor
+
+
+def _responder_potencia_cualitativa(
+    db: Session,
+    org_id: str,
+    conv: ConversacionCanal,
+    ctx: dict,
+    *,
+    canal: str,
+    intencion: str,
+    calidad: str,
+) -> dict:
+    """H16: sin lectura BCM en vivo, respuesta CUALITATIVA (sin dBm). Con calidad conocida: normal / degradada; sin
+    dato: no se puede ver desde el chat y se ofrece derivar CON pregunta (el «sí» crea el ticket)."""
+    from app.domain.conversation_motor import stamp_bot_question
+    from app.services.eko_action_bridge import MSG_CONFIRMAR_DERIVACION
+
+    veces = int(ctx.get("consultas_potencia_sin_dato") or 0)
+    ctx["consultas_potencia_sin_dato"] = veces + 1
+    if calidad in ("buena", "aceptable"):
+        msg = (
+            "Según el último dato que tengo, la potencia de tu fibra está normal. ¿Seguís con el problema de velocidad?"
+            if veces == 0
+            else "Sigo viendo la potencia de tu fibra en valores normales. ¿Seguís con el problema de velocidad?"
+        )
+    else:
+        previo = (
+            "Según el último dato que tengo, la potencia de tu fibra está degradada. "
+            if calidad == "mala"
+            else (
+                "No puedo ver la potencia de tu fibra desde el chat. "
+                if veces == 0
+                else "Sigo sin poder ver la potencia desde el chat. "
+            )
+        )
+        msg = f"{previo}{MSG_CONFIRMAR_DERIVACION}"
+        stamp_bot_question(ctx, step_id="derivar_oferta_agotado", pregunta=msg, intencion=intencion)
+    ctx["ultima_diag_motivo"] = "consulta_potencia_onu_sin_dato"
+    crepo.set_contexto(conv, ctx)
+    db.commit()
+    _enviar_respuesta(db, org_id, conv, msg, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "bot",
+        "conversacion_id": conv.id,
+        "respuesta": msg,
+        "estado": conv.estado,
+        "intencion": intencion,
+        "consulta_potencia_onu": True,
+    }
+
+
 def _responder_consulta_potencia_onu(
     db: Session,
     org_id: str,
@@ -1303,14 +1366,17 @@ def _responder_consulta_potencia_onu(
         return None
 
     if resolve_bcm_client(db) is None:
-        rx_raw = str(ctx.get("bcm_rx_dbm") or "").strip()
+        rx_raw = _potencia_ctx_del_servicio_en_foco(ctx, "bcm_rx_dbm")
+        calidad_ctx = _potencia_ctx_del_servicio_en_foco(ctx, "bcm_calidad_optica")
         if not rx_raw:
-            return None
+            return _responder_potencia_cualitativa(
+                db, org_id, conv, ctx, canal=canal, intencion=intencion, calidad=calidad_ctx
+            )
         try:
             rx_val = float(rx_raw)
         except ValueError:
             return None
-        calidad = str(ctx.get("bcm_calidad_optica") or "")
+        calidad = calidad_ctx
         onu = EstadoOnuBcm(
             numero_cliente=str(getattr(abonado, "client_number", "") or ""),
             encontrado=True,
@@ -1515,6 +1581,11 @@ def _responder_consulta_senal_antena(
         and _tecnologia_acceso_ctx(ctx, intencion) == "internet_radio"
     )
     if not pregunta or abonado is None:
+        return None
+    # H16: una pregunta por la fibra / la ONT no es de antena (radio): la atiende el handler de potencia de la ONT.
+    if _tecnologia_acceso_ctx(ctx, intencion) != "internet_radio" and (
+        "fibra" in (texto or "").lower() or _tecnologia_acceso_ctx(ctx, intencion) == "internet_ftth"
+    ):
         return None
 
     servicios = _servicios_conectividad_abonado(db, abonado)
@@ -7297,6 +7368,9 @@ def procesar_mensaje_entrante(
     if multi_cta is not None:
         return multi_cta
 
+    from app.services.canal_diagnostico_ia import _cubrir_paso_de_ont_hecho
+
+    _cubrir_paso_de_ont_hecho(db, conv, ctx, texto)
     pot_onu = _responder_consulta_potencia_onu(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion or ""
     )

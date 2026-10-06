@@ -131,6 +131,24 @@ def _pasos_sin_preguntar_ids(ctx: dict, checklist: list, intencion: str, extras_
     return [i for i, _ in pasos_sin_preguntar(checklist, cub, [str(x) for x in (ctx.get("pasos_preguntados") or [])])]
 
 
+def _cubrir_paso_de_ont_hecho(db: Session, conv: ConversacionCanal, ctx: dict, texto: str) -> None:
+    """H16: «ya lo hice. …» tras el pedido de la ONT del protocolo de mesa («desenchufala 30 segundos y avisame…», que no
+    es un paso estampado del playbook) cubre los pasos de energía/reinicio de la ONT, aunque la frase traiga otra pregunta
+    (la que atiende un handler previo al diagnóstico)."""
+    from app.domain.conversation_state import mark_covers
+    from app.domain.flujos_abonado import confirma_paso_hecho
+    from app.estate import canal_repo as crepo
+
+    if not confirma_paso_hecho(texto):
+        return
+    ultimo = _ultimo_texto_bot(crepo.list_mensajes(db, conv.id)).lower()
+    if "ont" in ultimo and "desenchufala 30 segundos" in ultimo:
+        mark_covers(ctx, "energia_ont")
+        mark_covers(ctx, "reinicio_ont")
+        crepo.set_contexto(conv, ctx)
+        db.commit()
+
+
 def _ultimo_texto_bot(historial: list) -> str:
     """Último mensaje saliente del bot (el del turno anterior al del abonado)."""
     for m in reversed(list(historial or [])):
@@ -483,6 +501,8 @@ def _aplicar_diagnostico_ia(
     )
     if multi_cta is not None:
         return multi_cta
+
+    _cubrir_paso_de_ont_hecho(db, conv, ctx, texto)
 
     pot_onu = _responder_consulta_potencia_onu(
         db, org_id, conv, abonado, texto, canal=canal, ctx=ctx, intencion=intencion

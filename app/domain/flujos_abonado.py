@@ -3402,9 +3402,17 @@ def acepta_derivacion_clara(texto: str) -> bool:
     if "tengo" in t:
         return False
     ok = respuesta_paso_ok(texto)
-    if ok is True and len(t.split()) <= 3:
+    # H16: «me anda lento» NO acepta (respuesta_paso_ok lo toma por «anda» = positivo): solo afirmativos explícitos.
+    palabras = re.findall(r"[a-záéíóúñ]+", t)
+    if ok is True and len(palabras) <= 4 and palabras and all(p in _PALABRAS_ACEPTACION for p in palabras):
         return True
     return False
+
+
+_PALABRAS_ACEPTACION = frozenset(
+    {"si", "sí", "dale", "ok", "oka", "okey", "okay", "listo", "perfecto", "bueno", "claro", "de", "una", "por", "favor",
+     "gracias", "obvio", "seguro", "va", "vamos", "mandale", "hacelo", "hacela", "que", "genial", "buenisimo", "buenísimo"}
+)
 
 
 def texto_ofrece_derivacion(texto: str) -> bool:
@@ -4204,7 +4212,16 @@ def cliente_pregunta_potencia_onu(texto: str) -> bool:
     t = (texto or "").lower()
     if "antena" in t:
         return False
-    return cliente_pregunta_calidad_enlace(texto)
+    if cliente_pregunta_calidad_enlace(texto):
+        return True
+    # H16: «¿la potencia de la fibra es buena?», «señal de la fibra», «tengo buena potencia?» (sin hablar de Wi-Fi)
+    if re.search(r"wi-?\s?fi|rayita|habitaci|pieza|cuarto|router", t):
+        return False
+    if re.search(r"\bpotencia\b", t) and re.search(r"\b(fibra|ont|onu|cajita|[oó]ptica)\b", t):
+        return True
+    if re.search(r"\bse[ñn]al\s+de\s+la\s+fibra\b", t):
+        return True
+    return bool(re.search(r"\b(buena|bien|normal|ok)\b.{0,20}\bpotencia\b|\bpotencia\b.{0,20}\b(buena|bien|normal|ok)\b", t))
 
 
 def cliente_pide_confirmar_lectura_enlace(texto: str) -> bool:

@@ -824,22 +824,11 @@ _H16_LLMS = ("down", "normal", "primer_paso")
 H16_CASOS = [(llm, j) for llm in _H16_LLMS for j in (True, False)]
 
 
-def _h16_casos(falla: set[tuple[str, bool]], motivo: str):
-    """Los casos que HOY reproducen el bug llevan xfail estricto; el resto queda de regresión."""
-    return [
-        pytest.param(llm, j, marks=[pytest.mark.xfail(strict=True, reason=motivo)] if (llm, j) in falla else [], id=f"{llm}-{'on' if j else 'off'}")
-        for llm, j in H16_CASOS
-    ]
-
-
-_XF_POTENCIA = _h16_casos(set(H16_CASOS), "H16: a «¿qué potencia tengo en la fibra?» no se le responde (selección de servicio / diagnóstico lo pisan)")
-
-
 def _h16(canal, llm, journeys):
     return converse(H16, canal=canal, profile="fibra_deuda", journeys=journeys, llm=llm)
 
 
-@pytest.mark.parametrize(("llm", "journeys"), _XF_POTENCIA)
+@pytest.mark.parametrize(("llm", "journeys"), H16_CASOS)
 def test_h16_a_la_pregunta_de_potencia_se_le_responde(canal, llm, journeys):
     t = _h16(canal, llm, journeys)
     sin_respuesta = [i for i in H16_POTENCIA if not RESPUESTA_POTENCIA.search(t[i].reply)]
