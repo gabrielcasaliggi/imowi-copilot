@@ -856,3 +856,12 @@ def test_h16_no_vuelve_a_preguntar_que_le_pasa_con_el_problema_declarado(canal, 
 def test_h16_la_conversacion_de_internet_no_habla_de_telefonia_movil(canal, llm, journeys):
     t = _h16(canal, llm, journeys)
     sin_violaciones(t, solo=("I8i",), servicio_solo_internet=True)
+
+
+# ------------------------------------------------ H16 (3): con el problema ya declarado no se vuelve a preguntar «qué te pasa»
+@pytest.mark.parametrize(("llm", "journeys"), [(llm, j) for llm in ("down", "normal") for j in (True, False)])
+def test_h16_servicio_ya_seleccionado_y_problema_declarado_retoma_el_diagnostico(canal, llm, journeys):
+    t = converse(["internet", "la fibra", "me anda lento, tengo 100 megas"], canal=canal, profile="fibra_deuda", journeys=journeys, llm=llm)
+    u = t[-1]
+    assert u.reply and not re.search(r"(ya tengo seleccionado|contame qu[eé] te pasa|qu[eé] te pasa con ese internet)", u.reply, re.I), u.reply
+    sin_violaciones(t, solo=("I8i",), servicio_solo_internet=True)

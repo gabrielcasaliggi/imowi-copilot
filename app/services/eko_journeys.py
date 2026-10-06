@@ -3607,6 +3607,22 @@ def _advance_service_catalog(
             ):
                 # Mismo servicio ya seleccionado y nada pendiente: acuse breve, sin reabrir.
                 set_journey(ctx, step="done")
+                if _declares_problem(texto) or str(get_journey(ctx).get("declared_problem") or "").strip():
+                    # H16: el problema ya está declarado (en este texto o antes): no se vuelve a preguntar «qué te pasa».
+                    # PASS: el Legacy N1 retoma el diagnóstico en el paso siguiente (mismo contrato que post_resolution_hold).
+                    return JourneyTurn(
+                        handled=True,
+                        user_message="",
+                        journey=journey,
+                        step="done",
+                        intent="consulta_servicios",
+                        domain="services",
+                        action="service_selection",
+                        action_status="already_done",
+                        reason_code="post_resolution_hold",
+                        correlation_id=corr,
+                        data={"selection_unchanged": True, "problema_declarado": True},
+                    )
                 name = prev_ref.product or prev_ref.label or prev_ref.service_type or prev_ref.service_id
                 return JourneyTurn(
                     handled=True,
