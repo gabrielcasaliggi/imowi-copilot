@@ -253,3 +253,22 @@ no verifica que el último mensaje del bot haya sido una oferta.
 
 En móvil `derivar_llamadas`, un mensaje no relacionado con una oferta pendiente cancela la oferta en silencio («Si cambiás de idea… escribí agente»).
 Pendiente de decidir si la oferta debe sobrevivir al mensaje no relacionado.
+
+**H17-B2 (abierto, fuera de alcance):** `clasificar_polaridad` conserva substring en su rama `CONFIRMAR_TICKET` (`any(f in msg for f in CONFIRMACION_TICKET)`):
+mismo patrón que H17-B. Candidato a los fixes 5-6.
+
+**Aclaración H17-B:** el test «por canal» de B parametriza el mismo texto (el detector no recibe el canal) y **no cuenta como cobertura de paridad de canal**;
+esa cobertura es CTX-3.
+
+
+## H17-C — detectores de cierre (cerrado, 2026-10-06)
+
+**Fix:** helper único en `app/domain/conversacion.py` (`mensaje_cierre_sin_vetos`, `mensaje_es_cierre_puro`): cierre puro = <=5 tokens, todos de un vocabulario de cierre
+con >=1 núcleo («gracias», «listo», «ya funciona»…), o frase inequívoca («eso es todo», «no necesito nada más»); sin «?», sin «pero»/«sin», sin problema vivo
+(«caído», «fallando», «mal»), sin «y la/el/lo…» ni condicional («ok si funciona»). Aplicado en `_cierra_consulta_facturacion`, `mensaje_indica_resolucion_real`,
+`clasificar_polaridad` (se quitó el substring de `CONFIRMACION_RESOLUCION`; rama `CONFIRMAR_RESOLUCION` usa cierre puro → `usuario_confirmo_resolucion`),
+`_cliente_desiste_o_resuelto` (vetos delante de sus frases) e `indica_resuelto` (vetos «?»/«caído»/«fallando»/«mal»/«no me anda»; «ya está» solo en mensaje de <=3 tokens).
+
+**Reproducción e2e (sí):** con `journeys_off` el legacy cerraba y mandaba la CSAT con «gracias, y la factura?», «listo, ahora decime la deuda», «ya está caído hace rato»,
+«ya está fallando de nuevo», «listo, pero no mejoró», «no, ya funciona mal»; con `journeys_on` el journey contestaba «Me alegra que se haya solucionado» a los de problema vivo
+(sin CSAT). Los tests e2e `test_h17c_*` fallan 18/24 sin el fix. Con ticket derivado abierto (`con_agente`) los tests H13/H15/T7F2 existentes siguen en verde.

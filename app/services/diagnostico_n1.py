@@ -1582,25 +1582,9 @@ def _cierra_consulta_facturacion(texto: str) -> bool:
         )
     ):
         return False
-    return any(
-        k in t
-        for k in (
-            "gracias",
-            "graciass",
-            "listo",
-            "perfecto",
-            "solo queria",
-            "solo quería",
-            "ya me lo dijiste",
-            "no hace falta",
-            "eso era todo",
-            "nada mas",
-            "nada más",
-            "muchas gracias",
-            "quedó ok",
-            "quedo ok",
-        )
-    )
+    from app.domain.conversacion import mensaje_es_cierre_puro
+
+    return mensaje_es_cierre_puro(t)
 
 
 def _parece_invento_pago(mensaje: str) -> bool:

@@ -4008,6 +4008,9 @@ def indica_resuelto(texto: str) -> bool:
     # «me contestó / me llamaron» ≠ servicio OK
     if confirma_contacto_sin_servicio(t):
         return False
+    # Pregunta o problema vivo («caído», «fallando», «mal», «no me anda») nunca cierra.
+    if "?" in t or re.search(r"\b(?:ca[ií]do|ca[ií]da|fallando|mal)\b|no me anda", t):
+        return False
     # Problema parcial / contraste → nunca cerrar como resuelto
     if any(
         x in t
@@ -4049,8 +4052,6 @@ def indica_resuelto(texto: str) -> bool:
         "quedo bien",
         "quedó resuelto",
         "quedo resuelto",
-        "ya esta",
-        "ya está",
         "ya quedó",
         "ya quedo",
         "se solucionó",
@@ -4076,6 +4077,9 @@ def indica_resuelto(texto: str) -> bool:
         "me andaba bien",
     )
     if any(k in t for k in claves):
+        return True
+    # «ya está» solo como mensaje corto («ya está, gracias»); en frases largas es otra cosa («ya está caído»).
+    if re.search(r"\bya est[aá]\b", t) and len(t.split()) <= 3:
         return True
     # Pide cerrar el caso / ticket tras confirmar que anda
     if any(

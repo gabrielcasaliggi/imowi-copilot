@@ -163,13 +163,59 @@ def operador_confirmo_persistencia_explicita(msg: str) -> bool:
     )
 
 
+_CIERRE_NUCLEO = frozenset(
+    {"gracias", "graciass", "listo", "perfecto", "genial", "excelente", "funciona", "funciono", "anda", "esta",
+     "quedo", "resuelto", "solucionado", "soluciono", "arreglo", "volvio", "mejoro"}
+)
+_CIERRE_VOCABULARIO = _CIERRE_NUCLEO | frozenset(
+    {"muchas", "muchisimas", "ok", "okay", "dale", "si", "ya", "todo", "bien", "de", "nada", "mas", "eso", "es", "era",
+     "solo", "queria", "bueno", "me", "lo", "dijiste", "problema", "se", "ahora", "por", "ayuda", "la", "atencion", "buenisimo"}
+)
+_CIERRE_VETOS = frozenset(
+    {"pero", "aunque", "sin", "caido", "caida", "fallando", "falla", "mal", "sigue", "todavia", "aun", "salvo", "excepto"}
+)
+_CIERRE_Y_PEDIDO = re.compile(r"\by\s+(?:la|el|lo|las|los|me|mi|mis|cuanto|que|como|cual|donde|cuando|tambien)\b")
+_CIERRE_CONDICIONAL = re.compile(r"\bsi\s+(?:funciona|anda|esta|queda|resuelve)")
+_CIERRE_FRASE_INEQUIVOCA = re.compile(
+    r"\b(?:no necesito (?:nada )?mas|no necesito nada|eso es todo|eso era todo|nada mas|no hace falta|no gracias|"
+    r"ya me lo dijiste|solo queria)\b"
+)
+
+
+def _normalizar_cierre(texto: str) -> str:
+    sin_tildes = "".join(c for c in unicodedata.normalize("NFD", (texto or "").lower()) if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", sin_tildes)).strip()
+
+
+def mensaje_cierre_sin_vetos(texto: str) -> bool:
+    """Sin pregunta, sin «pero»/«sin», sin problema vivo («caído», «fallando», «mal») ni «y la/el/lo…» (pedido nuevo)."""
+    if not texto or "?" in texto:
+        return False
+    # «ok si funciona» es condicional (sin tilde); «sí, funciona» afirma.
+    if _CIERRE_CONDICIONAL.search(texto.lower()):
+        return False
+    t = _normalizar_cierre(texto)
+    return bool(t) and not _CIERRE_VETOS.intersection(t.split()) and not _CIERRE_Y_PEDIDO.search(t)
+
+
+def mensaje_es_cierre_puro(texto: str) -> bool:
+    """Cierre puro: <=5 tokens, todos de cierre y >=1 núcleo; o frase inequívoca («eso es todo»). Sin vetos."""
+    if not mensaje_cierre_sin_vetos(texto):
+        return False
+    t = _normalizar_cierre(texto)
+    if _CIERRE_FRASE_INEQUIVOCA.search(t):
+        return True
+    tokens = t.split()
+    return len(tokens) <= 5 and all(k in _CIERRE_VOCABULARIO for k in tokens) and any(k in _CIERRE_NUCLEO for k in tokens)
+
+
 def mensaje_indica_resolucion_real(msg: str) -> bool:
     t = (msg or "").lower().strip()
     if not t or mensaje_indica_persistencia_parcial(t):
         return False
     if t in NEGACION_CORTA:
         return False
-    return any(frase in t for frase in CONFIRMACION_RESOLUCION)
+    return t in ("ok", "okay") or mensaje_es_cierre_puro(t)
 
 NEGACION_CORTA = ("no", "nop", "nope", "no.", "nah", "negativo")
 
@@ -214,9 +260,6 @@ def clasificar_polaridad(historial: list[dict], intencion_pendiente: str = "") -
     if mensaje_indica_resolucion_real(msg):
         return PolaridadMensaje.RESUELTO
 
-    if any(frase in msg for frase in CONFIRMACION_RESOLUCION):
-        return PolaridadMensaje.RESUELTO
-
     if intencion_pendiente == IntencionPendiente.CONFIRMAR_TICKET.value:
         if msg in AFIRMACION_CORTA or any(f in msg for f in CONFIRMACION_TICKET):
             return PolaridadMensaje.AFIRMACION
@@ -224,7 +267,7 @@ def clasificar_polaridad(historial: list[dict], intencion_pendiente: str = "") -
             return PolaridadMensaje.NEGACION
 
     if intencion_pendiente == IntencionPendiente.CONFIRMAR_RESOLUCION.value:
-        if msg in AFIRMACION_CORTA or any(f in msg for f in CONFIRMACION_RESOLUCION):
+        if msg in AFIRMACION_CORTA or mensaje_es_cierre_puro(msg):
             return PolaridadMensaje.RESUELTO
         if any(f in msg for f in PERSISTENCIA_FRASES):
             return PolaridadMensaje.PERSISTENCIA

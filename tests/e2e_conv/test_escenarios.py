@@ -914,3 +914,31 @@ def test_h18_el_si_se_consume_y_no_retrocede_a_un_paso_anterior(canal, llm, jour
 def test_h18_la_potnecia_con_typo_llega_al_handler_de_potencia(canal, llm, journeys):
     t = _h18(canal, llm, journeys)
     assert RESPUESTA_POTENCIA.search(t[3].reply), t[3].reply
+
+
+# ------------------------------------------------ H17-C: cierre + pregunta (o problema vivo) no cierra ni califica
+# Sin el fix, con journeys apagado el legacy cerraba y mandaba la CSAT («De nada María. Cualquier otra consulta…»).
+CIERRE_CON_PREGUNTA = ["gracias, y la factura?", "listo, ahora decime la deuda"]
+CIERRE_CON_PROBLEMA = ["ya está caído hace rato", "ya está fallando de nuevo", "listo, pero no mejoró", "no, ya funciona mal"]
+CIERRA_RE = re.compile(r"(lindo d[ií]a|cualquier otra consulta|de nada)", re.I)
+
+
+@pytest.mark.parametrize("texto", CIERRE_CON_PREGUNTA)
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h17c_cierre_mas_pregunta_responde_sin_cerrar_ni_calificar(canal, journeys, texto):
+    t = converse(["cuánto debo", texto], canal=canal, profile="deuda", journeys=journeys)
+    u = t[-1]
+    sin_violaciones(t, solo=("I7",))  # I7: una oferta pendiente termina en pregunta
+    assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
+    assert u.estado != "cerrado" and not CIERRA_RE.search(u.reply), (u.estado, u.reply)
+    assert re.search(r"(15\.?000|saldo|deuda|factura|DNI|figura)", u.reply, re.I), u.reply
+
+
+@pytest.mark.parametrize("texto", CIERRE_CON_PROBLEMA)
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h17c_cierre_con_problema_vivo_no_cierra_ni_califica(canal, journeys, texto):
+    t = converse(["no tengo internet", texto], canal=canal, profile="int1", journeys=journeys)
+    u = t[-1]
+    sin_violaciones(t, solo=("I7",))
+    assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
+    assert u.estado != "cerrado" and not CIERRA_RE.search(u.reply) and "solucionado" not in u.reply, (u.estado, u.reply)

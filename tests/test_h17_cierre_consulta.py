@@ -9,13 +9,6 @@ from app.domain.flujos_abonado import indica_resuelto
 from app.services.canal_abonado import _cliente_desiste_o_resuelto
 from app.services.diagnostico_n1 import _cierra_consulta_facturacion
 
-XF = pytest.mark.xfail(strict=True, reason="H17-C: los detectores de cierre matchean 'listo'/'gracias'/'ya está' por substring")
-FALLAN_CIERRE = {
-    "listo, ahora decime la deuda", "gracias, y la factura?", "listo, pero no mejoró", "no, ya funciona mal",
-    "ya está caído hace rato", "ya esta? no me anda", "ya está fallando de nuevo",
-}
-FALLAN_RESOLUCION = {"listo, ahora decime la deuda", "no, ya funciona mal", "ok pero sigue igual", "ok, y el ticket anterior?"}
-
 NO_CIERRA = [
     "listo, ahora decime la deuda",
     "gracias, y la factura?",
@@ -28,6 +21,8 @@ NO_CIERRA = [
     "ok, y el ticket anterior?",
     "gracias pero sigue sin andar",
     "bueno, y el precio?",
+    "gracias, y la factura",
+    "ya está, pero sigue lento",
 ]
 
 CIERRA = [
@@ -39,6 +34,13 @@ CIERRA = [
     "perfecto, gracias",
     "ya anda",
     "no necesito nada más",
+    "eso es todo",
+    "todo bien gracias",
+    "ya anda, gracias",
+    "ok gracias",
+    "ya está, gracias",
+    "Gracias.",
+    "LISTO, GRACIAS!",
 ]
 
 
@@ -47,7 +49,7 @@ def _cierra(texto: str) -> bool:
     return bool(indica_resuelto(texto) or _cliente_desiste_o_resuelto(texto) or _cierra_consulta_facturacion(texto))
 
 
-@pytest.mark.parametrize("texto", [pytest.param(t, marks=XF) if t in FALLAN_CIERRE else t for t in NO_CIERRA])
+@pytest.mark.parametrize("texto", NO_CIERRA)
 def test_no_cierra_consulta(texto):
     assert not _cierra(texto)
     assert not _cierra_consulta_facturacion(texto)
@@ -61,7 +63,7 @@ def test_si_cierra_consulta(texto):
 
 @pytest.mark.parametrize(
     "texto",
-    [pytest.param(t, marks=XF) if t in FALLAN_RESOLUCION else t for t in NO_CIERRA if not t.startswith(("gracias", "bueno"))],
+    [t for t in NO_CIERRA if not t.startswith(("gracias", "bueno"))],
 )
 def test_no_hay_resolucion_real(texto):
     assert not mensaje_indica_resolucion_real(texto)

@@ -3677,6 +3677,10 @@ def _cliente_desiste_o_resuelto(texto: str) -> bool:
         )
     ):
         return False
+    from app.domain.conversacion import mensaje_cierre_sin_vetos
+
+    if not mensaje_cierre_sin_vetos(t):
+        return False
     if any(
         k in t
         for k in (
