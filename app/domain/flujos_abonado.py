@@ -2548,6 +2548,27 @@ MSG_WIFI_UN_DISPOSITIVO_MOVIL = (
 )
 
 
+_ROLES_BOT = ("bot", "asistente", "out", "eco", "agente")
+
+
+def ya_emitido_reciente(mensaje: str, historial, *, ventana: int = 6) -> bool:
+    """H18: ¿el bot ya dijo exactamente ``mensaje`` en sus últimos ``ventana`` turnos? (no se re-emite un paso)."""
+    objetivo = " ".join((mensaje or "").split())
+    if not objetivo:
+        return False
+    previos: list[str] = []
+    for m in historial or []:
+        if isinstance(m, dict):
+            rol = str(m.get("rol") or m.get("autor") or m.get("direccion") or "").lower()
+            txt = str(m.get("texto") or m.get("contenido") or "")
+        else:
+            rol = str(getattr(m, "autor", "") or getattr(m, "direccion", "") or "").lower()
+            txt = str(getattr(m, "texto", "") or getattr(m, "contenido", "") or "")
+        if rol in _ROLES_BOT:
+            previos.append(" ".join(txt.split()))
+    return objetivo in previos[-ventana:]
+
+
 def _textos_cliente_historial(historial) -> str:
     parts: list[str] = []
     for m in historial or []:
@@ -2735,8 +2756,10 @@ def mensaje_continuidad_wifi(
             "El acceso a la red ya está OK; sigamos con el Wi‑Fi. "
             "¿Les pasa a todos los equipos o solo a uno?"
         )
-    if alcance == "uno" and dispositivo_sin_puerto_ethernet(
-        mensaje_cliente, historial
+    if (
+        alcance == "uno"
+        and dispositivo_sin_puerto_ethernet(mensaje_cliente, historial)
+        and not ya_emitido_reciente(MSG_WIFI_UN_DISPOSITIVO_MOVIL, historial)
     ):
         return MSG_WIFI_UN_DISPOSITIVO_MOVIL
     if "reinicio_router_wifi" not in cub:

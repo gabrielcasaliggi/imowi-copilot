@@ -2816,6 +2816,7 @@ def diagnosticar_turno(
         mensaje_confirmacion_paso_diagnostico_wifi,
         pregunta_confirmacion_mejora_senal_wifi,
         respuesta_guardrail_cable_dispositivo_movil,
+        ya_emitido_reciente,
     )
     from app.domain.flujos_abonado import contexto_diagnostico_wifi as _ctx_wifi
 
@@ -2855,7 +2856,7 @@ def diagnosticar_turno(
         historial=historial_mensajes,
         intencion=intencion,
     )
-    if guard_cable:
+    if guard_cable and not ya_emitido_reciente(guard_cable["mensaje"], historial_mensajes):
         return guard_cable
 
     wifi_ctx = contexto_diagnostico_wifi(
@@ -2865,6 +2866,7 @@ def diagnosticar_turno(
         (wifi_ctx or linea_ya_ok)
         and interpreta_alcance_dispositivos(mensaje_cliente) == "uno"
         and dispositivo_sin_puerto_ethernet(mensaje_cliente)
+        and not ya_emitido_reciente(MSG_WIFI_UN_DISPOSITIVO_MOVIL, historial_mensajes)
     ):
         tcli = (mensaje_cliente or "").lower()
         if not any(
@@ -3260,6 +3262,7 @@ def diagnosticar_turno(
             parece_pregunta_interferencia_wifi,
             pregunta_confirmacion_mejora_senal_wifi,
             tipo_acceso_confirmado_en_historial,
+            ya_emitido_reciente,
         )
 
         tech_confirmada = tipo_acceso_confirmado_en_historial(
@@ -3387,6 +3390,16 @@ def diagnosticar_turno(
             else:
                 mensaje = MSG_WIFI_SIN_CABLE_MOVIL
                 paso = "conexion_cableada"
+            if ya_emitido_reciente(mensaje, historial_mensajes):
+                # H18: el paso ya salió; el diagnóstico avanza al siguiente en vez de repetirlo
+                fb = _fallback_ask(
+                    checklist,
+                    pasos_cubiertos,
+                    mensaje_cliente,
+                    historial_mensajes=historial_mensajes,
+                )
+                mensaje = fb["mensaje"]
+                paso = fb.get("paso_cubierto") or paso
 
         # Bloquear diagnóstico óptico inventado fuera de internet/FTTH (p.ej. Sensa)
         if not aplica_optica and (

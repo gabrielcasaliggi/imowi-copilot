@@ -892,7 +892,6 @@ def _h18_casos(falla: set[tuple[str, bool]], motivo: str):
     ]
 
 
-_XF_SI = _h18_casos({("cable_movil", True), ("cable_movil", False)}, "H18: el «sí» no se consume y el guardrail repite el paso anterior («Las tablets y celulares…»)")
 _XF_TYPO = _h18_casos(set(H18_CASOS), "H18: «potnecia» (typo) no llega al handler de potencia")
 
 
@@ -906,7 +905,7 @@ def test_h18_pruebo_la_de_5_no_abre_el_menu_de_servicios(canal, llm, journeys):
     assert not MENU_SERVICIOS.search(t[-1].reply), t[-1].reply
 
 
-@pytest.mark.parametrize(("llm", "journeys"), _XF_SI)
+@pytest.mark.parametrize(("llm", "journeys"), H18_CASOS)
 def test_h18_el_si_se_consume_y_no_retrocede_a_un_paso_anterior(canal, llm, journeys):
     t = _h18(canal, llm, journeys)
     sin_violaciones(t, solo=("I10",), i10=True)
