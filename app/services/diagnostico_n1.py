@@ -1212,7 +1212,8 @@ def detectar_falla_optica_escalar(
                         cliente_confirmo_los = True
                     elif _es_afirmacion(texto2) and any(
                         k in (texto or "").lower() for k in ("roj", "alarma", "encendid")
-                    ):
+                    ) and not any(k in (texto or "").lower() for k in ("verde", "apagad")):
+                        # Un «sí» a «¿PON verde y LOS apagada, o alguna en rojo?» es ambiguo: no confirma la alarma.
                         cliente_confirmo_los = True
                     break
         if autor == "bot" and _bot_pregunta_fibra(texto):

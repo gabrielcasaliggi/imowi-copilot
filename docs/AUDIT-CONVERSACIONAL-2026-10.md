@@ -310,6 +310,15 @@ contenido de alcance (`interpreta_alcance_dispositivos`). Dos mecanismos la cubr
 **Pendiente (Fix 3, fuera de alcance):** con LLM caído el último paso del playbook genérico `internet` (`confirmar_acceso`, «¿fibra, antena o ADSL?») no se resuelve con la tecnología del
 servicio seleccionado y el legacy lo repite ante respuestas sin contenido (I5/I10): quedan 8 xfails estrictos (`test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`, LLM caído).
 
+**Detector óptico: «sí» suelto ante una pregunta mixta (cerrado, 2026-10-07; mismo tipo que H17: afirmación suelta leída fuera de contexto).**
+`detectar_falla_optica_escalar` (`diagnostico_n1.py`) tomaba una afirmación suelta como «LOS en rojo» si la pregunta del bot contenía «roj»/«alarma»/«encendid»,
+aunque la pregunta ofreciera también la opción sana («¿La luz PON está verde fija y la LOS apagada, o ves alguna en rojo?»). Con un chequeo de fibra antes en el
+historial (basta «la cajita de la fibra») escalaba `los_con_chequeo_fibra` y creaba el ticket N2 sin oferta ni confirmación (I6/R1). Lo destapó el Fix 3: al seguir por el
+playbook FTTH, «si, ya lo hice, sigue igual» responde a esa pregunta mixta (`test_h21_ya_lo_hice_sigue_igual_no_responde_te_lo_aclaro`, `fibra_deuda`, LLM caído).
+**Fix:** la afirmación suelta solo confirma la alarma si la pregunta no ofrece la opción sana («verde»/«apagad»). La alarma declarada («la LOS está en rojo») sigue
+escalando; una pregunta solo de alarma + «sí» sigue confirmando. Tests: `tests/test_falla_optica_afirmacion.py`.
+**H17-D (abierto, junto a H17-B2, después de H27):** `los_confirmada_en_historial` repite la regla «afirmación + "roj" en la pregunta» sin esa condición.
+
 
 ## H24 — el re-login del portal desligaba el ticket de la conversación (Fase 2, cerrado, 2026-10-07)
 
