@@ -301,5 +301,11 @@ conversación en la derivación por pedido explícito. Para confirmarla hace fal
 `ASK_NEXT_STEP` idéntico al último mensaje del bot difiere al legacy. Causa raíz: `pending.bot` ASK_FACT sin `step_id` (sellado por el legacy) + «ya lo hice» → `CONFIRM_ACTION` →
 `RESTATE_PENDING` sin paso → literal.
 
-**Pendiente (Fix 2, Paso 3):** con LLM caído, «sigue igual» se toma por respuesta al paso de alcance (`_texto_responde_ask_fact`) y el legacy repite el triaje de tipo
-de conexión (I5/I10): quedan 8 + 8 xfails estrictos.
+**Fix 2 (Paso 3, cerrado):** a una pregunta de alcance por dispositivo (`PASOS_ALCANCE_DISPOSITIVOS` = `alcance_internet`, `alcance_cortes`) solo responde una frase con
+contenido de alcance (`interpreta_alcance_dispositivos`). Dos mecanismos la cubrían con «sigue igual»: `_texto_responde_ask_fact` (Motor y `_aplicar_cover_respuesta_ask_fact`) y
+`_avanzar_fallback_por_respuesta` (RC-13: `respuesta_paso_ok` reconoce «sigue igual»); ambos exigen ahora el alcance (el segundo repregunta una vez con «No te entendí…»).
+**Lección:** el primer intento usó el prefijo `alcance_*` y rompió `test_loop_corp_n2_legitimo` (`alcance_b2b`: «¿un solo usuario, una sede o todos los sitios?» se responde
+«afecta el servicio en producción»); se acotó a los pasos de dispositivo y se agregó un test para `alcance_b2b`.
+
+**Pendiente (Fix 3, fuera de alcance):** con LLM caído el último paso del playbook genérico `internet` (`confirmar_acceso`, «¿fibra, antena o ADSL?») no se resuelve con la tecnología del
+servicio seleccionado y el legacy lo repite ante respuestas sin contenido (I5/I10): quedan 8 xfails estrictos (`test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`, LLM caído).

@@ -440,7 +440,7 @@ def interpret_turn(
         if (
             pb.act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM)
             and pb.step_id
-            and _texto_responde_ask_fact(raw)
+            and _texto_responde_ask_fact(raw, str(pb.step_id))
         ):
             interp.user_act = USER_REPORT_FACT
             interp.referenced = _ref_from_pending_bot(cs)
@@ -454,11 +454,21 @@ def interpret_turn(
     return interp
 
 
-def _texto_responde_ask_fact(texto: str) -> bool:
-    """True si el turno aporta un dato (no saludo ni 'seguí vos')."""
+# Pasos de alcance por dispositivo/equipo (su respuesta es «todos»/«uno»). No incluye alcance_b2b (sede/sucursal) ni alcance_aparatos_fija.
+PASOS_ALCANCE_DISPOSITIVOS = frozenset({"alcance_internet", "alcance_cortes"})
+
+
+def _texto_responde_ask_fact(texto: str, step_id: str | None = None) -> bool:
+    """True si el turno aporta un dato (no saludo ni 'seguí vos').
+
+    H21 Fix 2: a una pregunta de alcance por dispositivo (``PASOS_ALCANCE_DISPOSITIVOS``) solo responde una frase con contenido de alcance
+    («todos», «solo en el celular»); «sigue igual» no.
+    """
     raw = (texto or "").strip()
     if not raw or es_saludo_corto(raw):
         return False
+    if str(step_id or "") in PASOS_ALCANCE_DISPOSITIVOS:
+        return bool(interpreta_alcance_dispositivos(raw))
     if es_pregunta_howto_o_causal(raw):
         return False
     t = _norm(raw)

@@ -332,6 +332,8 @@ def _aplicar_cover_respuesta_ask_fact(ctx: dict, texto: str) -> bool:
                     sid = cand
         if not sid or sid in covered:
             return False
+        if not _texto_responde_ask_fact(texto, sid):  # H21 Fix 2: «sigue igual» no responde un paso alcance_*
+            return False
         mark_covers(ctx, sid)
         cs = hydrate_conversation_state(ctx)
         slot = cs.active_slot()
@@ -1108,7 +1110,7 @@ def _mensaje_cubre_dato_requerido(texto: str, paso, ctx: dict) -> bool:
         )
 
         act = classify_step_act(pid, str(getattr(paso, "pregunta", "") or ""))
-        if act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM) and _texto_responde_ask_fact(texto):
+        if act in (BOT_ASK_FACT, BOT_ASK_SYMPTOM) and _texto_responde_ask_fact(texto, pid):
             return True
     except Exception:
         pass

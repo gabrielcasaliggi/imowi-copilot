@@ -61,3 +61,33 @@ def test_discurso_sin_paso_resuelto_difiere_al_legacy():
         finally:
             conv.estado = "cerrado"
             db.commit()
+
+
+# ------------------------------------------------ H21 Fix 2: «sigue igual» no responde una pregunta alcance_*
+from app.domain.conversation_motor import USER_REPORT_FACT, _texto_responde_ask_fact  # noqa: E402
+
+
+@pytest.mark.parametrize("texto", ["sigue igual", "ya lo hice", "si", "ya lo hice, sigue igual", "no mejoró"])
+def test_fix2_una_frase_sin_alcance_no_responde_alcance(texto):
+    assert not _texto_responde_ask_fact(texto, "alcance_internet")
+
+
+@pytest.mark.parametrize("texto", ["en todos", "todos los dispositivos", "solo en el celular", "también falla la notebook"])
+def test_fix2_una_frase_con_alcance_responde_alcance(texto):
+    assert _texto_responde_ask_fact(texto, "alcance_internet")
+
+
+def test_fix2_sin_paso_alcance_el_criterio_general_no_cambia():
+    assert _texto_responde_ask_fact("tengo fibra con luz verde", "tipo_acceso")
+    assert _texto_responde_ask_fact("tengo fibra con luz verde")
+
+
+def test_fix2_interpret_turn_sigue_igual_con_alcance_pendiente_no_cubre_el_paso():
+    cs = _ftth_cs(pending_step="alcance_internet", pending_act="ASK_FACT", last_act="ASK_FACT")
+    interp = interpret_turn("sigue igual", cs, {})
+    assert interp.user_act != USER_REPORT_FACT and not interp.proposed_covers
+
+
+def test_fix2_el_alcance_corporativo_no_se_toca():
+    """alcance_b2b («¿un solo usuario, una sede o todos los sitios?») se responde con «afecta el servicio en producción»."""
+    assert _texto_responde_ask_fact("Afecta el servicio en producción", "alcance_b2b")

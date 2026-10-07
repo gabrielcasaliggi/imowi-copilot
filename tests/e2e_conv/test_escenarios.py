@@ -959,9 +959,10 @@ def test_h21_ya_lo_hice_sigue_igual_no_responde_te_lo_aclaro(canal, llm, journey
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]  # R1
 
 
-# Con el LLM caído el legacy repite el triaje de tipo de conexión (I5/I10) porque «sigue igual» se toma por respuesta al alcance: Fix 2.
+# Con el LLM caído el legacy repite el último paso del playbook genérico («confirmar_acceso», tipo de conexión) porque no se resuelve la
+# tecnología del servicio seleccionado (Fix 3, fuera de alcance); Fix 2 ya evita que «sigue igual» avance el alcance.
 H21_NO_REPITE = [
-    pytest.param(llm, j, p, marks=[xf("H21 Fix 2: «sigue igual» avanza el paso de alcance y el legacy repite el triaje de tipo de conexión (I5/I10)")] if llm == "down" else [])
+    pytest.param(llm, j, p, marks=[xf("H21 Fix 3 (fuera de alcance): el último paso del playbook genérico («confirmar_acceso») no se resuelve con el servicio seleccionado y el legacy lo repite (I5/I10)")] if llm == "down" else [])
     for (llm, j, p) in H21_CASOS
 ]
 
@@ -974,7 +975,6 @@ def test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas(canal, llm, journeys, p
 
 @pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
-@xf("H21 Fix 2: «sigue igual» (sin contenido de alcance) se toma por respuesta a «¿todos los dispositivos o solo en uno?» y avanza al triaje de tipo de conexión")
 def test_h21_sigue_igual_no_avanza_el_paso_de_alcance(canal, journeys, perfil):
     t = converse(H21[:3], canal=canal, profile=perfil, journeys=journeys, llm="down")
     assert re.search(r"dispositivos", t[1].reply, re.I), t[1].reply  # el paso de alcance está pendiente
