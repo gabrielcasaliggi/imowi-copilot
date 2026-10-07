@@ -13,6 +13,7 @@ import re
 
 import pytest
 
+from tests.e2e_conv import agente
 from tests.e2e_conv import invariants as inv
 from tests.e2e_conv.harness import converse
 
@@ -942,3 +943,96 @@ def test_h17c_cierre_con_problema_vivo_no_cierra_ni_califica(canal, journeys, te
     sin_violaciones(t, solo=("I7",))
     assert not any(x.encuesta for x in t), [(x.user, x.estado, x.encuesta) for x in t]
     assert u.estado != "cerrado" and not CIERRA_RE.search(u.reply) and "solucionado" not in u.reply, (u.estado, u.reply)
+
+
+# ------------------------------------------------ H21: «sigue igual» tras «ya lo hice» (Motor 2.5, Fix 1 / Fix 2)
+H21 = ["internet", "ya lo hice", "sigue igual", "ya lo hice, sigue igual", "si, ya lo hice, sigue igual", "si"]
+TRIAJE_TIPO_ACCESO = re.compile(r"(cajita blanca|radio/antena|\bADSL\b|Para no derivarte de m[aá]s)", re.I)
+H21_CASOS = [(llm, j, p) for llm in ("down", "normal") for j in (True, False) for p in ("fibra_deuda", "int1")]
+
+
+@pytest.mark.parametrize(("llm", "journeys", "perfil"), H21_CASOS)
+@xf("H21 Fix 1: «si, ya lo hice, sigue igual» responde el literal «Te lo aclaro: ¿pudiste hacer lo que te pedí recién?» (el Motor devuelve RESTATE_PENDING sin paso)")
+def test_h21_ya_lo_hice_sigue_igual_no_responde_te_lo_aclaro(canal, llm, journeys, perfil):
+    t = converse(H21, canal=canal, profile=perfil, journeys=journeys, llm=llm)
+    sin_violaciones(t, i10=True)  # I1, I5, I10, I6, I7…
+    assert not any("Te lo aclaro" in x.reply for x in t), [(x.user, x.reply[:80]) for x in t]
+    assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]  # R1
+
+
+@pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@xf("H21 Fix 2: «sigue igual» (sin contenido de alcance) se toma por respuesta a «¿todos los dispositivos o solo en uno?» y avanza al triaje de tipo de conexión")
+def test_h21_sigue_igual_no_avanza_el_paso_de_alcance(canal, journeys, perfil):
+    t = converse(H21[:3], canal=canal, profile=perfil, journeys=journeys, llm="down")
+    assert re.search(r"dispositivos", t[1].reply, re.I), t[1].reply  # el paso de alcance está pendiente
+    assert not TRIAJE_TIPO_ACCESO.search(t[2].reply), t[2].reply
+
+
+# ------------------------------------------------ H22: la consulta por «el ticket anterior» (ticket derivado, cierre por agente, reapertura)
+CONSULTAS_TICKET = ["y el ticket anterior?", "qué pasó con mi ticket", "cómo va mi ticket"]
+OFRECE_DERIVAR = re.compile(r"(querés que te derive|te derivo|derivar con|confirmame con un|abro el ticket)", re.I)
+ESTADO_TICKET = re.compile(r"(abierto|en curso|en espera|derivado|asignado|cerrado)", re.I)
+
+
+# Con journeys ON, «qué pasó con mi ticket» y «cómo va mi ticket» ya los atiende el seguimiento de incidente 2.7D (pasan hoy); fallan
+# «y el ticket anterior?» con journeys ON y las tres con journeys OFF (aviso genérico de espera, sin ID ni estado).
+_H22_HOY_FALLA = pytest.mark.xfail(strict=True, reason="H22 Fix 4: aviso genérico de espera sin ID ni estado del ticket derivado")
+H22_CONSULTAS = [
+    pytest.param(c, j, id=f"{'journeys_on' if j else 'journeys_off'}-{c}", marks=[] if (j and c != "y el ticket anterior?") else [_H22_HOY_FALLA])
+    for j in (True, False) for c in CONSULTAS_TICKET
+]
+
+
+@pytest.mark.parametrize(("consulta", "journeys"), H22_CONSULTAS)
+def test_h22_consulta_por_el_ticket_derivado_responde_id_y_estado(canal, journeys, consulta):
+    t = converse(["no tengo internet", "quiero hablar con un agente", consulta], canal=canal, profile="int1", journeys=journeys)
+    tid = t[1].ticket_id
+    assert tid and t[1].ticket_created, [(x.user, x.reply) for x in t]
+    assert tid in t[2].reply and ESTADO_TICKET.search(t[2].reply) and not OFRECE_DERIVAR.search(t[2].reply), t[2].reply
+    assert t[2].estado in ("espera_agente", "con_agente") and not t[2].ticket_created
+
+
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@xf("H22 Fix 4 (I1): tras un aviso de espera el cooldown silencia también la pregunta directa por el ticket (respuesta vacía)")
+def test_h22_el_cooldown_no_silencia_la_pregunta_directa_por_el_ticket(canal, journeys):
+    t = converse(["no tengo internet", "quiero hablar con un agente", "y el ticket anterior?", "si pero el ticket anteriror?"],
+                 canal=canal, profile="int1", journeys=journeys)
+    tid = t[1].ticket_id
+    assert tid, [(x.user, x.reply) for x in t]
+    assert not inv.i1_sin_respuesta_vacia(t), inv.i1_sin_respuesta_vacia(t)
+    assert tid in t[3].reply and not OFRECE_DERIVAR.search(t[3].reply), t[3].reply
+
+
+# Escenario real de prod: el agente cierra el ticket desde el panel, el abonado vuelve a escribir (el padrón lo reconoce por el
+# teléfono → conversación nueva), diagnóstico, nueva derivación y consulta por «el ticket anterior».
+def _reapertura(cierre, tail, *, perfil, journeys, llm="down"):
+    return converse(["internet", "me pasas con un agente", cierre, "internet", "internet", "ya lo hice"] + tail,
+                    canal="whatsapp", profile=perfil, journeys=journeys, llm=llm, reconocer_telefono=True)
+
+
+@pytest.mark.parametrize("cierre", [agente.cierra_el_ticket_desde_el_panel, agente.cierra_la_conversacion_desde_la_bandeja],
+                         ids=["cierre_por_ticket", "cierre_por_bandeja"])
+@pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@xf("H22 Fix 4: tras la reapertura y la nueva derivación, «y el ticket anterior?» no informa el ticket activo ni menciona el ticket cerrado y el cooldown deja vacía la segunda pregunta")
+def test_h22_reapertura_nueva_derivacion_y_consulta_por_el_ticket_anterior(cierre, perfil, journeys):
+    t = _reapertura(cierre, ["me pasas con un agente", "y el ticket anterior?", "si pero el ticket anteriror?"], perfil=perfil, journeys=journeys)
+    viejo, nuevo = t[1].ticket_id, t[6].ticket_id
+    assert viejo and nuevo and viejo != nuevo and t[6].ticket_created, (viejo, nuevo)
+    assert t[0].conv_id != t[3].conv_id and t[6].conv_id == t[3].conv_id  # la reapertura abre otra conversación y la derivación queda en ella
+    for x in t[7:]:
+        assert nuevo in x.reply and not OFRECE_DERIVAR.search(x.reply) and not TRIAJE_TIPO_ACCESO.search(x.reply), (x.user, x.reply)
+    assert viejo in t[7].reply and re.search(r"cerrad", t[7].reply, re.I), t[7].reply  # menciona el anterior ya cerrado
+    assert not inv.i1_sin_respuesta_vacia(t), inv.i1_sin_respuesta_vacia(t)
+
+
+@pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+@xf("H22 Fix 4: reabierta la conversación (estado bot, sin ticket nuevo), «y el ticket anterior?» cae al diagnóstico («¿fibra óptica, radio/antena o ADSL?») en vez de informar el ticket cerrado")
+def test_h22_reapertura_sin_nueva_derivacion_informa_el_ticket_cerrado(perfil, journeys):
+    t = _reapertura(agente.cierra_el_ticket_desde_el_panel, ["y el ticket anterior?"], perfil=perfil, journeys=journeys)
+    viejo = t[1].ticket_id
+    assert viejo and t[6].estado == "bot", (viejo, t[6].estado)
+    assert viejo in t[6].reply and re.search(r"cerrad", t[6].reply, re.I) and not TRIAJE_TIPO_ACCESO.search(t[6].reply), t[6].reply
+    assert not any(x.ticket_created for x in t[3:]), [(x.user, x.ticket_created) for x in t[3:]]  # R1: consultar no abre ticket

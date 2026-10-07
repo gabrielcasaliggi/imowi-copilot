@@ -12,6 +12,7 @@ import re
 import traceback
 import uuid
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -88,6 +89,7 @@ class Turn:
     branch: str = ""
     journey: dict | None = None
     journey_state: dict = field(default_factory=dict)  # ctx['eko_journey'] persistido tras el turno
+    conv_id: str = ""  # conversación que atendió el turno (cambia si el abonado reabre tras un cierre)
     pending_offer: str = ""  # «journey» | «runtime» | «motor»: el turno dejó una oferta pendiente de confirmación
     encuesta: bool = False  # la calificación (CSAT) quedó enviada en la conversación tras el turno
     error: str | None = None
@@ -230,7 +232,11 @@ def converse(
     ticket_abierto: bool = False,
     corte_activo: bool = False,
     playbooks_prod: bool = False,
+    reconocer_telefono: bool = False,
 ) -> list[Turn]:
+    """``script``: textos del abonado. Un elemento callable es una *acción externa* entre turnos (p. ej. un agente que
+    cierra el ticket desde el panel): recibe un ``SimpleNamespace(org_id, telefono, conv_id, ticket_id)`` con la conversación
+    vigente y no genera ``Turn``. ``reconocer_telefono``: el padrón local reconoce el teléfono (reapertura tras un cierre)."""
     prof = PROFILES[profile]
     uid = uuid.uuid4().int
     tel = f"549223{uid % 10_000_000:07d}"
@@ -241,6 +247,8 @@ def converse(
         org = db.scalar(select(Organization).where(Organization.slug == "coop-batan"))
         kw = dict(organizacion_id=org.id, dni=dni, nombre="María Pérez", servicio=prof["servicio"],
                   deuda_monto=prof["deuda"], client_number=str(uid % 10_000_000), plan="Fibra 100")
+        if reconocer_telefono:
+            kw["telefono_e164"] = tel
         abo = Abonado(**{k: v for k, v in kw.items() if hasattr(Abonado, k)})
         db.add(abo)
         db.commit()
@@ -261,7 +269,7 @@ def converse(
             )
             created["outage"] = ob.id
         db.commit()
-        org_id, conv_id = org.id, conv.id
+        org_id, conv_id, tel_db = org.id, conv.id, conv.telefono
 
     turns: list[Turn] = []
     last_journey: dict[str, Any] = {}
@@ -302,12 +310,29 @@ def converse(
                 },
             ))
             stack.enter_context(patch("app.services.handoff_notify.notify_espera_agente", lambda *a, **k: 0))
+            if reconocer_telefono:  # el padrón resuelve el servicio contratado como en prod (la cuenta se re-vincula por teléfono)
+                stack.enter_context(patch("app.services.billtrack.resolver_servicio_contratado", lambda dni, db=None: prof["servicio"]))
             if playbooks_prod:
                 stack.enter_context(patch("app.services.platform_settings.resolve_playbooks", _playbooks_prod))
             if corte_activo:
                 stack.enter_context(patch("app.services.outages.resolver_nas_abonado", lambda db, abonado: "apposada"))
 
+            def _vigente() -> str:
+                """Conversación vigente del teléfono: la última abierta o, si no hay, la más reciente."""
+                with Session() as db:
+                    rows = list(db.scalars(
+                        select(ConversacionCanal).where(ConversacionCanal.organizacion_id == org_id, ConversacionCanal.telefono == tel_db)
+                        .order_by(ConversacionCanal.created_at.desc())
+                    ).all())
+                    abiertas = [r for r in rows if r.estado != "cerrado"]
+                    return (abiertas or rows or [None])[0].id if rows else conv_id
+
             for texto in script:
+                if callable(texto):
+                    cur = _vigente()
+                    with Session() as db:
+                        texto(SimpleNamespace(org_id=org_id, telefono=tel, conv_id=cur, ticket_id=(db.get(ConversacionCanal, cur).ticket_id or "").strip()))
+                    continue
                 sent: list[str] = []
                 frames: list[str] = []
 
@@ -325,14 +350,16 @@ def converse(
                 last_journey.clear()
                 t = Turn(user=texto)
                 with Session() as db, patch("app.services.canal_abonado._enviar_respuesta", _enviar):
-                    antes = bool((db.get(ConversacionCanal, conv_id).ticket_id or "").strip())
+                    previa = _vigente()
+                    antes = bool((db.get(ConversacionCanal, previa).ticket_id or "").strip())
                     try:
                         out = c.procesar_mensaje_entrante(
                             db, org_id, telefono=tel, texto=texto, canal=canal, wa_id=tel, usar_llama=True
                         ) or {}
                     except Exception as e:  # noqa: BLE001
                         out, t.error = {}, f"{type(e).__name__}: {str(e)[:120]}"
-                    cv = db.get(ConversacionCanal, conv_id)
+                    cv = db.get(ConversacionCanal, _vigente())
+                    t.conv_id = cv.id
                     t.estado, t.modo = cv.estado, out.get("modo")
                     t.ticket_id = (cv.ticket_id or "").strip()
                     t.ticket_created = bool(t.ticket_id) and not antes
@@ -354,14 +381,12 @@ def converse(
                 turns.append(t)
     finally:
         with Session() as db:
-            cv = db.get(ConversacionCanal, conv_id)
-            if cv is not None:
+            for cv in db.scalars(select(ConversacionCanal).where(ConversacionCanal.organizacion_id == org_id, ConversacionCanal.telefono == tel_db)).all():
                 cv.estado = "cerrado"
+                cv.abonado_id = ""
             if created.get("outage"):
                 with contextlib.suppress(Exception):
                     repo.resolve_network_outage(db, db.get(NetworkOutage, created["outage"]))
-            if cv is not None:
-                cv.abonado_id = ""
             for kind, model in (("abonado", Abonado), ("ticket", Ticket)):
                 row = db.get(model, created[kind]) if created.get(kind) else None
                 if row is not None:
