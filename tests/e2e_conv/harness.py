@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+import sys
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -33,7 +34,7 @@ from app.estate.models import (
     PortalOtpChallenge,
     Ticket,
 )
-from app.radius.contract import ServicioConectividad
+from app.radius.contract import ServicioConectividad, SesionPPPoE
 from app.services import canal_abonado as c
 
 _ENVIAR_REAL = c._enviar_respuesta  # antes de que el harness lo reemplace
@@ -83,6 +84,24 @@ PROFILES: dict[str, dict[str, Any]] = {
     "movil_deuda": dict(servicio="movil", deuda="15000.00", logins=[], catalogo=MOVILES),
     "sensa": dict(servicio="ambos", deuda="0", logins=LOGIN1, catalogo=_internet_rows(LOGIN1) + TV),
 }
+
+
+# --------------------------------------------------------------------------- planta (Radius)
+class _RadiusFalso:
+    """Cliente Radius de prueba: «valida» (sesión activa), «vacia» (responde sin datos) o «excepcion» (la consulta revienta)."""
+
+    def __init__(self, modo: str):
+        self.modo = modo
+
+    def sesion_para_login(self, login: str) -> SesionPPPoE:
+        if self.modo == "excepcion":
+            raise RuntimeError("Radius no responde")
+        if self.modo == "vacia":
+            return SesionPPPoE(username=login, online=False, error="respuesta sin datos de sesión")
+        return SesionPPPoE(username=login, online=True, public_ip="100.64.0.10", uptime="2d3h")
+
+
+PLANTAS = ("valida", "vacia", "excepcion", "sin_radius")
 
 
 # --------------------------------------------------------------------------- resultado
@@ -241,10 +260,17 @@ def converse(
     corte_activo: bool = False,
     playbooks_prod: bool = False,
     reconocer_telefono: bool = False,
+    planta: str = "sin_radius",
+    consultas_planta: list[str] | None = None,
+    tecnologia_en_cuenta: bool = False,
 ) -> list[Turn]:
     """``script``: textos del abonado. Un elemento callable es una *acción externa* entre turnos (p. ej. un agente que
     cierra el ticket desde el panel): recibe un ``SimpleNamespace(org_id, telefono, dni, conv_id, ticket_id)`` con la conversación
-    vigente y no genera ``Turn``. ``reconocer_telefono``: el padrón local reconoce el teléfono (reapertura tras un cierre)."""
+    vigente y no genera ``Turn``. ``reconocer_telefono``: el padrón local reconoce el teléfono (reapertura tras un cierre).
+    ``planta``: estado de Radius (``PLANTAS``; «sin_radius» = API no configurada, como el harness siempre tuvo). ``consultas_planta``:
+    si se pasa, recibe el nombre de la función que pidió cada consulta real del estado de conexión (``consultar_conexion_pppoe``),
+    con o sin Radius. ``tecnologia_en_cuenta``: BillTrack devuelve los registros de la cuenta con su ``service_type_code`` (como en prod),
+    así la tecnología del servicio seleccionado se resuelve (Fix 3) aunque la planta no responda."""
     prof = PROFILES[profile]
     uid = uuid.uuid4().int
     tel = f"549223{uid % 10_000_000:07d}"
@@ -305,7 +331,11 @@ def converse(
             stack.enter_context(patch("app.llm.chat_completion", _llm(llm)))
             stack.enter_context(patch("app.services.billtrack.lookup_servicios_conectividad", lambda **k: svcs))
             stack.enter_context(patch("app.services.billtrack.lookup_servicios_conectividad_por_dni", lambda **k: svcs))
-            stack.enter_context(patch("app.services.billtrack.lookup_servicios_cuenta_por_dni", lambda **k: ([], True)))
+            cuenta = [
+                SimpleNamespace(id=r["id"], login=r["login"], service_type_code="INTFO" if prof.get("fibra") else "INTBA")
+                for r in prof["catalogo"] if r["type"] == "internet"
+            ] if tecnologia_en_cuenta else []
+            stack.enter_context(patch("app.services.billtrack.lookup_servicios_cuenta_por_dni", lambda **k: (cuenta, True)))
             stack.enter_context(patch(
                 "app.services.portal_services.catalog_for_selection",
                 lambda _db, abonado: {"status": "ok", "services": prof["catalogo"]},
@@ -322,6 +352,19 @@ def converse(
                 stack.enter_context(patch("app.services.billtrack.resolver_servicio_contratado", lambda dni, db=None: prof["servicio"]))
             if playbooks_prod:
                 stack.enter_context(patch("app.services.platform_settings.resolve_playbooks", _playbooks_prod))
+            if planta != "sin_radius":
+                radius = _RadiusFalso(planta)
+                stack.enter_context(patch("app.services.conexion_pppoe.resolve_radius_client", lambda db=None: radius))
+            if consultas_planta is not None:
+                import app.services.conexion_pppoe as cp
+
+                consultar_real = cp.consultar_conexion_pppoe
+
+                def _consultar(**k):
+                    consultas_planta.append(sys._getframe(1).f_code.co_name)
+                    return consultar_real(**k)
+
+                stack.enter_context(patch.object(cp, "consultar_conexion_pppoe", _consultar))
             if corte_activo:
                 stack.enter_context(patch("app.services.outages.resolver_nas_abonado", lambda db, abonado: "apposada"))
 

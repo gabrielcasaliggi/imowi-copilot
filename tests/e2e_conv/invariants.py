@@ -27,7 +27,8 @@ HANDOFF_REPLY = re.compile(
 )
 AFFIRM = re.compile(r"^\s*(s[ií]|dale|ok|confirmo|sí,? por favor|si por favor)\b", re.I)
 CONFIRM_PROMPT = re.compile(
-    r"(confirmame con un|querés que te derive|¿te derivo|¿confirmás|¿abro el ticket|derive el caso|continuar con esta acción)", re.I
+    r"(confirmame con un|querés que te derive|¿te derivo|¿confirmás|¿abro el ticket|querés que abra (un|el) ticket|derive el caso|"
+    r"continuar con esta acción)", re.I
 )
 
 
