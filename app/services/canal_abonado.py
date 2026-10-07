@@ -6,6 +6,7 @@ import logging
 import re
 import time
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.branding_assistant import frase_soy_eko, saludo_identificacion_dni
@@ -74,7 +75,7 @@ from app.domain.flujos_abonado import (
     tiene_movil_contratado,
 )
 from app.estate import canal_repo as crepo
-from app.estate.models import Abonado, ConversacionCanal
+from app.estate.models import Abonado, ConversacionCanal, Ticket
 from app.services import ticket_bridge
 from app.services.canal_diagnostico_ia import _aplicar_diagnostico_ia
 from app.services.canal_outage import _talvez_respuesta_outage
@@ -4804,6 +4805,90 @@ def _try_incident_cx_en_espera(
     return out
 
 
+_CONSULTA_TICKET_OBJETO = re.compile(r"\b(ticket|reclamo)s?\b")
+_CONSULTA_TICKET_PREGUNTA = re.compile(
+    r"\banter\w+|\bprevi[oa]s?\b|\bultimo\b|\bque\s+(paso|onda|hay)\b|\bcomo\s+(va|sigue|esta|quedo)\b|\bestado\b"
+    r"|\bnovedad\w*|\bcuando\b|\bsigue\s+abiert\w*|\bse\s+cerr\w*|\bcerraron\b|\bresolvieron\b"
+)
+_CONSULTA_TICKET_PEDIDO = re.compile(r"\b(abr\w+|crea\w*|gener\w+|nuevo|nueva|quiero|necesito|hag\w+)\b")
+
+
+def _es_consulta_de_ticket(texto: str) -> bool:
+    """H22: pregunta por un ticket ya existente («y el ticket anterior?», «qué pasó con mi ticket»). No toma pedidos de
+    abrir/crear uno («quiero un ticket»)."""
+    from app.domain.conversation_motor import _norm
+
+    t = _norm(texto)
+    return bool(
+        _CONSULTA_TICKET_OBJETO.search(t)
+        and _CONSULTA_TICKET_PREGUNTA.search(t)
+        and not _CONSULTA_TICKET_PEDIDO.search(t)
+    )
+
+
+def _ticket_previo_de_la_linea(db: Session, org_id: str, conv: ConversacionCanal) -> Ticket | None:
+    """Ticket más reciente de una conversación anterior del mismo teléfono (distinto del ligado a ``conv``)."""
+    actual = (conv.ticket_id or "").strip()
+    rows = db.scalars(
+        select(ConversacionCanal)
+        .where(
+            ConversacionCanal.organizacion_id == org_id,
+            ConversacionCanal.telefono == conv.telefono,
+            ConversacionCanal.id != conv.id,
+            ConversacionCanal.ticket_id != "",
+        )
+        .order_by(ConversacionCanal.created_at.desc())
+    ).all()
+    for r in rows:
+        tid = (r.ticket_id or "").strip()
+        if tid and tid != actual:
+            t = db.get(Ticket, tid)
+            if t is not None and t.organizacion_id == org_id:
+                return t
+    return None
+
+
+def _respuesta_consulta_ticket(db: Session, org_id: str, conv: ConversacionCanal) -> str | None:
+    """H22: ID y estado del ticket ACTIVO (el ligado al hilo) y, si hay uno previo, su estado. None si no hay ticket que informar."""
+    activo = db.get(Ticket, conv.ticket_id) if (conv.ticket_id or "").strip() else None
+    previo = _ticket_previo_de_la_linea(db, org_id, conv)
+    if activo is not None and (activo.estado or "") == "Cerrado":
+        activo = None
+    if activo is None and previo is None:
+        return None
+
+    def _estado(t: Ticket) -> str:
+        return "ya fue cerrado" if (t.estado or "") == "Cerrado" else f"sigue {(t.estado or 'abierto').lower()}"
+
+    if activo is not None:
+        msg = f"Tu ticket {activo.id} está {(activo.estado or 'Abierto').lower()} y lo tiene un agente; te van a responder por este chat."
+        if previo is not None:
+            msg = f"Tu ticket {previo.id} {_estado(previo)}; ahora tenés abierto el {activo.id}, que está {(activo.estado or 'Abierto').lower()} y lo tiene un agente. Te van a responder por este chat."
+        return msg
+    return f"Tu ticket {previo.id} {_estado(previo)}. Si el problema sigue, contame y lo vemos."
+
+
+def _responder_consulta_ticket(
+    db: Session, org_id: str, conv: ConversacionCanal, texto: str, *, canal: str
+) -> dict | None:
+    """H22: una consulta sobre el ticket se responde con su ID y estado (nunca ofrece derivar ni crea ticket) y no la
+    silencia el cooldown del aviso de espera."""
+    if not _es_consulta_de_ticket(texto):
+        return None
+    resp = _respuesta_consulta_ticket(db, org_id, conv)
+    if not resp:
+        return None
+    _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
+    return {
+        "ok": True,
+        "modo": "espera_agente" if conv.estado == "espera_agente" else "bot",
+        "conversacion_id": conv.id,
+        "respuesta": resp,
+        "estado": conv.estado,
+        "ticket_id": conv.ticket_id,
+    }
+
+
 def _responder_espera_agente(
     db: Session,
     org_id: str,
@@ -4875,6 +4960,11 @@ def _responder_espera_agente(
     )
     if cx_follow is not None:
         return cx_follow
+
+    # H22: «y el ticket anterior?» / «cómo va mi ticket» → ID y estado, sin aviso genérico ni cooldown.
+    consulta_ticket = _responder_consulta_ticket(db, org_id, conv, texto, canal=canal)
+    if consulta_ticket is not None:
+        return consulta_ticket
 
     tid = conv.ticket_id or ""
     ctx = crepo.get_contexto(conv)
@@ -5755,6 +5845,12 @@ def procesar_mensaje_entrante(
             db.commit()
     except Exception:
         logger.debug("handoff_return_validate falló", exc_info=True)
+
+    # H22: hilo reabierto sin ticket propio y el abonado pregunta por su ticket anterior: se informa, no se diagnostica.
+    if abonado and (conv.estado or "") == "bot" and not (conv.ticket_id or "").strip():
+        consulta_previa = _responder_consulta_ticket(db, org_id, conv, texto, canal=canal)
+        if consulta_previa is not None:
+            return consulta_previa
 
     # Fase 5: Journey orchestration (capabilities existentes; flag off = Legacy N1).
     try:

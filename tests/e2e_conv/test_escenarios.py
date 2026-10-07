@@ -975,13 +975,8 @@ OFRECE_DERIVAR = re.compile(r"(querés que te derive|te derivo|derivar con|confi
 ESTADO_TICKET = re.compile(r"(abierto|en curso|en espera|derivado|asignado|cerrado)", re.I)
 
 
-# Con journeys ON, «qué pasó con mi ticket» y «cómo va mi ticket» ya los atiende el seguimiento de incidente 2.7D (pasan hoy); fallan
-# «y el ticket anterior?» con journeys ON y las tres con journeys OFF (aviso genérico de espera, sin ID ni estado).
-_H22_HOY_FALLA = pytest.mark.xfail(strict=True, reason="H22 Fix 4: aviso genérico de espera sin ID ni estado del ticket derivado")
-H22_CONSULTAS = [
-    pytest.param(c, j, id=f"{'journeys_on' if j else 'journeys_off'}-{c}", marks=[] if (j and c != "y el ticket anterior?") else [_H22_HOY_FALLA])
-    for j in (True, False) for c in CONSULTAS_TICKET
-]
+# Con journeys ON, «qué pasó con mi ticket» y «cómo va mi ticket» ya las atendía el seguimiento de incidente 2.7D.
+H22_CONSULTAS = [pytest.param(c, j, id=f"{'journeys_on' if j else 'journeys_off'}-{c}") for j in (True, False) for c in CONSULTAS_TICKET]
 
 
 @pytest.mark.parametrize(("consulta", "journeys"), H22_CONSULTAS)
@@ -994,7 +989,6 @@ def test_h22_consulta_por_el_ticket_derivado_responde_id_y_estado(canal, journey
 
 
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
-@xf("H22 Fix 4 (I1): tras un aviso de espera el cooldown silencia también la pregunta directa por el ticket (respuesta vacía)")
 def test_h22_el_cooldown_no_silencia_la_pregunta_directa_por_el_ticket(canal, journeys):
     t = converse(["no tengo internet", "quiero hablar con un agente", "y el ticket anterior?", "si pero el ticket anteriror?"],
                  canal=canal, profile="int1", journeys=journeys)
@@ -1011,28 +1005,63 @@ def _reapertura(cierre, tail, *, perfil, journeys, llm="down"):
                     canal="whatsapp", profile=perfil, journeys=journeys, llm=llm, reconocer_telefono=True)
 
 
-@pytest.mark.parametrize("cierre", [agente.cierra_el_ticket_desde_el_panel, agente.cierra_la_conversacion_desde_la_bandeja],
+# El cierre de la bandeja cierra el hilo pero NO el ticket N2 (inbox.py solo documenta la resolución): el anterior sigue abierto.
+@pytest.mark.parametrize(("cierre", "estado_previo"), [(agente.cierra_el_ticket_desde_el_panel, r"cerrad"), (agente.cierra_la_conversacion_desde_la_bandeja, r"sigue abierto")],
                          ids=["cierre_por_ticket", "cierre_por_bandeja"])
 @pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
-@xf("H22 Fix 4: tras la reapertura y la nueva derivación, «y el ticket anterior?» no informa el ticket activo ni menciona el ticket cerrado y el cooldown deja vacía la segunda pregunta")
-def test_h22_reapertura_nueva_derivacion_y_consulta_por_el_ticket_anterior(cierre, perfil, journeys):
+def test_h22_reapertura_nueva_derivacion_y_consulta_por_el_ticket_anterior(cierre, estado_previo, perfil, journeys):
     t = _reapertura(cierre, ["me pasas con un agente", "y el ticket anterior?", "si pero el ticket anteriror?"], perfil=perfil, journeys=journeys)
-    viejo, nuevo = t[1].ticket_id, t[6].ticket_id
-    assert viejo and nuevo and viejo != nuevo and t[6].ticket_created, (viejo, nuevo)
-    assert t[0].conv_id != t[3].conv_id and t[6].conv_id == t[3].conv_id  # la reapertura abre otra conversación y la derivación queda en ella
-    for x in t[7:]:
+    viejo, nuevo = t[1].ticket_id, t[5].ticket_id
+    assert viejo and nuevo and viejo != nuevo and t[5].ticket_created, (viejo, nuevo)
+    assert t[0].conv_id != t[2].conv_id and t[5].conv_id == t[2].conv_id  # la reapertura abre otra conversación y la derivación queda en ella
+    for x in t[6:]:
         assert nuevo in x.reply and not OFRECE_DERIVAR.search(x.reply) and not TRIAJE_TIPO_ACCESO.search(x.reply), (x.user, x.reply)
-    assert viejo in t[7].reply and re.search(r"cerrad", t[7].reply, re.I), t[7].reply  # menciona el anterior ya cerrado
+    assert viejo in t[6].reply and re.search(estado_previo, t[6].reply, re.I), t[6].reply  # menciona el anterior ya cerrado
     assert not inv.i1_sin_respuesta_vacia(t), inv.i1_sin_respuesta_vacia(t)
 
 
 @pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
-@xf("H22 Fix 4: reabierta la conversación (estado bot, sin ticket nuevo), «y el ticket anterior?» cae al diagnóstico («¿fibra óptica, radio/antena o ADSL?») en vez de informar el ticket cerrado")
 def test_h22_reapertura_sin_nueva_derivacion_informa_el_ticket_cerrado(perfil, journeys):
     t = _reapertura(agente.cierra_el_ticket_desde_el_panel, ["y el ticket anterior?"], perfil=perfil, journeys=journeys)
     viejo = t[1].ticket_id
-    assert viejo and t[6].estado == "bot", (viejo, t[6].estado)
-    assert viejo in t[6].reply and re.search(r"cerrad", t[6].reply, re.I) and not TRIAJE_TIPO_ACCESO.search(t[6].reply), t[6].reply
-    assert not any(x.ticket_created for x in t[3:]), [(x.user, x.ticket_created) for x in t[3:]]  # R1: consultar no abre ticket
+    assert viejo and t[5].estado == "bot", (viejo, t[5].estado)
+    assert viejo in t[5].reply and re.search(r"cerrad", t[5].reply, re.I) and not TRIAJE_TIPO_ACCESO.search(t[5].reply), t[5].reply
+    assert not any(x.ticket_created for x in t[2:]), [(x.user, x.ticket_created) for x in t[2:]]  # R1: consultar no abre ticket
+
+
+# Negativos / guardas del Fix 4
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h22_el_aviso_de_espera_no_se_repite_ante_cortesias(canal, journeys):
+    t = converse(["no tengo internet", "quiero hablar con un agente", "alguien me atiende?", "gracias", "ok"],
+                 canal=canal, profile="int1", journeys=journeys)
+    assert t[1].ticket_created
+    assert sum(1 for x in t[2:] if "ya está derivado" in x.reply) <= 1, [(x.user, x.reply) for x in t]
+    assert not any("ya está derivado" in x.reply for x in t[3:]), [(x.user, x.reply) for x in t[3:]]
+
+
+@pytest.mark.parametrize("texto", ["quiero abrir un ticket", "necesito un ticket nuevo", "no quiero ticket"])
+def test_h22_un_pedido_de_ticket_no_es_una_consulta(canal, texto):
+    t = converse(["no tengo internet", "quiero hablar con un agente", texto], canal=canal, profile="int1")
+    assert t[1].ticket_id and t[2].ticket_id == t[1].ticket_id and not t[2].ticket_created
+    assert "ya está derivado" in t[2].reply or t[2].reply, t[2].reply
+
+
+def test_h22_sin_ticket_previo_la_consulta_no_inventa_ni_crea_ticket(canal):
+    t = converse(["internet", "y el ticket anterior?"], canal=canal, profile="int1", journeys=False)
+    assert t[1].reply and not any(x.ticket_created for x in t) and not re.search(r"IBOT-\d+", t[1].reply), t[1].reply
+
+
+@pytest.mark.parametrize("texto", ["y el ticket anterior?", "si pero el ticket anteriror?", "qué pasó con mi ticket", "cómo va mi ticket", "cuál es el estado de mi ticket"])
+def test_h22_detector_de_consulta_positivos(texto):
+    from app.services.canal_abonado import _es_consulta_de_ticket
+
+    assert _es_consulta_de_ticket(texto)
+
+
+@pytest.mark.parametrize("texto", ["quiero abrir un ticket", "necesito un ticket nuevo", "no quiero ticket", "gracias", "ok", "quiero hablar con un agente", "y la factura?"])
+def test_h22_detector_de_consulta_negativos(texto):
+    from app.services.canal_abonado import _es_consulta_de_ticket
+
+    assert not _es_consulta_de_ticket(texto)

@@ -6,11 +6,11 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 
 | Tanda | Qué corre | Comando | Total esperado | Tiempo medido |
 |---|---|---|---|---|
-| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **530 passed, 48 xfailed** (2429 deseleccionados) | 73–500 s según carga |
+| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **578 passed, 24 xfailed** (2429 deseleccionados) | 73–440 s según carga |
 | 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–103 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -103)` | **1382 passed, 7 xfailed** | 88 s |
 | 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 104 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +104)` | **1040 passed, 0 xfailed** | 70 s |
 
-Total del repo: **2952 passed, 55 xfailed** (530 + 1382 + 1040; xfailed 48 + 7). Suite completa en un proceso con base limpia: 2952 passed, 55 xfailed. H17 A, B y C cerrados; H21/H22 abiertos (Paso 0: xfails estrictos).
+Total del repo: **3000 passed, 31 xfailed** (578 + 1382 + 1040; xfailed 24 + 7). Suite completa en un proceso con base limpia: 3000 passed, 31 xfailed, 544 s. H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 (Fix 1 y 2) abierto: quedan sus xfails estrictos.
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,
@@ -19,7 +19,7 @@ Notas
   pasa de 6 min de forma sostenida, mover el corte o partir en tres.
 - **Rebalancear**: al agregar archivos `test_*.py` el corte `head -103` se corre; los archivos nuevos que quedan antes de `test_helpdesk_features.py`
   desplazan ese archivo a la mitad 2. Volver a medir con `--durations=0` si el desbalance crece.
-- Hoy hay 55 `xfail` estrictos, todos de H21/H22 (48 en `tests/e2e_conv/test_escenarios.py`, 7 en `tests/test_conversation_motor_h21.py`). Si se agrega uno, es **estricto** (`xfail(strict=True)`): cuando un arreglo lo hace pasar, el test falla con XPASS y hay que
+- Hoy hay 31 `xfail` estrictos, todos de H21 (24 en `tests/e2e_conv/test_escenarios.py`, 7 en `tests/test_conversation_motor_h21.py`). Si se agrega uno, es **estricto** (`xfail(strict=True)`): cuando un arreglo lo hace pasar, el test falla con XPASS y hay que
   retirar el marcador. Para ver que cada uno reproduce su bug: `pytest -m e2e_conv --runxfail` (deben fallar exactamente los marcados).
 - Las tandas usan la misma base SQLite de tests (`data/test_estate.db`): **no correrlas en paralelo**.
 - **Antes de subir**, correr la suite completa como el CI: un solo proceso, con la base de tests **limpia** (mover `data/test_estate.db`) y `ruff check .`. Una base local vieja puede esconder fallos que el CI sí ve (pasó con los tests de RC-4: el playbook de la base tenía otros pasos).
