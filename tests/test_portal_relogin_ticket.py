@@ -25,8 +25,6 @@ from main import app
 client = TestClient(app)
 PIN, OTP = "123456", "4821"
 
-xf_h24 = pytest.mark.xfail(strict=True, reason="H24: el re-login resetea espera_agente → bot y borra el ticket_id aunque el ticket siga abierto")
-
 
 def _escenario(*, estado="espera_agente", ticket: str | None = "Abierto", agente_id: str = "", visitante: bool = False):
     """Abonado con teléfono conocido y una conversación propia (web) en ``estado``; ``ticket``: estado del ticket ligado o None."""
@@ -76,7 +74,6 @@ VIAS = [(v, c) for v in ("pin", "otp") for c in ("web", "app")]
 VIAS_IDS = [f"{v}-{c}" for v, c in VIAS]
 
 
-@xf_h24
 @pytest.mark.parametrize(("via", "canal"), VIAS, ids=VIAS_IDS)
 def test_relogin_con_ticket_abierto_conserva_conversacion_ticket_y_estado(via, canal):
     e = _escenario()

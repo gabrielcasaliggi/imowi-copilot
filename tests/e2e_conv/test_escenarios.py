@@ -1083,7 +1083,6 @@ def test_h22_detector_de_consulta_negativos(texto):
 # Causa raíz: portal.py:_abrir_conversacion_identificada reseteaba espera_agente → bot y borraba ticket_id (commit 1ef822a).
 _H24_PROPIOS = [("pin", "web"), ("pin", "app"), ("otp", "web"), ("otp", "app")]
 H24_RELOGIN = pytest.mark.parametrize(("via", "canal"), _H24_PROPIOS, ids=[f"{v}-{c}" for v, c in _H24_PROPIOS])
-H24_REAL = pytest.mark.xfail(strict=True, reason="H24: el re-login resetea la conversación a «bot» y le borra el ticket_id aunque el ticket siga abierto")
 
 
 def _derivar_y_reingresar(via, canal, *, journeys=True):
@@ -1091,7 +1090,6 @@ def _derivar_y_reingresar(via, canal, *, journeys=True):
                     canal=canal, profile="int1", journeys=journeys, reconocer_telefono=True)
 
 
-@H24_REAL
 @H24_RELOGIN
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 def test_h24_relogin_con_ticket_abierto_conserva_ticket_y_estado(via, canal, journeys):
@@ -1104,7 +1102,6 @@ def test_h24_relogin_con_ticket_abierto_conserva_ticket_y_estado(via, canal, jou
     assert not inv.violaciones(t, solo=("I11", "I12")), inv.violaciones(t, solo=("I11", "I12"))
 
 
-@H24_REAL
 @H24_RELOGIN
 @pytest.mark.parametrize("cierre", [agente.cierra_el_ticket_desde_el_panel, agente.cierra_la_conversacion_desde_la_bandeja], ids=["cierre_por_ticket", "cierre_por_bandeja"])
 def test_h24_relogin_tras_reapertura_por_telefono_conserva_el_ticket_nuevo(via, canal, cierre):

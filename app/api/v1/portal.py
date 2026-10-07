@@ -254,6 +254,15 @@ def _get_or_create_link(
     return link
 
 
+def _tiene_ticket_abierto_ligado(db: Session, conv) -> bool:
+    """La conversación tiene un ticket ligado que existe y no está cerrado."""
+    tid = (conv.ticket_id or "").strip()
+    if not tid:
+        return False
+    t = db.get(Ticket, tid)
+    return t is not None and (t.estado or "") != "Cerrado"
+
+
 def _abrir_conversacion_identificada(
     db: Session,
     *,
@@ -301,14 +310,17 @@ def _abrir_conversacion_identificada(
         ctx["padron_fuente"] = hit.get("fuente")
     ctx.pop("invitado", None)
     ctx.pop("visitante", None)
-    ctx.pop("cola_prioridad", None)
-    ctx.pop("motivo_derivacion", None)
-    ctx.pop("pidio_humano", None)
+    sigue_en_espera = conv.estado == "espera_agente" and not conv.agente_id and _tiene_ticket_abierto_ligado(db, conv)
+    if not sigue_en_espera:  # con ticket abierto ligado el motivo y la prioridad de la derivación siguen vigentes
+        ctx.pop("cola_prioridad", None)
+        ctx.pop("motivo_derivacion", None)
+        ctx.pop("pidio_humano", None)
     crepo.set_contexto(conv, ctx)
     db.commit()
 
-    # Re-login identificado: si no hay agente activo, volver a modo bot N1
-    if conv.estado in ("espera_agente", "cerrado") and not conv.agente_id:
+    # Re-login identificado: si no hay agente activo, volver a modo bot N1. Con un ticket abierto ligado se conserva el estado y el
+    # ticket_id (H24: el reset desligaba el ticket N2 de la conversación y dejaba al abonado sin seguimiento).
+    if conv.estado in ("espera_agente", "cerrado") and not conv.agente_id and not sigue_en_espera:
         conv.estado = "bot"
         conv.ticket_id = ""
         db.commit()
