@@ -283,8 +283,8 @@ ticket ACTIVO y mencionan el previo (cerrado o no); sin aviso genérico, sin coo
 **Prod no reproducido:** el escenario completo (cierre por agente desde el panel → reapertura por teléfono → «internet» → diagnóstico → «me pasas con un agente» →
 «y el ticket anterior?» → «si pero el ticket anteriror?») en el harness deja la conversación nueva en `espera_agente` con el ticket nuevo vinculado; ahí la compuerta sí atrapaba
 la consulta (aviso genérico sin ID y la segunda pregunta vacía por el cooldown). El texto de prod («Con lo que me contaste ya no lo resolvemos a distancia…» + «¿fibra óptica,
-radio/antena o ADSL?») **solo sale con la conversación en `bot` sin ticket propio**. Hipótesis pendiente de dato de prod: el ticket IBOT-1072 no quedó vinculado a la
-conversación en la derivación por pedido explícito. Para confirmarla hace falta la conversación y el `ticket_id` de prod (no se ejecutó nada contra prod).
+radio/antena o ADSL?») **solo sale con la conversación en `bot` sin ticket propio**. ~~Hipótesis: el ticket IBOT-1072 no quedó vinculado a la conversación en la derivación por pedido explícito.~~ **DESCARTADA:** la derivación explícita sí liga el ticket a la
+conversación (el harness lo verifica en cada escenario con I11). La desvinculación ocurrió después, por el re-login del portal: ver H24.
 
 ## H23 — cerrar la conversación desde la bandeja no cierra el ticket vinculado (abierto, decisión de producto)
 
@@ -309,3 +309,32 @@ contenido de alcance (`interpreta_alcance_dispositivos`). Dos mecanismos la cubr
 
 **Pendiente (Fix 3, fuera de alcance):** con LLM caído el último paso del playbook genérico `internet` (`confirmar_acceso`, «¿fibra, antena o ADSL?») no se resuelve con la tecnología del
 servicio seleccionado y el legacy lo repite ante respuestas sin contenido (I5/I10): quedan 8 xfails estrictos (`test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`, LLM caído).
+
+
+## H24 — el re-login del portal desligaba el ticket de la conversación (Fase 2, cerrado, 2026-10-07)
+
+**Causa raíz:** `portal.py:_abrir_conversacion_identificada` (commit `1ef822a`, 2026-08-05, «visitantes al agente con prioridad baja») hacía, en todo re-login identificado
+(`/portal/auth/login-pin` y `/portal/auth/verify`, canal web o app) sobre una conversación en `espera_agente`/`cerrado` sin agente: `estado = "bot"` y `ticket_id = ""`. Pensado para
+sacar de la cola al visitante anónimo, también pisaba a un abonado ya derivado: el ticket N2 quedaba abierto pero sin conversación, la consola mostraba «Sin conversación de canal» y el
+abonado que preguntaba por «el ticket anterior» caía al triaje («¿fibra óptica, radio/antena o ADSL?»). Es el texto de prod que H22 no lograba reproducir.
+
+**Fix:** el reset a «bot» y el borrado del `ticket_id` solo ocurren si la conversación **no** tiene un ticket abierto ligado (`_tiene_ticket_abierto_ligado`: existe y no está «Cerrado»).
+Con ticket abierto ligado y sin agente se conservan estado (`espera_agente`), `ticket_id` y el motivo/prioridad de la derivación (`motivo_derivacion`, `cola_prioridad`, `pidio_humano`).
+Sin cambios: visitante anónimo en cola sin ticket (sigue saliendo de la cola), ticket ya cerrado (`get_or_create_conversacion` cierra el hilo viejo y abre uno nuevo en «bot»), `con_agente`.
+
+**Sensores:** `tests/test_portal_relogin_ticket.py` (endpoints reales: login-pin y verify × web y app; con ticket, con agente, ticket cerrado, visitante en cola, espera sin ticket) y
+`tests/e2e_conv` (acción de harness `agente.reingresa_al_portal`: derivación + re-login + «y el ticket anterior?», también tras reapertura por teléfono y cierre por agente). Invariantes nuevos
+del harness, aplicados a todos los escenarios: **I11** (tras crear el ticket, la conversación mantiene `ticket_id` y está en `espera_agente`/`con_agente` hasta el cierre) e **I12**
+(«Quedate en este chat» solo con el ticket ligado). Los xfails estrictos entraron primero (`b55eaf6`) y fallaban sin el fix.
+
+## H25 — causa probable de un ticket de Internet FTTH salía «Configuración APN / datos móviles» (cerrado, 2026-10-07)
+
+`ticket_intelligence.inferir_causa_probable` evaluaba la regla APN antes que la de fibra y tenía «internet» entre sus palabras: un ticket de Internet FTTH (el que crea Eko) caía en APN.
+Ahora la regla fibra/FTTH/ONT va antes, «internet» ya no gatilla APN y «ont»/«olt» se buscan como palabra (si no, «contraseña» caía en fibra al invertir el orden). Un ticket móvil con
+«APN» o «datos» sigue dando APN. Tests en `tests/test_ticket_intelligence.py`.
+
+## H26 — backlog: nada avisa al operador de un N2 sin conversación ligada (abierto)
+
+Cuando existe un ticket N2 creado por Eko sin conversación de canal ligada (por H24 u otra causa), no hay alerta ni vista: la consola solo muestra «Sin conversación de canal» en el
+ticket y el abonado queda esperando sin que nadie lo sepa. Mitigación disponible hoy, solo lectura: `scripts/reporte_tickets_huerfanos.py` (ver `docs/REPORTE-TICKETS-HUERFANOS.md`).
+Pendiente de decisión de producto: detector + aviso al operador (p. ej. cola/etiqueta en la consola o alerta de SLA) y re-ligado manual de la conversación.
