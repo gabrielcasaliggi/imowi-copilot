@@ -1,4 +1,4 @@
-"""Invariantes conversacionales verificables turno a turno (I1–I10)."""
+"""Invariantes conversacionales verificables turno a turno (I1–I12)."""
 
 from __future__ import annotations
 
@@ -172,6 +172,39 @@ def i9_no_ofrece_derivar_con_pasos_sin_preguntar(turns: list[Turn], pasos: list[
     return out
 
 
+def i11_ticket_ligado_hasta_el_cierre(turns: list[Turn]) -> list[str]:
+    """I11: en cada turno posterior a la creación de un ticket, la conversación que lo creó mantiene el ``ticket_id`` y sigue en
+    ``espera_agente`` o ``con_agente``. El seguimiento termina cuando el abonado vuelve en otra conversación (el hilo se cerró
+    con el ticket, ver ``cierra_el_ticket_desde_el_panel``) y se reinicia si esa conversación crea otro ticket."""
+    out = []
+    ligado: tuple[str, str] | None = None  # (conv_id, ticket_id) del último ticket creado
+    for i, t in enumerate(turns):
+        if t.ticket_created:
+            ligado = (t.conv_id, t.ticket_id)
+            continue
+        if ligado is None or t.conv_id != ligado[0]:
+            ligado = None
+            continue
+        if t.ticket_id != ligado[1] or t.estado not in ("espera_agente", "con_agente"):
+            out.append(
+                f"I11 turno {i} ({t.user!r}): la conversación perdió el ticket {ligado[1]} "
+                f"(ticket_id={t.ticket_id!r}, estado={t.estado!r}) [{t.branch}]"
+            )
+    return out
+
+
+QUEDATE_EN_EL_CHAT = re.compile(r"quedate en este chat", re.I)
+
+
+def i12_quedate_solo_con_ticket_ligado(turns: list[Turn]) -> list[str]:
+    """I12: «Quedate en este chat» solo si el ticket quedó ligado a la conversación (``ticket_id`` no vacío tras el turno)."""
+    return [
+        f"I12 turno {i} ({t.user!r}): promete «Quedate en este chat» sin ticket ligado a la conversación: {t.reply[-90:]!r} [{t.branch}]"
+        for i, t in enumerate(turns)
+        if QUEDATE_EN_EL_CHAT.search(t.reply) and not t.ticket_id
+    ]
+
+
 def violaciones(
     turns: list[Turn], *, servicio: tuple[int, re.Pattern[str], tuple[str, ...]] | None = None,
     solo: tuple[str, ...] | None = None, servicio_sin_internet_fijo: bool = False,
@@ -186,6 +219,8 @@ def violaciones(
         "I5": i5_sin_respuestas_repetidas(turns),
         "I6": i6_ticket_con_confirmacion(turns),
         "I7": i7_oferta_termina_en_pregunta(turns),
+        "I11": i11_ticket_ligado_hasta_el_cierre(turns),
+        "I12": i12_quedate_solo_con_ticket_ligado(turns),
     }
     if servicio is not None:
         checks["I4"] = i4_habla_del_servicio(turns, despues_de=servicio[0], vocab=servicio[1], etiquetas=servicio[2])

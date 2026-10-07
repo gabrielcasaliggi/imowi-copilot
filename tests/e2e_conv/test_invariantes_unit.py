@@ -56,3 +56,24 @@ def test_i6_ticket_sin_confirmacion():
     assert not inv.i6_ticket_con_confirmacion(confirma)
     sin_prompt = [T("x", "Hola"), T("sí", "Ticket", ticket_created=True)]
     assert inv.i6_ticket_con_confirmacion(sin_prompt)
+
+
+def test_i11_el_ticket_creado_sigue_ligado_hasta_el_cierre():
+    ok = [T("agente", "Ticket", ticket_created=True, ticket_id="IBOT-1", estado="espera_agente", conv_id="c1"),
+          T("y?", "ok", ticket_id="IBOT-1", estado="con_agente", conv_id="c1")]
+    assert not inv.i11_ticket_ligado_hasta_el_cierre(ok)
+    perdido = [ok[0], T("y?", "ok", ticket_id="", estado="bot", conv_id="c1")]
+    assert inv.i11_ticket_ligado_hasta_el_cierre(perdido)
+    solo_estado = [ok[0], T("y?", "ok", ticket_id="IBOT-1", estado="bot", conv_id="c1")]
+    assert inv.i11_ticket_ligado_hasta_el_cierre(solo_estado)
+    # otra conversación (reapertura tras el cierre) corta el seguimiento
+    reabre = [ok[0], T("internet", "ok", ticket_id="", estado="bot", conv_id="c2")]
+    assert not inv.i11_ticket_ligado_hasta_el_cierre(reabre)
+    # sin ticket creado en el escenario no hay nada que exigir
+    assert not inv.i11_ticket_ligado_hasta_el_cierre([T("x", "y", ticket_id="", estado="bot", conv_id="c1")])
+
+
+def test_i12_quedate_en_este_chat_solo_con_ticket_ligado():
+    assert not inv.i12_quedate_solo_con_ticket_ligado([T("a", "Ticket IBOT-1. Quedate en este chat.", ticket_id="IBOT-1")])
+    assert inv.i12_quedate_solo_con_ticket_ligado([T("a", "Ticket IBOT-1. Quedate en este chat.", ticket_id="")])
+    assert not inv.i12_quedate_solo_con_ticket_ligado([T("a", "Contame más", ticket_id="")])

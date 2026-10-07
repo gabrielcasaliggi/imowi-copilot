@@ -1077,3 +1077,49 @@ def test_h22_detector_de_consulta_negativos(texto):
     from app.services.canal_abonado import _es_consulta_de_ticket
 
     assert not _es_consulta_de_ticket(texto)
+
+
+# ------------------------------------------------ H24: el re-login del portal (web/app) no desliga la conversación de su ticket abierto
+# Causa raíz: portal.py:_abrir_conversacion_identificada reseteaba espera_agente → bot y borraba ticket_id (commit 1ef822a).
+_H24_PROPIOS = [("pin", "web"), ("pin", "app"), ("otp", "web"), ("otp", "app")]
+H24_RELOGIN = pytest.mark.parametrize(("via", "canal"), _H24_PROPIOS, ids=[f"{v}-{c}" for v, c in _H24_PROPIOS])
+H24_REAL = pytest.mark.xfail(strict=True, reason="H24: el re-login resetea la conversación a «bot» y le borra el ticket_id aunque el ticket siga abierto")
+
+
+def _derivar_y_reingresar(via, canal, *, journeys=True):
+    return converse(["no tengo internet", "quiero hablar con un agente", agente.reingresa_al_portal(via, canal), "y el ticket anterior?"],
+                    canal=canal, profile="int1", journeys=journeys, reconocer_telefono=True)
+
+
+@H24_REAL
+@H24_RELOGIN
+@pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
+def test_h24_relogin_con_ticket_abierto_conserva_ticket_y_estado(via, canal, journeys):
+    t = _derivar_y_reingresar(via, canal, journeys=journeys)
+    tid = t[1].ticket_id
+    assert tid and t[1].ticket_created, [(x.user, x.reply) for x in t]
+    assert t[2].ticket_id == tid and t[2].estado in ("espera_agente", "con_agente"), (t[2].ticket_id, t[2].estado)
+    assert t[2].conv_id == t[1].conv_id
+    assert tid in t[2].reply and not OFRECE_DERIVAR.search(t[2].reply), t[2].reply
+    assert not inv.violaciones(t, solo=("I11", "I12")), inv.violaciones(t, solo=("I11", "I12"))
+
+
+@H24_REAL
+@H24_RELOGIN
+@pytest.mark.parametrize("cierre", [agente.cierra_el_ticket_desde_el_panel, agente.cierra_la_conversacion_desde_la_bandeja], ids=["cierre_por_ticket", "cierre_por_bandeja"])
+def test_h24_relogin_tras_reapertura_por_telefono_conserva_el_ticket_nuevo(via, canal, cierre):
+    t = converse(["internet", "me pasas con un agente", cierre, "internet", "internet", "ya lo hice", "me pasas con un agente",
+                  agente.reingresa_al_portal(via, canal), "y el ticket anterior?"],
+                 canal=canal, profile="int1", journeys=True, reconocer_telefono=True)
+    viejo, nuevo = t[1].ticket_id, t[5].ticket_id
+    assert viejo and nuevo and viejo != nuevo and t[5].ticket_created, (viejo, nuevo)
+    assert t[6].ticket_id == nuevo and t[6].estado in ("espera_agente", "con_agente") and t[6].conv_id == t[5].conv_id, (t[6].ticket_id, t[6].estado)
+    assert nuevo in t[6].reply and not OFRECE_DERIVAR.search(t[6].reply) and not TRIAJE_TIPO_ACCESO.search(t[6].reply), t[6].reply
+    assert not inv.violaciones(t, solo=("I11", "I12")), inv.violaciones(t, solo=("I11", "I12"))
+
+
+@H24_RELOGIN
+def test_h24_relogin_sin_ticket_abierto_no_cambia(via, canal):
+    """Negativo: sin derivación no hay ticket que conservar; el re-login sigue en modo bot y sin ticket (R1: no abre ninguno)."""
+    t = converse(["no tengo internet", agente.reingresa_al_portal(via, canal), "gracias"], canal=canal, profile="int1", reconocer_telefono=True)
+    assert all(not x.ticket_id and not x.ticket_created and x.estado == "bot" for x in t), [(x.user, x.estado, x.ticket_id) for x in t]

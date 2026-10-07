@@ -24,7 +24,15 @@ import app.services.eko_action_bridge as bridge
 from app.estate import canal_repo as crepo
 from app.estate import repository as repo
 from app.estate.database import get_session_factory
-from app.estate.models import Abonado, ConversacionCanal, NetworkOutage, Organization, Ticket
+from app.estate.models import (
+    Abonado,
+    ConversacionCanal,
+    NetworkOutage,
+    Organization,
+    PortalAbonadoLink,
+    PortalOtpChallenge,
+    Ticket,
+)
 from app.radius.contract import ServicioConectividad
 from app.services import canal_abonado as c
 
@@ -235,7 +243,7 @@ def converse(
     reconocer_telefono: bool = False,
 ) -> list[Turn]:
     """``script``: textos del abonado. Un elemento callable es una *acción externa* entre turnos (p. ej. un agente que
-    cierra el ticket desde el panel): recibe un ``SimpleNamespace(org_id, telefono, conv_id, ticket_id)`` con la conversación
+    cierra el ticket desde el panel): recibe un ``SimpleNamespace(org_id, telefono, dni, conv_id, ticket_id)`` con la conversación
     vigente y no genera ``Turn``. ``reconocer_telefono``: el padrón local reconoce el teléfono (reapertura tras un cierre)."""
     prof = PROFILES[profile]
     uid = uuid.uuid4().int
@@ -331,7 +339,7 @@ def converse(
                 if callable(texto):
                     cur = _vigente()
                     with Session() as db:
-                        texto(SimpleNamespace(org_id=org_id, telefono=tel, conv_id=cur, ticket_id=(db.get(ConversacionCanal, cur).ticket_id or "").strip()))
+                        texto(SimpleNamespace(org_id=org_id, telefono=tel, dni=dni, conv_id=cur, ticket_id=(db.get(ConversacionCanal, cur).ticket_id or "").strip()))
                     continue
                 sent: list[str] = []
                 frames: list[str] = []
@@ -387,6 +395,9 @@ def converse(
             if created.get("outage"):
                 with contextlib.suppress(Exception):
                     repo.resolve_network_outage(db, db.get(NetworkOutage, created["outage"]))
+            for model in (PortalOtpChallenge, PortalAbonadoLink):  # los crean las acciones de re-login (agente.py)
+                for row in db.scalars(select(model).where(model.dni_normalized == dni)).all():
+                    db.delete(row)
             for kind, model in (("abonado", Abonado), ("ticket", Ticket)):
                 row = db.get(model, created[kind]) if created.get(kind) else None
                 if row is not None:
