@@ -272,3 +272,34 @@ con >=1 núcleo («gracias», «listo», «ya funciona»…), o frase inequívoc
 **Reproducción e2e (sí):** con `journeys_off` el legacy cerraba y mandaba la CSAT con «gracias, y la factura?», «listo, ahora decime la deuda», «ya está caído hace rato»,
 «ya está fallando de nuevo», «listo, pero no mejoró», «no, ya funciona mal»; con `journeys_on` el journey contestaba «Me alegra que se haya solucionado» a los de problema vivo
 (sin CSAT). Los tests e2e `test_h17c_*` fallan 18/24 sin el fix. Con ticket derivado abierto (`con_agente`) los tests H13/H15/T7F2 existentes siguen en verde.
+
+
+## H22 — consulta por «el ticket anterior» (Fix 4, cerrado en el harness; prod no reproducido, 2026-10-07)
+
+**Fix (commit 3908df6):** `_responder_consulta_ticket` (`canal_abonado.py`): «y el ticket anterior?», «qué pasó con mi ticket», «cómo va mi ticket» responden ID y estado del
+ticket ACTIVO y mencionan el previo (cerrado o no); sin aviso genérico, sin cooldown (I1), sin ofrecer derivar ni crear ticket (R1). Aplica en `espera_agente` (después de
+`_try_incident_cx_en_espera`, que ya atendía algunas frases con journeys ON) y en un hilo reabierto en `bot` sin ticket propio.
+
+**Prod no reproducido:** el escenario completo (cierre por agente desde el panel → reapertura por teléfono → «internet» → diagnóstico → «me pasas con un agente» →
+«y el ticket anterior?» → «si pero el ticket anteriror?») en el harness deja la conversación nueva en `espera_agente` con el ticket nuevo vinculado; ahí la compuerta sí atrapaba
+la consulta (aviso genérico sin ID y la segunda pregunta vacía por el cooldown). El texto de prod («Con lo que me contaste ya no lo resolvemos a distancia…» + «¿fibra óptica,
+radio/antena o ADSL?») **solo sale con la conversación en `bot` sin ticket propio**. Hipótesis pendiente de dato de prod: el ticket IBOT-1072 no quedó vinculado a la
+conversación en la derivación por pedido explícito. Para confirmarla hace falta la conversación y el `ticket_id` de prod (no se ejecutó nada contra prod).
+
+## H23 — cerrar la conversación desde la bandeja no cierra el ticket vinculado (abierto, decisión de producto)
+
+`POST /inbox/conversations/{id}/close` (`app/api/v1/inbox.py`) cierra el hilo y pide la CSAT, pero solo copia la nota a `resolucion_tecnica`: el ticket N2 queda en su estado
+(«Abierto»). Es el comportamiento actual (comentario en el código: «no fuerza cerrado del ticket aquí»). Efecto visible: tras ese cierre, el abonado que pregunta por
+«el ticket anterior» recibe «sigue abierto». En cambio cerrar el ticket (`PUT /tickets/{id}` estado Cerrado) sí cierra el hilo. Pendiente de decisión de producto; sin cambios.
+
+
+## H21 — «sigue igual» tras «ya lo hice» (Motor 2.5)
+
+**Fix 1 (Paso 2, cerrado):** `interpret_turn`: (a) `CONFIRM_ACTION` solo si lo pendiente (o, sin pendiente, el último acto del bot) es `ASK_ACTION`
+(`_tiene_referente_accion`); (b) la persistencia («sigue igual», «no mejoró», «sigue sin») se evalúa ANTES y gana a la confirmación; (c) `_aplicar_discurso_cs`: con
+`RESTATE_PENDING` sin paso resuelto devuelve None (difiere al legacy) y se eliminó el literal «Te lo aclaro: ¿pudiste hacer lo que te pedí recién?»; (d) I5: un
+`ASK_NEXT_STEP` idéntico al último mensaje del bot difiere al legacy. Causa raíz: `pending.bot` ASK_FACT sin `step_id` (sellado por el legacy) + «ya lo hice» → `CONFIRM_ACTION` →
+`RESTATE_PENDING` sin paso → literal.
+
+**Pendiente (Fix 2, Paso 3):** con LLM caído, «sigue igual» se toma por respuesta al paso de alcance (`_texto_responde_ask_fact`) y el legacy repite el triaje de tipo
+de conexión (I5/I10): quedan 8 + 8 xfails estrictos.

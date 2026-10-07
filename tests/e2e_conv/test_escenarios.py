@@ -952,12 +952,24 @@ H21_CASOS = [(llm, j, p) for llm in ("down", "normal") for j in (True, False) fo
 
 
 @pytest.mark.parametrize(("llm", "journeys", "perfil"), H21_CASOS)
-@xf("H21 Fix 1: «si, ya lo hice, sigue igual» responde el literal «Te lo aclaro: ¿pudiste hacer lo que te pedí recién?» (el Motor devuelve RESTATE_PENDING sin paso)")
 def test_h21_ya_lo_hice_sigue_igual_no_responde_te_lo_aclaro(canal, llm, journeys, perfil):
     t = converse(H21, canal=canal, profile=perfil, journeys=journeys, llm=llm)
-    sin_violaciones(t, i10=True)  # I1, I5, I10, I6, I7…
+    sin_violaciones(t, solo=("I1", "I2", "I3", "I6", "I7"))
     assert not any("Te lo aclaro" in x.reply for x in t), [(x.user, x.reply[:80]) for x in t]
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]  # R1
+
+
+# Con el LLM caído el legacy repite el triaje de tipo de conexión (I5/I10) porque «sigue igual» se toma por respuesta al alcance: Fix 2.
+H21_NO_REPITE = [
+    pytest.param(llm, j, p, marks=[xf("H21 Fix 2: «sigue igual» avanza el paso de alcance y el legacy repite el triaje de tipo de conexión (I5/I10)")] if llm == "down" else [])
+    for (llm, j, p) in H21_CASOS
+]
+
+
+@pytest.mark.parametrize(("llm", "journeys", "perfil"), H21_NO_REPITE)
+def test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas(canal, llm, journeys, perfil):
+    t = converse(H21, canal=canal, profile=perfil, journeys=journeys, llm=llm)
+    sin_violaciones(t, i10=True)
 
 
 @pytest.mark.parametrize("perfil", ["fibra_deuda", "int1"])

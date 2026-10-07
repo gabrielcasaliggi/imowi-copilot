@@ -922,6 +922,16 @@ def _respuesta_discurso(db, org_id, conv, canal: str, ctx: dict, intencion: str,
     }
 
 
+def _igual_al_ultimo_mensaje_del_bot(db: Session, conv: ConversacionCanal, texto: str) -> bool:
+    def _n(x: str) -> str:
+        return re.sub(r"\s+", " ", (x or "").strip().lower())
+
+    for m in reversed(crepo.list_mensajes(db, conv.id)):
+        if (getattr(m, "direccion", "") or "") == "out":
+            return _n(getattr(m, "texto", "")) == _n(texto)
+    return False
+
+
 def _aplicar_discurso_cs(
     db: Session,
     org_id: str,
@@ -987,7 +997,10 @@ def _aplicar_discurso_cs(
         if found and not step_id:
             step_id = str(found[1].id or "")
         if not pregunta:
-            pregunta = "Te lo aclaro: ¿pudiste hacer lo que te pedí recién?"
+            # H21: sin paso resuelto el Motor no inventa una pregunta; difiere al legacy.
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return None
         stamp_bot_question(
             ctx,
             step_id=step_id,
@@ -1003,6 +1016,11 @@ def _aplicar_discurso_cs(
             return None
         _idx, paso = found
         pregunta = paso.pregunta
+        if _igual_al_ultimo_mensaje_del_bot(db, conv, pregunta):
+            # I5: nunca dos veces seguidas el mismo texto; difiere al legacy.
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            return None
         stamp_bot_question(
             ctx, step_id=str(paso.id or ""), pregunta=pregunta, intencion=intencion
         )

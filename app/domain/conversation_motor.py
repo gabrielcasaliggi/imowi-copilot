@@ -240,10 +240,11 @@ def _es_confirm_action(t: str, cs: ConversationState) -> bool:
 
 
 def _tiene_referente_accion(cs: ConversationState) -> bool:
+    """H21: «ya lo hice» confirma solo una ACCIÓN pedida: el pendiente (o, sin pendiente, el último acto del bot) es ASK_ACTION."""
     if cs.pending_bot:
-        return True
+        return cs.pending_bot.act == BOT_ASK_ACTION
     last = cs.last_bot_act
-    return bool(last and last.act in (BOT_ASK_ACTION, BOT_ASK_CONFIRMATION, BOT_ASK_FACT))
+    return bool(last and last.act == BOT_ASK_ACTION)
 
 
 def _es_persistencia(t: str) -> bool:
@@ -364,19 +365,20 @@ def interpret_turn(
     other_kind = bool(domain and cs.active_slot() and domain != cs.active_slot().kind)
 
     if not other_kind:
-        if _es_confirm_action(t, cs) and _tiene_referente_accion(cs):
-            interp.user_act = USER_CONFIRM_ACTION
+        # H21: la persistencia («sigue igual», «no mejoró») gana a la confirmación («ya lo hice, sigue igual»).
+        if _es_persistencia(t) and (
+            (cs.pending_bot and cs.pending_bot.act in (BOT_ASK_ACTION, BOT_ASK_CONFIRMATION))
+            or (cs.last_bot_act and cs.last_bot_act.act in (BOT_ASK_ACTION, BOT_PROVIDE_INSTRUCTION))
+        ):
+            interp.user_act = USER_REPORT_PERSISTENCE
             interp.referenced = _ref_from_pending_bot(cs) or _ref_from_last_bot(cs)
             step = (interp.referenced or {}).get("step_id")
             if step:
                 interp.proposed_covers = [step]
             return interp
 
-        if _es_persistencia(t) and (
-            (cs.pending_bot and cs.pending_bot.act in (BOT_ASK_ACTION, BOT_ASK_CONFIRMATION))
-            or (cs.last_bot_act and cs.last_bot_act.act in (BOT_ASK_ACTION, BOT_PROVIDE_INSTRUCTION))
-        ):
-            interp.user_act = USER_REPORT_PERSISTENCE
+        if _es_confirm_action(t, cs) and _tiene_referente_accion(cs):
+            interp.user_act = USER_CONFIRM_ACTION
             interp.referenced = _ref_from_pending_bot(cs) or _ref_from_last_bot(cs)
             step = (interp.referenced or {}).get("step_id")
             if step:
