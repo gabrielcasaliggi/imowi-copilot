@@ -25,6 +25,8 @@ def init_sentry() -> bool:
         logger.warning("SENTRY_DSN definido pero falta paquete sentry-sdk")
         return False
 
+    from app.log_redaction import redactar_breadcrumb_sentry, redactar_evento_sentry
+
     env = (os.getenv("APP_ENV") or "development").strip().lower()
     traces = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1" if env == "production" else "0"))
     sentry_sdk.init(
@@ -32,6 +34,8 @@ def init_sentry() -> bool:
         environment=env,
         traces_sample_rate=max(0.0, min(traces, 1.0)),
         send_default_pii=False,
+        before_send=redactar_evento_sentry,
+        before_breadcrumb=redactar_breadcrumb_sentry,  # H28: breadcrumbs httpx con URL/query
         integrations=[
             StarletteIntegration(transaction_style="endpoint"),
             FastApiIntegration(transaction_style="endpoint"),

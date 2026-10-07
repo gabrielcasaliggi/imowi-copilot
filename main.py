@@ -40,6 +40,7 @@ from app.estate.seed import (
     seed_lineas_jsc,
 )
 from app.knowledge import cargar_base_conocimiento, estadisticas
+from app.log_redaction import instalar_redaccion_logs
 from app.observability import init_sentry, sentry_activo, sentry_risk_accepted
 from app.routers import auth_router, chat_router, tickets_router
 from app.version import PRODUCT_VERSION_SEMVER
@@ -50,6 +51,7 @@ logging.basicConfig(
     force=True,
 )
 logging.getLogger("operations_hub").setLevel(logging.INFO)
+instalar_redaccion_logs()  # H28: secretos fuera de los logs (antes de cualquier request saliente)
 
 logger = logging.getLogger("operations_hub")
 

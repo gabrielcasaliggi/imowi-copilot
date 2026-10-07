@@ -6,11 +6,11 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 
 | Tanda | Qué corre | Comando | Total esperado | Tiempo medido |
 |---|---|---|---|---|
-| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **632 passed, 8 xfailed** (2466 deseleccionados) | 73–450 s según carga |
+| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **632 passed, 8 xfailed** (2501 deseleccionados) | 73–450 s según carga |
 | 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–115 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -115)` | **1725 passed** | 78 s |
-| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 116 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +116)` | **741 passed, 0 xfailed** | 71 s |
+| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 116 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +116)` | **776 passed, 0 xfailed** | 71 s |
 
-Total del repo: **3098 passed, 8 xfailed** (632 + 1725 + 741). Suite completa en un proceso con base limpia: 3098 passed, 8 xfailed, 757 s. H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 Fix 1 y Fix 2 cerrados; H24 (re-login con ticket abierto) y H25 cerrados; queda el xfail del Fix 3 (tipo de conexión).
+Total del repo: **3133 passed, 8 xfailed** (632 + 1725 + 776). Suite completa en un proceso con base limpia: 3133 passed, 8 xfailed (H28: +35 de `test_log_redaction.py`). H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 Fix 1 y Fix 2 cerrados; H24 (re-login con ticket abierto) y H25 cerrados; queda el xfail del Fix 3 (tipo de conexión).
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,

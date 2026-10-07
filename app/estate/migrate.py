@@ -266,6 +266,9 @@ def restaurar_logging_app() -> None:
         force=True,
     )
     logging.getLogger("operations_hub").setLevel(logging.INFO)
+    from app.log_redaction import instalar_redaccion_logs
+
+    instalar_redaccion_logs()  # H28: el fileConfig de Alembic puede devolver httpx a INFO
 
 
 def sincronizar_alembic(engine: Engine) -> list[str]:

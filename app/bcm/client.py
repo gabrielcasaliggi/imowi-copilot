@@ -25,13 +25,13 @@ from app.bcm.contract import (
     OperacionWifiBcm,
     ResultadoCambioWifi,
 )
+from app.log_redaction import es_clave_sensible, redactar
 
 logger = logging.getLogger("operations_hub")
 
 DEFAULT_BASE_URL = "https://bcm.batan.coop:7117/api/v1"
 # wifi=2 → 2.4 GHz; wifi=5 → 5 GHz (contrato TR BCM).
 WIFI_BANDAS: tuple[BandaWifiBcm, BandaWifiBcm] = ("2", "5")
-_SENSITIVE_QUERY_KEYS = frozenset({"password", "contrasena", "contraseña", "pass", "pwd"})
 _RE_JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 _TOKEN_KEYS = frozenset(
     {
@@ -405,10 +405,10 @@ def describir_auth_fallida(payload: Any, *, status_code: int, content_type: str 
 
 
 def redactar_params_sensibles(params: dict[str, str]) -> dict[str, str]:
-    """Copia de query params sin secretos (para logs)."""
+    """Copia de query params sin secretos (para logs): contraseñas, token, contrasenaapp (H28)."""
     out: dict[str, str] = {}
     for k, v in (params or {}).items():
-        if str(k).lower() in _SENSITIVE_QUERY_KEYS:
+        if es_clave_sensible(k):
             out[str(k)] = "***"
         else:
             out[str(k)] = str(v)
@@ -416,12 +416,12 @@ def redactar_params_sensibles(params: dict[str, str]) -> dict[str, str]:
 
 
 def redactar_url_sensible(url: str) -> str:
-    """Quita password/contraseña del query string de una URL."""
+    """Quita secretos (password, contrasenaapp, token…) del query string de una URL."""
     try:
         parts = urlsplit(url or "")
         q = []
         for k, v in parse_qsl(parts.query, keep_blank_values=True):
-            if k.lower() in _SENSITIVE_QUERY_KEYS:
+            if es_clave_sensible(k):
                 q.append((k, "***"))
             else:
                 q.append((k, v))
@@ -762,7 +762,7 @@ class BcmClient:
                     raise RuntimeError("BCM 401/403: usuario o password de aplicación inválidos")
                 if r.status_code >= 400:
                     last_fail = f"BCM auth HTTP {r.status_code} ({name})"
-                    logger.warning("BCM auth %s HTTP %s: %s", name, r.status_code, (r.text or "")[:180])
+                    logger.warning("BCM auth %s HTTP %s: %s", name, r.status_code, redactar((r.text or "")[:180]))
                     continue
                 payload: Any
                 ctype = r.headers.get("content-type") or ""
@@ -823,7 +823,7 @@ class BcmClient:
             r = self._request_get("/cliente/obtenerPorNumeroCliente", params)
         except Exception as exc:
             logger.exception("BCM obtenerPorNumeroCliente falló")
-            return EstadoOnuBcm(numero_cliente=nro, error=str(exc)[:160])
+            return EstadoOnuBcm(numero_cliente=nro, error=redactar(str(exc))[:160])
         if r.status_code == 404:
             return EstadoOnuBcm(numero_cliente=nro, encontrado=False)
         if r.status_code >= 400:
