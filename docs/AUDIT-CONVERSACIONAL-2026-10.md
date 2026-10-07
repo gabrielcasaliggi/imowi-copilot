@@ -307,8 +307,12 @@ contenido de alcance (`interpreta_alcance_dispositivos`). Dos mecanismos la cubr
 **Lección:** el primer intento usó el prefijo `alcance_*` y rompió `test_loop_corp_n2_legitimo` (`alcance_b2b`: «¿un solo usuario, una sede o todos los sitios?» se responde
 «afecta el servicio en producción»); se acotó a los pasos de dispositivo y se agregó un test para `alcance_b2b`.
 
-**Pendiente (Fix 3, fuera de alcance):** con LLM caído el último paso del playbook genérico `internet` (`confirmar_acceso`, «¿fibra, antena o ADSL?») no se resuelve con la tecnología del
-servicio seleccionado y el legacy lo repite ante respuestas sin contenido (I5/I10): quedan 8 xfails estrictos (`test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`, LLM caído).
+**Fix 3 (Paso 4, cerrado, 2026-10-07):** con LLM caído el último paso del playbook genérico `internet` (`confirmar_acceso`, «¿fibra, antena o ADSL?») no se resolvía con la
+tecnología del servicio seleccionado y el legacy lo repetía ante respuestas sin contenido (I5/I10). Ahora `portal_services.tecnologia_servicio_seleccionado` lee la
+tecnología del `selected_service_ref` en BillTrack (solo lectura; reutiliza la consulta del turno en `Session.info`; None si no hay ref, falla la consulta, no hay match o el
+código es desconocido) y el triaje `internet` sigue por el playbook de esa tecnología sin preguntar el tipo de conexión (`canal_diagnostico_ia._seguir_playbook_tecnologia`;
+`diagnosticar_turno(tecnologia_servicio=…)` también en el fallback sin LLM). Sin ref, usa la `tecnologia_acceso` que dejó la planta. Retira los 8 xfails estrictos de
+`test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`; tests en `tests/test_tecnologia_servicio_seleccionado.py`.
 
 **Detector óptico: «sí» suelto ante una pregunta mixta (cerrado, 2026-10-07; mismo tipo que H17: afirmación suelta leída fuera de contexto).**
 `detectar_falla_optica_escalar` (`diagnostico_n1.py`) tomaba una afirmación suelta como «LOS en rojo» si la pregunta del bot contenía «roj»/«alarma»/«encendid»,

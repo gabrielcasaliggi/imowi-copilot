@@ -959,12 +959,9 @@ def test_h21_ya_lo_hice_sigue_igual_no_responde_te_lo_aclaro(canal, llm, journey
     assert not any(x.ticket_created for x in t), [(x.user, x.ticket_created) for x in t]  # R1
 
 
-# Con el LLM caído el legacy repite el último paso del playbook genérico («confirmar_acceso», tipo de conexión) porque no se resuelve la
-# tecnología del servicio seleccionado (Fix 3, fuera de alcance); Fix 2 ya evita que «sigue igual» avance el alcance.
-H21_NO_REPITE = [
-    pytest.param(llm, j, p, marks=[xf("H21 Fix 3 (fuera de alcance): el último paso del playbook genérico («confirmar_acceso») no se resuelve con el servicio seleccionado y el legacy lo repite (I5/I10)")] if llm == "down" else [])
-    for (llm, j, p) in H21_CASOS
-]
+# Fix 3 (Paso 4): con el LLM caído el último paso del playbook genérico («confirmar_acceso», tipo de conexión) se resuelve con la tecnología
+# del servicio seleccionado (BillTrack) y el legacy sigue con el playbook de esa tecnología; Fix 2 ya evita que «sigue igual» avance el alcance.
+H21_NO_REPITE = H21_CASOS
 
 
 @pytest.mark.parametrize(("llm", "journeys", "perfil"), H21_NO_REPITE)

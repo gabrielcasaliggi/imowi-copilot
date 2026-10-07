@@ -131,6 +131,25 @@ def _pasos_sin_preguntar_ids(ctx: dict, checklist: list, intencion: str, extras_
     return [i for i, _ in pasos_sin_preguntar(checklist, cub, [str(x) for x in (ctx.get("pasos_preguntados") or [])])]
 
 
+_PASOS_TIPO_ACCESO = frozenset({"tipo_acceso", "confirmar_acceso"})
+
+
+def _solo_falta_tipo_acceso(ctx: dict, pb: dict) -> bool:
+    """Del triaje genérico ``internet`` solo queda (o ya no queda nada salvo) el tipo de conexión."""
+    cub = {str(x) for x in (ctx.get("pasos_cubiertos") or [])}
+    return {p.id for p in pb.get("internet") or [] if p.id not in cub} <= _PASOS_TIPO_ACCESO
+
+
+def _seguir_playbook_tecnologia(ctx: dict, pb: dict, tech: str, texto: str) -> str:
+    """Fix 3: con la tecnología conocida, el triaje ``internet`` sigue por el playbook de esa tecnología (sin preguntar
+    el tipo de conexión). Conserva los cubiertos válidos del sub-playbook, como el refinamiento por texto."""
+    from app.services import canal_abonado as c
+
+    ctx["intencion"] = tech
+    c._preservar_cubiertos_subplaybook(ctx, pb.get(tech) or [], texto)
+    return tech
+
+
 def _cubrir_paso_de_ont_hecho(db: Session, conv: ConversacionCanal, ctx: dict, texto: str) -> None:
     """H16: «ya lo hice. …» tras el pedido de la ONT del protocolo de mesa («desenchufala 30 segundos y avisame…», que no
     es un paso estampado del playbook) cubre los pasos de energía/reinicio de la ONT, aunque la frase traiga otra pregunta
@@ -700,6 +719,17 @@ def _aplicar_diagnostico_ia(
         ctx["intencion"] = "wifi"
 
     pb = _playbooks(db)
+    tech_servicio = tech_acceso = ""
+    if (intencion or "").startswith("internet"):
+        from app.services.eko_service_selection import get_selected_ref
+        from app.services.portal_services import tecnologia_servicio_seleccionado
+
+        ref_sel = get_selected_ref(ctx)
+        tech_servicio = tecnologia_servicio_seleccionado(db, abonado, ref_sel) or ""
+        # Sin ref, la tecnología que ya dejó la planta (``tecnologia_acceso``); con ref manda el servicio seleccionado.
+        tech_acceso = tech_servicio or ("" if ref_sel is not None else str(ctx.get("tecnologia_acceso") or ""))
+    if intencion == "internet" and tech_acceso in pb and _solo_falta_tipo_acceso(ctx, pb):
+        intencion = _seguir_playbook_tecnologia(ctx, pb, tech_acceso, texto)
     checklist = pb.get(intencion) or pb.get("general") or []
     historial = crepo.list_mensajes(db, conv.id)
     turnos = int(ctx.get("diag_turnos") or 0)
@@ -758,12 +788,27 @@ def _aplicar_diagnostico_ia(
         ),
         servicio_foco_tipo=extras_ctx.get("servicio_foco_tipo", ""),
         pasos_preguntados=[str(x) for x in (ctx.get("pasos_preguntados") or [])],
+        tecnologia_servicio=tech_servicio,
     )
 
     # RC-13: sin LLM, la respuesta libre a la pregunta pendiente tiene que mover el playbook.
     result = _avanzar_fallback_por_respuesta(
         ctx, checklist, texto, result, cubiertos, ultimo_bot=_ultimo_texto_bot(historial), historial=historial
     )
+    from app.services.diagnostico_n1 import _fallback_ask, _parece_pregunta_tipo_acceso
+
+    if (
+        intencion == "internet"
+        and tech_acceso in pb
+        and (result.get("accion") or "ask") == "ask"
+        and _parece_pregunta_tipo_acceso(result.get("mensaje") or "")
+    ):
+        # Fix 3: el paso que sigue es el tipo de conexión y la tecnología ya se conoce → playbook de esa tecnología.
+        intencion = _seguir_playbook_tecnologia(ctx, pb, tech_acceso, texto)
+        checklist = pb.get(intencion) or []
+        result = _fallback_ask(
+            checklist, [str(x) for x in (ctx.get("pasos_cubiertos") or [])], texto, historial_mensajes=historial
+        )
     cubiertos = [str(x) for x in (ctx.get("pasos_cubiertos") or []) if str(x).strip()]
     accion = result.get("accion") or "ask"
     mensaje = (result.get("mensaje") or "").strip()

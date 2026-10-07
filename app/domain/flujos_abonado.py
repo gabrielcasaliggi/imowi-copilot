@@ -2796,8 +2796,13 @@ def tipo_acceso_confirmado_en_historial(
     intencion: str = "",
     ctx: dict | None = None,
     contexto_abonado: str = "",
+    tech_servicio: str | None = None,
 ) -> str | None:
-    """Playbook de acceso ya definido (historial, ctx o intención específica)."""
+    """Playbook de acceso ya definido (servicio seleccionado, historial, ctx o intención específica).
+
+    ``tech_servicio``: tecnología del ``selected_service_ref`` (``tecnologia_servicio_seleccionado``); manda sobre el resto."""
+    if tech_servicio in ("internet_ftth", "internet_radio", "internet_adsl"):
+        return tech_servicio
     intent = (intencion or "").strip()
     if intent in ("internet_ftth", "internet_radio", "internet_adsl"):
         return intent

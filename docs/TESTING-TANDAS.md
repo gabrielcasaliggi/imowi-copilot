@@ -6,11 +6,11 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 
 | Tanda | Qué corre | Comando | Total esperado | Tiempo medido |
 |---|---|---|---|---|
-| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **632 passed, 8 xfailed** (2501 deseleccionados) | 73–450 s según carga |
-| 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–115 en orden alfabético (hasta `test_helpdesk_features.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -115)` | **1725 passed** | 78 s |
-| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 116 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +116)` | **776 passed, 0 xfailed** | 71 s |
+| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **640 passed, 0 xfailed** (2516 deseleccionados) | 73–450 s según carga |
+| 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–115 en orden alfabético (hasta `test_health_endpoint.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -115)` | **1725 passed** | 78 s |
+| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 116 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +116)` | **791 passed, 0 xfailed** | 71 s |
 
-Total del repo: **3133 passed, 8 xfailed** (632 + 1725 + 776). Suite completa en un proceso con base limpia: 3133 passed, 8 xfailed (H28: +35 de `test_log_redaction.py`). H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 Fix 1 y Fix 2 cerrados; H24 (re-login con ticket abierto) y H25 cerrados; queda el xfail del Fix 3 (tipo de conexión).
+Total del repo: **3156 passed, 0 xfailed** (640 + 1725 + 791). Suite completa en un proceso con base limpia: 3156 passed, 0 xfailed (Paso 4: H21 Fix 3 retira sus 8 xfails, +9 de `test_tecnologia_servicio_seleccionado.py`, +6 de `test_falla_optica_afirmacion.py`). H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 Fix 1, Fix 2 y Fix 3 cerrados; H24 (re-login con ticket abierto) y H25 cerrados; H28 cerrado. Abiertos: H17-B2 y H17-D (afirmación suelta), H20, H23, H26.
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,
@@ -18,8 +18,9 @@ Notas
   (Cursor/Chrome abiertos) cada mitad llegó a tardar 7–8 min (330 s y 226 s en la última corrida sin carga); en la tanda 3, sin carga, la tanda 2 entera tardó 345 s (≈3 min por mitad). Si una mitad
   pasa de 6 min de forma sostenida, mover el corte o partir en tres.
 - **Rebalancear**: al agregar archivos `test_*.py` el corte `head -115` se corre; los archivos nuevos que quedan antes de `test_helpdesk_features.py`
-  desplazan ese archivo a la mitad 2. Volver a medir con `--durations=0` si el desbalance crece.
-- Los invariantes I1–I12 corren en todos los escenarios (`inv.violaciones`); I11/I12 son los de ticket ligado (H24). Hoy hay 8 `xfail` estrictos, todos del Fix 3 de H21 (`test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`, LLM caído). Si se agrega uno, es **estricto** (`xfail(strict=True)`): cuando un arreglo lo hace pasar, el test falla con XPASS y hay que
+  desplazan ese archivo a la mitad 2. Volver a medir con `--durations=0` si el desbalance crece. **Ya pasó** con `test_falla_optica_afirmacion.py` (Paso 4):
+  `test_helpdesk_features.py` (el más lento) corre hoy en la mitad 2; si la mitad 2 pasa de 6 min, devolverlo a la mitad 1 con `head -116` / `tail -n +117`.
+- Los invariantes I1–I12 corren en todos los escenarios (`inv.violaciones`); I11/I12 son los de ticket ligado (H24). Hoy no hay `xfail` (el Fix 3 de H21 retiró los 8 de `test_h21_ya_lo_hice_sigue_igual_no_repite_respuestas`). Si se agrega uno, es **estricto** (`xfail(strict=True)`): cuando un arreglo lo hace pasar, el test falla con XPASS y hay que
   retirar el marcador. Para ver que cada uno reproduce su bug: `pytest -m e2e_conv --runxfail` (deben fallar exactamente los marcados).
 - Las tandas usan la misma base SQLite de tests (`data/test_estate.db`): **no correrlas en paralelo**.
 - **Antes de subir**, correr la suite completa como el CI: un solo proceso, con la base de tests **limpia** (mover `data/test_estate.db`) y `ruff check .`. Una base local vieja puede esconder fallos que el CI sí ve (pasó con los tests de RC-4: el playbook de la base tenía otros pasos).

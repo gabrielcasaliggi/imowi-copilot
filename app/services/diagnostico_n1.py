@@ -2559,11 +2559,14 @@ def diagnosticar_turno(
     contexto_abonado: str = "",
     servicio_foco_tipo: str = "",
     pasos_preguntados: list[str] | None = None,
+    tecnologia_servicio: str = "",
 ) -> dict[str, str]:
     """Pide a la IA el próximo acto de diagnóstico. Fallback = siguiente paso del playbook.
 
     ``servicio_foco_tipo``: tipo del ``selected_service_ref`` (CTX-1). Con un servicio móvil/Sensa/TV en foco no rigen
-    las heurísticas de Wi-Fi ni la planta de Internet fijo (H12)."""
+    las heurísticas de Wi-Fi ni la planta de Internet fijo (H12).
+    ``tecnologia_servicio``: playbook de acceso del ``selected_service_ref`` (BillTrack); con él no se pregunta el tipo
+    de conexión."""
     if forzar_agente:
         return {
             "accion": "escalate",
@@ -3254,6 +3257,7 @@ def diagnosticar_turno(
             historial_mensajes,
             intencion=intencion,
             contexto_abonado=contexto_abonado,
+            tech_servicio=tecnologia_servicio,
         ) or _tech_desde_contexto_abonado(contexto_abonado)
         mid_luces_ont = _historial_pide_luces_ont(historial_mensajes)
         if mid_luces_ont and not tech_confirmada:
@@ -3776,4 +3780,8 @@ def diagnosticar_turno(
         }
     except Exception:
         logger.warning("diagnostico_n1 IA falló; fallback playbook", exc_info=True)
-        return _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+        fb = _fallback_ask(checklist, pasos_cubiertos, mensaje_cliente)
+        if tecnologia_servicio and fb.get("accion") == "ask" and _parece_pregunta_tipo_acceso(fb.get("mensaje") or ""):
+            # Fix 3: la tecnología del servicio seleccionado ya se conoce; no preguntar el tipo de conexión.
+            fb = _fallback_ask(checklist, [*pasos_cubiertos, "tipo_acceso", "confirmar_acceso"], mensaje_cliente)
+        return fb

@@ -346,6 +346,7 @@ def catalog_for_selection(
     """
     checked_at = _now_iso()
     raw, reason = _load_raw_services(db, abonado)
+    _guardar_raw_turno(db, abonado, (raw, reason))
     if reason:
         return {
             "status": "unavailable",
@@ -359,3 +360,50 @@ def catalog_for_selection(
         "services": _assemble_catalog(raw, keep_login=True),
         "reason_code": None,
     }
+
+
+# Registros crudos de BillTrack del turno, en ``Session.info`` (la sesión vive lo que el turno): la tecnología del
+# servicio seleccionado reutiliza la consulta de ``catalog_for_selection`` y no consulta BillTrack de nuevo en el turno.
+_RAW_TURNO_KEY = "eko_billtrack_servicios_cuenta"
+
+
+def _cache_raw_turno(db: Session | None) -> dict | None:
+    info = getattr(db, "info", None)
+    return info.setdefault(_RAW_TURNO_KEY, {}) if isinstance(info, dict) else None
+
+
+def _guardar_raw_turno(db: Session | None, abonado: Abonado, valor: tuple[list[Any] | None, str | None]) -> None:
+    cache = _cache_raw_turno(db)
+    dni = str(getattr(abonado, "dni", "") or "").strip()
+    if cache is not None and dni:
+        cache[dni] = valor
+
+
+def tecnologia_servicio_seleccionado(db: Session | None, abonado: Abonado | None, ref: Any) -> str | None:
+    """Playbook de acceso (``internet_ftth``/``internet_radio``/``internet_adsl``) del ``selected_service_ref``.
+
+    ref → registro crudo de BillTrack (match por id; si no, por login) → ``service_type_code``. Solo lectura. None si no
+    hay ref de Internet, la consulta falla, no hay match o el código es desconocido (no se infiere tecnología).
+    """
+    if ref is None or abonado is None or (ref.service_type or "internet") != "internet":
+        return None
+    sid, login = (ref.service_id or "").strip(), (ref.login or "").strip().lower()
+    if not sid and not login:
+        return None
+    cache = _cache_raw_turno(db)
+    dni = str(getattr(abonado, "dni", "") or "").strip()
+    if cache is not None and dni in cache:
+        raw, reason = cache[dni]
+    else:
+        raw, reason = _load_raw_services(db, abonado)
+        _guardar_raw_turno(db, abonado, (raw, reason))
+    if reason:
+        return None
+    svc = next((s for s in raw or [] if sid and str(getattr(s, "id", "") or "").strip() == sid), None)
+    if svc is None and login:
+        svc = next((s for s in raw or [] if str(getattr(s, "login", "") or "").strip().lower() == login), None)
+    if svc is None:
+        return None
+    from app.domain.flujos_abonado import playbook_internet_desde_tipo_servicio
+
+    return playbook_internet_desde_tipo_servicio(str(getattr(svc, "service_type_code", "") or ""))
