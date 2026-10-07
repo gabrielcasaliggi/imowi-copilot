@@ -351,3 +351,36 @@ Ahora la regla fibra/FTTH/ONT va antes, «internet» ya no gatilla APN y «ont»
 Cuando existe un ticket N2 creado por Eko sin conversación de canal ligada (por H24 u otra causa), no hay alerta ni vista: la consola solo muestra «Sin conversación de canal» en el
 ticket y el abonado queda esperando sin que nadie lo sepa. Mitigación disponible hoy, solo lectura: `scripts/reporte_tickets_huerfanos.py` (ver `docs/REPORTE-TICKETS-HUERFANOS.md`).
 Pendiente de decisión de producto: detector + aviso al operador (p. ej. cola/etiqueta en la consola o alerta de SLA) y re-ligado manual de la conversación.
+
+## H27a — el journey de conectividad cortaba sin consultar la planta y repetía «Ya revisé» (cerrado, 2026-10-07)
+
+**Prod (portal):** «internet» (la ruta legacy informa la planta y deja `pppoe_informado`) → «no tengo internet»: el journey `internet_sin_conectividad`, sin Runtime de
+`run_diagnostic_pppoe`, caía en `_legacy_pppoe_as_result` → `canal_pppoe._talvez_mensaje_pppoe`, que corta con `pppoe_informado` → «No pude obtener el estado de conexión»
+(`legacy_no_message`) **sin haber consultado**. Después la compuerta idempotente respondía «Ya revisé tu conexión en este chat…» a todo («no tengo internet», «internet», «sigue igual»),
+aunque la revisión no había salido (`unavailable`), contaba `double_execution` y el «si» chocaba con «No tengo una acción pendiente de confirmar».
+
+**Fix (`eko_journeys.py`, `eko_journey_observability.py`, `canal_abonado.py`; sin campos nuevos en ctx ni flags):**
+- `_legacy_pppoe_as_result` reutiliza el resultado que dejó el primer sondeo (sin re-sondear ni repetir su mensaje); «volvé a chequear» limpia `pppoe_informado` y consulta de verdad.
+- Sin estado de planta (`unavailable`/`failed`): el aviso «No pude ver el estado de tu conexión desde acá, sigamos con unos chequeos:» se dice **una vez** y el turno lo atiende el
+  playbook legacy de la tecnología (`JourneyTurn` no atendido con `playbook_continue`; `canal_abonado` manda el aviso y conserva la intención previa). Un nuevo fallo tras «volvé a
+  chequear» avisa distinto. El journey queda en el paso `playbook` y le deja los turnos siguientes al playbook (I9: la oferta de agente llega al agotarlo, con «?», y el ticket
+  sale solo con el «sí»), salvo pedido de agente o «volvé a chequear».
+- «Ya revisé…» nunca tras un diagnóstico `unavailable`/`failed` y una sola vez por conversación (historial); «sigue igual» o un turno más siguen con el playbook. La compuerta es
+  «el último estado no es un fallo» y no «== success» porque `test_27d_session_up_thanks_does_not_replay_diag` (2.7D, congelado) arma un journey con `pppoe_session_up` sin
+  `last_action_status` y espera el acuse sin re-diagnóstico. Un mensaje de diagnóstico que ya se dijo se reformula («Volví a consultar: …»). `double_execution`: misma condición
+  (`skipped_status` en el turno).
+- El turno cedido lleva el aviso como `user_message` y el `action_status` real del diagnóstico (`test_c14_runtime_failed_safe_transition`, Fase 6, espera `failed` y un mensaje).
+- «sí»/«si» con un diagnóstico en curso responde al paso/oferta vigente (sigue el playbook); «No tengo una acción pendiente…» queda para cuando no hubo diagnóstico.
+
+**Sensores:** `tests/e2e_conv/test_h27a_planta.py` (secuencia de prod × web/app × journeys on/off × planta válida/vacía/excepción/sin Radius; consulta real ante «volvé a chequear»;
+playbook agotado con planta caída → oferta con «?» y ticket con el «sí») y `tests/test_eko_h27a_planta_journey.py`. Harness: `planta=`, `consultas_planta`, `tecnologia_en_cuenta`.
+Los 16 xfails estrictos entraron primero (`981cbb9`) y fallan sin el fix.
+
+**Quedan marcados (xfail estricto, no son de H27a):**
+- **H27k** — sesión PPPoE desconocida (`None`: planta vacía, Radius sin configurar) se informa como caída y se ofrece derivar de entrada (`_interpret_pppoe`, `bool(None)`).
+- **H27-L1** — tras el ticket, `espera_agente` deja sin respuesta «volvé a chequear», «ya lo hice», «no» (I1). Se ve en los casos de H27k.
+- **H27-L2** — el legacy repregunta el paso de alcance («¿Te pasa en todos los dispositivos o solo en uno?») dos turnos después del «No te entendí…» (I10). También re-ofrece la
+  visita técnica dentro de la ventana de I10 tras un «no».
+- **H27-L3** — sin journeys y sin tecnología (Radius en excepción, sin `selected_service_ref`), el legacy repite el tipo de acceso indefinidamente (I5/I10).
+- **H27-L4** — sin journeys y con sesión válida, el legacy ofrece la visita técnica de entrada (todos los pasos quedan cubiertos por la rama `wifi_lan`) y, tras el «no», cierra la
+  conversación y la siguiente vuelve a pedir identificación (I2) y queda sin respuesta (I1).

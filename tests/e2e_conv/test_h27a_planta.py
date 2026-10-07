@@ -26,7 +26,6 @@ SIN_ACCION = "No tengo una acción pendiente de confirmar"
 AVISO_PLANTA = "No pude ver el estado de tu conexión desde acá, sigamos con unos chequeos:"
 OFERTA = re.compile(r"(querés que te derive|querés que abra (un|el) ticket|¿abro el ticket|derive el caso)", re.I)
 
-H27A = "H27a: el journey corta en canal_pppoe sin consultar («No pude obtener el estado de conexión»), dice «Ya revisé…» sin revisión exitosa y el «si» choca con «No tengo una acción pendiente»"
 H27K = "H27k: sesión PPPoE desconocida (None) se informa como caída y se ofrece derivar de entrada"
 L_ESPERA = "H27-L1 (fuera de H27a): tras el ticket, espera_agente deja sin respuesta «volvé a chequear» / «ya lo hice» (I1)"
 L_ALCANCE = "H27-L2 (fuera de H27a): el legacy repregunta el paso de alcance («¿Te pasa en todos los dispositivos…?») dentro de la ventana de I10"
@@ -61,8 +60,6 @@ def tres_identicos(turns) -> list[str]:
 
 # ------------------------------------------------ lo que es del journey (H27a)
 @pytest.mark.parametrize(("canal", "journeys", "planta"), _casos({
-    (True, "valida"): H27A,
-    (True, "excepcion"): H27A,
     (True, "vacia"): H27K,
     (True, "sin_radius"): H27K,
     (False, "valida"): L_OFF_VALIDA,
@@ -82,7 +79,6 @@ def test_h27a_sin_cortes_falsos_ni_ya_revise_sin_revision(canal, journeys, plant
     assert not v, "\n".join(v) + "\n" + _dump(t)
 
 
-@pytest.mark.xfail(strict=True, reason=H27A)
 @pytest.mark.parametrize(("canal", "planta"), [(c, p) for c in ("web", "app") for p in ("valida", "excepcion")])
 def test_h27a_volve_a_chequear_consulta_de_verdad(canal, planta):
     consultas: list[str] = []
@@ -96,7 +92,6 @@ def test_h27a_volve_a_chequear_consulta_de_verdad(canal, planta):
     assert t[-1].reply and t[-1].reply.strip() != t[1].reply.strip(), _dump(t)
 
 
-@pytest.mark.xfail(strict=True, reason=H27A)
 @pytest.mark.parametrize("canal", ["web", "app"])
 def test_h27a_planta_caida_aviso_una_vez_y_sigue_el_playbook(canal):
     t = _prod(canal, True, "excepcion")
@@ -107,7 +102,6 @@ def test_h27a_planta_caida_aviso_una_vez_y_sigue_el_playbook(canal):
 # ------------------------------------------------ invariantes completos (incluye I10)
 @pytest.mark.parametrize(("canal", "journeys", "planta"), _casos({
     (True, "valida"): L_ALCANCE,
-    (True, "excepcion"): H27A,
     (True, "vacia"): H27K,
     (True, "sin_radius"): H27K,
     (False, "valida"): L_OFF_VALIDA,

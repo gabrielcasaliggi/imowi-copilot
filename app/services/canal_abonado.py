@@ -5916,6 +5916,16 @@ def procesar_mensaje_entrante(
                 ctx["intencion"] = intencion_previa
             journey_release(ctx, "post_resolution_hold")
             jturn = None
+        if jturn is not None and not jturn.handled and (jturn.data or {}).get("playbook_continue"):
+            # H27a: el journey sigue vivo pero el paso lo da el playbook legacy de la tecnología; el aviso de planta va antes.
+            if str(intencion_previa or "").startswith("internet"):
+                ctx["intencion"] = intencion_previa
+            crepo.set_contexto(conv, ctx)
+            db.commit()
+            aviso = (jturn.user_message or "").strip()
+            if aviso:
+                _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=_enviar_externo(canal))
+            jturn = None
         if jturn is not None and jturn.handled:
             resp = jturn.user_message or ""
             if resp and jturn.journey == "internet_sin_conectividad":

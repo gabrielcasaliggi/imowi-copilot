@@ -6,15 +6,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import app.config as app_config
 import app.services.eko_action_bridge as bridge
 from app.services.eko_action_runtime import ActionResult
 from app.services.eko_journey_observability import reset_journey_metrics, snapshot_journey_metrics
 from app.services.eko_journeys import maybe_handle_journey_turn
 
-H27A = pytest.mark.xfail(strict=True, reason="H27a: unavailable/failed cuentan como «ya revisado» y doble ejecución; el «sí» con diagnóstico en curso choca con «No tengo una acción pendiente»")
 AVISO = "No pude ver el estado de tu conexión desde acá, sigamos con unos chequeos:"
 
 
@@ -51,7 +48,6 @@ def _turnos(monkeypatch, status: str, textos: list[str]):
     return out, ctx
 
 
-@H27A
 def test_planta_unavailable_avisa_una_vez_y_cede_al_playbook(monkeypatch):
     (t1, t2), ctx = _turnos(monkeypatch, "unavailable", ["No tengo internet", "No tengo internet"])
     assert not t1.handled and t1.data.get("playbook_continue") and t1.data["aviso_previo"] == AVISO
@@ -59,19 +55,16 @@ def test_planta_unavailable_avisa_una_vez_y_cede_al_playbook(monkeypatch):
     assert "Ya revisé" not in (t2.user_message or "")
 
 
-@H27A
 def test_unavailable_no_cuenta_como_doble_ejecucion(monkeypatch):
     _turnos(monkeypatch, "unavailable", ["No tengo internet", "No tengo internet", "sigue igual"])
     assert snapshot_journey_metrics()["counters"]["double_execution_detected_total"] == 0
 
 
-@H27A
 def test_failed_no_cuenta_como_doble_ejecucion(monkeypatch):
     _turnos(monkeypatch, "failed", ["No tengo internet", "No tengo internet"])
     assert snapshot_journey_metrics()["counters"]["double_execution_detected_total"] == 0
 
 
-@H27A
 def test_si_con_diagnostico_en_curso_sigue_el_playbook(monkeypatch):
     _setup(monkeypatch)
     ctx = {

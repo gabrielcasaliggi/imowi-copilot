@@ -343,7 +343,8 @@ def observe_journey_turn(
             correlation_id=corr,
             channel=canal,
         )
-    if data.get("idempotent_skip"):
+    if data.get("idempotent_skip") and "skipped_status" in data and data["skipped_status"] not in ("unavailable", "failed"):
+        # H27a: un diagnóstico unavailable/failed salteado no es «ya hecho» ni doble ejecución (misma compuerta que el journey).
         record_security_signal(
             "double_execution",
             journey=journey,

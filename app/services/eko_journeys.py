@@ -1102,6 +1102,59 @@ def _offer_is_previous_turn(db: Any, conv: Any, ctx: dict[str, Any]) -> bool:
     return now == int(offered) + 1
 
 
+_FALLAS_PLANTA = ("unavailable", "failed")
+MSG_PLANTA_SIN_DATOS = "No pude ver el estado de tu conexión desde acá, sigamos con unos chequeos:"
+MSG_RECONSULTA_SIN_DATOS = "Volví a consultar y sigo sin poder ver el estado de tu conexión. Sigamos con los chequeos:"
+MSG_YA_REVISE = "Ya revisé tu conexión en este chat. Si cambió algo o querés que vuelva a chequear, decime."
+# Paso del journey mientras el playbook legacy de la tecnología lleva el diagnóstico (H27a).
+STEP_PLAYBOOK = "playbook"
+
+
+def _ceder_al_playbook(
+    ctx: dict[str, Any],
+    *,
+    corr: str,
+    aviso: str = "",
+    reason_code: str | None = "playbook_continue",
+    action_status: str = "",
+) -> JourneyTurn:
+    """H27a: el turno lo atiende el legacy N1 con el próximo paso del playbook (no handled). El journey queda vivo en
+    ``STEP_PLAYBOOK`` para el pedido de agente, «volvé a chequear» o el cierre. ``aviso`` (``user_message``): texto que
+    el canal envía antes del paso."""
+    set_journey(ctx, step=STEP_PLAYBOOK, pending_confirmation=False, next_required_input="")
+    return JourneyTurn(
+        handled=False,
+        user_message=aviso,
+        journey="internet_sin_conectividad",
+        step=STEP_PLAYBOOK,
+        intent="internet",
+        domain="internet",
+        action="run_diagnostic_pppoe",
+        action_status=action_status,
+        reason_code=reason_code or "playbook_continue",
+        correlation_id=corr,
+        data={"playbook_continue": True, "aviso_previo": aviso, "execution_path": "legacy_playbook"},
+    )
+
+
+def _bot_ya_dijo(db: Any, conv: Any, texto: str) -> bool:
+    """El bot ya envió exactamente ``texto`` en esta conversación (historial persistido; sin estado nuevo en ctx)."""
+    if db is None or conv is None or not texto:
+        return False
+    try:
+        from app.estate import canal_repo as crepo
+
+        return any(m.autor == "bot" and (m.texto or "").strip() == texto.strip() for m in crepo.list_mensajes(db, conv.id))
+    except Exception:
+        logger.debug("journey: no se pudo leer el historial", exc_info=True)
+        return False
+
+
+def _diagnostico_en_curso(st: dict[str, Any]) -> bool:
+    """Hubo un diagnóstico de planta en este journey y la interacción no terminó."""
+    return st.get("last_action") == "run_diagnostic_pppoe" and str(st.get("step") or "") != "done"
+
+
 def _mark_confirmation_pending(ctx: dict[str, Any], *, corr: str) -> None:
     set_journey(
         ctx,
@@ -1555,6 +1608,16 @@ def _advance_connectivity(
             corr=corr,
         )
 
+    # H27a: el playbook legacy lleva el diagnóstico → sigue él (sí/no/«sigue igual» responden a su paso), salvo pedido de
+    # agente o «volvé a chequear», que atiende el journey más abajo.
+    if (
+        st.get("step") == STEP_PLAYBOOK
+        and not login
+        and not _wants_rediagnose(texto)
+        and not _explicit_agent_request(texto)
+    ):
+        return _ceder_al_playbook(ctx, corr=corr)
+
     # Ambiguous "sí"/"no" without live confirmation → no mutation
     t_low = (texto or "").strip().lower()
     if t_low in ("si", "sí", "no") and not _confirmation_is_live(ctx):
@@ -1574,6 +1637,9 @@ def _advance_connectivity(
                 data={"stale_confirmation_guard": True},
             )
         # Sí/No suelto tras journey sin confirmación viva
+        if t_low in ("si", "sí") and _diagnostico_en_curso(st):
+            # H27a: el «sí» responde al paso/oferta vigente del diagnóstico (p. ej. «¿Querés que te guíe con unos chequeos…?»).
+            return _ceder_al_playbook(ctx, corr=corr)
         if t_low in ("si", "sí"):
             return JourneyTurn(
                 handled=True,
@@ -1760,6 +1826,7 @@ def _advance_connectivity(
     if (
         ctx.get("pppoe_informado")
         and st.get("last_diagnostic_result")
+        and st.get("last_action_status") not in _FALLAS_PLANTA  # H27a: unavailable/failed no cuentan como revisión hecha
         and detected_here in (None, "internet_sin_conectividad")
         and not login
         and not _wants_connectivity_reentry(texto)
@@ -1801,15 +1868,18 @@ def _advance_connectivity(
                 correlation_id=corr,
                 data={
                     "idempotent_skip": True,
+                    "skipped_status": str(st.get("last_action_status") or ""),
                     "resolved_ack": True,
                     "continuity_pending": offer,
                 },
             )
+        from app.domain.conversation_motor import _es_persistencia, _norm
+
+        if _es_persistencia(_norm(texto)) or _bot_ya_dijo(db, conv, MSG_YA_REVISE):
+            # H27a: «Ya revisé…» una sola vez; «sigue igual» o un turno más siguen con el playbook (I5, I9, I10).
+            return _ceder_al_playbook(ctx, corr=corr)
         # No reenviar el párrafo de diagnóstico: mensaje neutro de "ya revisado"
-        msg = (
-            "Ya revisé tu conexión en este chat. "
-            "Si cambió algo o querés que vuelva a chequear, decime."
-        )
+        msg = MSG_YA_REVISE
         set_journey(ctx, step="respond", pending_confirmation=False, last_user_message=msg)
         return JourneyTurn(
             handled=True,
@@ -1821,7 +1891,7 @@ def _advance_connectivity(
             action=str(st.get("last_action") or ""),
             action_status="already_done",
             correlation_id=corr,
-            data={"idempotent_skip": True},
+            data={"idempotent_skip": True, "skipped_status": str(st.get("last_action_status") or "")},
         )
 
     # Avoid re-asking selection if already asked and still no login (loop gate)
@@ -1972,6 +2042,7 @@ def _advance_connectivity(
             data={"unexpected_probe_blocked": True},
         )
 
+    fallo_previo = st.get("last_action") == "run_diagnostic_pppoe" and st.get("last_action_status") in _FALLAS_PLANTA
     set_journey(ctx, step="diagnostic", diagnostic_started=True)
     ar = dispatch_runtime(
         "run_diagnostic_pppoe",
@@ -1986,12 +2057,30 @@ def _advance_connectivity(
     )
     if ar is None:
         # Contractual Legacy: canal_pppoe path (single execution when journey yields)
-        ar = _legacy_pppoe_as_result(db, abonado, ctx, org_id=org_id)
+        ar = _legacy_pppoe_as_result(db, abonado, ctx, org_id=org_id, reconsultar=_wants_rediagnose(texto))
         path = "legacy"
     else:
         path = "runtime"
 
     _record_action(ctx, get_journey(ctx), ar, action="run_diagnostic_pppoe")
+
+    if ar.status in _FALLAS_PLANTA:
+        # H27a: sin estado de planta el turno sigue con el playbook de la tecnología (I9). El aviso se dice una sola vez;
+        # un nuevo fallo tras «volvé a chequear» lo dice distinto (I5).
+        aviso = (
+            MSG_RECONSULTA_SIN_DATOS
+            if fallo_previo or _bot_ya_dijo(db, conv, MSG_PLANTA_SIN_DATOS)
+            else MSG_PLANTA_SIN_DATOS
+        )
+        set_journey(
+            ctx,
+            last_diagnostic_result="pppoe_unavailable" if ar.status == "unavailable" else "pppoe_failed",
+            last_user_message=aviso,
+        )
+        ctx["pppoe_informado"] = True
+        return _ceder_al_playbook(
+            ctx, corr=ar.correlation_id or corr, aviso=aviso, reason_code=ar.reason_code, action_status=ar.status
+        )
 
     if ar.status == "needs_input":
         set_journey(ctx, step="service_selection", next_required_input="login", asked_selection=True)
@@ -2009,6 +2098,9 @@ def _advance_connectivity(
         )
 
     obs, msg = _interpret_pppoe(ar)
+    if msg and _bot_ya_dijo(db, conv, msg):
+        # H27a: una nueva consulta con el mismo resultado no repite el mensaje textual (I5, I10).
+        msg = "Volví a consultar: " + msg[:1].lower() + msg[1:]
     set_journey(
         ctx,
         step="interpret",
@@ -2475,15 +2567,20 @@ def _legacy_pppoe_as_result(
     ctx: dict,
     *,
     org_id: str = "",
+    reconsultar: bool = False,
 ) -> ActionResult:
-    """Fallback contractual único (XOR): Legacy canal_pppoe, no Runtime+Legacy."""
+    """Fallback contractual único (XOR): Legacy canal_pppoe, no Runtime+Legacy.
+
+    H27a: si la ruta legacy ya informó la planta en este hilo (``pppoe_informado``), reutiliza el resultado que dejó en ctx
+    (sin re-sondear ni repetir su mensaje); ``reconsultar`` («volvé a chequear») limpia el flag y consulta de verdad."""
     try:
         from app.services.canal_pppoe import _talvez_mensaje_pppoe
 
-        msg = _talvez_mensaje_pppoe(
-            db, abonado, ctx, "internet", org_id=org_id
-        )
-        if not msg:
+        if reconsultar:
+            ctx.pop("pppoe_informado", None)
+        reutilizado = bool(ctx.get("pppoe_informado"))
+        msg = "" if reutilizado else _talvez_mensaje_pppoe(db, abonado, ctx, "internet", org_id=org_id)
+        if not msg and not reutilizado:
             return ActionResult(
                 action="run_diagnostic_pppoe",
                 status="unavailable",
@@ -2502,7 +2599,7 @@ def _legacy_pppoe_as_result(
             action="run_diagnostic_pppoe",
             status="success",
             user_message=msg,
-            data={"_estado": estado, "legacy_msg": True},
+            data={"_estado": estado, "legacy_msg": True, "reutilizado": reutilizado},
             execution_path="legacy",
         )
     except Exception:
