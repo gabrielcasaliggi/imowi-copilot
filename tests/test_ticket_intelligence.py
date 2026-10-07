@@ -59,3 +59,29 @@ def test_ticket_cerrado_score_cero():
     intel = calcular_prioridad(t)
     assert intel["priority_score"] == 0
     assert intel["risk_level"] == "cerrado"
+
+
+def test_causa_probable_internet_ftth_es_fibra_no_apn():
+    """H25: «internet» no gatilla la regla APN; el ticket de Internet FTTH da la causa de fibra."""
+    t = _ticket(categoria="Fibra", descripcion_falla="Sin internet, la ONT tiene la luz LOS roja (FTTH)")
+    assert inferir_causa_probable(t) == "Acceso fijo / fibra FTTH"
+
+
+def test_causa_probable_fibra_va_antes_que_apn_aun_con_datos():
+    t = _ticket(categoria="General", descripcion_falla="Sin datos ni internet en la fibra del cliente")
+    assert inferir_causa_probable(t) == "Acceso fijo / fibra FTTH"
+
+
+def test_causa_probable_internet_sin_pista_de_fibra_no_es_apn():
+    t = _ticket(categoria="General", descripcion_falla="Sin internet desde ayer")
+    assert "APN" not in inferir_causa_probable(t)
+
+
+def test_causa_probable_movil_con_apn_sigue_siendo_apn():
+    t = _ticket(categoria="APN", descripcion_falla="Sin navegación, revisar APN y datos móviles")
+    assert inferir_causa_probable(t) == "Configuración APN / datos móviles"
+
+
+def test_causa_probable_ont_no_matchea_dentro_de_otras_palabras():
+    t = _ticket(categoria="APN", descripcion_falla="El cliente no tiene contraseña del APN, datos móviles caídos")
+    assert inferir_causa_probable(t) == "Configuración APN / datos móviles"

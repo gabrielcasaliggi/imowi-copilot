@@ -11,8 +11,9 @@ from app.estate.sla_engine import compute_sla
 _CAUSA_REGLAS: list[tuple[tuple[str, ...], str]] = [
     (("roaming", "internacional", "brasil", "uruguay"), "Roaming / registro en red visitada"),
     (("esim", "e-sim", "qr", "eid"), "Activación o perfil eSIM"),
-    (("apn", "datos", "internet", "sin navegación", "4g", "lte"), "Configuración APN / datos móviles"),
+    # H25: fibra va antes que APN y «internet» no gatilla APN (un ticket de Internet FTTH no es un problema de datos móviles).
     (("fibra", "ftth", "ont", "olt", "potencia"), "Acceso fijo / fibra FTTH"),
+    (("apn", "datos", "sin navegación", "4g", "lte"), "Configuración APN / datos móviles"),
     (("señal", "cobertura", "celda", "sin servicio"), "Cobertura / calidad de señal"),
     (("factura", "deuda", "suspend", "saldo", "corte"), "Estado de cuenta / facturación"),
     (("sim", "chip", "iccid"), "SIM física / identificación de línea"),
@@ -59,10 +60,17 @@ def _recurrence_count(t: Ticket, pool: list[Ticket]) -> int:
     return count
 
 
+_SIGLAS = ("ont", "olt")  # como substring caen en «contraseña», «control», «volt…»: se buscan como palabra
+
+
+def _menciona(blob: str, k: str) -> bool:
+    return bool(re.search(rf"\b{k}\b", blob)) if k in _SIGLAS else k in blob
+
+
 def inferir_causa_probable(t: Ticket) -> str:
     blob = f"{t.categoria or ''} {t.descripcion_falla or ''} {t.intent_ejecutado or ''}".lower()
     for keywords, causa in _CAUSA_REGLAS:
-        if any(k in blob for k in keywords):
+        if any(_menciona(blob, k) for k in keywords):
             return causa
     cat = t.categoria or "General"
     if cat in _CATEGORIAS_CRITICAS:
