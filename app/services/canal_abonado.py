@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from contextvars import ContextVar
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5159,6 +5160,19 @@ def _dispatch_outbound(
     return {"ok": True, "simulated": True}
 
 
+# H27k: aviso de planta sin datos que va delante del mensaje técnico del paso (mismo mensaje, no burbuja aparte).
+_AVISO_TECNICO: ContextVar[str] = ContextVar("eko_aviso_tecnico", default="")
+
+
+def _con_aviso_tecnico(texto: str) -> str:
+    """Antepone (una vez por turno) el aviso de planta sin datos que dejó el journey al ceder el turno al playbook."""
+    aviso = _AVISO_TECNICO.get()
+    if not aviso or not (texto or "").strip():
+        return texto
+    _AVISO_TECNICO.set("")
+    return f"{aviso} {texto.strip()}"
+
+
 def _enviar_respuesta(
     db: Session,
     org_id: str,
@@ -5664,7 +5678,16 @@ def _journey_hold_sin_texto(jturn: object) -> bool:
     )
 
 
-def procesar_mensaje_entrante(
+def procesar_mensaje_entrante(db: Session, org_id: str, **kw) -> dict:
+    """Procesa un mensaje del cliente (ver ``_procesar_mensaje_entrante``). El aviso integrado de H27k no sobrevive al turno."""
+    token = _AVISO_TECNICO.set("")
+    try:
+        return _procesar_mensaje_entrante(db, org_id, **kw)
+    finally:
+        _AVISO_TECNICO.reset(token)
+
+
+def _procesar_mensaje_entrante(
     db: Session,
     org_id: str,
     *,
@@ -5923,7 +5946,9 @@ def procesar_mensaje_entrante(
             crepo.set_contexto(conv, ctx)
             db.commit()
             aviso = (jturn.user_message or "").strip()
-            if aviso:
+            if aviso and (jturn.data or {}).get("aviso_integrado"):
+                _AVISO_TECNICO.set(aviso)  # H27k: va dentro del mensaje técnico del paso
+            elif aviso:
                 _enviar_respuesta(db, org_id, conv, aviso, enviar_externo=_enviar_externo(canal))
             jturn = None
         if jturn is not None and jturn.handled:

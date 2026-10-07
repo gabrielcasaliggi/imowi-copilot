@@ -1212,6 +1212,7 @@ def _aplicar_diagnostico_ia(
         )
         crepo.set_contexto(conv, ctx)
         db.commit()
+    mensaje = c._con_aviso_tecnico(mensaje)  # H27k: «No pude ver el estado de tu conexión desde acá.» + la pregunta del paso
     _enviar_respuesta(db, org_id, conv, mensaje, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,

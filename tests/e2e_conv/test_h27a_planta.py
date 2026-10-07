@@ -26,7 +26,6 @@ SIN_ACCION = "No tengo una acción pendiente de confirmar"
 AVISO_PLANTA = "No pude ver el estado de tu conexión desde acá, sigamos con unos chequeos:"
 OFERTA = re.compile(r"(querés que te derive|querés que abra (un|el) ticket|¿abro el ticket|derive el caso)", re.I)
 
-H27K = "H27k: sesión PPPoE desconocida (None) se informa como caída y se ofrece derivar de entrada"
 L_ESPERA = "H27-L1 (fuera de H27a): tras el ticket, espera_agente deja sin respuesta «volvé a chequear» / «ya lo hice» (I1)"
 L_ALCANCE = "H27-L2 (fuera de H27a): el legacy repregunta el paso de alcance («¿Te pasa en todos los dispositivos…?») dentro de la ventana de I10"
 L_TIPO_ACCESO = "H27-L3 (fuera de H27a): sin journeys y sin tecnología (Radius en excepción) el legacy repite el tipo de acceso (I5/I10)"
@@ -60,8 +59,6 @@ def tres_identicos(turns) -> list[str]:
 
 # ------------------------------------------------ lo que es del journey (H27a)
 @pytest.mark.parametrize(("canal", "journeys", "planta"), _casos({
-    (True, "vacia"): H27K,
-    (True, "sin_radius"): H27K,
     (False, "valida"): L_OFF_VALIDA,
     (False, "excepcion"): L_TIPO_ACCESO,
 }))
@@ -102,8 +99,6 @@ def test_h27a_planta_caida_aviso_una_vez_y_sigue_el_playbook(canal):
 # ------------------------------------------------ invariantes completos (incluye I10)
 @pytest.mark.parametrize(("canal", "journeys", "planta"), _casos({
     (True, "valida"): L_ALCANCE,
-    (True, "vacia"): H27K,
-    (True, "sin_radius"): H27K,
     (False, "valida"): L_OFF_VALIDA,
     (False, "excepcion"): L_TIPO_ACCESO,
 }))
@@ -132,3 +127,26 @@ def test_h27a_playbook_agotado_ofrece_agente_y_el_si_crea_el_ticket(canal, perfi
     assert not tres_identicos(t[: k + 1]), tres_identicos(t) + [_dump(t)]
     v = inv.violaciones(t, solo=("I1", "I5", "I6", "I7", "I11", "I12"))
     assert not v, "\n".join(v) + "\n" + _dump(t)
+
+
+# ------------------------------------------------ H27k: sesión desconocida (None) = sin datos, no caída
+SIN_DATOS = "No pude ver el estado de tu conexión desde acá. "
+NO_VEO = "No veo una sesión de conexión activa"
+
+
+@pytest.mark.parametrize("planta", ["vacia", "sin_radius"])
+@pytest.mark.parametrize("canal", ["web", "app"])
+def test_h27k_sesion_desconocida_aviso_integrado_una_vez_y_sigue_el_playbook(canal, planta):
+    t = converse(["no tengo internet", "sigue igual", "no tengo internet"], canal=canal, profile="int1", journeys=True,
+                 llm="down", planta=planta)
+    assert len(t[0].replies) == 1 and t[0].reply.startswith(SIN_DATOS) and t[0].reply.rstrip().endswith("?"), _dump(t)
+    assert not OFERTA.search(t[0].reply), _dump(t)  # I9: quedan pasos del playbook
+    assert sum(r.count("No pude ver el estado de tu conexión desde acá") for x in t for r in x.replies) == 1, _dump(t)
+    assert not any(NO_VEO in x.reply for x in t), _dump(t)  # sin dato real no se informa caída
+    assert not any(x.ticket_created for x in t), _dump(t)
+
+
+@pytest.mark.parametrize("canal", ["web", "app"])
+def test_h27k_planta_caida_confirmada_sigue_ofreciendo_derivar(canal):
+    t = converse(["no tengo internet"], canal=canal, profile="int1", journeys=True, llm="down", planta="caida")
+    assert NO_VEO in t[0].reply and OFERTA.search(t[0].reply) and not t[0].ticket_created, _dump(t)

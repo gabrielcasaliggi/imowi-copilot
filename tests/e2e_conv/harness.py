@@ -88,7 +88,8 @@ PROFILES: dict[str, dict[str, Any]] = {
 
 # --------------------------------------------------------------------------- planta (Radius)
 class _RadiusFalso:
-    """Cliente Radius de prueba: «valida» (sesión activa), «vacia» (responde sin datos) o «excepcion» (la consulta revienta)."""
+    """Cliente Radius de prueba: «valida» (sesión activa), «vacia» (responde sin datos), «excepcion» (la consulta revienta) o
+    «caida» (la planta confirma que no hay sesión)."""
 
     def __init__(self, modo: str):
         self.modo = modo
@@ -98,6 +99,8 @@ class _RadiusFalso:
             raise RuntimeError("Radius no responde")
         if self.modo == "vacia":
             return SesionPPPoE(username=login, online=False, error="respuesta sin datos de sesión")
+        if self.modo == "caida":
+            return SesionPPPoE(username=login, online=False)
         return SesionPPPoE(username=login, online=True, public_ip="100.64.0.10", uptime="2d3h")
 
 
@@ -267,7 +270,7 @@ def converse(
     """``script``: textos del abonado. Un elemento callable es una *acción externa* entre turnos (p. ej. un agente que
     cierra el ticket desde el panel): recibe un ``SimpleNamespace(org_id, telefono, dni, conv_id, ticket_id)`` con la conversación
     vigente y no genera ``Turn``. ``reconocer_telefono``: el padrón local reconoce el teléfono (reapertura tras un cierre).
-    ``planta``: estado de Radius (``PLANTAS``; «sin_radius» = API no configurada, como el harness siempre tuvo). ``consultas_planta``:
+    ``planta``: estado de Radius (``PLANTAS`` o «caida»; «sin_radius» = API no configurada, como el harness siempre tuvo). ``consultas_planta``:
     si se pasa, recibe el nombre de la función que pidió cada consulta real del estado de conexión (``consultar_conexion_pppoe``),
     con o sin Radius. ``tecnologia_en_cuenta``: BillTrack devuelve los registros de la cuenta con su ``service_type_code`` (como en prod),
     así la tecnología del servicio seleccionado se resuelve (Fix 3) aunque la planta no responda."""

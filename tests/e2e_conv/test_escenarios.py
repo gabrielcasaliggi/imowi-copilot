@@ -362,14 +362,14 @@ def test_e16b_movil_sin_confirmacion_no_crea_ticket(canal):
 
 # ------------------------------------------------ RC-2: el «sí» confirma solo una oferta vigente del propio bot
 def test_rc2_si_a_la_oferta_del_journey_crea_el_ticket(canal):
-    t = converse(["no tengo internet", "sí"], canal=canal)
+    t = converse(["no tengo internet", "sí"], canal=canal, planta="caida")
     sin_violaciones(t)
     assert inv.CONFIRM_PROMPT.search(t[0].reply) and not t[0].ticket_created, t[0].reply
     assert t[1].ticket_created and HANDOFF_OK.search(t[1].reply), t[1].reply
 
 
 def test_rc2_si_tras_reofrecer_crea_el_ticket(canal):
-    t = converse(["no tengo internet", "sigue igual", "sí"], canal=canal)
+    t = converse(["no tengo internet", "sigue igual", "sí"], canal=canal, planta="caida")
     assert not t[1].ticket_created
     assert t[2].ticket_created, t[2].reply
 
@@ -394,7 +394,7 @@ def test_rc9_tv_tras_la_pregunta_siguiente_no_se_pierde_el_servicio(canal):
 
 # ------------------------------------------------ RC-1: la oferta pendiente expira (repregunta una vez → PASS)
 def test_rc1_repregunta_una_vez_y_a_la_segunda_suelta_el_turno(canal):
-    t = converse(["no tengo internet", "sigue igual", "sigue igual"], canal=canal)
+    t = converse(["no tengo internet", "sigue igual", "sigue igual"], canal=canal, planta="caida")
     assert inv.CONFIRM_PROMPT.search(t[1].reply) and t[1].journey_state.get("reprompts") == 1, t[1].reply
     assert t[2].reply and not inv.CONFIRM_PROMPT.search(t[2].reply), t[2].reply
     assert t[2].branch.startswith("legacy:"), t[2].branch

@@ -1105,6 +1105,7 @@ def _offer_is_previous_turn(db: Any, conv: Any, ctx: dict[str, Any]) -> bool:
 _FALLAS_PLANTA = ("unavailable", "failed")
 MSG_PLANTA_SIN_DATOS = "No pude ver el estado de tu conexión desde acá, sigamos con unos chequeos:"
 MSG_RECONSULTA_SIN_DATOS = "Volví a consultar y sigo sin poder ver el estado de tu conexión. Sigamos con los chequeos:"
+MSG_SESION_SIN_DATOS = "No pude ver el estado de tu conexión desde acá."  # H27k: va delante de la pregunta del paso
 MSG_YA_REVISE = "Ya revisé tu conexión en este chat. Si cambió algo o querés que vuelva a chequear, decime."
 # Paso del journey mientras el playbook legacy de la tecnología lleva el diagnóstico (H27a).
 STEP_PLAYBOOK = "playbook"
@@ -1145,6 +1146,61 @@ def _bot_ya_dijo(db: Any, conv: Any, texto: str) -> bool:
         from app.estate import canal_repo as crepo
 
         return any(m.autor == "bot" and (m.texto or "").strip() == texto.strip() for m in crepo.list_mensajes(db, conv.id))
+    except Exception:
+        logger.debug("journey: no se pudo leer el historial", exc_info=True)
+        return False
+
+
+def _acuse_post_diagnostico(ctx: dict[str, Any], st: dict[str, Any], texto: str, *, corr: str) -> JourneyTurn:
+    """Cierre tras un diagnóstico informado («gracias», «listo», «no»): acuse y ``done``."""
+    offer = _legacy_ack_offers_continuity(texto)
+    if offer:
+        msg = CONTINUITY_OFFER_MESSAGE
+    else:
+        msg = (
+            "Me alegra que se haya solucionado. "
+            "Si más adelante necesitás algo, escribime."
+        )
+    set_journey(
+        ctx,
+        step="done",
+        pending_confirmation=False,
+        resolved_ack=True,
+        last_user_message=msg,
+        **(
+            {**_continuity_offer_fields(), "next_required_input": ""}
+            if offer
+            else {}
+        ),
+    )
+    return JourneyTurn(
+        handled=True,
+        user_message=msg,
+        journey="internet_sin_conectividad",
+        step="done",
+        intent="internet",
+        domain="internet",
+        action=str(st.get("last_action") or "run_diagnostic_pppoe"),
+        action_status="already_done",
+        reason_code="post_diag_ack",
+        correlation_id=corr,
+        data={
+            "idempotent_skip": True,
+            "skipped_status": str(st.get("last_action_status") or ""),
+            "resolved_ack": True,
+            "continuity_pending": offer,
+        },
+    )
+
+
+def _bot_dijo_prefijo(db: Any, conv: Any, prefijo: str) -> bool:
+    """Algún mensaje del bot en esta conversación empieza con ``prefijo`` (historial persistido)."""
+    if db is None or conv is None or not prefijo:
+        return False
+    try:
+        from app.estate import canal_repo as crepo
+
+        return any(m.autor == "bot" and (m.texto or "").startswith(prefijo) for m in crepo.list_mensajes(db, conv.id))
     except Exception:
         logger.debug("journey: no se pudo leer el historial", exc_info=True)
         return False
@@ -1228,11 +1284,8 @@ def _interpret_pppoe(ar: ActionResult) -> tuple[str, str]:
         return "unknown", "Revisé tu línea pero no tengo un resultado completo ahora."
 
     estado = data.get("_estado")
-    online = None
-    if estado is not None:
-        online = bool(getattr(estado, "online", None))
-        if online is None and getattr(estado, "sesion", None) is not None:
-            online = bool(getattr(estado.sesion, "online", False))
+    # H27k: sesión None = sin datos de planta, no «caída» (antes bool(None) la informaba como sin sesión).
+    online = getattr(estado, "online", None) if estado is not None else None
     if ar.status == "unavailable":
         return "pppoe_unavailable", (
             ar.user_message
@@ -1257,6 +1310,9 @@ def _interpret_pppoe(ar: ActionResult) -> tuple[str, str]:
             "No veo una sesión de conexión activa en este momento. "
             "¿Confirmás que querés que derive el caso a un agente con un ticket?"
         )
+    if estado is not None:
+        # H27k: la planta respondió sin estado de sesión → sigue el playbook (el aviso va en el mensaje técnico).
+        return "pppoe_sin_datos", MSG_SESION_SIN_DATOS
     # success without clear online flag
     msg = (ar.user_message or "").strip()
     if msg:
@@ -1616,6 +1672,13 @@ def _advance_connectivity(
         and not _wants_rediagnose(texto)
         and not _explicit_agent_request(texto)
     ):
+        if _customer_confirmed_resolution(texto):
+            # H27k (RC-3b, como con la oferta pendiente): «ya anda» / «ya se arregló» los cierra el journey (acuse y done).
+            journey_release(ctx, "resolved_by_user")
+            return _continuity_offer_turn(ctx, RESOLVED_ACK_MESSAGE)
+        if _is_pure_courtesy(texto):
+            # H27k: el «gracias» lo acusa el journey (como tras un diagnóstico informado), no el cierre del legacy.
+            return _acuse_post_diagnostico(ctx, st, texto, corr=corr)
         return _ceder_al_playbook(ctx, corr=corr)
 
     # Ambiguous "sí"/"no" without live confirmation → no mutation
@@ -1835,44 +1898,7 @@ def _advance_connectivity(
         and not st.get("pending_confirmation")
     ):
         if _wants_post_diag_close(texto):
-            offer = _legacy_ack_offers_continuity(texto)
-            if offer:
-                msg = CONTINUITY_OFFER_MESSAGE
-            else:
-                msg = (
-                    "Me alegra que se haya solucionado. "
-                    "Si más adelante necesitás algo, escribime."
-                )
-            set_journey(
-                ctx,
-                step="done",
-                pending_confirmation=False,
-                resolved_ack=True,
-                last_user_message=msg,
-                **(
-                    {**_continuity_offer_fields(), "next_required_input": ""}
-                    if offer
-                    else {}
-                ),
-            )
-            return JourneyTurn(
-                handled=True,
-                user_message=msg,
-                journey="internet_sin_conectividad",
-                step="done",
-                intent="internet",
-                domain="internet",
-                action=str(st.get("last_action") or "run_diagnostic_pppoe"),
-                action_status="already_done",
-                reason_code="post_diag_ack",
-                correlation_id=corr,
-                data={
-                    "idempotent_skip": True,
-                    "skipped_status": str(st.get("last_action_status") or ""),
-                    "resolved_ack": True,
-                    "continuity_pending": offer,
-                },
-            )
+            return _acuse_post_diagnostico(ctx, st, texto, corr=corr)
         from app.domain.conversation_motor import _es_persistencia, _norm
 
         if _es_persistencia(_norm(texto)) or _bot_ya_dijo(db, conv, MSG_YA_REVISE):
@@ -2098,6 +2124,15 @@ def _advance_connectivity(
         )
 
     obs, msg = _interpret_pppoe(ar)
+    if obs == "pppoe_sin_datos":
+        # H27k: sin dato real de sesión no se informa caída ni se ofrece derivar; sigue el playbook (I9) y el aviso va
+        # una sola vez delante de la pregunta del paso, en el mismo mensaje (R2: el aviso de saldo sigue primero).
+        aviso = "" if _bot_dijo_prefijo(db, conv, MSG_SESION_SIN_DATOS) else MSG_SESION_SIN_DATOS
+        set_journey(ctx, last_diagnostic_result=obs, last_user_message=aviso)
+        ctx["pppoe_informado"] = True
+        jt = _ceder_al_playbook(ctx, corr=ar.correlation_id or corr, aviso=aviso, action_status=ar.status)
+        jt.data["aviso_integrado"] = bool(aviso)
+        return jt
     if msg and _bot_ya_dijo(db, conv, msg):
         # H27a: una nueva consulta con el mismo resultado no repite el mensaje textual (I5, I10).
         msg = "Volví a consultar: " + msg[:1].lower() + msg[1:]

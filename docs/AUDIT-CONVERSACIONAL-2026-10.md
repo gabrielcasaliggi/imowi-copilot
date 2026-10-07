@@ -377,10 +377,40 @@ playbook agotado con planta caída → oferta con «?» y ticket con el «sí»)
 Los 16 xfails estrictos entraron primero (`981cbb9`) y fallan sin el fix.
 
 **Quedan marcados (xfail estricto, no son de H27a):**
-- **H27k** — sesión PPPoE desconocida (`None`: planta vacía, Radius sin configurar) se informa como caída y se ofrece derivar de entrada (`_interpret_pppoe`, `bool(None)`).
+- **H27k** — sesión PPPoE desconocida (`None`: planta vacía, Radius sin configurar) se informa como caída y se ofrece derivar de entrada (`_interpret_pppoe`, `bool(None)`). Cerrado, ver abajo.
 - **H27-L1** — tras el ticket, `espera_agente` deja sin respuesta «volvé a chequear», «ya lo hice», «no» (I1). Se ve en los casos de H27k.
 - **H27-L2** — el legacy repregunta el paso de alcance («¿Te pasa en todos los dispositivos o solo en uno?») dos turnos después del «No te entendí…» (I10). También re-ofrece la
   visita técnica dentro de la ventana de I10 tras un «no».
 - **H27-L3** — sin journeys y sin tecnología (Radius en excepción, sin `selected_service_ref`), el legacy repite el tipo de acceso indefinidamente (I5/I10).
 - **H27-L4** — sin journeys y con sesión válida, el legacy ofrece la visita técnica de entrada (todos los pasos quedan cubiertos por la rama `wifi_lan`) y, tras el «no», cierra la
   conversación y la siguiente vuelve a pedir identificación (I2) y queda sin respuesta (I1).
+
+## H27k — la sesión PPPoE desconocida se informaba como caída (cerrado, 2026-10-07)
+
+**Síntoma:** con la planta sin estado de sesión (Radius responde sin datos o no está configurado) `_interpret_pppoe` hacía `bool(None)` → «No veo una sesión de conexión activa
+en este momento. ¿Confirmás que querés que derive el caso a un agente con un ticket?» de entrada, sin dato real y sin pasar por el playbook (I9).
+
+**Fix (`eko_journeys.py`, `canal_abonado.py`, `canal_diagnostico_ia.py`):**
+- `_interpret_pppoe`: la sesión `None` es «sin datos» (`pppoe_sin_datos`), no caída. Se quitó la rama `if online is None and sesion…`: con `bool()` era inalcanzable y, viva, convertía
+  la sesión con error (`online=None` por contrato de `EstadoConexionPPPoE`) en `False` por la ruta Runtime. «No veo una sesión…» queda solo para `online is False` real.
+- Sin datos, el journey cede el turno al playbook de la tecnología (paso `playbook`, como H27a) y el aviso «No pude ver el estado de tu conexión desde acá.» va **una vez por
+  conversación** delante de la pregunta del paso, en el **mismo** mensaje (no una burbuja aparte): el journey lo deja en un `ContextVar` del turno y `_aplicar_diagnostico_ia` lo
+  antepone al mensaje del paso (`_con_aviso_tecnico`). El aviso de saldo sigue saliendo antes, como mensaje propio (R2, `test_rc67_*` sin cambios).
+- Dentro del paso `playbook`, «ya anda» / «ya se arregló» no se ceden al legacy: el journey acusa y pasa a `done` por el mismo camino RC-3b que con la oferta pendiente
+  (`RESOLVED_ACK_MESSAGE`); el «gracias» lo acusa el journey con el acuse post-diagnóstico (antes lo tomaba el cierre del legacy y cerraba la conversación). Los actos de
+  facturación tras el cierre siguen yendo al journey de billing. Tests intactos: `test_rc1_ya_anda_*`, `test_rc3b_gracias_*`, `test_rc3b_acto_de_facturacion_*`, `test_h7_*`,
+  `test_h24_relogin_sin_ticket_abierto_no_cambia`.
+- Harness: `planta="caida"` (la planta confirma que no hay sesión). `test_rc2_si_a_la_oferta_del_journey_crea_el_ticket`, `test_rc2_si_tras_reofrecer_crea_el_ticket` y
+  `test_rc1_repregunta_una_vez_y_a_la_segunda_suelta_el_turno` (bloque RC, no 2.5/2.6/2.7) pasan a correr con `planta="caida"`: dependían del harness por defecto (sin Radius),
+  que antes se leía como caída; conservan la cobertura de oferta, re-oferta, expiración y ticket con «sí» sin cambiar ninguna aserción.
+
+**Sensores:** se retiran los 8 xfails de H27k en `tests/e2e_conv/test_h27a_planta.py` (fallan sin el fix); nuevos `test_h27k_sesion_desconocida_aviso_integrado_una_vez_y_sigue_el_playbook`
+(vacía / sin Radius × web/app: un solo mensaje con aviso + pregunta, sin oferta, sin «No veo una sesión», aviso una sola vez) y `test_h27k_planta_caida_confirmada_sigue_ofreciendo_derivar`.
+
+**Limitaciones conocidas del legacy (fuera de alcance de esta semana):** H27-L1..L4 quedan como limitaciones del camino legacy con los journeys apagados o en `espera_agente`; no se
+tocan en H27k ni en H27g. H27-L2/L3/L4 siguen con xfail estricto en `tests/e2e_conv/test_h27a_planta.py`.
+- **H27-L1** — `espera_agente`: tras el ticket, «volvé a chequear», «ya lo hice» y «no» quedan sin respuesta (I1). Con H27k ya no aparece en la secuencia de prod con planta vacía o
+  sin Radius (no se crea ticket de entrada), pero el comportamiento de `espera_agente` sigue igual.
+- **H27-L2** — journeys encendidos con sesión válida: el legacy repregunta el paso de alcance dentro de la ventana de I10.
+- **H27-L3** — journeys apagados, Radius en excepción y sin tecnología: el legacy repite el tipo de acceso (I5/I10).
+- **H27-L4** — journeys apagados con sesión válida: visita técnica de entrada y, tras el «no», cierre con pérdida de identificación (I1/I2).
