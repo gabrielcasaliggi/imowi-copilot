@@ -7,6 +7,10 @@ import {
 } from "react-native";
 
 import { colors, typography } from "../theme";
+import { withManrope } from "../theme/fonts";
+
+/** Tope de escalado de la letra del sistema (accesibilidad sin romper el layout). */
+export const MAX_FONT_SCALE = 1.3;
 
 type Variant =
   | "kicker"
@@ -23,9 +27,16 @@ type Variant =
 export function Text({
   variant = "body",
   style,
+  maxFontSizeMultiplier = MAX_FONT_SCALE,
   ...rest
 }: TextProps & { variant?: Variant; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[styles[variant], style]} {...rest} />;
+  return (
+    <RNText
+      style={withManrope([styles[variant], style])}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
+      {...rest}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
