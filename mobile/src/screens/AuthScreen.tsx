@@ -14,8 +14,9 @@ import { api } from "../api";
 import { ORG_SLUG, PRIVACY_URL } from "../config";
 import { formatUserError } from "../errors";
 import { peekDniHint, saveSession } from "../session";
-import { colors, layout, radius, sizes, spacing } from "../theme";
 import type { Branding } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { space } from "../theme/tokens";
 import type { AuthPayload } from "../types";
 import { Avatar } from "../ui/Avatar";
 import { Button } from "../ui/Button";
@@ -33,8 +34,9 @@ export function AuthScreen({
   onAuthed: (payload: AuthPayload) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const topPad = Math.max(insets.top, 12) + 8;
-  const bottomPad = Math.max(insets.bottom, 12) + 10;
+  const styles = useThemedStyles(makeStyles);
+  const topPad = Math.max(insets.top, space.md) + space.sm;
+  const bottomPad = Math.max(insets.bottom, space.md) + space.md;
   const [mode, setMode] = useState<Mode>("pin");
   const [step, setStep] = useState<Step>("auth");
   const [dni, setDni] = useState("");
@@ -257,36 +259,39 @@ export function AuthScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-    width: "100%",
-    maxWidth: layout.maxContent,
-    alignSelf: "center",
-  },
-  logoWrap: { alignSelf: "center", marginBottom: spacing.lg },
-  kicker: { marginBottom: spacing.sm },
-  title: { marginBottom: spacing.sm },
-  sub: { marginBottom: spacing.xl },
-  tabs: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
-  tab: {
-    flex: 1,
-    minHeight: sizes.hit,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  tabOn: { backgroundColor: colors.brandMuted, borderColor: colors.brand },
-  tabTxt: { color: colors.muted, fontSize: 13, fontWeight: "600" },
-  tabTxtOn: { color: colors.brand },
-  link: { textAlign: "center", marginTop: spacing.lg },
-  back: { minHeight: sizes.hit, justifyContent: "center", marginTop: spacing.sm },
-  err: { marginTop: spacing.lg },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, size, fontSize } = t;
+  return StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.bg },
+    scroll: {
+      flexGrow: 1,
+      justifyContent: "center",
+      paddingHorizontal: space.xl,
+      width: "100%",
+      maxWidth: size.maxContent,
+      alignSelf: "center",
+    },
+    logoWrap: { alignSelf: "center", marginBottom: space.lg },
+    kicker: { marginBottom: space.sm },
+    title: { marginBottom: space.sm },
+    sub: { marginBottom: space.xl },
+    tabs: { flexDirection: "row", gap: space.sm, marginBottom: space.lg },
+    tab: {
+      flex: 1,
+      minHeight: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: space.md,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    tabOn: { borderColor: colors.primary, borderWidth: 2 },
+    tabTxt: { color: colors.muted, fontSize: fontSize.sm, fontWeight: "600" },
+    tabTxtOn: { color: colors.primary, fontWeight: "700" },
+    link: { textAlign: "center", marginTop: space.lg },
+    back: { minHeight: size.hit, justifyContent: "center", marginTop: space.sm },
+    err: { marginTop: space.lg },
+  });
+}

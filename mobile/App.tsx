@@ -15,9 +15,9 @@ import {
   type PushOpenIntent,
 } from "./src/push";
 import { AuthScreen } from "./src/screens/AuthScreen";
-import { colors, layout, spacing } from "./src/theme";
+import { space } from "./src/theme/tokens";
 import { fontFiles } from "./src/theme/fonts";
-import { ThemeProvider } from "./src/theme/ThemeProvider";
+import { ThemeProvider, useTheme, useThemedStyles, type Theme } from "./src/theme/ThemeProvider";
 import type { AppTab } from "./src/types";
 import { Button } from "./src/ui/Button";
 import { PinSetup } from "./src/ui/PinSetup";
@@ -25,6 +25,16 @@ import { Screen } from "./src/ui/Screen";
 import { Text } from "./src/ui/Text";
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppRoot />
+    </ThemeProvider>
+  );
+}
+
+function AppRoot() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const {
     branding,
     booting,
@@ -146,90 +156,90 @@ export default function App() {
   };
 
   return (
-    <ThemeProvider>
-      <SafeAreaProvider>
-        {booting || !fontsReady ? (
-          <View style={styles.boot}>
-            <StatusBar barStyle="light-content" />
-            <ActivityIndicator color={colors.brand} />
-          </View>
-        ) : (
-          <View style={styles.root}>
-            <StatusBar barStyle="light-content" />
-            {!authed && bootError ? (
-              <Screen>
-                <View style={styles.bootFail}>
-                  <Text variant="heading">Sin conexión</Text>
-                  <Text variant="subtitle" style={styles.bootCopy}>{bootError}</Text>
-                  <Button label="Reintentar" onPress={() => void retryBoot()} />
-                  <Button variant="ghost" label="Ingresar de nuevo" onPress={handleExit} />
-                </View>
-              </Screen>
-            ) : !authed ? (
-              <AuthScreen branding={branding} onAuthed={handleAuthed} />
-            ) : pinGate ? (
-              <Screen>
-                <View style={styles.pinGate}>
-                  <PinSetup
-                    pin={pin}
-                    onChangePin={setPin}
-                    onSave={() => void onSaveGatePin()}
-                    onSkip={() => setPinGate(false)}
-                    busy={pinBusy}
-                    error={pinError}
-                  />
-                </View>
-              </Screen>
-            ) : (
-              <AppShell
-                branding={branding}
-                conv={conv!}
-                mensajes={mensajes}
-                token={token}
-                needPin={needPin}
-                tab={tab}
-                onTab={setTab}
-                pendingChatText={pendingChatText}
-                connectivityRefreshKey={connectivityRefreshKey}
-                pushFocusTicketId={pushFocusTicketId}
-                pushFocusSeq={pushFocusSeq}
-                onPushFocusConsumed={() => {
-                  setPushFocusTicketId("");
-                }}
-                onQuickAction={(texto) => {
-                  setTab("eko");
-                  setPendingChatText(texto || "");
-                }}
-                onPendingConsumed={() => setPendingChatText("")}
-                onChange={applyConversation}
-                onPinSaved={() => setNeedPin(false)}
-                onExit={handleExit}
-              />
-            )}
-          </View>
-        )}
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      {booting || !fontsReady ? (
+        <View style={styles.boot}>
+          <StatusBar barStyle="light-content" />
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
+        <View style={styles.root}>
+          <StatusBar barStyle="light-content" />
+          {!authed && bootError ? (
+            <Screen>
+              <View style={styles.bootFail}>
+                <Text variant="heading">Sin conexión</Text>
+                <Text variant="subtitle" style={styles.bootCopy}>{bootError}</Text>
+                <Button label="Reintentar" onPress={() => void retryBoot()} />
+                <Button variant="ghost" label="Ingresar de nuevo" onPress={handleExit} />
+              </View>
+            </Screen>
+          ) : !authed ? (
+            <AuthScreen branding={branding} onAuthed={handleAuthed} />
+          ) : pinGate ? (
+            <Screen>
+              <View style={styles.pinGate}>
+                <PinSetup
+                  pin={pin}
+                  onChangePin={setPin}
+                  onSave={() => void onSaveGatePin()}
+                  onSkip={() => setPinGate(false)}
+                  busy={pinBusy}
+                  error={pinError}
+                />
+              </View>
+            </Screen>
+          ) : (
+            <AppShell
+              branding={branding}
+              conv={conv!}
+              mensajes={mensajes}
+              token={token}
+              needPin={needPin}
+              tab={tab}
+              onTab={setTab}
+              pendingChatText={pendingChatText}
+              connectivityRefreshKey={connectivityRefreshKey}
+              pushFocusTicketId={pushFocusTicketId}
+              pushFocusSeq={pushFocusSeq}
+              onPushFocusConsumed={() => {
+                setPushFocusTicketId("");
+              }}
+              onQuickAction={(texto) => {
+                setTab("eko");
+                setPendingChatText(texto || "");
+              }}
+              onPendingConsumed={() => setPendingChatText("")}
+              onChange={applyConversation}
+              onPinSaved={() => setNeedPin(false)}
+              onExit={handleExit}
+            />
+          )}
+        </View>
+      )}
+    </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  boot: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  bootFail: {
-    flex: 1,
-    justifyContent: "center",
-    width: "100%",
-    maxWidth: layout.maxContent,
-    alignSelf: "center",
-    gap: spacing.md,
-  },
-  bootCopy: { marginBottom: spacing.md },
-  pinGate: {
-    flex: 1,
-    justifyContent: "center",
-    width: "100%",
-    maxWidth: layout.maxContent,
-    alignSelf: "center",
-  },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: t.colors.bg },
+    boot: { flex: 1, backgroundColor: t.colors.bg, alignItems: "center", justifyContent: "center" },
+    bootFail: {
+      flex: 1,
+      justifyContent: "center",
+      width: "100%",
+      maxWidth: t.size.maxContent,
+      alignSelf: "center",
+      gap: space.md,
+    },
+    bootCopy: { marginBottom: space.md },
+    pinGate: {
+      flex: 1,
+      justifyContent: "center",
+      width: "100%",
+      maxWidth: t.size.maxContent,
+      alignSelf: "center",
+    },
+  });
+}

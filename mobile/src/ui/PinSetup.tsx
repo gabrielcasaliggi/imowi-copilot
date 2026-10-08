@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { spacing } from "../theme";
+import { space } from "../theme/tokens";
 import { Button } from "./Button";
 import { Text } from "./Text";
 import { TextField } from "./TextField";
@@ -55,6 +55,6 @@ export function PinSetup({
 }
 
 const styles = StyleSheet.create({
-  sub: { marginBottom: spacing.lg, marginTop: spacing.sm },
-  err: { marginTop: spacing.sm },
+  sub: { marginBottom: space.lg, marginTop: space.sm },
+  err: { marginTop: space.sm },
 });
