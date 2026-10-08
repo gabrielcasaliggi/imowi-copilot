@@ -1,3 +1,5 @@
+// Legado (H-APP-1): paleta oscura anterior. Las piezas migradas usan useTheme() y tokens.ts.
+
 export const colors = {
   brand: "#2298A6",
   brandDark: "#1b7a86",
