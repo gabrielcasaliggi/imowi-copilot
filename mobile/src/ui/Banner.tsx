@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { colors, radius, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import { Text } from "./Text";
 
 type Tone = "warning" | "ok";
@@ -16,6 +16,7 @@ export function Banner({
   onPress?: () => void;
   actionLabel?: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const body = (
     <View style={[styles.base, tone === "ok" ? styles.ok : styles.warning]}>
       <Text style={[styles.copy, tone === "ok" ? styles.copyOk : styles.copyWarn]}>
@@ -38,23 +39,20 @@ export function Banner({
   return body;
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  warning: {
-    backgroundColor: colors.amberMuted,
-    borderColor: colors.amberBorder,
-  },
-  ok: {
-    backgroundColor: colors.brandMuted,
-    borderColor: colors.brandBorder,
-  },
-  copy: { fontSize: 13, lineHeight: 18 },
-  copyWarn: { color: colors.amber },
-  copyOk: { color: colors.brand },
-  action: { marginTop: spacing.sm, fontWeight: "700", fontSize: 13 },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, fontSize } = t;
+  return StyleSheet.create({
+    base: {
+      borderWidth: 1,
+      borderRadius: radius.control,
+      padding: space.md,
+      marginBottom: space.sm,
+    },
+    warning: { backgroundColor: colors.warnSoft, borderColor: colors.warn },
+    ok: { backgroundColor: colors.okSoft, borderColor: colors.ok },
+    copy: { fontSize: fontSize.sm, lineHeight: 20 },
+    copyWarn: { color: colors.warn },
+    copyOk: { color: colors.ok },
+    action: { marginTop: space.sm, fontWeight: "700", fontSize: fontSize.sm },
+  });
+}

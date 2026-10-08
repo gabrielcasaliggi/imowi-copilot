@@ -1,7 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { labelEstadoAbonado, present } from "../present";
-import { spacing } from "../theme";
+import { space } from "../theme/tokens";
 import { Badge } from "./Badge";
 import { Card } from "./Card";
 import { Text } from "./Text";
@@ -25,7 +25,7 @@ export function ServiceCard({
       {p ? (
         <View style={styles.block}>
           <Text variant="label">Plan</Text>
-          <Text variant="title" style={styles.plan} numberOfLines={3}>{p}</Text>
+          <Text variant="title" numberOfLines={3}>{p}</Text>
         </View>
       ) : null}
       {e ? (
@@ -42,7 +42,6 @@ export function ServiceCard({
 }
 
 const styles = StyleSheet.create({
-  block: { marginTop: spacing.md, gap: spacing.xs },
-  plan: { fontSize: 20 },
-  hint: { marginTop: spacing.xs },
+  block: { marginTop: space.md, gap: space.xs },
+  hint: { marginTop: space.xs },
 });

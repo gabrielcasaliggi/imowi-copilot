@@ -1,9 +1,10 @@
 import { StyleSheet, View } from "react-native";
 
-import { colors, radius, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import { Text } from "./Text";
 
 export function Badge({ label }: { label: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.badge}>
       <Text style={styles.label}>{label}</Text>
@@ -11,15 +12,18 @@ export function Badge({ label }: { label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: "flex-start",
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.brand,
-    backgroundColor: colors.brandMuted,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  label: { color: colors.brand, fontSize: 12, fontWeight: "600" },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, fontSize } = t;
+  return StyleSheet.create({
+    badge: {
+      alignSelf: "flex-start",
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+      paddingHorizontal: space.md,
+      paddingVertical: space.xs,
+    },
+    label: { color: colors.primary, fontSize: fontSize.xs, fontWeight: "600" },
+  });
+}

@@ -6,7 +6,7 @@ import { useCreateClaim } from "../hooks/useCreateClaim";
 import { useCustomerSummary } from "../hooks/useCustomerSummary";
 import { useInvoices } from "../hooks/useInvoices";
 import { firstName, present } from "../present";
-import { layout, spacing } from "../theme";
+import { size, space } from "../theme/tokens";
 import type { InboxConversation } from "../types";
 import { BalanceCard } from "../ui/BalanceCard";
 import { InvoiceHeadersSection } from "../ui/InvoiceHeadersSection";
@@ -289,15 +289,15 @@ export function HomeScreen({
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: spacing.xl,
+    paddingBottom: space.xl,
     width: "100%",
-    maxWidth: layout.maxContent,
+    maxWidth: size.maxContent,
     alignSelf: "center",
   },
-  hello: { marginTop: spacing.xs, marginBottom: spacing.sm },
-  lead: { marginBottom: spacing.xl },
-  gap: { marginTop: spacing.md },
-  block: { marginTop: spacing.xl },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  ekoCta: { marginTop: spacing.xs },
+  hello: { marginTop: space.xs, marginBottom: space.sm },
+  lead: { marginBottom: space.xl },
+  gap: { marginTop: space.md },
+  block: { marginTop: space.xl },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginBottom: space.md },
+  ekoCta: { marginTop: space.xs },
 });

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet } from "react-native";
 
-import { colors, radius, sizes, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import { Text } from "./Text";
 
 export function QuickAction({
@@ -12,6 +12,7 @@ export function QuickAction({
   onPress: () => void;
   accessibilityHint?: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -25,18 +26,21 @@ export function QuickAction({
   );
 }
 
-const styles = StyleSheet.create({
-  action: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    minHeight: sizes.hit,
-    minWidth: "47%",
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  label: { color: colors.text, fontWeight: "600", fontSize: 15 },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, size, fontSize } = t;
+  return StyleSheet.create({
+    action: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: radius.control,
+      paddingVertical: space.md,
+      paddingHorizontal: space.lg,
+      minHeight: size.hit,
+      minWidth: "47%",
+      flexGrow: 1,
+      justifyContent: "center",
+    },
+    label: { color: colors.ink, fontWeight: "600", fontSize: fontSize.base },
+  });
+}

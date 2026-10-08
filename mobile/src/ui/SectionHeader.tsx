@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { spacing } from "../theme";
+import { space } from "../theme/tokens";
 import { Text } from "./Text";
 
 export function SectionHeader({ title }: { title: string }) {
@@ -12,5 +12,5 @@ export function SectionHeader({ title }: { title: string }) {
 }
 
 const styles = StyleSheet.create({
-  head: { marginBottom: spacing.md, textTransform: "uppercase" },
+  head: { marginBottom: space.md, textTransform: "uppercase" },
 });
