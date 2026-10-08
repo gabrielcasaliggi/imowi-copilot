@@ -1,36 +1,41 @@
 ---
-description: Sistema visual de Operations Hub / Eko — tokens Ecolan y reglas de UI. Se aplica al editar frontend. El Desarrollador lo trata como restricción, igual que un ADR.
-globs: frontend/**/*.tsx,frontend/**/*.css
+description: Sistema visual de Operations Hub / Eko — tokens compartidos (design/tokens.json) y reglas de UI para app y web. El Desarrollador lo trata como restricción, igual que un ADR.
+globs: design/**,mobile/**/*.tsx,mobile/src/theme/**,frontend/**/*.tsx,frontend/**/*.css
 alwaysApply: false
 ---
 
 # Sistema de diseño — Operations Hub / Eko
 
-Fuente de verdad visual: `frontend/src/app/globals.css`. No introducir una paleta paralela.
+Fuente única de verdad visual: **`design/tokens.json`** (claro y oscuro). No introducir una paleta paralela.
 
 ## Tokens
 
-Usar las variables ya definidas. No hardcodear hex en componentes.
+- Editar solo `design/tokens.json` y regenerar con `node scripts/design-tokens.mjs`. Los generados se commitean junto con el JSON:
+  - App: `mobile/src/theme/tokens.ts` (`palette.light` / `palette.dark`, `fontSize`, `radius`, `space`, `size`).
+  - Web: `frontend/src/styles/tokens.css` (variables `--eko-*`, claro en `:root` / `data-theme=light`, oscuro en `data-theme=dark`).
+- Colores: `bg`, `surface`, `nav`, `border`, `borderStrong` (borde de inputs, 3:1), `ink`, `muted`, `primary`, `onPrimary`, `ok`/`okSoft`, `warn`/`warnSoft`, `danger`/`dangerSoft`, `ring`, `track`.
+- Tipografía Manrope 400–800; escala 12, 13, 14, 15, 16, 17, 22, 26, 30, 36; el cuerpo no baja de 13 px.
+- Radios: 14 botones e inputs, 18 y 24 tarjetas, 999 chips. Espaciado en múltiplos de 4. Tocables ≥ 44 px.
+- Un par texto/fondo nuevo se declara en `contrast.pairs` de `design/tokens.json`. Sensor: `node --test design/contrast.test.mjs` (AA: 4.5:1 texto, 3:1 texto grande y gráficos) y `node scripts/design-tokens.mjs --check`; ambos en CI.
+- Nada de hex/rgba nuevos en componentes: todo color sale de los tokens.
 
-- Marca: `--brand` `#2298A6`, `--brand-dark` `#1A7985`
-- Fondos: `--background`, `--surface`, `--surface-elevated`, `--card-bg`
-- Texto: `--foreground`, `--text-readable`, `--text-muted`, `--text-dim`
-- Bordes: `--border-subtle`, `--border-accent`
-- Tema: `data-theme=dark` (default) y `data-theme=light`. Un cambio de color tiene que funcionar en los dos.
+## Transición (H-APP-1)
 
-Clases ya existentes, extender antes de crear otra: `.glass`, `.enterprise-panel`, `.enterprise-panel-header`, `.chip`.
+- App (`mobile/`): las pantallas migran a `tokens.ts` vía el tema; `mobile/src/theme.ts` queda solo como alias legado hasta terminar la migración. Mobile no usa clases CSS.
+- Web: el panel y el portal siguen con las variables de `frontend/src/app/globals.css` (`--brand` `#2298A6`, `--background`, `--surface`, `--foreground`, `--text-muted`…) hasta su fase. `--brand` lo puede pisar `tenantContext.brand_color`; los tokens nuevos usan prefijo `--eko-*` y no lo reemplazan.
+- El color `#2298A6` del ícono, las notificaciones y el panel no se cambia en esta serie.
+- Clases web existentes, extender antes de crear otra: `.glass`, `.enterprise-panel`, `.enterprise-panel-header`, `.chip`.
 
 ## Reglas de uso
 
 - Ningún componente nuevo si uno existente cubre el caso. Extender antes que duplicar.
 - Foco visible ya está en `:focus-visible` con `--brand`. No pisarlo.
-- Contraste de texto legible contra el fondo del tema activo.
+- Un cambio de color tiene que funcionar en claro y en oscuro.
 - Estados vacío, carga y error usan el mismo patrón de la pantalla vecina. No mezclar skeleton y spinner en la misma vista.
 - `alert()` nativo no es feedback de producto.
-- Mobile (`mobile/`) no usa estas clases CSS. No aplicar este archivo ahí.
 
 ## Cómo lo usa cada agente
 
 - **Arquitecto**: solo si la decisión cambia la superficie visual de forma estructural.
-- **Desarrollador**: implementa contra estos tokens. Si falta un patrón, lo señala; no improvisa un estilo suelto.
-- **QA**: en UI, verifica que no haya hex suelto ni una paleta distinta de `globals.css`, en claro y en oscuro.
+- **Desarrollador**: implementa contra estos tokens. Si falta un color o par, lo agrega a `design/tokens.json` con su par de contraste; no improvisa un estilo suelto.
+- **QA**: en UI, verifica que no haya hex suelto ni una paleta distinta de los tokens, en claro y en oscuro, y que los sensores de tokens estén en verde.
