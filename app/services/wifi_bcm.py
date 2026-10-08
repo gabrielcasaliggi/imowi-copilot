@@ -842,7 +842,7 @@ def turno_cambio_wifi_bcm(
 
     Retorno: mensaje, paso_cubierto, motivo (y opcionalmente listo=1).
     La password/SSID pendientes NO se guardan en ctx (solo memoria de proceso).
-    ``texto_literal``: lo que escribió el abonado, sin normalización léxica; si viene, es la clave (H32).
+    ``texto_literal``: lo que escribió el abonado, sin normalización léxica; si viene, es la clave (H32) o el SSID (H32b).
     """
     _sanitizar_ctx(ctx)
 
@@ -1057,14 +1057,15 @@ def turno_cambio_wifi_bcm(
 
     # --- Pedir SSID → validar → confirmar ---
     if fase == "pedir_ssid":
-        err = validar_ssid_wifi(txt)
+        ssid_nuevo = txt if texto_literal is None else texto_literal.strip()
+        err = validar_ssid_wifi(ssid_nuevo)
         if err:
             return {
                 "mensaje": err,
                 "paso_cubierto": "wifi_bcm_pedir_ssid",
                 "motivo": "wifi_bcm_ssid_invalido",
             }
-        _pending_put(ephem, "ssid", txt.strip())
+        _pending_put(ephem, "ssid", ssid_nuevo)
         ctx["wifi_bcm_fase"] = "confirmar_ssid"
         _sanitizar_ctx(ctx)
         _marcar_paso(ctx, "wifi_bcm_confirmar_ssid")

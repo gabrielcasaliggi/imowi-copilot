@@ -95,7 +95,6 @@ _ALTERADOS = [
 _CONTROL = ["RedMaria5G", "Casa_Perez-2.4", "Ñandú Hogar", "mi red 2024"]
 
 
-@pytest.mark.xfail(strict=True, reason="H32b: el SSID llega a BCM normalizado por el léxico")
 @pytest.mark.parametrize("ssid", _ALTERADOS)
 def test_ssid_literal_llega_a_bcm(ssid):
     bcm, fases = _cambiar_ssid(ssid)
@@ -103,7 +102,6 @@ def test_ssid_literal_llega_a_bcm(ssid):
     assert bcm == [ssid]
 
 
-@pytest.mark.xfail(strict=True, reason="H32b: el SSID llega a BCM normalizado por el léxico curado")
 def test_ssid_literal_con_reemplazo_del_lexico_curado(monkeypatch):
     # El JSON curado no trae reemplazos regex; se inyecta uno para cubrir esa fuente de normalización.
     import app.services.comprension_lexico as lex
@@ -114,7 +112,6 @@ def test_ssid_literal_con_reemplazo_del_lexico_curado(monkeypatch):
     assert bcm == ["Kasa Perez"]
 
 
-@pytest.mark.xfail(strict=True, reason="H32b: en el flujo «ambos» el SSID llega a BCM normalizado")
 def test_ambos_clave_y_ssid_literales():
     bcm, fases = _turnos(["quiero cambiar clave y nombre del wifi", "Mi  Clave  99", "sí", "Casa Wi Fi", "sí"])
     assert fases == ["pedir_clave", "confirmar_clave", "pedir_ssid", "confirmar_ssid", "hecho"]
