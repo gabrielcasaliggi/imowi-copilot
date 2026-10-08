@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { spacing } from "../theme";
+import { space } from "../theme/tokens";
 import { Text } from "./Text";
 
 export function EmptyState({
@@ -19,6 +19,6 @@ export function EmptyState({
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingVertical: spacing.xxl, paddingHorizontal: spacing.sm },
-  title: { marginBottom: spacing.sm },
+  wrap: { paddingVertical: space.xxl, paddingHorizontal: space.sm },
+  title: { marginBottom: space.sm },
 });

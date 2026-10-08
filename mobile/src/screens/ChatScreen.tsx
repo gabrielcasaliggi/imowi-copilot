@@ -10,8 +10,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useConversation } from "../hooks/useConversation";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
-import { colors, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { Branding } from "../theme";
+import { space } from "../theme/tokens";
 import type { InboxConversation, InboxMessage } from "../types";
 import { Banner } from "../ui/Banner";
 import { ChatComposer } from "../ui/ChatComposer";
@@ -41,6 +42,7 @@ export function ChatScreen({
   initialText?: string;
   onInitialTextConsumed?: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [texto, setTexto] = useState("");
   const [voiceUploading, setVoiceUploading] = useState(false);
@@ -62,8 +64,8 @@ export function ChatScreen({
 
   const encuestaPendiente = Boolean(conv.contexto?.encuesta_pendiente);
   const nombre = conv.abonado?.nombre?.split(" ")[0] || "";
-  const topPad = Math.max(insets.top, 12) + 8;
-  const bottomPad = spacing.md;
+  const topPad = Math.max(insets.top, space.md) + space.sm;
+  const bottomPad = space.md;
 
   useEffect(() => {
     const pending = (initialText || "").trim();
@@ -188,9 +190,12 @@ export function ChatScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg },
-  list: { paddingVertical: spacing.sm, paddingBottom: spacing.lg },
-  listEmpty: { flexGrow: 1, justifyContent: "center" },
-  err: { marginTop: spacing.sm, fontSize: 12 },
-});
+function makeStyles(t: Theme) {
+  const { colors, space } = t;
+  return StyleSheet.create({
+    wrap: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: space.lg },
+    list: { paddingVertical: space.sm, paddingBottom: space.lg },
+    listEmpty: { flexGrow: 1, justifyContent: "center" },
+    err: { marginTop: space.sm },
+  });
+}

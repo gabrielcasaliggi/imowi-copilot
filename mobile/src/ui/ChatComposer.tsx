@@ -6,8 +6,9 @@ import {
   View,
 } from "react-native";
 
-import { colors, radius, sizes, spacing } from "../theme";
-import { Text } from "./Text";
+import { withManrope } from "../theme/fonts";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { MAX_FONT_SCALE, Text } from "./Text";
 
 export function ChatComposer({
   value,
@@ -28,6 +29,8 @@ export function ChatComposer({
   placeholder: string;
   paddingBottom: number;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const locked = busy || voiceBusy;
   const sendOff = locked || !value.trim();
   return (
@@ -37,7 +40,10 @@ export function ChatComposer({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
-        style={styles.input}
+        selectionColor={colors.primary}
+        cursorColor={colors.primary}
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
+        style={withManrope(styles.input)}
         editable={!locked}
         onSubmitEditing={() => {
           if (!sendOff) onSend();
@@ -67,7 +73,7 @@ export function ChatComposer({
         style={[styles.sendBtn, sendOff && styles.off]}
       >
         {busy ? (
-          <ActivityIndicator color={colors.onBrand} />
+          <ActivityIndicator color={colors.onPrimary} />
         ) : (
           <Text style={styles.sendTxt}>Enviar</Text>
         )}
@@ -76,54 +82,57 @@ export function ChatComposer({
   );
 }
 
-const styles = StyleSheet.create({
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.xl,
-    color: colors.text,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    lineHeight: 20,
-    minHeight: sizes.hit,
-    maxHeight: 120,
-  },
-  micBtn: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.full,
-    minHeight: sizes.hit,
-    minWidth: sizes.hit,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  micGlyph: {
-    width: 12,
-    height: 18,
-    borderRadius: 6,
-    backgroundColor: colors.brand,
-  },
-  sendBtn: {
-    backgroundColor: colors.brand,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.lg,
-    minHeight: sizes.hit,
-    minWidth: sizes.hit,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  off: { opacity: 0.45 },
-  sendTxt: { color: colors.onBrand, fontWeight: "700" },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, size, fontSize } = t;
+  return StyleSheet.create({
+    composer: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: space.sm,
+      paddingTop: space.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    input: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderColor: colors.borderStrong,
+      borderWidth: 1,
+      borderRadius: radius.control,
+      color: colors.ink,
+      paddingHorizontal: space.lg,
+      paddingVertical: space.md,
+      fontSize: fontSize.base,
+      lineHeight: 20,
+      minHeight: size.hit,
+      maxHeight: 120,
+    },
+    micBtn: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.control,
+      minHeight: size.hit,
+      minWidth: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    micGlyph: {
+      width: 12,
+      height: 18,
+      borderRadius: 6,
+      backgroundColor: colors.primary,
+    },
+    sendBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: radius.control,
+      paddingHorizontal: space.lg,
+      minHeight: size.hit,
+      minWidth: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    off: { opacity: 0.5 },
+    sendTxt: { color: colors.onPrimary, fontWeight: "700" },
+  });
+}

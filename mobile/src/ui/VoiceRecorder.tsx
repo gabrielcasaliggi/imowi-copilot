@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { formatVoiceClock } from "../hooks/useVoiceRecorder";
-import { colors, radius, sizes, spacing } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { VoicePhase } from "../types";
 import { Text } from "./Text";
 
@@ -16,6 +16,8 @@ export function VoiceRecorder({
   onStop: () => void;
   onCancel: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const processing = phase === "processing";
   return (
     <View style={styles.wrap}>
@@ -27,7 +29,7 @@ export function VoiceRecorder({
         <Text style={styles.clock}>{formatVoiceClock(seconds)}</Text>
       </View>
       {processing ? (
-        <ActivityIndicator color={colors.brand} />
+        <ActivityIndicator color={colors.primary} />
       ) : (
         <View style={styles.actions}>
           <Pressable
@@ -52,42 +54,45 @@ export function VoiceRecorder({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.md,
-    gap: spacing.md,
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.danger,
-  },
-  dotMute: { backgroundColor: colors.brand },
-  label: { color: colors.text, fontWeight: "700", flex: 1 },
-  clock: { color: colors.muted, fontVariant: ["tabular-nums"] },
-  actions: { flexDirection: "row", gap: spacing.sm },
-  ghost: {
-    flex: 1,
-    minHeight: sizes.hit,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  ghostTxt: { color: colors.text, fontWeight: "600" },
-  stop: {
-    flex: 1,
-    minHeight: sizes.hit,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.md,
-    backgroundColor: colors.brand,
-  },
-  stopTxt: { color: colors.onBrand, fontWeight: "700" },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, size } = t;
+  return StyleSheet.create({
+    wrap: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: space.md,
+      gap: space.md,
+    },
+    row: { flexDirection: "row", alignItems: "center", gap: space.sm },
+    dot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.danger,
+    },
+    dotMute: { backgroundColor: colors.primary },
+    label: { color: colors.ink, fontWeight: "700", flex: 1 },
+    clock: { color: colors.muted, fontVariant: ["tabular-nums"] },
+    actions: { flexDirection: "row", gap: space.sm },
+    ghost: {
+      flex: 1,
+      minHeight: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radius.control,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    ghostTxt: { color: colors.ink, fontWeight: "600" },
+    stop: {
+      flex: 1,
+      minHeight: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radius.control,
+      backgroundColor: colors.primary,
+    },
+    stopTxt: { color: colors.onPrimary, fontWeight: "700" },
+  });
+}

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { colors, radius, sizes, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import { Text } from "./Text";
 
 export function CsatBar({
@@ -10,6 +10,7 @@ export function CsatBar({
   onPick: (n: number) => void;
   busy?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.wrap}>
       <Text variant="label" style={styles.title}>¿Cómo calificás la atención?</Text>
@@ -38,28 +39,31 @@ export function CsatBar({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    marginBottom: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  title: { marginBottom: spacing.sm, textAlign: "center" },
-  stars: { flexDirection: "row", justifyContent: "space-between", gap: spacing.xs },
-  starBtn: {
-    flex: 1,
-    minHeight: sizes.hit,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  pressed: { backgroundColor: colors.brandMuted, borderColor: colors.brand },
-  star: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  off: { opacity: 0.5 },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, size, fontSize } = t;
+  return StyleSheet.create({
+    wrap: {
+      marginBottom: space.sm,
+      padding: space.md,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    title: { marginBottom: space.sm, textAlign: "center" },
+    stars: { flexDirection: "row", justifyContent: "space-between", gap: space.xs },
+    starBtn: {
+      flex: 1,
+      minHeight: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radius.control,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    pressed: { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 2 },
+    star: { color: colors.ink, fontSize: fontSize.lg, fontWeight: "700" },
+    off: { opacity: 0.5 },
+  });
+}
