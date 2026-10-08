@@ -75,4 +75,5 @@ html[data-theme="dark"] {
   --eko-space-xxl: 32px;
   --eko-space-xxxl: 40px;
   --eko-size-hit: 44px;
+  --eko-size-max-content: 480px;
 }

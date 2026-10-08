@@ -107,4 +107,5 @@ export const space = {
 
 export const size = {
   hit: 44,
+  maxContent: 480,
 } as const;
