@@ -6,8 +6,9 @@ import {
   type TextStyle,
 } from "react-native";
 
-import { colors, typography } from "../theme";
 import { withManrope } from "../theme/fonts";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { textRoles } from "../theme/typography";
 
 /** Tope de escalado de la letra del sistema (accesibilidad sin romper el layout). */
 export const MAX_FONT_SCALE = 1.3;
@@ -30,6 +31,7 @@ export function Text({
   maxFontSizeMultiplier = MAX_FONT_SCALE,
   ...rest
 }: TextProps & { variant?: Variant; style?: StyleProp<TextStyle> }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <RNText
       style={withManrope([styles[variant], style])}
@@ -39,15 +41,18 @@ export function Text({
   );
 }
 
-const styles = StyleSheet.create({
-  kicker: { ...typography.kicker, color: colors.muted },
-  label: { ...typography.label, color: colors.muted },
-  meta: { ...typography.meta, color: colors.muted },
-  body: { ...typography.body, color: colors.text },
-  subtitle: { ...typography.subtitle, color: colors.muted },
-  section: { ...typography.section, color: colors.muted },
-  greeting: { ...typography.greeting, color: colors.text },
-  title: { ...typography.title, color: colors.text },
-  heading: { ...typography.heading, color: colors.text },
-  error: { fontSize: 13, color: colors.danger },
-});
+function makeStyles(t: Theme) {
+  const { ink, muted, danger } = t.colors;
+  return StyleSheet.create({
+    kicker: { ...textRoles.kicker, color: muted },
+    label: { ...textRoles.label, color: muted },
+    meta: { ...textRoles.meta, color: muted },
+    body: { ...textRoles.body, color: ink },
+    subtitle: { ...textRoles.subtitle, color: muted },
+    section: { ...textRoles.section, color: muted },
+    greeting: { ...textRoles.greeting, color: ink },
+    title: { ...textRoles.title, color: ink },
+    heading: { ...textRoles.heading, color: ink },
+    error: { ...textRoles.error, color: danger },
+  });
+}

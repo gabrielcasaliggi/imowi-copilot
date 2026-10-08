@@ -2,14 +2,15 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   View,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 
-import { colors, radius, sizes, spacing, typography } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { textRoles } from "../theme/typography";
+import { Text } from "./Text";
 
 type Variant = "primary" | "ghost" | "danger";
 
@@ -26,7 +27,10 @@ export function Button({
   variant?: Variant;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const off = Boolean(disabled) || loading;
+  const labelStyle = [styles.label, variant === "ghost" && styles.labelGhost, variant === "danger" && styles.labelDanger];
   return (
     <Pressable
       accessibilityRole="button"
@@ -42,38 +46,36 @@ export function Button({
               variant === "danger"
                 ? colors.danger
                 : variant === "ghost"
-                  ? colors.brand
-                  : colors.onBrand
+                  ? colors.primary
+                  : colors.onPrimary
             }
           />
-          <Text style={[styles.label, variant === "ghost" && styles.labelGhost, variant === "danger" && styles.labelDanger]}>
-            {label}
-          </Text>
+          <Text style={labelStyle}>{label}</Text>
         </View>
       ) : (
-        <Text style={[styles.label, variant === "ghost" && styles.labelGhost, variant === "danger" && styles.labelDanger]}>
-          {label}
-        </Text>
+        <Text style={labelStyle}>{label}</Text>
       )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: radius.md,
-    minHeight: sizes.hit,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primary: { backgroundColor: colors.brand },
-  ghost: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  danger: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.danger },
-  off: { opacity: 0.5 },
-  label: { ...typography.button, color: colors.onBrand },
-  labelGhost: { color: colors.text, fontWeight: "600", fontSize: 15 },
-  labelDanger: { color: colors.danger, fontWeight: "600", fontSize: 14 },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    base: {
+      borderRadius: t.radius.control,
+      minHeight: t.size.hit,
+      paddingVertical: t.space.md,
+      paddingHorizontal: t.space.lg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    primary: { backgroundColor: t.colors.primary },
+    ghost: { backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border },
+    danger: { backgroundColor: "transparent", borderWidth: 1, borderColor: t.colors.danger },
+    off: { opacity: 0.5 },
+    label: { ...textRoles.button, color: t.colors.onPrimary },
+    labelGhost: { color: t.colors.ink, fontWeight: "600", fontSize: t.fontSize.base },
+    labelDanger: { color: t.colors.danger, fontWeight: "600", fontSize: t.fontSize.md },
+    row: { flexDirection: "row", alignItems: "center", gap: t.space.sm },
+  });
+}

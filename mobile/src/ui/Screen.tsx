@@ -1,7 +1,8 @@
 import { StyleSheet, View, type ViewProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { space } from "../theme/tokens";
 
 export function Screen({
   style,
@@ -11,8 +12,9 @@ export function Screen({
   ...rest
 }: ViewProps & { padded?: boolean; safeBottom?: boolean }) {
   const insets = useSafeAreaInsets();
-  const topPad = Math.max(insets.top, 12) + 8;
-  const bottomPad = safeBottom ? Math.max(insets.bottom, 12) + 10 : spacing.md;
+  const styles = useThemedStyles(makeStyles);
+  const topPad = Math.max(insets.top, space.md) + space.sm;
+  const bottomPad = safeBottom ? Math.max(insets.bottom, space.md) + space.md : space.md;
   return (
     <View
       style={[
@@ -28,7 +30,9 @@ export function Screen({
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  padded: { paddingHorizontal: spacing.lg },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: t.colors.bg },
+    padded: { paddingHorizontal: t.space.lg },
+  });
+}
