@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { colors, radius, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { InboxMessage } from "../types";
 import { Avatar } from "./Avatar";
 import { MessageText } from "./MessageText";
@@ -13,6 +13,7 @@ export function MessageBubble({
   item: InboxMessage;
   botName: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const mine = item.autor === "cliente" || item.direccion === "in";
   const isEko = !mine && item.autor !== "agente";
   return (
@@ -40,37 +41,40 @@ export function MessageBubble({
   );
 }
 
-const styles = StyleSheet.create({
-  msgRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    marginBottom: spacing.md,
-    maxWidth: "88%",
-  },
-  msgRowMine: { alignSelf: "flex-end" },
-  msgRowTheirs: { alignSelf: "flex-start" },
-  bubbleAfterAvatar: { marginLeft: spacing.sm },
-  bubble: { flexShrink: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, maxWidth: "100%" },
-  mine: {
-    backgroundColor: colors.userBubble,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: spacing.xs,
-  },
-  theirs: {
-    backgroundColor: colors.botBubble,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderTopLeftRadius: spacing.xs,
-    borderTopRightRadius: radius.lg,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
-  },
-  author: { color: colors.brand, fontSize: 11, fontWeight: "700", marginBottom: 4 },
-  msg: { fontSize: 15, lineHeight: 22, flexShrink: 1 },
-  msgMine: { color: colors.onBrand },
-  msgTheirs: { color: colors.botText },
-  linkMine: { color: colors.onBrand, textDecorationLine: "underline" },
-  linkTheirs: { color: colors.brand, textDecorationLine: "underline", fontWeight: "700" },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, fontSize } = t;
+  return StyleSheet.create({
+    msgRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      marginBottom: space.md,
+      maxWidth: "88%",
+    },
+    msgRowMine: { alignSelf: "flex-end" },
+    msgRowTheirs: { alignSelf: "flex-start" },
+    bubbleAfterAvatar: { marginLeft: space.sm },
+    bubble: { flexShrink: 1, paddingHorizontal: space.md, paddingVertical: space.md, maxWidth: "100%" },
+    mine: {
+      backgroundColor: colors.primary,
+      borderTopLeftRadius: radius.card,
+      borderTopRightRadius: radius.card,
+      borderBottomLeftRadius: radius.card,
+      borderBottomRightRadius: space.xs,
+    },
+    theirs: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderTopLeftRadius: space.xs,
+      borderTopRightRadius: radius.card,
+      borderBottomLeftRadius: radius.card,
+      borderBottomRightRadius: radius.card,
+    },
+    author: { color: colors.primary, fontSize: fontSize.xs, fontWeight: "700", marginBottom: space.xs },
+    msg: { fontSize: fontSize.base, lineHeight: 22, flexShrink: 1 },
+    msgMine: { color: colors.onPrimary },
+    msgTheirs: { color: colors.ink },
+    linkMine: { color: colors.onPrimary, textDecorationLine: "underline" },
+    linkTheirs: { color: colors.primary, textDecorationLine: "underline", fontWeight: "700" },
+  });
+}

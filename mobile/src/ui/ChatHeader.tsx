@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { colors, sizes, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { Branding } from "../theme";
 import { Avatar } from "./Avatar";
 import { Text } from "./Text";
@@ -23,6 +23,7 @@ export function ChatHeader({
   nombre?: string;
   onExit: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.header}>
       <View style={styles.identity}>
@@ -47,19 +48,22 @@ export function ChatHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  identity: { flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1, minWidth: 0 },
-  copy: { flex: 1, minWidth: 0 },
-  title: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  sub: { marginTop: 2 },
-  exit: { minHeight: sizes.hit, minWidth: sizes.hit, alignItems: "flex-end", justifyContent: "center" },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, size, fontSize } = t;
+  return StyleSheet.create({
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: space.md,
+      paddingBottom: space.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    identity: { flexDirection: "row", alignItems: "center", gap: space.md, flex: 1, minWidth: 0 },
+    copy: { flex: 1, minWidth: 0 },
+    title: { color: colors.ink, fontSize: fontSize.xl, fontWeight: "700" },
+    sub: { marginTop: 2 },
+    exit: { minHeight: size.hit, minWidth: size.hit, alignItems: "flex-end", justifyContent: "center" },
+  });
+}

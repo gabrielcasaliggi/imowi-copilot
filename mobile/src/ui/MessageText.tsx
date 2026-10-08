@@ -1,6 +1,8 @@
 import { Linking, StyleSheet, Text, type StyleProp, type TextStyle } from "react-native";
 
-import { colors } from "../theme";
+import { withManrope } from "../theme/fonts";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { MAX_FONT_SCALE } from "./Text";
 
 const URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
 
@@ -40,14 +42,15 @@ export function MessageText({
   style?: StyleProp<TextStyle>;
   linkStyle?: StyleProp<TextStyle>;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const parts = splitParts(texto || "");
   return (
-    <Text style={style}>
+    <Text style={withManrope(style)} maxFontSizeMultiplier={MAX_FONT_SCALE}>
       {parts.map((p, i) =>
         p.type === "url" ? (
           <Text
             key={`${i}-${p.value}`}
-            style={[styles.link, linkStyle]}
+            style={withManrope([style, styles.link, linkStyle])}
             onPress={() => {
               void Linking.openURL(p.value).catch(() => {});
             }}
@@ -62,10 +65,13 @@ export function MessageText({
   );
 }
 
-const styles = StyleSheet.create({
-  link: {
-    color: colors.brandDark,
-    textDecorationLine: "underline",
-    fontWeight: "600",
-  },
-});
+function makeStyles(t: Theme) {
+  const { colors } = t;
+  return StyleSheet.create({
+    link: {
+      color: colors.primary,
+      textDecorationLine: "underline",
+      fontWeight: "600",
+    },
+  });
+}

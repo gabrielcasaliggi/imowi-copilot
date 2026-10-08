@@ -1,13 +1,11 @@
 import { Image, StyleSheet } from "react-native";
 
-import { sizes } from "../theme";
-
 type Size = "sm" | "md" | "lg";
 
 const SIZES: Record<Size, number> = {
-  sm: sizes.avatarSm,
-  md: sizes.avatarMd,
-  lg: sizes.avatarLg,
+  sm: 28,
+  md: 36,
+  lg: 88,
 };
 
 export function Avatar({
