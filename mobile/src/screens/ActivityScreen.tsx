@@ -10,7 +10,7 @@ import {
 
 import { useTickets } from "../hooks/useTickets";
 import { formatTicketWhen, labelTicketEstado, present } from "../present";
-import { colors, layout, spacing } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { InboxConversation, PortalTicket } from "../types";
 import { Banner } from "../ui/Banner";
 import { Card } from "../ui/Card";
@@ -45,6 +45,8 @@ export function ActivityScreen({
   focusSeq?: number;
   onFocusConsumed?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const {
     items,
     loading,
@@ -108,8 +110,8 @@ export function ActivityScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.brand}
-            colors={[colors.brand]}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
         contentContainerStyle={[
@@ -136,7 +138,7 @@ export function ActivityScreen({
             ) : null}
             {loading ? (
               <View style={styles.loading}>
-                <ActivityIndicator color={colors.brand} />
+                <ActivityIndicator color={colors.primary} />
                 <Text variant="meta">Cargando tickets…</Text>
               </View>
             ) : null}
@@ -234,49 +236,52 @@ export function ActivityScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    paddingBottom: spacing.xl,
-    width: "100%",
-    maxWidth: layout.maxContent,
-    alignSelf: "center",
-  },
-  grow: { flexGrow: 1 },
-  header: { marginBottom: spacing.md, gap: spacing.sm },
-  title: { marginBottom: spacing.xs },
-  lead: { marginBottom: spacing.md },
-  err: { marginBottom: spacing.sm },
-  loading: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  item: { marginBottom: spacing.md, gap: spacing.sm },
-  detail: { gap: spacing.xs },
-  detailLine: { marginTop: spacing.xs },
-  events: { marginTop: spacing.md, gap: spacing.sm },
-  event: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.sm,
-    gap: 4,
-  },
-  eventTitle: { color: colors.text, fontWeight: "600" },
-  linkBtn: {
-    marginTop: spacing.md,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: colors.brand,
-  },
-  linkTxt: { color: colors.onBrand, fontWeight: "700" },
-  closeBtn: {
-    marginTop: spacing.sm,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  closeTxt: { color: colors.muted, fontWeight: "600" },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, size, radius } = t;
+  return StyleSheet.create({
+    scroll: {
+      paddingBottom: space.xl,
+      width: "100%",
+      maxWidth: size.maxContent,
+      alignSelf: "center",
+    },
+    grow: { flexGrow: 1 },
+    header: { marginBottom: space.md, gap: space.sm },
+    title: { marginBottom: space.xs },
+    lead: { marginBottom: space.md },
+    err: { marginBottom: space.sm },
+    loading: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.sm,
+      paddingVertical: space.md,
+    },
+    item: { marginBottom: space.md, gap: space.sm },
+    detail: { gap: space.xs },
+    detailLine: { marginTop: space.xs },
+    events: { marginTop: space.md, gap: space.sm },
+    event: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: space.sm,
+      gap: 4,
+    },
+    eventTitle: { color: colors.ink, fontWeight: "600" },
+    linkBtn: {
+      marginTop: space.md,
+      minHeight: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radius.control,
+      backgroundColor: colors.primary,
+    },
+    linkTxt: { color: colors.onPrimary, fontWeight: "700" },
+    closeBtn: {
+      marginTop: space.sm,
+      minHeight: size.hit,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    closeTxt: { color: colors.muted, fontWeight: "600" },
+  });
+}
