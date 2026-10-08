@@ -86,7 +86,7 @@ def _cambiar_clave(clave: str, *, pedido: str = "quiero cambiar la clave del wif
 
 _FLUJO_OK = ["pedir_clave", "confirmar_clave", "hecho"]
 
-# Hoy llegan alterados a BCM (normalización léxica antes del turno Wi‑Fi).
+# Antes de H32 llegaban alterados a BCM (normalización léxica antes del turno Wi‑Fi).
 _ALTERADAS = [
     "Mi  Casa  2024",  # caracterización H31: espacios internos repetidos
     "casa wi fi 2024",  # caracterización H31: «wi fi» → «wifi»
@@ -95,11 +95,10 @@ _ALTERADAS = [
     "mi wi fi segura 1",  # «wi fi»
 ]
 
-# Llegan iguales hoy: control.
+# Llegaban iguales antes de H32: control.
 _CONTROL = ["ClaveSegura99", "P@ss#W0rd$2024", "ñandú€2024ÁÉ", "mi casa 2024"]
 
 
-@pytest.mark.xfail(strict=True, reason="H32: la clave llega a BCM normalizada por el léxico")
 @pytest.mark.parametrize("clave", _ALTERADAS)
 def test_clave_literal_llega_a_bcm(clave):
     bcm, fases = _cambiar_clave(clave)
@@ -107,9 +106,8 @@ def test_clave_literal_llega_a_bcm(clave):
     assert bcm == [clave]
 
 
-@pytest.mark.xfail(strict=True, reason="H32: la clave llega a BCM normalizada por el léxico curado")
 def test_clave_literal_con_reemplazo_del_lexico_curado(monkeypatch):
-    # Hoy el JSON curado no trae reemplazos regex; se inyecta uno para cubrir esa fuente de normalización.
+    # El JSON curado no trae reemplazos regex; se inyecta uno para cubrir esa fuente de normalización.
     import app.services.comprension_lexico as lex
 
     monkeypatch.setattr(lex, "cargar_lexico_curado", lambda: {"reemplazos_regex": [{"patron": r"\bkasa\b", "reemplazo": "casa"}]})

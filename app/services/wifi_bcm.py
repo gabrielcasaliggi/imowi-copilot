@@ -835,12 +835,14 @@ def turno_cambio_wifi_bcm(
     abonado: Any | None,
     ctx: dict,
     texto: str,
+    texto_literal: str | None = None,
 ) -> dict[str, str] | None:
     """
     Un turno del flujo remoto. None = usar guía local (no FTTH / sin destino).
 
     Retorno: mensaje, paso_cubierto, motivo (y opcionalmente listo=1).
     La password/SSID pendientes NO se guardan en ctx (solo memoria de proceso).
+    ``texto_literal``: lo que escribió el abonado, sin normalización léxica; si viene, es la clave (H32).
     """
     _sanitizar_ctx(ctx)
 
@@ -949,14 +951,15 @@ def turno_cambio_wifi_bcm(
                 "paso_cubierto": "wifi_bcm_pedir_clave",
                 "motivo": "wifi_bcm_pedir_clave",
             }
-        err = validar_password_wifi(txt)
+        clave = txt if texto_literal is None else texto_literal.strip()
+        err = validar_password_wifi(clave)
         if err:
             return {
                 "mensaje": err,
                 "paso_cubierto": "wifi_bcm_pedir_clave",
                 "motivo": "wifi_bcm_clave_invalida",
             }
-        _pending_put(ephem, "clave", txt.strip())
+        _pending_put(ephem, "clave", clave)
         ctx["wifi_bcm_fase"] = "confirmar_clave"
         _sanitizar_ctx(ctx)
         _marcar_paso(ctx, "wifi_bcm_confirmar_clave")

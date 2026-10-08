@@ -2157,6 +2157,7 @@ def _respuesta_cambio_wifi_bcm(
     texto: str,
     *,
     canal: str,
+    texto_literal: str | None = None,
 ) -> dict | None:
     """Gestión remota FTTH vía BCM; None si corresponde guía local.
 
@@ -2169,7 +2170,7 @@ def _respuesta_cambio_wifi_bcm(
         return None
 
     out_wifi = turno_cambio_wifi_bcm(
-        db=db, abonado=abonado, ctx=ctx, texto=texto
+        db=db, abonado=abonado, ctx=ctx, texto=texto, texto_literal=texto_literal
     )
     if out_wifi is None:
         return None
@@ -5854,6 +5855,8 @@ def _procesar_mensaje_entrante(
         db.commit()
     except Exception:
         logger.exception("cs_shadow_turn_increment_failed")
+    # H32: el texto tal como lo escribió el abonado; la clave Wi‑Fi no pasa por la normalización léxica.
+    texto_literal = texto
     # Capa de comprensión contextual (aditiva; si falla, sigue el flujo legacy).
     try:
         from app.services.comprension_abonado import preparar_turno_comprension
@@ -6077,7 +6080,7 @@ def _procesar_mensaje_entrante(
         from app.services.wifi_bcm import gestion_remota_activa
 
         out_remota = _respuesta_cambio_wifi_bcm(
-            db, org_id, conv, abonado, ctx, texto, canal=canal
+            db, org_id, conv, abonado, ctx, texto, canal=canal, texto_literal=texto_literal
         )
         if out_remota is not None:
             return out_remota
