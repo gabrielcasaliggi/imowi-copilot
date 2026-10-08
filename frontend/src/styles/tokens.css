@@ -1,0 +1,78 @@
+/* Generado por scripts/design-tokens.mjs desde design/tokens.json. No editar a mano. */
+
+/* Modo claro (default) */
+:root,
+html[data-theme="light"] {
+  color-scheme: light;
+  --eko-bg: #F3F7F8;
+  --eko-surface: #FFFFFF;
+  --eko-nav: #FFFFFF;
+  --eko-border: #DCE6E9;
+  --eko-border-strong: #748890;
+  --eko-ink: #0E1F26;
+  --eko-muted: #566A72;
+  --eko-primary: #0E6B78;
+  --eko-on-primary: #FFFFFF;
+  --eko-ok: #1F7A4D;
+  --eko-ok-soft: #E3F4EA;
+  --eko-warn: #8A4B00;
+  --eko-warn-soft: #FFF0D6;
+  --eko-danger: #B42318;
+  --eko-danger-soft: #FDECEA;
+  --eko-ring: #0E8A93;
+  --eko-track: #DCE6E9;
+}
+
+/* Modo oscuro */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --eko-bg: #0A1120;
+  --eko-surface: #121B2D;
+  --eko-nav: #0D1627;
+  --eko-border: #22304A;
+  --eko-border-strong: #62728C;
+  --eko-ink: #E8EEF7;
+  --eko-muted: #93A3BC;
+  --eko-primary: #3DD6C3;
+  --eko-on-primary: #04201C;
+  --eko-ok: #4ADE9A;
+  --eko-ok-soft: #12301F;
+  --eko-warn: #F2B84B;
+  --eko-warn-soft: #2B2412;
+  --eko-danger: #F87171;
+  --eko-danger-soft: #2D1518;
+  --eko-ring: #3DD6C3;
+  --eko-track: #22304A;
+}
+
+/* Escalas (iguales en ambos modos) */
+:root {
+  --eko-font-family: "Manrope";
+  --eko-font-weight-regular: 400;
+  --eko-font-weight-medium: 500;
+  --eko-font-weight-semibold: 600;
+  --eko-font-weight-bold: 700;
+  --eko-font-weight-extrabold: 800;
+  --eko-font-size-xs: 12px;
+  --eko-font-size-sm: 13px;
+  --eko-font-size-md: 14px;
+  --eko-font-size-base: 15px;
+  --eko-font-size-lg: 16px;
+  --eko-font-size-xl: 17px;
+  --eko-font-size-title: 22px;
+  --eko-font-size-headline: 26px;
+  --eko-font-size-display: 30px;
+  --eko-font-size-hero: 36px;
+  --eko-radius-control: 14px;
+  --eko-radius-card: 18px;
+  --eko-radius-card-lg: 24px;
+  --eko-radius-pill: 999px;
+  --eko-space-xs: 4px;
+  --eko-space-sm: 8px;
+  --eko-space-md: 12px;
+  --eko-space-lg: 16px;
+  --eko-space-xl: 24px;
+  --eko-space-xxl: 32px;
+  --eko-space-xxxl: 40px;
+  --eko-size-hit: 44px;
+}

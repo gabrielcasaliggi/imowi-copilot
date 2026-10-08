@@ -155,3 +155,17 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run lint
+
+  design-tokens:
+    name: Design tokens (generados + contraste WCAG)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Generados al día con design/tokens.json
+        run: node scripts/design-tokens.mjs --check
+      - name: Contraste AA en claro y oscuro
+        run: node --test design/contrast.test.mjs
