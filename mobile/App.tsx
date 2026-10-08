@@ -1,3 +1,4 @@
+import { useFonts } from "expo-font";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ import {
 } from "./src/push";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { colors, layout, spacing } from "./src/theme";
+import { fontFiles } from "./src/theme/fonts";
 import type { AppTab } from "./src/types";
 import { Button } from "./src/ui/Button";
 import { PinSetup } from "./src/ui/PinSetup";
@@ -36,6 +38,9 @@ export default function App() {
     onExit,
     applyConversation,
   } = useSession();
+  // Si la carga falla seguimos con la fuente del sistema: no bloquear el ingreso por tipografía.
+  const [fontsLoaded, fontsError] = useFonts(fontFiles);
+  const fontsReady = fontsLoaded || Boolean(fontsError);
   const [tab, setTab] = useState<AppTab>("home");
   const [pendingChatText, setPendingChatText] = useState("");
   const [pinGate, setPinGate] = useState(false);
@@ -141,7 +146,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      {booting ? (
+      {booting || !fontsReady ? (
         <View style={styles.boot}>
           <StatusBar barStyle="light-content" />
           <ActivityIndicator color={colors.brand} />

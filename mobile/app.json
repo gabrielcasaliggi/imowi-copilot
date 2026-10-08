@@ -45,6 +45,18 @@
         {
           "microphonePermission": "EKO usa el micrófono para enviar mensajes de voz a Eko."
         }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Manrope_400Regular.ttf",
+            "./assets/fonts/Manrope_500Medium.ttf",
+            "./assets/fonts/Manrope_600SemiBold.ttf",
+            "./assets/fonts/Manrope_700Bold.ttf",
+            "./assets/fonts/Manrope_800ExtraBold.ttf"
+          ]
+        }
       ]
     ],
     "extra": {
