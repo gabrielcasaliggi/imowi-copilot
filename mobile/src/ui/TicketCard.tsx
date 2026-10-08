@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { formatTicketWhen, labelTicketEstado, present } from "../present";
-import { colors, spacing } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { PortalTicket } from "../types";
 import { Badge } from "./Badge";
 import { Card } from "./Card";
@@ -18,6 +18,8 @@ export function TicketCard({
   busy?: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const title = present(item.categoria) || `Ticket ${item.id}`;
   const updated = formatTicketWhen(item.updated_at || item.created_at);
   return (
@@ -33,7 +35,7 @@ export function TicketCard({
             {title}
           </Text>
           {busy && selected ? (
-            <ActivityIndicator color={colors.brand} />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <Badge label={labelTicketEstado(item.estado)} />
           )}
@@ -51,14 +53,17 @@ export function TicketCard({
   );
 }
 
-const styles = StyleSheet.create({
-  selected: { borderColor: colors.brand },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  title: { flex: 1, fontSize: 18 },
-  meta: { marginTop: spacing.sm },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, fontSize } = t;
+  return StyleSheet.create({
+    selected: { borderColor: colors.primary },
+    row: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: space.md,
+    },
+    title: { flex: 1, fontSize: fontSize.xl },
+    meta: { marginTop: space.sm },
+  });
+}
