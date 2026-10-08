@@ -17,6 +17,7 @@ import {
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { colors, layout, spacing } from "./src/theme";
 import { fontFiles } from "./src/theme/fonts";
+import { ThemeProvider } from "./src/theme/ThemeProvider";
 import type { AppTab } from "./src/types";
 import { Button } from "./src/ui/Button";
 import { PinSetup } from "./src/ui/PinSetup";
@@ -145,68 +146,70 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      {booting || !fontsReady ? (
-        <View style={styles.boot}>
-          <StatusBar barStyle="light-content" />
-          <ActivityIndicator color={colors.brand} />
-        </View>
-      ) : (
-        <View style={styles.root}>
-          <StatusBar barStyle="light-content" />
-          {!authed && bootError ? (
-            <Screen>
-              <View style={styles.bootFail}>
-                <Text variant="heading">Sin conexión</Text>
-                <Text variant="subtitle" style={styles.bootCopy}>{bootError}</Text>
-                <Button label="Reintentar" onPress={() => void retryBoot()} />
-                <Button variant="ghost" label="Ingresar de nuevo" onPress={handleExit} />
-              </View>
-            </Screen>
-          ) : !authed ? (
-            <AuthScreen branding={branding} onAuthed={handleAuthed} />
-          ) : pinGate ? (
-            <Screen>
-              <View style={styles.pinGate}>
-                <PinSetup
-                  pin={pin}
-                  onChangePin={setPin}
-                  onSave={() => void onSaveGatePin()}
-                  onSkip={() => setPinGate(false)}
-                  busy={pinBusy}
-                  error={pinError}
-                />
-              </View>
-            </Screen>
-          ) : (
-            <AppShell
-              branding={branding}
-              conv={conv!}
-              mensajes={mensajes}
-              token={token}
-              needPin={needPin}
-              tab={tab}
-              onTab={setTab}
-              pendingChatText={pendingChatText}
-              connectivityRefreshKey={connectivityRefreshKey}
-              pushFocusTicketId={pushFocusTicketId}
-              pushFocusSeq={pushFocusSeq}
-              onPushFocusConsumed={() => {
-                setPushFocusTicketId("");
-              }}
-              onQuickAction={(texto) => {
-                setTab("eko");
-                setPendingChatText(texto || "");
-              }}
-              onPendingConsumed={() => setPendingChatText("")}
-              onChange={applyConversation}
-              onPinSaved={() => setNeedPin(false)}
-              onExit={handleExit}
-            />
-          )}
-        </View>
-      )}
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        {booting || !fontsReady ? (
+          <View style={styles.boot}>
+            <StatusBar barStyle="light-content" />
+            <ActivityIndicator color={colors.brand} />
+          </View>
+        ) : (
+          <View style={styles.root}>
+            <StatusBar barStyle="light-content" />
+            {!authed && bootError ? (
+              <Screen>
+                <View style={styles.bootFail}>
+                  <Text variant="heading">Sin conexión</Text>
+                  <Text variant="subtitle" style={styles.bootCopy}>{bootError}</Text>
+                  <Button label="Reintentar" onPress={() => void retryBoot()} />
+                  <Button variant="ghost" label="Ingresar de nuevo" onPress={handleExit} />
+                </View>
+              </Screen>
+            ) : !authed ? (
+              <AuthScreen branding={branding} onAuthed={handleAuthed} />
+            ) : pinGate ? (
+              <Screen>
+                <View style={styles.pinGate}>
+                  <PinSetup
+                    pin={pin}
+                    onChangePin={setPin}
+                    onSave={() => void onSaveGatePin()}
+                    onSkip={() => setPinGate(false)}
+                    busy={pinBusy}
+                    error={pinError}
+                  />
+                </View>
+              </Screen>
+            ) : (
+              <AppShell
+                branding={branding}
+                conv={conv!}
+                mensajes={mensajes}
+                token={token}
+                needPin={needPin}
+                tab={tab}
+                onTab={setTab}
+                pendingChatText={pendingChatText}
+                connectivityRefreshKey={connectivityRefreshKey}
+                pushFocusTicketId={pushFocusTicketId}
+                pushFocusSeq={pushFocusSeq}
+                onPushFocusConsumed={() => {
+                  setPushFocusTicketId("");
+                }}
+                onQuickAction={(texto) => {
+                  setTab("eko");
+                  setPendingChatText(texto || "");
+                }}
+                onPendingConsumed={() => setPendingChatText("")}
+                onChange={applyConversation}
+                onPinSaved={() => setNeedPin(false)}
+                onExit={handleExit}
+              />
+            )}
+          </View>
+        )}
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 
