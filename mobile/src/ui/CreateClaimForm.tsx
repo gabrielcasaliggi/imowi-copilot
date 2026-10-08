@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
-import { colors, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Text } from "./Text";
@@ -18,6 +18,7 @@ export function CreateClaimForm({
   onSubmit: (input: { motivo: string; descripcion: string }) => void;
   onCancel: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const [motivo, setMotivo] = useState("");
   const [descripcion, setDescripcion] = useState("");
 
@@ -94,10 +95,13 @@ export function CreateClaimForm({
   );
 }
 
-const styles = StyleSheet.create({
-  lead: { marginTop: spacing.xs, marginBottom: spacing.md },
-  area: { minHeight: 96, paddingTop: spacing.md },
-  err: { marginBottom: spacing.sm, color: colors.danger },
-  row: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
-  flex: { flex: 1 },
-});
+function makeStyles(t: Theme) {
+  const { colors, space } = t;
+  return StyleSheet.create({
+    lead: { marginTop: space.xs, marginBottom: space.md },
+    area: { minHeight: 96, paddingTop: space.md },
+    err: { marginBottom: space.sm, color: colors.danger },
+    row: { flexDirection: "row", gap: space.sm, marginTop: space.xs },
+    flex: { flex: 1 },
+  });
+}

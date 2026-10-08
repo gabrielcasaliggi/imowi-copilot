@@ -6,10 +6,11 @@ import {
   labelConnectivityStatus,
   present,
 } from "../present";
-import { colors, radius, sizes, spacing } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { ConnectivityStatusResponse } from "../types";
 import { Button } from "./Button";
 import { Card } from "./Card";
+import { StatusRing } from "./StatusRing";
 import { Text } from "./Text";
 
 export function ConnectivityCard({
@@ -30,12 +31,14 @@ export function ConnectivityCard({
   /** Acción explícita: no crea ticket solo. */
   onCreateClaim?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (loading && !data) {
     return (
       <Card accessibilityLabel="Consultando estado de Internet">
         <Text variant="label">Estado de Internet</Text>
         <View style={styles.loadingRow}>
-          <ActivityIndicator color={colors.brand} />
+          <ActivityIndicator color={colors.primary} />
           <Text variant="meta" style={styles.loadingText}>
             Verificando tu acceso…
           </Text>
@@ -112,25 +115,30 @@ export function ConnectivityCard({
       accessibilityLabel={`Estado de Internet: ${headline}`}
       style={tone === "outage" ? styles.outageCard : undefined}
     >
-      <Text variant="label">Estado de Internet</Text>
-      {data.service?.label ? (
-        <Text variant="meta" style={styles.serviceLabel} numberOfLines={2}>
-          {data.service.label}
-        </Text>
-      ) : null}
-      <Text
-        variant="title"
-        style={[
-          styles.headline,
-          tone === "ok" && styles.ok,
-          tone === "warning" && styles.warn,
-          tone === "outage" && styles.outage,
-          tone === "neutral" && styles.neutral,
-        ]}
-        numberOfLines={3}
-      >
-        {headline}
-      </Text>
+      <View style={styles.statusRow}>
+        <StatusRing tone={tone} />
+        <View style={styles.statusText}>
+          <Text variant="label">Estado de Internet</Text>
+          {data.service?.label ? (
+            <Text variant="meta" style={styles.serviceLabel} numberOfLines={2}>
+              {data.service.label}
+            </Text>
+          ) : null}
+          <Text
+            variant="title"
+            style={[
+              styles.headline,
+              tone === "ok" && styles.ok,
+              tone === "warning" && styles.warn,
+              tone === "outage" && styles.outage,
+              tone === "neutral" && styles.neutral,
+            ]}
+            numberOfLines={3}
+          >
+            {headline}
+          </Text>
+        </View>
+      </View>
       {body ? <Text style={styles.body}>{body}</Text> : null}
       {eta ? <Text variant="meta" style={styles.eta}>{eta}</Text> : null}
       {tone === "neutral" ? (
@@ -171,49 +179,54 @@ export function ConnectivityCard({
   );
 }
 
-const styles = StyleSheet.create({
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginTop: spacing.md,
-    minHeight: sizes.hit,
-  },
-  loadingText: { flex: 1 },
-  errorBody: { marginTop: spacing.sm, color: colors.text },
-  hint: { marginTop: spacing.sm },
-  row: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
-  flexBtn: { flex: 1 },
-  services: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  serviceChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    minHeight: sizes.hit,
-    minWidth: "47%",
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  serviceChipLabel: { color: colors.text, fontWeight: "600", fontSize: 15 },
-  serviceLabel: { marginTop: spacing.xs },
-  headline: { marginTop: spacing.sm, marginBottom: spacing.xs },
-  ok: { color: colors.online },
-  warn: { color: colors.amber },
-  outage: { color: colors.danger },
-  neutral: { color: colors.muted },
-  body: { color: colors.text, fontSize: 15, lineHeight: 22 },
-  eta: { marginTop: spacing.sm },
-  cta: { marginTop: spacing.md },
-  refreshing: { marginTop: spacing.sm },
-  outageCard: {
-    borderColor: "rgba(248,113,113,0.35)",
-  },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, radius, size, fontSize } = t;
+  return StyleSheet.create({
+    loadingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.md,
+      marginTop: space.md,
+      minHeight: size.hit,
+    },
+    loadingText: { flex: 1 },
+    errorBody: { marginTop: space.sm, color: colors.ink },
+    hint: { marginTop: space.sm },
+    row: { flexDirection: "row", gap: space.sm, marginTop: space.md },
+    flexBtn: { flex: 1 },
+    services: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: space.sm,
+      marginTop: space.md,
+    },
+    serviceChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: radius.control,
+      paddingVertical: space.md,
+      paddingHorizontal: space.lg,
+      minHeight: size.hit,
+      minWidth: "47%",
+      flexGrow: 1,
+      justifyContent: "center",
+    },
+    serviceChipLabel: { color: colors.ink, fontWeight: "600", fontSize: fontSize.base },
+    statusRow: { flexDirection: "row", alignItems: "center", gap: space.md },
+    statusText: { flex: 1 },
+    serviceLabel: { marginTop: space.xs },
+    headline: { marginTop: space.sm, marginBottom: space.xs },
+    ok: { color: colors.ok },
+    warn: { color: colors.warn },
+    outage: { color: colors.danger },
+    neutral: { color: colors.muted },
+    body: { color: colors.ink, fontSize: fontSize.base, lineHeight: 22 },
+    eta: { marginTop: space.sm },
+    cta: { marginTop: space.md },
+    refreshing: { marginTop: space.sm },
+    outageCard: {
+      borderColor: colors.danger,
+    },
+  });
+}

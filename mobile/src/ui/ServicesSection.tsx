@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { present } from "../present";
-import { colors, spacing } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { PortalServiceItem, PortalServiceType } from "../types";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -82,6 +82,7 @@ function ServiceInstance({
   onViewConnectivity: (serviceId: string) => void;
   onAskEko: (texto: string | null) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const product = present(item.product);
   const label = present(item.label);
   const detail = product || label || "Servicio";
@@ -149,6 +150,7 @@ function ServiceTypeGroup({
   onViewConnectivity: (serviceId: string) => void;
   onAskEko: (texto: string | null) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const title = typeTitle(type);
   const activeN = items.filter((i) => i.active).length;
   const summary =
@@ -214,6 +216,8 @@ export function ServicesSection({
   onViewConnectivity: (serviceId: string) => void;
   onAskEko: (texto: string | null) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const groups = useMemo(() => groupServicesByType(items), [items]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -235,7 +239,7 @@ export function ServicesSection({
       <SectionHeader title="Tus servicios" />
       {loading && items.length === 0 ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={colors.brand} />
+          <ActivityIndicator color={colors.primary} />
           <Text variant="meta">Cargando servicios…</Text>
         </View>
       ) : null}
@@ -295,41 +299,44 @@ export function ServicesSection({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: spacing.sm },
-  groupCard: { marginBottom: spacing.sm },
-  groupHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    minHeight: 44,
-  },
-  groupHeaderText: { flex: 1, gap: spacing.xs },
-  groupTitle: { fontSize: 18 },
-  chevron: { fontSize: 22, color: colors.muted, paddingHorizontal: spacing.xs },
-  instances: {
-    marginTop: spacing.md,
-    gap: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingTop: spacing.md,
-  },
-  instance: {
-    gap: spacing.xs,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  product: { fontSize: 17 },
-  meta: { marginTop: spacing.xs },
-  hint: { marginTop: spacing.xs },
-  cta: { marginTop: spacing.sm },
-  loading: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    minHeight: 44,
-  },
-  err: { color: colors.text },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, size, fontSize } = t;
+  return StyleSheet.create({
+    wrap: { gap: space.sm },
+    groupCard: { marginBottom: space.sm },
+    groupHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: space.sm,
+      minHeight: size.hit,
+    },
+    groupHeaderText: { flex: 1, gap: space.xs },
+    groupTitle: { fontSize: fontSize.xl },
+    chevron: { fontSize: fontSize.title, color: colors.muted, paddingHorizontal: space.xs },
+    instances: {
+      marginTop: space.md,
+      gap: space.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: space.md,
+    },
+    instance: {
+      gap: space.xs,
+      paddingBottom: space.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    product: { fontSize: fontSize.xl },
+    meta: { marginTop: space.xs },
+    hint: { marginTop: space.xs },
+    cta: { marginTop: space.sm },
+    loading: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.sm,
+      minHeight: size.hit,
+    },
+    err: { color: colors.ink },
+  });
+}

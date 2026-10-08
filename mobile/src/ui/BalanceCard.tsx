@@ -1,7 +1,7 @@
 import { Linking, StyleSheet, View } from "react-native";
 
 import { formatMontoDisplay, parseAmount, present } from "../present";
-import { spacing } from "../theme";
+import { space } from "../theme/tokens";
 import type { OvLinkItem, OvLinksResponse } from "../types";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -127,10 +127,10 @@ export function BalanceCard({
 }
 
 const styles = StyleSheet.create({
-  ok: { marginTop: spacing.sm, marginBottom: spacing.xs },
-  amount: { marginTop: spacing.sm, marginBottom: spacing.xs },
-  cta: { marginTop: spacing.md },
-  ovMeta: { marginTop: spacing.sm },
-  ovActions: { marginTop: spacing.md, gap: spacing.sm },
+  ok: { marginTop: space.sm, marginBottom: space.xs },
+  amount: { marginTop: space.sm, marginBottom: space.xs },
+  cta: { marginTop: space.md },
+  ovMeta: { marginTop: space.sm },
+  ovActions: { marginTop: space.md, gap: space.sm },
   ovBtn: { marginTop: 0 },
 });

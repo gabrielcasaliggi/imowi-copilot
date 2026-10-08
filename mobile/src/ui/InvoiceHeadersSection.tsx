@@ -2,7 +2,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { formatInvoiceIssuedAt, invoiceUiPhase } from "../invoicesView";
 import { formatMontoDisplay, present } from "../present";
-import { colors, spacing } from "../theme";
+import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { PortalInvoiceHeader, PortalInvoicesResponse } from "../types";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -10,6 +10,7 @@ import { SectionHeader } from "./SectionHeader";
 import { Text } from "./Text";
 
 function InvoiceRow({ item }: { item: PortalInvoiceHeader }) {
+  const styles = useThemedStyles(makeStyles);
   const number = present(item.invoice_number);
   const fullType = present(item.full_type);
   const issued = formatInvoiceIssuedAt(item.issued_at);
@@ -61,6 +62,8 @@ export function InvoiceHeadersSection({
   transportError: boolean;
   onRetry: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const phase = invoiceUiPhase({
     loading,
     transportError,
@@ -73,7 +76,7 @@ export function InvoiceHeadersSection({
       <SectionHeader title="Últimas facturas" />
       {phase === "loading" ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={colors.brand} />
+          <ActivityIndicator color={colors.primary} />
           <Text variant="meta">Cargando facturas…</Text>
         </View>
       ) : null}
@@ -108,22 +111,25 @@ export function InvoiceHeadersSection({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: spacing.sm },
-  loading: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    minHeight: 44,
-  },
-  row: {
-    gap: spacing.xs,
-    paddingBottom: spacing.sm,
-    marginBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  number: { fontSize: 17 },
-  meta: { marginTop: spacing.xs },
-  cta: { marginTop: spacing.sm },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, size, fontSize } = t;
+  return StyleSheet.create({
+    wrap: { gap: space.sm },
+    loading: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.sm,
+      minHeight: size.hit,
+    },
+    row: {
+      gap: space.xs,
+      paddingBottom: space.sm,
+      marginBottom: space.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    number: { fontSize: fontSize.xl },
+    meta: { marginTop: space.xs },
+    cta: { marginTop: space.sm },
+  });
+}
