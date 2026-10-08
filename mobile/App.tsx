@@ -24,6 +24,8 @@ import { PinSetup } from "./src/ui/PinSetup";
 import { Screen } from "./src/ui/Screen";
 import { Text } from "./src/ui/Text";
 
+const FONT_TIMEOUT_MS = 2500;
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -49,9 +51,21 @@ function AppRoot() {
     onExit,
     applyConversation,
   } = useSession();
-  // Si la carga falla seguimos con la fuente del sistema: no bloquear el ingreso por tipografía.
+  // La tipografía nunca bloquea el ingreso: si falla o tarda más de FONT_TIMEOUT_MS seguimos
+  // con la fuente del sistema (withManrope no aplica Manrope hasta que esté cargada).
   const [fontsLoaded, fontsError] = useFonts(fontFiles);
-  const fontsReady = fontsLoaded || Boolean(fontsError);
+  const [fontTimeout, setFontTimeout] = useState(false);
+  useEffect(() => {
+    if (fontsLoaded || fontsError) return;
+    const t = setTimeout(() => setFontTimeout(true), FONT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [fontsLoaded, fontsError]);
+  useEffect(() => {
+    if (!__DEV__ || fontsLoaded) return;
+    if (fontsError) console.warn("[fonts] Manrope no cargó; se usa la fuente del sistema.", fontsError);
+    else if (fontTimeout) console.warn(`[fonts] Manrope tardó más de ${FONT_TIMEOUT_MS} ms; se usa la fuente del sistema mientras tanto.`);
+  }, [fontsLoaded, fontsError, fontTimeout]);
+  const fontsReady = fontsLoaded || Boolean(fontsError) || fontTimeout;
   const [tab, setTab] = useState<AppTab>("home");
   const [pendingChatText, setPendingChatText] = useState("");
   const [pinGate, setPinGate] = useState(false);

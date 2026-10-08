@@ -1,3 +1,4 @@
+import { isLoaded } from "expo-font";
 import { StyleSheet, type StyleProp, type TextStyle } from "react-native";
 
 import { fontWeight } from "./tokens";
@@ -41,10 +42,14 @@ export function fontFamilyForWeight(weight: TextStyle["fontWeight"]): FontName {
 /**
  * Reemplaza `fontWeight` por la familia Manrope del peso pedido.
  * Respeta un `fontFamily` explícito (p. ej. monoespaciada).
+ * Si esa familia todavía no está cargada (falla o demora), deja el estilo intacto:
+ * fuente del sistema con su `fontWeight`, en vez de una familia inexistente sin negritas.
  */
 export function withManrope(style: StyleProp<TextStyle>): TextStyle {
   const flat = StyleSheet.flatten(style) ?? {};
   if (flat.fontFamily) return flat;
   const { fontWeight: weight, ...rest } = flat;
-  return { ...rest, fontFamily: fontFamilyForWeight(weight) };
+  const family = fontFamilyForWeight(weight);
+  if (!isLoaded(family)) return flat;
+  return { ...rest, fontFamily: family };
 }
