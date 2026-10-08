@@ -25,30 +25,11 @@ SIN_TICKET = "No tenés ningún ticket abierto"
 COPY_ACTIVO = "un agente lo va a atender. Te responde por este mismo chat."
 
 
-H27G_CONFIRMA = "H27g: el pedido de agente confirma con «¿Confirmás que querés continuar con esta acción?» (no nombra la acción)"
-H27G_CONSULTA = "H27g: la consulta de ticket no se reconoce o no informa el ID y el estado real"
-H27G_SIN_TICKET = "H27g: sin ticket la consulta cae en el playbook o en el journey, sin decir que no hay ticket abierto"
-
-
-def xf(reason: str):
-    return pytest.mark.xfail(strict=True, reason=reason)
-
-
-def _con_xfail(valores, fallan, reason):
-    """Marca xfail estricto solo los parámetros que fallan hoy (cada uno reproduce el hallazgo)."""
-    return [pytest.param(v, marks=[xf(reason)] if v in fallan else []) for v in valores]
-
-
-ABIERTO_FALLAN = {"y el ticket?", "el ticket", "número de ticket", "ticket?"}
-PREVIO_Y_NUEVO_PASAN = {"qué pasó con el ticket", "y el ticket anterior?"}
-
-
 def _dump(t) -> str:
     return "\n".join(f"  [{x.branch}] {x.user!r} -> {x.reply[:120]!r}" for x in t)
 
 
 # ------------------------------------------------ pieza 1: la confirmación de create_ticket nombra la acción
-@xf(H27G_CONFIRMA)
 @pytest.mark.parametrize("canal", CANALES)
 def test_h27g_pedido_de_agente_confirma_nombrando_la_accion(canal):
     t = converse(["internet", "¿me pasás con un agente?"], canal=canal, planta="valida")
@@ -57,7 +38,6 @@ def test_h27g_pedido_de_agente_confirma_nombrando_la_accion(canal):
     assert not v, "\n".join(v) + "\n" + _dump(t)
 
 
-@xf(H27G_CONFIRMA)
 @pytest.mark.parametrize("canal", CANALES)
 def test_h27g_el_si_a_la_confirmacion_crea_el_ticket(canal):
     t = converse(["internet", "¿me pasás con un agente?", "sí"], canal=canal, planta="valida")
@@ -65,7 +45,6 @@ def test_h27g_el_si_a_la_confirmacion_crea_el_ticket(canal):
     assert sum(x.ticket_created for x in t) == 1, _dump(t)
 
 
-@xf(H27G_CONFIRMA)
 @pytest.mark.parametrize("canal", CANALES)
 def test_h27g_el_no_a_la_confirmacion_no_crea_ticket(canal):
     t = converse(["internet", "¿me pasás con un agente?", "no"], canal=canal, planta="valida")
@@ -74,7 +53,6 @@ def test_h27g_el_no_a_la_confirmacion_no_crea_ticket(canal):
 
 
 # ------------------------------------------------ pieza 2: consulta de ticket
-@xf(H27G_CONSULTA)
 def test_h27g_detector_reconoce_las_consultas():
     from app.services.canal_abonado import _es_consulta_de_ticket
 
@@ -87,7 +65,7 @@ def test_h27g_detector_no_toma_pedidos_de_ticket():
     assert [c for c in NO_CONSULTAS if _es_consulta_de_ticket(c)] == []
 
 
-@pytest.mark.parametrize("consulta", _con_xfail(CONSULTAS, ABIERTO_FALLAN, H27G_CONSULTA))
+@pytest.mark.parametrize("consulta", CONSULTAS)
 @pytest.mark.parametrize("canal", CANALES)
 def test_h27g_consulta_con_ticket_abierto_responde_id_y_estado(canal, consulta):
     t = converse(["no tengo internet", "quiero hablar con un agente", consulta], canal=canal, profile="int1")
@@ -98,7 +76,7 @@ def test_h27g_consulta_con_ticket_abierto_responde_id_y_estado(canal, consulta):
     assert not t[2].ticket_created and t[2].ticket_id == tid, _dump(t)
 
 
-@pytest.mark.parametrize("consulta", _con_xfail(CONSULTAS, set(CONSULTAS) - PREVIO_Y_NUEVO_PASAN, H27G_CONSULTA))
+@pytest.mark.parametrize("consulta", CONSULTAS)
 def test_h27g_consulta_con_ticket_previo_cerrado_y_uno_nuevo(consulta):
     t = converse(["internet", "me pasas con un agente", agente.cierra_el_ticket_desde_el_panel, "internet", "me pasas con un agente",
                   consulta], canal="whatsapp", profile="int1", reconocer_telefono=True)
@@ -109,7 +87,6 @@ def test_h27g_consulta_con_ticket_previo_cerrado_y_uno_nuevo(consulta):
     assert not t[4].ticket_created, _dump(t)
 
 
-@xf(H27G_CONSULTA)
 @pytest.mark.parametrize("consulta", CONSULTAS)
 def test_h27g_consulta_con_ticket_previo_cerrado_sin_nuevo(consulta):
     t = converse(["internet", "me pasas con un agente", agente.cierra_el_ticket_desde_el_panel, "internet", consulta],
@@ -120,7 +97,6 @@ def test_h27g_consulta_con_ticket_previo_cerrado_sin_nuevo(consulta):
     assert not any(x.ticket_created for x in t[2:]), _dump(t)
 
 
-@xf(H27G_SIN_TICKET)
 @pytest.mark.parametrize("consulta", CONSULTAS)
 @pytest.mark.parametrize("journeys", [True, False], ids=["journeys_on", "journeys_off"])
 def test_h27g_consulta_sin_ticket_responde_honesto(consulta, journeys):

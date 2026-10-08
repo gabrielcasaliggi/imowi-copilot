@@ -29,7 +29,7 @@ def test_i3_agente():
     assert inv.i3_agente_deriva([T("quiero hablar con un agente", "Ya revisé tu conexión")])
     assert not inv.i3_agente_deriva([T("quiero hablar con un agente", "Para derivar con un agente, confirmame con un «sí».")])
     assert not inv.i3_agente_deriva([T("quiero hablar con un agente", "Dale, te derivo. Ticket IBOT-1.")])
-    assert not inv.i3_agente_deriva([T("quiero hablar con un agente", "¿Confirmás que querés continuar con esta acción?")])
+    assert not inv.i3_agente_deriva([T("quiero hablar con un agente", "¿Querés que te derive con un agente?")])
 
 
 def test_i4_habla_del_servicio():

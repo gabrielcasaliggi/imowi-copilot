@@ -26,9 +26,6 @@ TEXTOS = {
 }
 
 
-H27G = "H27g: la confirmación del Runtime es «¿Confirmás que querés continuar con esta acción?» para toda acción"
-
-
 def _trusted(**kw) -> TrustedContext:
     base = dict(
         conversation_id="conv-1",
@@ -59,7 +56,6 @@ def test_toda_accion_con_confirmacion_tiene_texto_propio():
     assert con_confirmacion == sorted(TEXTOS), con_confirmacion
 
 
-@pytest.mark.xfail(strict=True, reason=H27G)
 @pytest.mark.parametrize("action", sorted(TEXTOS))
 def test_confirmacion_nombra_la_accion(action):
     r = _run(action)
@@ -79,7 +75,6 @@ def test_el_no_cancela_la_accion(action):
     assert r.status == "denied" and r.reason_code == "confirmation_rejected", r
 
 
-@pytest.mark.xfail(strict=True, reason=H27G)
 def test_generico_sin_texto_propio():
     from app.services.eko_action_runtime import mensaje_confirmacion
 

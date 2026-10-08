@@ -4829,9 +4829,12 @@ def _try_incident_cx_en_espera(
 _CONSULTA_TICKET_OBJETO = re.compile(r"\b(ticket|reclamo)s?\b")
 _CONSULTA_TICKET_PREGUNTA = re.compile(
     r"\banter\w+|\bprevi[oa]s?\b|\bultimo\b|\bque\s+(paso|onda|hay)\b|\bcomo\s+(va|sigue|esta|quedo)\b|\bestado\b"
-    r"|\bnovedad\w*|\bcuando\b|\bsigue\s+abiert\w*|\bse\s+cerr\w*|\bcerraron\b|\bresolvieron\b"
+    r"|\bnovedad\w*|\bcuando\b|\bsigue\s+abiert\w*|\bse\s+cerr\w*|\bcerraron\b|\bresolvieron\b|\bnumero\b|\bcual\b"
 )
 _CONSULTA_TICKET_PEDIDO = re.compile(r"\b(abr\w+|crea\w*|gener\w+|nuevo|nueva|quiero|necesito|hag\w+)\b")
+# H27g: formas cortas («y el ticket?», «mi ticket», «el ticket anterior»); «ticket» suelto solo como pregunta («ticket?»).
+_CONSULTA_TICKET_CORTA = re.compile(r"^(y\s+)?(el|mi)\s+(ticket|reclamo)(\s+anterior)?$")
+_CONSULTA_TICKET_SUELTO = re.compile(r"^(y\s+)?(ticket|reclamo)$")
 
 
 def _es_consulta_de_ticket(texto: str) -> bool:
@@ -4840,10 +4843,12 @@ def _es_consulta_de_ticket(texto: str) -> bool:
     from app.domain.conversation_motor import _norm
 
     t = _norm(texto)
+    if not _CONSULTA_TICKET_OBJETO.search(t) or _CONSULTA_TICKET_PEDIDO.search(t):
+        return False
     return bool(
-        _CONSULTA_TICKET_OBJETO.search(t)
-        and _CONSULTA_TICKET_PREGUNTA.search(t)
-        and not _CONSULTA_TICKET_PEDIDO.search(t)
+        _CONSULTA_TICKET_PREGUNTA.search(t)
+        or _CONSULTA_TICKET_CORTA.match(t)
+        or (_CONSULTA_TICKET_SUELTO.match(t) and "?" in (texto or ""))
     )
 
 
@@ -4869,6 +4874,12 @@ def _ticket_previo_de_la_linea(db: Session, org_id: str, conv: ConversacionCanal
     return None
 
 
+MSG_SIN_TICKET_ABIERTO = (
+    "No tenés ningún ticket abierto. Si tenés un problema con el servicio, ¿me contás qué pasa así lo vemos y, si hace falta, "
+    "abrimos un reclamo?"
+)
+
+
 def _respuesta_consulta_ticket(db: Session, org_id: str, conv: ConversacionCanal) -> str | None:
     """H22: ID y estado del ticket ACTIVO (el ligado al hilo) y, si hay uno previo, su estado. None si no hay ticket que informar."""
     activo = db.get(Ticket, conv.ticket_id) if (conv.ticket_id or "").strip() else None
@@ -4882,10 +4893,16 @@ def _respuesta_consulta_ticket(db: Session, org_id: str, conv: ConversacionCanal
         return "ya fue cerrado" if (t.estado or "") == "Cerrado" else f"sigue {(t.estado or 'abierto').lower()}"
 
     if activo is not None:
-        msg = f"Tu ticket {activo.id} está {(activo.estado or 'Abierto').lower()} y lo tiene un agente; te van a responder por este chat."
+        estado = (activo.estado or "Abierto").lower()
+        msg = f"Tu ticket {activo.id} está {estado} y un agente lo va a atender. Te responde por este mismo chat."
         if previo is not None:
-            msg = f"Tu ticket {previo.id} {_estado(previo)}; ahora tenés abierto el {activo.id}, que está {(activo.estado or 'Abierto').lower()} y lo tiene un agente. Te van a responder por este chat."
+            msg = (
+                f"Tu ticket {previo.id} {_estado(previo)}; ahora tenés abierto el {activo.id}, que está {estado} y un agente lo "
+                "va a atender. Te responde por este mismo chat."
+            )
         return msg
+    if (previo.estado or "") == "Cerrado":
+        return f"Tu ticket {previo.id} ya fue cerrado. {MSG_SIN_TICKET_ABIERTO}"
     return f"Tu ticket {previo.id} {_estado(previo)}. Si el problema sigue, contame y lo vemos."
 
 
@@ -4896,9 +4913,8 @@ def _responder_consulta_ticket(
     silencia el cooldown del aviso de espera."""
     if not _es_consulta_de_ticket(texto):
         return None
-    resp = _respuesta_consulta_ticket(db, org_id, conv)
-    if not resp:
-        return None
+    # H27g: sin ticket que informar se dice (no cae en el playbook ni inventa un estado).
+    resp = _respuesta_consulta_ticket(db, org_id, conv) or MSG_SIN_TICKET_ABIERTO
     _enviar_respuesta(db, org_id, conv, resp, enviar_externo=_enviar_externo(canal))
     return {
         "ok": True,
@@ -4974,6 +4990,12 @@ def _responder_espera_agente(
                 f"{(texto or '').strip()[:300]}"
             ),
         )
+
+    # H27g: con un ticket previo de la línea, la consulta menciona los dos (Fix 4); sin previo sigue el seguimiento 2.7D.
+    if _es_consulta_de_ticket(texto) and _ticket_previo_de_la_linea(db, org_id, conv) is not None:
+        consulta_ticket = _responder_consulta_ticket(db, org_id, conv, texto, canal=canal)
+        if consulta_ticket is not None:
+            return consulta_ticket
 
     # 2.7D: follow-up de incidente / nota / consulta ticket sin reiniciar a menú N1
     cx_follow = _try_incident_cx_en_espera(

@@ -414,3 +414,25 @@ tocan en H27k ni en H27g. H27-L2/L3/L4 siguen con xfail estricto en `tests/e2e_c
 - **H27-L2** — journeys encendidos con sesión válida: el legacy repregunta el paso de alcance dentro de la ventana de I10.
 - **H27-L3** — journeys apagados, Radius en excepción y sin tecnología: el legacy repite el tipo de acceso (I5/I10).
 - **H27-L4** — journeys apagados con sesión válida: visita técnica de entrada y, tras el «no», cierre con pérdida de identificación (I1/I2).
+
+## H27g — copy: la confirmación nombra la acción y la consulta de ticket informa ID y estado real (cerrado, 2026-10-07)
+
+Solo copy y reconocimiento de frases: no cambia la policy, R1 ni cuándo se crea un ticket.
+
+**Pieza 1 (`eko_action_runtime.py`):** la confirmación del Runtime era «¿Confirmás que querés continuar con esta acción?» para toda acción. Ahora
+`mensaje_confirmacion(action)`: `create_ticket` → «¿Querés que te derive con un agente?», `escalate_human` → «¿Querés que te pase con un agente?»,
+`close_conversation` → «¿Querés que cierre esta consulta?»; sin texto propio → «¿Querés que lo haga?». El «sí» sigue ejecutando y el «no» cancelando.
+
+**Pieza 2 (`canal_abonado.py`, Fix 4 de H22 ampliado):**
+- `_es_consulta_de_ticket` reconoce además «y el ticket?», «el ticket», «mi ticket», «número de ticket», «cuál es mi ticket» y «ticket?» (el «ticket»
+  suelto solo con «?»); los pedidos («quiero abrir un ticket», «no quiero ticket», «abrime un ticket», «necesito un ticket», «ticket pls») siguen fuera.
+- Respuesta con el estado real del ticket: «Tu ticket IBOT-… está abierto y un agente lo va a atender. Te responde por este mismo chat.»; con un previo
+  cerrado, «Tu ticket IBOT-x ya fue cerrado; ahora tenés abierto el IBOT-y…». Sin ticket abierto: «No tenés ningún ticket abierto. Si tenés un problema con
+  el servicio, ¿me contás qué pasa así lo vemos y, si hace falta, abrimos un reclamo?» (no deja una oferta pendiente: el ticket sigue saliendo solo por los
+  caminos de siempre, R1).
+- En `espera_agente`, si hay un ticket previo de la línea la consulta la responde H22 antes que el seguimiento 2.7D (para mencionar los dos); sin previo,
+  2.7D sigue igual (código congelado no tocado).
+
+**Sensores:** `tests/test_h27g_confirmaciones.py` y `tests/e2e_conv/test_h27g_copy.py` (los xfails estrictos entraron primero en `be485f5`).
+Harness: `HANDOFF_REPLY` (I3) reconoce «querés que te derive/pase con un agente» en lugar del texto viejo; `test_invariantes_unit.test_i3_agente` usa el
+texto nuevo.

@@ -384,6 +384,19 @@ def evaluate_policy(request: ActionRequest, trusted: TrustedContext) -> PolicyDe
 # ---------------------------------------------------------------------------
 
 
+# H27g: la confirmación nombra la acción (voseo, termina en «?», I7). Solo copy: la policy no cambia.
+_MENSAJES_CONFIRMACION = {
+    "create_ticket": "¿Querés que te derive con un agente?",
+    "escalate_human": "¿Querés que te pase con un agente?",
+    "close_conversation": "¿Querés que cierre esta consulta?",
+}
+MENSAJE_CONFIRMACION_GENERICO = "¿Querés que lo haga?"
+
+
+def mensaje_confirmacion(action: str) -> str:
+    return _MENSAJES_CONFIRMACION.get(action, MENSAJE_CONFIRMACION_GENERICO)
+
+
 def execute_action(request: ActionRequest, trusted: TrustedContext) -> ActionResult:
     """Único punto de ejecución: registry → policy → executor."""
     name = (request.action or "").strip()
@@ -440,7 +453,7 @@ def execute_action(request: ActionRequest, trusted: TrustedContext) -> ActionRes
                 status="needs_confirmation",
                 reason_code=policy.reason_code,
                 policy="NEEDS_CONFIRMATION",
-                user_message="¿Confirmás que querés continuar con esta acción?",
+                user_message=mensaje_confirmacion(name),
                 data={"confirmation": "REQUIRED"},
             )
         )

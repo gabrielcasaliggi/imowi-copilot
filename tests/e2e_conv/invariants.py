@@ -21,7 +21,7 @@ USER_ASKS_AGENT = re.compile(
     re.I,
 )
 HANDOFF_REPLY = re.compile(
-    r"(te derivo|derivar con un agente|derive el caso|confirmame con un|confirmás que querés continuar con esta acción|"
+    r"(te derivo|derivar con un agente|derive el caso|confirmame con un|querés que te (derive|pase) con un agente|"
     r"ticket [a-z]+-\d+|ya está derivado|te paso con un agente)",
     re.I,
 )
