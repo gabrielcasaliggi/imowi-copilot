@@ -37,3 +37,25 @@ primer intento (`post_query_form`) manda las credenciales en query **y** body, y
 query. Las consultas (`obtenerPorNumeroCliente`, `/tr/modificarWifi*`) mandan `usuario`/`token` (y la clave Wi‑Fi
 del abonado) en la query. Propuesta: confirmar con Sopnet qué variante de auth acepta prod, dejar solo la de cuerpo,
 y ver si la API acepta el token por header (`Authorization: Bearer`) y los params de `/tr/*` en el body.
+
+## Clave Wi‑Fi escrita en el chat (H31)
+
+La clave nueva que el abonado escribe (o dicta) en el chat de Eko no se persiste: en la tabla de mensajes y en el
+ctx (`comprension_turno.texto_original`/`texto_para_reglas`, `mensaje_original`) se guarda `MARCADOR_CLAVE`
+(`••••••`, largo fijo). La decisión es por estado, no por el texto (`wifi_bcm.texto_es_clave_wifi`): fase
+`pedir_clave` del flujo remoto con la conversación en `bot`, o `confirmar_clave` si el abonado reescribe la clave
+pendiente (comparación exacta contra el valor en memoria). El valor real vive solo en memoria del proceso hasta el
+write a BCM. Como Bandeja, evidencia de tickets e historial del LLM leen de la tabla de mensajes, heredan el
+marcador. Tests: `tests/test_h31_clave_wifi_enmascarada.py`.
+
+Fuera de alcance (documentado, sin arreglar):
+
+- **Sentry**: si una excepción salta durante el turno de la clave, el evento adjunta las variables locales de los
+  frames (`texto`, `txt`) y `redactar_evento_sentry` solo limpia mensajes y valores de excepción (el scrubber por
+  defecto de Sentry tapa la variable `password`, no `texto`). Hoy `SENTRY_DSN` está vacío en producción, así que no
+  se envía nada. Si se activa Sentry: `include_local_variables=False` o limpiar `frames[].vars` en `before_send`.
+- **Destino perdido a mitad del flujo (caso D)**: si en `pedir_clave` `_destino_autorizado` deja de resolver el
+  equipo, el turno Wi‑Fi devuelve `None` y el resto del turno sigue con el texto real en memoria; puede llegar al
+  prompt del LLM externo de ese turno. No se persiste (el mensaje ya quedó enmascarado) y es un caso raro.
+- **Mensajes ya guardados**: lo persistido antes de H31 queda como estaba; limpiarlo requiere una migración en prod.
+- **Query string a BCM**: ver «Pendiente» arriba.

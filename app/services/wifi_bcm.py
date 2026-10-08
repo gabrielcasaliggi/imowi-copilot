@@ -202,6 +202,23 @@ def _pending_get(key: str) -> tuple[str, str] | None:
         return kind, value
 
 
+def _clave_pendiente_es(abonado_id: str, texto: str) -> bool:
+    """True si ``texto`` es exactamente la clave pendiente de confirmación del abonado (en memoria)."""
+    aid = (abonado_id or "").strip()
+    valor = (texto or "").strip()
+    if not aid or not valor:
+        return False
+    now = time.monotonic()
+    with _ephem_lock:
+        return any(
+            key.startswith(f"{aid}|")
+            and entry.get("kind") == "clave"
+            and entry.get("value") == valor
+            and now - float(entry.get("ts") or 0) <= _PENDING_TTL_SEC
+            for key, entry in _pending_values.items()
+        )
+
+
 def _pending_clear(key: str) -> None:
     with _ephem_lock:
         _pending_values.pop(key, None)
@@ -381,6 +398,49 @@ def _reabrir_tras_hecho(texto: str) -> QueWifi:
 
 def gestion_remota_activa(ctx: dict | None) -> bool:
     return str((ctx or {}).get("wifi_bcm") or "") == "1"
+
+
+# H31: lo que se persiste o se muestra en lugar de la clave (largo fijo, no el real).
+MARCADOR_CLAVE = "••••••"
+
+
+def _fase_remota_con_bot(ctx: dict | None, estado_conv: str) -> str:
+    """Fase del flujo remoto de cambio de clave si el bot atiende la conversación; '' si no aplica."""
+    c = ctx or {}
+    if (
+        (estado_conv or "") != "bot"
+        or str(c.get("intencion") or "") != "cambio_clave_wifi"
+        or not gestion_remota_activa(c)
+    ):
+        return ""
+    return str(c.get("wifi_bcm_fase") or "")
+
+
+def turno_es_clave_wifi(ctx: dict | None, estado_conv: str) -> bool:
+    """El texto de este turno es la clave nueva: fase ``pedir_clave`` del flujo remoto, con el bot atendiendo."""
+    return _fase_remota_con_bot(ctx, estado_conv) == "pedir_clave"
+
+
+def texto_es_clave_wifi(ctx: dict | None, estado_conv: str, abonado_id: str, texto: str) -> bool:
+    """H31: el texto entrante no se persiste (se guarda ``MARCADOR_CLAVE``).
+
+    Por estado, no por el contenido: el turno de la clave, o ``confirmar_clave`` cuando el abonado
+    reescribe la clave pendiente en vez de confirmar (comparación exacta contra el valor en memoria).
+    """
+    fase = _fase_remota_con_bot(ctx, estado_conv)
+    return fase == "pedir_clave" or (fase == "confirmar_clave" and _clave_pendiente_es(abonado_id, texto))
+
+
+def enmascarar_comprension_clave(ctx: dict) -> None:
+    """H31: la capa de comprensión copia el texto del turno al ctx; en el turno de la clave va el marcador."""
+    comp = ctx.get("comprension_turno")
+    if not isinstance(comp, dict):
+        return
+    if "mensaje_original" in ctx and ctx.get("mensaje_original") == comp.get("texto_original"):
+        ctx["mensaje_original"] = MARCADOR_CLAVE
+    for k in ("texto_original", "texto_para_reglas"):
+        if comp.get(k):
+            comp[k] = MARCADOR_CLAVE
 
 
 def mensaje_remoto_disponible() -> str:

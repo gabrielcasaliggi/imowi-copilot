@@ -129,7 +129,6 @@ def _entrantes(r: dict[str, Any]) -> list[str]:
     return [t for autor, t in r["mensajes"] if autor == "cliente"]
 
 
-@pytest.mark.xfail(strict=True, reason="H31: la clave Wi‑Fi se guarda en claro en mensajes_canal")
 @pytest.mark.parametrize(("canal", "audio"), _ENTRADAS)
 def test_a_mensaje_de_la_clave_guardado_enmascarado(canal, audio):
     r = _flujo([_PEDIDO, _CLAVE], canal=canal, entrada_audio=audio)
@@ -138,7 +137,6 @@ def test_a_mensaje_de_la_clave_guardado_enmascarado(canal, audio):
     assert all(_CLAVE not in t for _a, t in r["mensajes"])
 
 
-@pytest.mark.xfail(strict=True, reason="H31: comprension_turno y mensaje_original guardan la clave en claro")
 @pytest.mark.parametrize("clave", [_CLAVE, "Mi  Clave  99"])  # la segunda deja mensaje_original (la normalización la cambia)
 def test_b_comprension_turno_enmascarada(clave):
     r = _flujo([_PEDIDO, clave])
@@ -151,7 +149,6 @@ def test_b_comprension_turno_enmascarada(clave):
     assert clave not in r["turnos"][1]["contexto_json"]
 
 
-@pytest.mark.xfail(strict=True, reason="H31: la API de Bandeja devuelve la clave en mensajes, vista previa y contexto")
 def test_c_bandeja_no_devuelve_la_clave():
     from main import app
 
@@ -175,7 +172,6 @@ def test_c_bandeja_no_devuelve_la_clave():
         assert crepo.conversacion_to_dict(cv, ultimo=msg_clave)["ultimo_mensaje_texto"] == _MARCADOR
 
 
-@pytest.mark.xfail(strict=True, reason="H31: la evidencia del ticket derivado lleva la clave en claro")
 def test_d_ticket_derivado_y_respuestas_del_bot_sin_la_clave():
     r = _flujo([_PEDIDO, _CLAVE, "sí", "sí"], bcm_ok=False)
     assert r["bcm"] == [_CLAVE]
@@ -196,7 +192,6 @@ def test_e_bcm_recibe_la_clave_real_exacta(canal, audio, clave):
     assert r["bcm"] == [clave]
 
 
-@pytest.mark.xfail(strict=True, reason="H31: la clave reescrita en confirmar_clave se guarda en claro")
 def test_f_confirmar_clave_con_la_clave_reescrita():
     r = _flujo([_PEDIDO, _CLAVE, _CLAVE, "sí"])
     assert [t["fase"] for t in r["turnos"]] == ["pedir_clave", "confirmar_clave", "confirmar_clave", "hecho"]
@@ -212,7 +207,6 @@ def test_f_control_confirmar_clave_otro_texto_no_se_enmascara():
     assert r["bcm"] == [_CLAVE]
 
 
-@pytest.mark.xfail(strict=True, reason="H31: contexto_json persiste la clave (comprension_turno)")
 def test_g_contexto_json_nunca_contiene_la_clave():
     r = _flujo([_PEDIDO, _CLAVE, "sí"])
     assert r["bcm"] == [_CLAVE]
@@ -224,3 +218,19 @@ def test_control_resto_de_los_turnos_sin_enmascarar():
     r = _flujo([_PEDIDO, _CLAVE, "sí"])
     entrantes = _entrantes(r)
     assert entrantes[0] == _PEDIDO and entrantes[2] == "sí"
+
+
+def test_predicado_por_estado_solo_con_el_bot_y_la_clave():
+    wb.clear_wifi_ephemeral_for_tests()
+    ctx = {"intencion": "cambio_clave_wifi", "wifi_bcm": "1", "wifi_bcm_fase": "pedir_clave"}
+    assert wb.texto_es_clave_wifi(ctx, "bot", "abo-1", "cualquier texto")
+    for estado in ("con_agente", "espera_agente", "cerrado"):  # con un agente, nada se enmascara
+        assert not wb.texto_es_clave_wifi(ctx, estado, "abo-1", "cualquier texto")
+    assert not wb.texto_es_clave_wifi({**ctx, "wifi_bcm_fase": "pedir_ssid"}, "bot", "abo-1", "MiRed")  # el SSID no es secreto
+    assert not wb.texto_es_clave_wifi({**ctx, "wifi_bcm": "0"}, "bot", "abo-1", "cualquier texto")
+    confirmar = {**ctx, "wifi_bcm_fase": "confirmar_clave"}
+    wb._pending_put("abo-1|serial:SNTEST0001", "clave", _CLAVE)
+    assert wb.texto_es_clave_wifi(confirmar, "bot", "abo-1", f"  {_CLAVE} ")
+    assert not wb.texto_es_clave_wifi(confirmar, "bot", "abo-1", "sí")
+    assert not wb.texto_es_clave_wifi(confirmar, "bot", "abo-2", _CLAVE)  # la pendiente es de otro abonado
+    wb.clear_wifi_ephemeral_for_tests()

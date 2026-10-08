@@ -5769,13 +5769,19 @@ def _procesar_mensaje_entrante(
                 ctx0.pop("responder_en_audio", None)
             crepo.set_contexto(conv, ctx0)
             db.commit()
+        # H31: la clave Wi‑Fi no se persiste; el texto real sigue en memoria hasta BCM.
+        from app.services.wifi_bcm import MARCADOR_CLAVE, texto_es_clave_wifi
+
+        es_clave_wifi = texto_es_clave_wifi(
+            crepo.get_contexto(conv), conv.estado, conv.abonado_id or "", texto
+        )
         msg_in = crepo.add_mensaje(
             db,
             org_id,
             conv.id,
             direccion="in",
             autor="cliente",
-            texto=texto,
+            texto=MARCADOR_CLAVE if es_clave_wifi else texto,
             meta_message_id=meta_message_id,
         )
         media_ok = _persistir_adjunto_si_aplica(db, org_id, conv.id, msg_in, adjunto)
@@ -5868,6 +5874,10 @@ def _procesar_mensaje_entrante(
         )
     except Exception:
         logger.exception("comprension_abonado: turno sin enriquecer")
+    if es_clave_wifi:
+        from app.services.wifi_bcm import enmascarar_comprension_clave
+
+        enmascarar_comprension_clave(ctx)
 
     abonado: Abonado | None = None
     if conv.abonado_id:

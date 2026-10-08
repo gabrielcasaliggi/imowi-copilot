@@ -6,11 +6,11 @@ La suite completa ya no entra en una sola corrida de 5 minutos, así que se corr
 
 | Tanda | Qué corre | Comando | Total esperado | Tiempo medido |
 |---|---|---|---|---|
-| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **757 passed, 10 xfailed** | 73–577 s según carga |
+| 1 — escenarios | `tests/e2e_conv` (harness, invariantes, escenarios y hallazgos) | `timeout 600 .venv/bin/python -m pytest -m e2e_conv` | **757 passed, 10 xfailed** | 73–580 s según carga |
 | 2a — resto, mitad 1 | `tests/test_*.py`, archivos 1–115 en orden alfabético (hasta `test_h27g_confirmaciones.py`) | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| head -115)` | **1736 passed** | 78–81 s |
-| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 116 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +116)` | **807 passed, 0 xfailed** | 71–84 s |
+| 2b — resto, mitad 2 | `tests/test_*.py`, del archivo 116 en adelante | `timeout 900 .venv/bin/python -m pytest -m "not e2e_conv" $(ls tests/test_*.py \| tail -n +116)` | **835 passed, 0 xfailed** | 71–87 s |
 
-Total del repo: **3300 passed, 10 xfailed** (757 + 1736 + 807). Suite completa en un proceso con base limpia: 3300 passed, 10 xfailed (H32: +12 de `tests/test_h32_clave_wifi_literal.py`, que cae primero en la mitad 2; H27g: +90 de `tests/test_h27g_confirmaciones.py` y `tests/e2e_conv/test_h27g_copy.py`; H27k retiró 8 xfails y sumó 6 tests; los 10 xfails estrictos que quedan son de H27-L2/L3/L4, limitaciones conocidas del legacy, ver la auditoría). H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 Fix 1, Fix 2 y Fix 3 cerrados; H24, H25, H27a, H27k, H27g, H28 y H32 cerrados. Abiertos: H17-B2 y H17-D (afirmación suelta), H20, H23, H26; H27-L1..L4 quedan como limitaciones conocidas del legacy.
+Total del repo: **3328 passed, 10 xfailed** (757 + 1736 + 835). Suite completa en un proceso con base limpia: 3328 passed, 10 xfailed, 790 s (H31: +18 de `tests/test_h31_clave_wifi_enmascarada.py`; H32b: +10 de `tests/test_h32b_ssid_wifi_literal.py`; los dos caen en la mitad 2; H32: +12 de `tests/test_h32_clave_wifi_literal.py`, que cae primero en la mitad 2; H27g: +90 de `tests/test_h27g_confirmaciones.py` y `tests/e2e_conv/test_h27g_copy.py`; H27k retiró 8 xfails y sumó 6 tests; los 10 xfails estrictos que quedan son de H27-L2/L3/L4, limitaciones conocidas del legacy, ver la auditoría). H17 A, B y C cerrados; H22 (Fix 4) cerrado; H21 Fix 1, Fix 2 y Fix 3 cerrados; H24, H25, H27a, H27k, H27g, H28, H31, H32 y H32b cerrados. Abiertos: H17-B2 y H17-D (afirmación suelta), H20, H23, H26; H27-L1..L4 quedan como limitaciones conocidas del legacy.
 
 Notas
 - **Tiempos**: la partición se hizo por tiempo medido (`--durations=0`: 853 s de tests en total; `test_helpdesk_features.py` solo es 203 s,
@@ -24,7 +24,7 @@ Notas
   retirar el marcador. Para ver que cada uno reproduce su bug: `pytest -m e2e_conv --runxfail` (deben fallar exactamente los marcados).
 - Las tandas usan la misma base SQLite de tests (`data/test_estate.db`): **no correrlas en paralelo**.
 - **Antes de subir**, correr la suite completa como el CI: un solo proceso, con la base de tests **limpia** (mover `data/test_estate.db`) y `ruff check .`. Una base local vieja puede esconder fallos que el CI sí ve (pasó con los tests de RC-4: el playbook de la base tenía otros pasos).
-- **Tanda 1 cerca del límite**: con H32 midió 577 s, contra `timeout 600`. Si se corta, subir el timeout (p. ej. 900) antes de concluir nada.
+- **Tanda 1 cerca del límite**: con H31 midió 580 s de pytest y 582 s de reloj contra `timeout 600` (margen: 18 s; con H32, 577 s). Si se corta, subir el timeout (p. ej. 900) antes de concluir nada; si el margen baja de ~30 s de forma sostenida, subir el timeout del comando de la tabla.
 - Siempre con `timeout`. Una corrida con `timeout 570` se cortó sin dejar resultado: guardar la salida completa en un archivo, no filtrar con `grep`.
 - `ruff`: `.venv/bin/ruff check .`
 - CI (`.github/workflows/ci.yml`) todavía corre `python -m pytest` completo; separarlo en tandas queda pendiente de decisión.
