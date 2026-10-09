@@ -61,7 +61,8 @@ export function ChatComposer({
         onPress={onMic}
         disabled={locked}
         accessibilityRole="button"
-        accessibilityLabel="Mensaje de voz"
+        accessibilityLabel="Grabar mensaje de voz"
+        accessibilityHint="Empieza a grabar; después podés enviarlo o cancelarlo"
         accessibilityState={{ disabled: locked }}
         style={[styles.micBtn, locked && styles.btnDisabled]}
       >
@@ -70,14 +71,16 @@ export function ChatComposer({
           size={ICON}
           color={locked ? colors.onDisabled : colors.primary}
           allowFontScaling={false}
+          accessible={false}
+          importantForAccessibility="no"
         />
       </Pressable>
       <Pressable
         onPress={onSend}
         disabled={sendOff}
         accessibilityRole="button"
-        accessibilityLabel="Enviar"
-        accessibilityState={{ disabled: sendOff }}
+        accessibilityLabel={busy ? "Enviando mensaje" : "Enviar mensaje"}
+        accessibilityState={{ disabled: sendOff, busy }}
         style={[styles.sendBtn, sendOff && styles.btnDisabled]}
       >
         {busy ? (
@@ -88,6 +91,8 @@ export function ChatComposer({
             size={ICON - 2}
             color={sendOff ? colors.onDisabled : colors.onPrimary}
             allowFontScaling={false}
+            accessible={false}
+            importantForAccessibility="no"
           />
         )}
       </Pressable>

@@ -132,7 +132,7 @@ export function AppShell({
           />
         </View>
       </View>
-      <View style={[styles.tabBar, { paddingBottom: bottomPad }]}>
+      <View accessibilityRole="tablist" style={[styles.tabBar, { paddingBottom: bottomPad }]}>
         {TABS.map((item) => {
           const on = tab === item.id;
           return (
