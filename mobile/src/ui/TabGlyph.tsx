@@ -1,7 +1,9 @@
 import { StyleSheet, View } from "react-native";
 
-import { colors, sizes } from "../theme";
+import { useTheme } from "../theme/ThemeProvider";
 import type { AppTab } from "../types";
+
+const ICON = 22;
 
 export function TabGlyph({
   tab,
@@ -10,7 +12,8 @@ export function TabGlyph({
   tab: AppTab;
   active: boolean;
 }) {
-  const c = active ? colors.brand : colors.muted;
+  const { colors } = useTheme();
+  const c = active ? colors.primary : colors.muted;
   if (tab === "home") {
     return (
       <View style={styles.box}>
@@ -41,8 +44,8 @@ export function TabGlyph({
 
 const styles = StyleSheet.create({
   box: {
-    width: sizes.icon,
-    height: sizes.icon,
+    width: ICON,
+    height: ICON,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -2,20 +2,30 @@
   "expo": {
     "name": "EKO-Asistente",
     "slug": "soporte-batan",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "scheme": "soportebatan",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B1220"
+      "backgroundColor": "#F3F7F8"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "coop.batan.soporte"
+      "bundleIdentifier": "coop.batan.soporte",
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#F3F7F8",
+        "dark": {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0A1120"
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,12 +34,22 @@
       },
       "package": "coop.batan.soporte",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 15,
+      "versionCode": 16,
       "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": false,
       "blockedPermissions": [
         "com.google.android.gms.permission.AD_ID"
-      ]
+      ],
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#F3F7F8",
+        "dark": {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0A1120"
+        }
+      }
     },
     "plugins": [
       [

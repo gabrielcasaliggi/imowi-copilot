@@ -21,11 +21,11 @@ import {
 } from "./tokens";
 
 /**
- * H-APP-1: el selector de tema queda apagado hasta migrar las 5 pantallas.
- * Con `false` la app se ve siempre en oscuro aunque haya una preferencia guardada.
- * La pieza 9 lo pasa a `true` junto con `userInterfaceStyle: "automatic"`.
+ * Selector de tema (Cuenta → Apariencia). Requiere `userInterfaceStyle: "automatic"` en app.json
+ * para que el modo "Sistema" reciba el esquema real del teléfono.
+ * Con `false` la app vuelve a quedar fija en oscuro.
  */
-export const THEME_SELECTOR_ENABLED = false;
+export const THEME_SELECTOR_ENABLED = true;
 
 export type ThemePreference = "system" | "light" | "dark";
 

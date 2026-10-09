@@ -5,7 +5,8 @@ import { api } from "../api";
 import { PRIVACY_URL } from "../config";
 import { formatUserError, isAuthExpired } from "../errors";
 import { formatMontoDisplay, labelEstadoAbonado, labelServicio, parseAmount, present } from "../present";
-import { layout, spacing } from "../theme";
+import { useThemePreference } from "../theme/ThemeProvider";
+import { size, space } from "../theme/tokens";
 import type { InboxAbonado } from "../types";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -14,6 +15,7 @@ import { Screen } from "../ui/Screen";
 import { SectionHeader } from "../ui/SectionHeader";
 import { StatusRow } from "../ui/StatusRow";
 import { Text } from "../ui/Text";
+import { ThemeSelector } from "../ui/ThemeSelector";
 
 export function AccountScreen({
   token,
@@ -30,6 +32,7 @@ export function AccountScreen({
   onExit: () => void;
   onQuickAction: (texto: string | null) => void;
 }) {
+  const { selectorEnabled } = useThemePreference();
   const [showPin, setShowPin] = useState(needPin);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -181,6 +184,13 @@ export function AccountScreen({
           )}
         </View>
 
+        {selectorEnabled ? (
+          <View style={styles.block}>
+            <SectionHeader title="Apariencia" />
+            <ThemeSelector />
+          </View>
+        ) : null}
+
         <View style={styles.block}>
           <SectionHeader title="Privacidad y sesión" />
           <Button
@@ -217,15 +227,15 @@ export function AccountScreen({
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: spacing.xl,
+    paddingBottom: space.xl,
     width: "100%",
-    maxWidth: layout.maxContent,
+    maxWidth: size.maxContent,
     alignSelf: "center",
   },
-  lead: { marginBottom: spacing.xl, marginTop: spacing.sm },
-  card: { marginBottom: spacing.xl },
-  block: { marginBottom: spacing.lg, gap: spacing.sm },
-  dangerBlock: { marginTop: spacing.md, marginBottom: spacing.lg, gap: spacing.sm },
-  dangerHint: { marginBottom: spacing.xs },
-  err: { marginTop: spacing.md },
+  lead: { marginBottom: space.xl, marginTop: space.sm },
+  card: { marginBottom: space.xl },
+  block: { marginBottom: space.lg, gap: space.sm },
+  dangerBlock: { marginTop: space.md, marginBottom: space.lg, gap: space.sm },
+  dangerHint: { marginBottom: space.xs },
+  err: { marginTop: space.md },
 });

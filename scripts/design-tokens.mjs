@@ -8,6 +8,7 @@
  * Salidas:
  *   mobile/src/theme/tokens.ts       (app Expo)
  *   frontend/src/styles/tokens.css   (variables CSS --eko-*)
+ *   mobile/app.json                  (solo los backgroundColor del splash: bg claro / oscuro)
  *
  * Sin dependencias: solo Node.
  */
@@ -19,6 +20,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = join(ROOT, "design", "tokens.json");
 const OUT_TS = join(ROOT, "mobile", "src", "theme", "tokens.ts");
 const OUT_CSS = join(ROOT, "frontend", "src", "styles", "tokens.css");
+const APP_JSON = join(ROOT, "mobile", "app.json");
 const MODES = ["light", "dark"];
 const HEADER = "Generado por scripts/design-tokens.mjs desde design/tokens.json. No editar a mano.";
 
@@ -115,12 +117,29 @@ ${scale("size", tokens.size)}
 `;
 }
 
+/** Splash nativo: fondo `bg` claro por defecto y `bg` oscuro en modo oscuro (Android e iOS). */
+export function renderAppJson(tokens, currentText) {
+  const app = JSON.parse(currentText);
+  const { light, dark } = tokens.color.bg;
+  const expo = app.expo;
+  expo.splash = { ...expo.splash, backgroundColor: light };
+  for (const platform of ["android", "ios"]) {
+    expo[platform] = expo[platform] ?? {};
+    const splash = { ...expo.splash, ...expo[platform].splash, backgroundColor: light };
+    splash.dark = { ...expo.splash, ...splash.dark, backgroundColor: dark };
+    delete splash.dark.dark;
+    expo[platform].splash = splash;
+  }
+  return JSON.stringify(app, null, 2) + "\n";
+}
+
 function main() {
   const check = process.argv.includes("--check");
   const tokens = loadTokens();
   const outputs = [
     [OUT_TS, renderTs(tokens)],
     [OUT_CSS, renderCss(tokens)],
+    [APP_JSON, renderAppJson(tokens, readFileSync(APP_JSON, "utf8"))],
   ];
   const stale = [];
   for (const [path, content] of outputs) {

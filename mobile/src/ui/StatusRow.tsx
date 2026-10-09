@@ -1,7 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { present } from "../present";
-import { spacing } from "../theme";
+import { space } from "../theme/tokens";
 import { Text } from "./Text";
 
 export function StatusRow({
@@ -22,6 +22,6 @@ export function StatusRow({
 }
 
 const styles = StyleSheet.create({
-  row: { gap: 2, marginBottom: spacing.md },
+  row: { gap: space.xs, marginBottom: space.md },
   value: { flexShrink: 1 },
 });

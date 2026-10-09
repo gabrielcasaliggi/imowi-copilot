@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, radius, sizes, spacing } from "../theme";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { space } from "../theme/tokens";
 import type { Branding } from "../theme";
 import type { AppTab, InboxConversation, InboxMessage } from "../types";
 import { AccountScreen } from "../screens/AccountScreen";
@@ -59,7 +60,8 @@ export function AppShell({
   onPushFocusConsumed?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom, 8);
+  const styles = useThemedStyles(makeStyles);
+  const bottomPad = Math.max(insets.bottom, space.sm);
   const [focusTicketId, setFocusTicketId] = useState("");
   const [focusSeq, setFocusSeq] = useState(0);
 
@@ -139,7 +141,7 @@ export function AppShell({
             <Pressable
               key={item.id}
               onPress={() => onTab(item.id)}
-              style={[styles.tab, on && styles.tabActive]}
+              style={styles.tab}
               accessibilityRole="tab"
               accessibilityLabel={item.label}
               accessibilityHint={`Ir a ${item.label}`}
@@ -155,29 +157,34 @@ export function AppShell({
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  body: { flex: 1 },
-  page: { ...StyleSheet.absoluteFillObject },
-  hidden: { display: "none" },
-  tabBar: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.tabBar,
-    paddingTop: spacing.sm,
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: sizes.tab,
-    paddingVertical: spacing.xs,
-    marginHorizontal: spacing.xs,
-    borderRadius: radius.sm,
-    gap: 4,
-  },
-  tabActive: { backgroundColor: colors.brandMuted },
-  tabLabel: { color: colors.muted, fontSize: 12, fontWeight: "600" },
-  tabOn: { color: colors.brand, fontWeight: "700" },
-});
+/** Alto mínimo de cada pestaña (ícono + etiqueta), sin contar el inset inferior. */
+const TAB_HEIGHT = 52;
+
+function makeStyles(t: Theme) {
+  const { colors, space, radius, fontSize } = t;
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.bg },
+    body: { flex: 1 },
+    page: { ...StyleSheet.absoluteFillObject },
+    hidden: { display: "none" },
+    tabBar: {
+      flexDirection: "row",
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.nav,
+      paddingTop: space.sm,
+    },
+    tab: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: TAB_HEIGHT,
+      paddingVertical: space.xs,
+      marginHorizontal: space.xs,
+      borderRadius: radius.control,
+      gap: space.xs,
+    },
+    tabLabel: { color: colors.muted, fontSize: fontSize.xs, fontWeight: "600" },
+    tabOn: { color: colors.primary, fontWeight: "700" },
+  });
+}
