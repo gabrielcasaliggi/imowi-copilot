@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -94,6 +95,15 @@ export function ChatScreen({
     setVoiceUploading(false);
   };
 
+  // Al abrir el teclado, el último mensaje queda visible encima del composer.
+  useEffect(() => {
+    const sub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true })),
+    );
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (!voice.maxReached || autoStopRef.current) return;
     autoStopRef.current = true;
@@ -103,7 +113,10 @@ export function ChatScreen({
   return (
     <KeyboardAvoidingView
       style={[styles.wrap, { paddingTop: topPad }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      // "padding" también en Android: con edge-to-edge (Expo Go SDK 54, Android 16+) la ventana
+      // no se achica con el teclado. Si se achica (adjustResize), el KAV mide la superposición
+      // contra su propio marco y da 0, así que no hay doble ajuste.
+      behavior="padding"
       keyboardVerticalOffset={Platform.OS === "ios" ? topPad : 0}
     >
       <ChatHeader
