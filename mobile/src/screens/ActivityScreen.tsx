@@ -9,15 +9,26 @@ import {
 } from "react-native";
 
 import { useTickets } from "../hooks/useTickets";
+import { useTabScrollBottomPadding } from "../navigation/tabBar";
 import { formatTicketWhen, labelTicketEstado, present } from "../present";
 import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
-import type { InboxConversation, PortalTicket } from "../types";
+import type { InboxConversation, PortalTicket, PortalTicketEvent } from "../types";
 import { Banner } from "../ui/Banner";
 import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { Screen } from "../ui/Screen";
 import { Text } from "../ui/Text";
 import { TicketCard } from "../ui/TicketCard";
+
+/** Título del evento más reciente que trajo la API; sin título no se muestra nada. */
+function lastEventTitle(eventos: PortalTicketEvent[]): string | undefined {
+  let last: PortalTicketEvent | undefined;
+  for (const ev of eventos) {
+    if (!present(ev.titulo)) continue;
+    if (!last || (ev.created_at || "") > (last.created_at || "")) last = ev;
+  }
+  return last ? present(last.titulo) || undefined : undefined;
+}
 
 function estadoActividad(estado: string): string {
   if (estado === "espera_agente") return "Estás en espera de un agente.";
@@ -60,6 +71,7 @@ export function ActivityScreen({
   } = useTickets({ token, onAuthExpired: onExit });
 
   const [selectedId, setSelectedId] = useState("");
+  const tabPad = useTabScrollBottomPadding();
   const handoff = estadoActividad(conv.estado);
   const canOpenEko =
     Boolean(detail?.ticket.conversacion_id) &&
@@ -116,6 +128,7 @@ export function ActivityScreen({
         }
         contentContainerStyle={[
           styles.scroll,
+          { paddingBottom: tabPad },
           listData.length === 0 && !loading ? styles.grow : null,
         ]}
         ListHeaderComponent={
@@ -158,6 +171,9 @@ export function ActivityScreen({
               item={item}
               selected={selectedId === item.id}
               busy={detailBusy && selectedId === item.id}
+              lastMovement={
+                detail && detail.ticket.id === item.id ? lastEventTitle(detail.eventos) : undefined
+              }
               onPress={() => onSelect(item)}
             />
             {detail && detail.ticket.id === item.id ? (

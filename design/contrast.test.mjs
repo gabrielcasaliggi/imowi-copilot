@@ -1,6 +1,7 @@
 /**
  * Contraste WCAG 2.x AA de los pares declarados en design/tokens.json, en claro y oscuro.
- * Texto normal 4.5:1; texto grande y gráficos (bordes de input, anillos, íconos) 3:1.
+ * Texto normal 4.5:1; texto grande y gráficos (bordes de input, anillos, íconos) 3:1;
+ * texto/ícono de un control deshabilitado sobre su fondo 3:1 (legible sin parecer activo).
  *
  *   node --test design/contrast.test.mjs
  */

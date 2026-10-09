@@ -4,6 +4,7 @@ import { Alert, Linking, ScrollView, StyleSheet, View } from "react-native";
 import { api } from "../api";
 import { PRIVACY_URL } from "../config";
 import { formatUserError, isAuthExpired } from "../errors";
+import { useTabScrollBottomPadding } from "../navigation/tabBar";
 import { formatMontoDisplay, labelEstadoAbonado, labelServicio, parseAmount, present } from "../present";
 import { useThemePreference } from "../theme/ThemeProvider";
 import { size, space } from "../theme/tokens";
@@ -33,6 +34,7 @@ export function AccountScreen({
   onQuickAction: (texto: string | null) => void;
 }) {
   const { selectorEnabled } = useThemePreference();
+  const tabPad = useTabScrollBottomPadding();
   const [showPin, setShowPin] = useState(needPin);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,7 +122,7 @@ export function AccountScreen({
   return (
     <Screen safeBottom={false}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabPad }]}
         showsVerticalScrollIndicator={false}
       >
         <Text variant="heading">Cuenta</Text>

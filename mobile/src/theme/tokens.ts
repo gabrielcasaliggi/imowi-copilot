@@ -20,6 +20,8 @@ export type ThemeColors = {
   dangerSoft: string;
   ring: string;
   track: string;
+  disabled: string;
+  onDisabled: string;
 };
 
 export const palette: Record<ColorScheme, ThemeColors> = {
@@ -41,6 +43,8 @@ export const palette: Record<ColorScheme, ThemeColors> = {
     dangerSoft: "#FDECEA",
     ring: "#0E8A93",
     track: "#DCE6E9",
+    disabled: "#DCE6E9",
+    onDisabled: "#566A72",
   },
   dark: {
     bg: "#0A1120",
@@ -60,6 +64,8 @@ export const palette: Record<ColorScheme, ThemeColors> = {
     dangerSoft: "#2D1518",
     ring: "#3DD6C3",
     track: "#22304A",
+    disabled: "#22304A",
+    onDisabled: "#93A3BC",
   },
 };
 

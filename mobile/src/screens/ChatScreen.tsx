@@ -64,7 +64,7 @@ export function ChatScreen({
 
   const encuestaPendiente = Boolean(conv.contexto?.encuesta_pendiente);
   const nombre = conv.abonado?.nombre?.split(" ")[0] || "";
-  const topPad = Math.max(insets.top, space.md) + space.sm;
+  const topPad = insets.top + space.md;
   const bottomPad = space.md;
 
   useEffect(() => {

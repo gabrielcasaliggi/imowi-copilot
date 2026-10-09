@@ -1,7 +1,7 @@
-import { Linking, StyleSheet, View } from "react-native";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { formatMontoDisplay, parseAmount, present } from "../present";
-import { space } from "../theme/tokens";
+import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { OvLinkItem, OvLinksResponse } from "../types";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -29,6 +29,7 @@ export function BalanceCard({
   /** Error HTTP/red distinto de status=unavailable del contrato. */
   ovTransportError?: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const raw = present(monto);
   if (!raw) return null;
   const n = parseAmount(raw);
@@ -42,6 +43,8 @@ export function BalanceCard({
     : "Quiero consultar mi deuda y opciones de pago.";
 
   const links = availableLinks(ovLinks ?? null);
+  const payLink = links.find((l) => l.id === "pay");
+  const secondaryLinks = links.filter((l) => l.id !== "pay");
   const showOvUnavailable =
     !ovLoading &&
     !ovTransportError &&
@@ -85,21 +88,29 @@ export function BalanceCard({
       {!ovLoading && links.length > 0 ? (
         <View style={styles.ovActions}>
           {ovLinks?.authenticated === true ? null : (
-            <Text variant="meta" style={styles.ovMeta}>
-              Estos accesos abren la oficina virtual. Ahí vas a identificarte
-              (DNI o usuario); no es una sesión ya abierta.
-            </Text>
+            <Text variant="meta">Te identificás en la oficina virtual.</Text>
           )}
-          {links.map((link) => (
+          {payLink ? (
             <Button
-              key={link.id}
-              label={link.label}
-              variant={link.id === "pay" && !(alDia || aFavor) ? "primary" : "ghost"}
-              onPress={() => openLink(link.url as string)}
-              accessibilityHint={`Abre ${link.label} en Oficina Virtual`}
-              style={styles.ovBtn}
+              label={payLink.label}
+              onPress={() => openLink(payLink.url as string)}
+              accessibilityHint={`Abre ${payLink.label} en Oficina Virtual`}
             />
-          ))}
+          ) : null}
+          {secondaryLinks.length > 0 ? (
+            <View style={styles.secondaryRow}>
+              {secondaryLinks.map((link) => (
+                <Button
+                  key={link.id}
+                  label={link.label}
+                  variant="ghost"
+                  onPress={() => openLink(link.url as string)}
+                  accessibilityHint={`Abre ${link.label} en Oficina Virtual`}
+                  style={styles.secondaryBtn}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -110,27 +121,36 @@ export function BalanceCard({
       ) : null}
 
       {onAskEko ? (
-        <Button
-          label={actionLabel}
-          variant={
-            links.length > 0 || alDia || aFavor
-              ? "ghost"
-              : "primary"
-          }
+        <Pressable
           onPress={() => onAskEko(actionText)}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
           accessibilityHint="Abre Eko para consultar la cuenta"
-          style={styles.cta}
-        />
+          hitSlop={4}
+          style={styles.ekoLink}
+        >
+          <Text style={styles.ekoLinkTxt}>{actionLabel}</Text>
+        </Pressable>
       ) : null}
     </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  ok: { marginTop: space.sm, marginBottom: space.xs },
-  amount: { marginTop: space.sm, marginBottom: space.xs },
-  cta: { marginTop: space.md },
-  ovMeta: { marginTop: space.sm },
-  ovActions: { marginTop: space.md, gap: space.sm },
-  ovBtn: { marginTop: 0 },
-});
+function makeStyles(t: Theme) {
+  const { colors, space, size, fontSize } = t;
+  return StyleSheet.create({
+    ok: { marginTop: space.sm, marginBottom: space.xs },
+    amount: { marginTop: space.sm, marginBottom: space.xs },
+    ovMeta: { marginTop: space.sm },
+    ovActions: { marginTop: space.md, gap: space.sm },
+    secondaryRow: { flexDirection: "row", gap: space.sm },
+    secondaryBtn: { flex: 1 },
+    ekoLink: { marginTop: space.sm, minHeight: size.hit, justifyContent: "center", alignSelf: "flex-start" },
+    ekoLinkTxt: {
+      color: colors.primary,
+      fontSize: fontSize.base,
+      fontWeight: "700",
+      textDecorationLine: "underline",
+    },
+  });
+}

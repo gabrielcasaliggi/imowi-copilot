@@ -35,7 +35,7 @@ export function AuthScreen({
 }) {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
-  const topPad = Math.max(insets.top, space.md) + space.sm;
+  const topPad = insets.top + space.md;
   const bottomPad = Math.max(insets.bottom, space.md) + space.md;
   const [mode, setMode] = useState<Mode>("pin");
   const [step, setStep] = useState<Step>("auth");

@@ -21,6 +21,8 @@ html[data-theme="light"] {
   --eko-danger-soft: #FDECEA;
   --eko-ring: #0E8A93;
   --eko-track: #DCE6E9;
+  --eko-disabled: #DCE6E9;
+  --eko-on-disabled: #566A72;
 }
 
 /* Modo oscuro */
@@ -43,6 +45,8 @@ html[data-theme="dark"] {
   --eko-danger-soft: #2D1518;
   --eko-ring: #3DD6C3;
   --eko-track: #22304A;
+  --eko-disabled: #22304A;
+  --eko-on-disabled: #93A3BC;
 }
 
 /* Escalas (iguales en ambos modos) */

@@ -13,7 +13,8 @@ export function Screen({
 }: ViewProps & { padded?: boolean; safeBottom?: boolean }) {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
-  const topPad = Math.max(insets.top, space.md) + space.sm;
+  // Siempre un margen por debajo del inset: con edge-to-edge el contenido arranca bajo la status bar.
+  const topPad = insets.top + space.md;
   const bottomPad = safeBottom ? Math.max(insets.bottom, space.md) + space.md : space.md;
   return (
     <View

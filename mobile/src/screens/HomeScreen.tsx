@@ -5,6 +5,7 @@ import { useConnectivity } from "../hooks/useConnectivity";
 import { useCreateClaim } from "../hooks/useCreateClaim";
 import { useCustomerSummary } from "../hooks/useCustomerSummary";
 import { useInvoices } from "../hooks/useInvoices";
+import { useTabScrollBottomPadding } from "../navigation/tabBar";
 import { firstName, present } from "../present";
 import { size, space } from "../theme/tokens";
 import type { InboxConversation } from "../types";
@@ -80,6 +81,7 @@ export function HomeScreen({
   const invoices = useInvoices({ token, onAuthExpired });
   const claim = useCreateClaim({ token, onAuthExpired });
   const [showClaim, setShowClaim] = useState(false);
+  const tabPad = useTabScrollBottomPadding();
   const scrollRef = useRef<ScrollView>(null);
   const connectivityY = useRef(0);
 
@@ -124,7 +126,7 @@ export function HomeScreen({
     <Screen safeBottom={false}>
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabPad }]}
         showsVerticalScrollIndicator={false}
       >
         <Text variant="kicker">{orgHint}</Text>
