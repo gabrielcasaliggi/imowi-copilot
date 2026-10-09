@@ -1,5 +1,6 @@
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 
+import { payButtonVariant } from "../balanceView";
 import { formatMontoDisplay, parseAmount, present } from "../present";
 import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { OvLinkItem, OvLinksResponse } from "../types";
@@ -93,6 +94,7 @@ export function BalanceCard({
           {payLink ? (
             <Button
               label={payLink.label}
+              variant={payButtonVariant(n)}
               onPress={() => openLink(payLink.url as string)}
               accessibilityHint={`Abre ${payLink.label} en Oficina Virtual`}
             />

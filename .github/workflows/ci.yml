@@ -157,6 +157,8 @@ jobs:
         run: npm run lint
       - name: Lógica del tema (resolveScheme)
         run: npm run test:theme
+      - name: Mi cuenta (Pagar primario solo con saldo pendiente)
+        run: npm run test:balance
 
   design-tokens:
     name: Design tokens (generados + contraste WCAG)

@@ -13,7 +13,8 @@
     "test:services": "node scripts/verify-services.mjs",
     "test:customer-summary": "node scripts/verify-customer-summary.mjs",
     "test:invoices": "node scripts/verify-invoices.mjs",
-    "test:theme": "node scripts/verify-theme-scheme.mjs"
+    "test:theme": "node scripts/verify-theme-scheme.mjs",
+    "test:balance": "node scripts/verify-balance.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
