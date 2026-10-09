@@ -52,6 +52,18 @@ La primera vez EAS genera un keystore de Android; dejalo que lo guarde él (no l
 
 Play Store / App Store es el paso siguiente, no hace falta para usarla en la cooperativa.
 
+### Build nativa del tema claro/oscuro (H-APP-1, 1.0.7 / versionCode 16)
+
+Expo Go no alcanza para probar esto: `userInterfaceStyle: "automatic"`, el splash claro/oscuro, las fuentes Manrope embebidas (plugin `expo-font`) y `expo-system-ui` solo entran en una build nativa. Mismos pasos de arriba (`npx eas-cli build -p android --profile preview`). Antes de lanzarla:
+
+```bash
+node ../scripts/design-tokens.mjs --check     # splash de app.json = bg de design/tokens.json
+node --test ../design/contrast.test.mjs
+npm run lint
+```
+
+Después de instalar: cambiar el modo del teléfono con la app abierta (Cuenta → Apariencia → Sistema), probar Claro y Oscuro fijos, cerrar y reabrir (la elección persiste) y mirar el splash en ambos modos.
+
 ## Play Store (Android)
 
 Play Store **no acepta APK**: hay que subir un **AAB** de producción. El primer envío va a **prueba interna**; la ficha pública se completa después.

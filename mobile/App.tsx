@@ -1,6 +1,7 @@
 import { useFonts } from "expo-font";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { api } from "./src/api";
@@ -35,7 +36,7 @@ export default function App() {
 }
 
 function AppRoot() {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const {
     branding,
@@ -173,12 +174,12 @@ function AppRoot() {
     <SafeAreaProvider>
       {booting || !fontsReady ? (
         <View style={styles.boot}>
-          <StatusBar barStyle="light-content" />
+          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
           <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <View style={styles.root}>
-          <StatusBar barStyle="light-content" />
+          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
           {!authed && bootError ? (
             <Screen>
               <View style={styles.bootFail}>
