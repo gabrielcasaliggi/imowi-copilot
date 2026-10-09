@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useColorScheme } from "react-native";
 
+import { parsePreference, resolveScheme, type ThemePreference } from "./scheme";
 import {
   fontSize,
   palette,
@@ -27,10 +28,10 @@ import {
  */
 export const THEME_SELECTOR_ENABLED = true;
 
-export type ThemePreference = "system" | "light" | "dark";
+export { resolveScheme, type ThemePreference } from "./scheme";
 
+/** Clave de SecureStore: guarda la elección ("system" | "light" | "dark"), nunca el esquema resuelto. */
 const PREF_KEY = "theme_pref";
-const PREFS: ThemePreference[] = ["system", "light", "dark"];
 
 export type Theme = {
   scheme: ColorScheme;
@@ -57,16 +58,6 @@ const THEMES: Record<ColorScheme, Theme> = {
   dark: buildTheme("dark"),
 };
 
-export function resolveScheme(
-  preference: ThemePreference,
-  system: ColorScheme | null | undefined,
-  selectorEnabled: boolean,
-): ColorScheme {
-  if (!selectorEnabled) return "dark";
-  if (preference === "system") return system === "light" ? "light" : "dark";
-  return preference;
-}
-
 const ThemeContext = createContext<ThemeContextValue>({
   theme: THEMES.dark,
   preference: "system",
@@ -82,9 +73,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     let alive = true;
     SecureStore.getItemAsync(PREF_KEY)
       .then((raw) => {
-        if (alive && raw && (PREFS as string[]).includes(raw)) {
-          setPreferenceState(raw as ThemePreference);
-        }
+        const pref = parsePreference(raw);
+        if (alive && pref) setPreferenceState(pref);
       })
       .catch(() => {
         /* sin preferencia guardada: queda "system" */
