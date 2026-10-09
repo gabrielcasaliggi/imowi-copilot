@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +9,9 @@ import {
 
 import { withManrope } from "../theme/fonts";
 import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
-import { MAX_FONT_SCALE, Text } from "./Text";
+import { MAX_FONT_SCALE } from "./Text";
+
+const ICON = 22;
 
 export function ChatComposer({
   value,
@@ -60,9 +63,14 @@ export function ChatComposer({
         accessibilityRole="button"
         accessibilityLabel="Mensaje de voz"
         accessibilityState={{ disabled: locked }}
-        style={[styles.micBtn, locked && styles.off]}
+        style={[styles.micBtn, locked && styles.btnDisabled]}
       >
-        <View style={styles.micGlyph} />
+        <Ionicons
+          name="mic"
+          size={ICON}
+          color={locked ? colors.onDisabled : colors.primary}
+          allowFontScaling={false}
+        />
       </Pressable>
       <Pressable
         onPress={onSend}
@@ -70,12 +78,17 @@ export function ChatComposer({
         accessibilityRole="button"
         accessibilityLabel="Enviar"
         accessibilityState={{ disabled: sendOff }}
-        style={[styles.sendBtn, sendOff && styles.off]}
+        style={[styles.sendBtn, sendOff && styles.btnDisabled]}
       >
         {busy ? (
-          <ActivityIndicator color={colors.onPrimary} />
+          <ActivityIndicator color={colors.onDisabled} />
         ) : (
-          <Text style={styles.sendTxt}>Enviar</Text>
+          <Ionicons
+            name="send"
+            size={ICON - 2}
+            color={sendOff ? colors.onDisabled : colors.onPrimary}
+            allowFontScaling={false}
+          />
         )}
       </Pressable>
     </View>
@@ -117,22 +130,15 @@ function makeStyles(t: Theme) {
       alignItems: "center",
       justifyContent: "center",
     },
-    micGlyph: {
-      width: 12,
-      height: 18,
-      borderRadius: 6,
-      backgroundColor: colors.primary,
-    },
     sendBtn: {
       backgroundColor: colors.primary,
       borderRadius: radius.pill,
-      paddingHorizontal: space.lg,
-      minHeight: size.hit,
-      minWidth: size.hit,
+      width: size.hit,
+      height: size.hit,
       alignItems: "center",
       justifyContent: "center",
     },
-    off: { opacity: 0.5 },
-    sendTxt: { color: colors.onPrimary, fontWeight: "700" },
+    // Deshabilitado: fondo gris y contenido onDisabled (≥ 3:1), sin opacidad que lo haga ilegible.
+    btnDisabled: { backgroundColor: colors.disabled, borderColor: colors.disabled },
   });
 }

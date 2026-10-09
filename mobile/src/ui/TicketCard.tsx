@@ -11,17 +11,21 @@ export function TicketCard({
   item,
   selected,
   busy,
+  lastMovement,
   onPress,
 }: {
   item: PortalTicket;
   selected?: boolean;
   busy?: boolean;
+  /** Título del último evento, solo si la API lo trajo (detalle). Nunca se completa a mano. */
+  lastMovement?: string | null;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const title = present(item.categoria) || `Ticket ${item.id}`;
   const updated = formatTicketWhen(item.updated_at || item.created_at);
+  const movement = present(lastMovement);
   return (
     <Pressable
       onPress={onPress}
@@ -40,6 +44,11 @@ export function TicketCard({
             <Badge label={labelTicketEstado(item.estado)} />
           )}
         </View>
+        {movement ? (
+          <Text style={styles.movement} numberOfLines={2}>
+            {movement}
+          </Text>
+        ) : null}
         <Text variant="meta" style={styles.meta} selectable>
           {item.id}
         </Text>
@@ -65,5 +74,6 @@ function makeStyles(t: Theme) {
     },
     title: { flex: 1, fontSize: fontSize.xl },
     meta: { marginTop: space.sm },
+    movement: { marginTop: space.xs, fontSize: fontSize.md, color: colors.ink },
   });
 }

@@ -30,13 +30,20 @@ export function Button({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const off = Boolean(disabled) || loading;
-  const labelStyle = [styles.label, variant === "ghost" && styles.labelGhost, variant === "danger" && styles.labelDanger];
+  // Primario deshabilitado: fondo gris + texto onDisabled (≥ 3:1). Ghost/danger siguen con opacidad.
+  const primaryOff = off && variant === "primary";
+  const labelStyle = [
+    styles.label,
+    variant === "ghost" && styles.labelGhost,
+    variant === "danger" && styles.labelDanger,
+    primaryOff && styles.labelDisabled,
+  ];
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: off }}
       disabled={off}
-      style={[styles.base, styles[variant], off && styles.off, style]}
+      style={[styles.base, styles[variant], primaryOff ? styles.primaryDisabled : off && styles.off, style]}
       {...rest}
     >
       {loading ? (
@@ -47,7 +54,9 @@ export function Button({
                 ? colors.danger
                 : variant === "ghost"
                   ? colors.primary
-                  : colors.onPrimary
+                  : primaryOff
+                    ? colors.onDisabled
+                    : colors.onPrimary
             }
           />
           <Text style={labelStyle}>{label}</Text>
@@ -73,6 +82,8 @@ function makeStyles(t: Theme) {
     ghost: { backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border },
     danger: { backgroundColor: "transparent", borderWidth: 1, borderColor: t.colors.danger },
     off: { opacity: 0.5 },
+    primaryDisabled: { backgroundColor: t.colors.disabled },
+    labelDisabled: { color: t.colors.onDisabled },
     label: { ...textRoles.button, color: t.colors.onPrimary },
     labelGhost: { color: t.colors.ink, fontWeight: "600", fontSize: t.fontSize.base },
     labelDanger: { color: t.colors.danger, fontWeight: "600", fontSize: t.fontSize.md },

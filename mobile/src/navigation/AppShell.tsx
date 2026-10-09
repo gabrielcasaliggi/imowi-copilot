@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useThemedStyles, type Theme } from "../theme/ThemeProvider";
-import { space } from "../theme/tokens";
 import type { Branding } from "../theme";
 import type { AppTab, InboxConversation, InboxMessage } from "../types";
 import { AccountScreen } from "../screens/AccountScreen";
@@ -11,6 +9,7 @@ import { ActivityScreen } from "../screens/ActivityScreen";
 import { ChatScreen } from "../screens/ChatScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { TabGlyph } from "../ui/TabGlyph";
+import { TAB_HEIGHT, useTabBarBottomInset } from "./tabBar";
 import { Text } from "../ui/Text";
 
 const TABS: { id: AppTab; label: string }[] = [
@@ -59,9 +58,8 @@ export function AppShell({
   pushFocusSeq?: number;
   onPushFocusConsumed?: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
-  const bottomPad = Math.max(insets.bottom, space.sm);
+  const bottomPad = useTabBarBottomInset();
   const [focusTicketId, setFocusTicketId] = useState("");
   const [focusSeq, setFocusSeq] = useState(0);
 
@@ -156,9 +154,6 @@ export function AppShell({
     </View>
   );
 }
-
-/** Alto mínimo de cada pestaña (ícono + etiqueta), sin contar el inset inferior. */
-const TAB_HEIGHT = 52;
 
 function makeStyles(t: Theme) {
   const { colors, space, radius, fontSize } = t;

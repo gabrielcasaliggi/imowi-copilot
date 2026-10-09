@@ -1,9 +1,19 @@
-import { StyleSheet, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import type { ComponentProps } from "react";
 
 import { useTheme } from "../theme/ThemeProvider";
 import type { AppTab } from "../types";
 
+type IconName = ComponentProps<typeof Ionicons>["name"];
+
 const ICON = 22;
+
+const ICONS: Record<AppTab, { on: IconName; off: IconName }> = {
+  home: { on: "home", off: "home-outline" },
+  eko: { on: "chatbubble-ellipses", off: "chatbubble-ellipses-outline" },
+  activity: { on: "receipt", off: "receipt-outline" },
+  account: { on: "person-circle", off: "person-circle-outline" },
+};
 
 export function TabGlyph({
   tab,
@@ -13,63 +23,14 @@ export function TabGlyph({
   active: boolean;
 }) {
   const { colors } = useTheme();
-  const c = active ? colors.primary : colors.muted;
-  if (tab === "home") {
-    return (
-      <View style={styles.box}>
-        <View style={[styles.roof, { borderBottomColor: c }]} />
-        <View style={[styles.house, { backgroundColor: c }]} />
-      </View>
-    );
-  }
-  if (tab === "eko") {
-    return <View style={[styles.dot, { backgroundColor: c }]} />;
-  }
-  if (tab === "activity") {
-    return (
-      <View style={styles.box}>
-        <View style={[styles.bar, { backgroundColor: c }]} />
-        <View style={[styles.barShort, { backgroundColor: c }]} />
-        <View style={[styles.bar, { backgroundColor: c }]} />
-      </View>
-    );
-  }
   return (
-    <View style={styles.box}>
-      <View style={[styles.head, { borderColor: c }]} />
-      <View style={[styles.shoulders, { borderColor: c }]} />
-    </View>
+    <Ionicons
+      name={active ? ICONS[tab].on : ICONS[tab].off}
+      size={ICON}
+      color={active ? colors.primary : colors.muted}
+      allowFontScaling={false}
+      accessible={false}
+      importantForAccessibility="no"
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  box: {
-    width: ICON,
-    height: ICON,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  roof: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderBottomWidth: 6,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-  },
-  house: { width: 12, height: 8, marginTop: 1, borderRadius: 1 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  bar: { width: 14, height: 2, borderRadius: 1, marginVertical: 1.5 },
-  barShort: { width: 10, height: 2, borderRadius: 1, marginVertical: 1.5, alignSelf: "flex-start", marginLeft: 4 },
-  head: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },
-  shoulders: {
-    width: 14,
-    height: 7,
-    borderWidth: 1.5,
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-    borderBottomWidth: 0,
-    marginTop: 1,
-  },
-});
