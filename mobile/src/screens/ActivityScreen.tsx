@@ -134,7 +134,7 @@ export function ActivityScreen({
           <View style={styles.header}>
             <Text variant="heading" style={styles.title}>Actividad</Text>
             <Text variant="subtitle" style={styles.lead}>
-              Tus tickets y el estado de esta conversación.
+              Tus reclamos y su seguimiento.
             </Text>
             {handoff ? (
               <Banner
@@ -152,7 +152,7 @@ export function ActivityScreen({
             {loading ? (
               <View style={styles.loading}>
                 <ActivityIndicator color={colors.primary} />
-                <Text variant="meta">Cargando tickets…</Text>
+                <Text variant="meta">Cargando reclamos…</Text>
               </View>
             ) : null}
           </View>
@@ -160,7 +160,7 @@ export function ActivityScreen({
         ListEmptyComponent={
           loading ? null : (
             <EmptyState
-              title="No tenés tickets"
+              title="No tenés reclamos"
               description="Cuando generes un reclamo o Eko derive un caso, vas a verlo acá con su estado."
             />
           )
