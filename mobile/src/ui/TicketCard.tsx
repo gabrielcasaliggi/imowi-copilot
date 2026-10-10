@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
-import { formatTicketWhen, labelTicketEstado, present } from "../present";
+import { formatTicketWhen, present } from "../present";
 import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
+import { ticketStatusLabel, ticketTitle } from "../ticketView";
 import type { PortalTicket } from "../types";
 import { Badge } from "./Badge";
 import { Card } from "./Card";
@@ -23,7 +24,8 @@ export function TicketCard({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const title = present(item.categoria) || `Ticket ${item.id}`;
+  const title = ticketTitle(item);
+  const status = ticketStatusLabel(item.estado);
   const updated = formatTicketWhen(item.updated_at || item.created_at);
   const movement = present(lastMovement);
   return (
@@ -31,7 +33,7 @@ export function TicketCard({
       onPress={onPress}
       disabled={busy}
       accessibilityRole="button"
-      accessibilityLabel={`Ticket ${item.id}, ${labelTicketEstado(item.estado)}`}
+      accessibilityLabel={`${title}, ${status}`}
     >
       <Card style={selected ? styles.selected : undefined}>
         <View style={styles.row}>
@@ -41,7 +43,7 @@ export function TicketCard({
           {busy && selected ? (
             <ActivityIndicator color={colors.primary} />
           ) : (
-            <Badge label={labelTicketEstado(item.estado)} />
+            <Badge label={status} />
           )}
         </View>
         {movement ? (

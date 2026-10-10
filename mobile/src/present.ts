@@ -68,16 +68,6 @@ export function labelEstadoAbonado(estado?: string | null): string {
   return raw;
 }
 
-/** Labels de presentación para estados reales del estate. Desconocido → tal cual. */
-export function labelTicketEstado(estado?: string | null): string {
-  const raw = present(estado);
-  if (!raw) return "Sin estado";
-  if (raw === "Abierto") return "Abierto";
-  if (raw === "En Revisión") return "En revisión";
-  if (raw === "Cerrado") return "Cerrado";
-  return raw;
-}
-
 export function formatTicketWhen(iso?: string | null): string {
   const raw = present(iso);
   if (!raw) return "";

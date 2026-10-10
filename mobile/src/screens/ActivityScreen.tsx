@@ -10,7 +10,8 @@ import {
 
 import { useTickets } from "../hooks/useTickets";
 import { useTabScrollBottomPadding } from "../navigation/tabBar";
-import { formatTicketWhen, labelTicketEstado, present } from "../present";
+import { formatTicketWhen, present } from "../present";
+import { ticketStatusLabel, ticketTitle } from "../ticketView";
 import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
 import type { InboxConversation, PortalTicket, PortalTicketEvent } from "../types";
 import { Banner } from "../ui/Banner";
@@ -183,13 +184,11 @@ export function ActivityScreen({
                   Ticket {detail.ticket.id}
                 </Text>
                 <Text variant="meta" style={styles.detailLine}>
-                  Estado: {labelTicketEstado(detail.ticket.estado)}
+                  Estado: {ticketStatusLabel(detail.ticket.estado)}
                 </Text>
-                {present(detail.ticket.categoria) ? (
-                  <Text variant="meta" style={styles.detailLine}>
-                    Motivo: {detail.ticket.categoria}
-                  </Text>
-                ) : null}
+                <Text variant="meta" style={styles.detailLine}>
+                  Motivo: {ticketTitle(detail.ticket)}
+                </Text>
                 {present(detail.ticket.origen) ? (
                   <Text variant="meta" style={styles.detailLine}>
                     Origen: {detail.ticket.origen}

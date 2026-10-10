@@ -46,6 +46,12 @@ export type AppTab = "home" | "eko" | "activity" | "account";
 
 export type VoicePhase = "idle" | "recording" | "processing";
 
+/** Último evento visible (misma proyección que el detalle). Puede faltar en APIs viejas. */
+export type PortalTicketMovement = {
+  titulo?: string;
+  created_at?: string;
+};
+
 export type PortalTicket = {
   id: string;
   estado: string;
@@ -54,6 +60,10 @@ export type PortalTicket = {
   created_at: string;
   updated_at: string;
   conversacion_id: string;
+  /** Título legible (lista, detalle y POST). Opcional: backend previo no lo manda. */
+  titulo?: string;
+  /** Solo en la lista. null = sin eventos visibles; ausente = backend previo. */
+  ultimo_movimiento?: PortalTicketMovement | null;
 };
 
 export type PortalTicketEvent = {
