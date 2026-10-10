@@ -1158,20 +1158,10 @@ def portal_invoices(
 
 
 def _portal_ticket_eventos_out(db: Session, org_id: str, ticket_id: str) -> list[dict]:
-    from app.services.eko_ticket_proactive import is_portal_customer_event
+    """Eventos del ticket con textos fijos para el abonado (ver portal_ticket_view)."""
+    from app.api.v1.portal_ticket_view import eventos_cliente
 
-    eventos = repo.list_ticket_events(db, org_id, ticket_id, solo_visibles=True)
-    return [
-        {
-            "id": e.id,
-            "titulo": e.titulo or "",
-            "detalle": e.detalle or "",
-            "estado": e.estado or "",
-            "created_at": e.created_at.isoformat() if e.created_at else "",
-        }
-        for e in eventos
-        if is_portal_customer_event(e)
-    ]
+    return eventos_cliente(repo.list_ticket_events(db, org_id, ticket_id, solo_visibles=True))
 
 
 def _origen_reclamo_portal(canal: str) -> str:

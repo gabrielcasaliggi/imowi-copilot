@@ -12,9 +12,9 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.estate import repository as repo
@@ -48,12 +48,6 @@ PROHIBIDOS = (
 ISO_FECHA = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")
 
 CLAVES_EVENTO = {"id", "titulo", "detalle", "estado", "created_at"}
-
-PRIVACIDAD = pytest.mark.xfail(
-    strict=True,
-    reason="H-APP-2 pieza 1: el portal devuelve titulo/detalle crudos escritos para agentes",
-)
-
 
 def _ok_send(tokens, *, title, body, data=None):
     return {
@@ -222,10 +216,9 @@ def _texto(ev: dict) -> str:
     return f"{ev['titulo']}\n{ev['detalle']}"
 
 
-# --- Privacidad del texto (falla hoy: xfail estricto) ---
+# --- Privacidad del texto ---
 
 
-@PRIVACIDAD
 def test_eventos_sin_datos_internos():
     sess = _sesion()
     eventos = _eventos(sess["token"], _ticket_con_historia(sess))
@@ -237,7 +230,6 @@ def test_eventos_sin_datos_internos():
         assert not ISO_FECHA.search(texto), ev
 
 
-@PRIVACIDAD
 def test_eventos_con_textos_fijos_en_orden():
     sess = _sesion()
     eventos = _eventos(sess["token"], _ticket_con_historia(sess))
@@ -250,7 +242,6 @@ def test_eventos_con_textos_fijos_en_orden():
     ]
 
 
-@PRIVACIDAD
 def test_post_reclamo_devuelve_evento_de_creacion_fijo():
     sess = _sesion()
     with (
@@ -267,7 +258,7 @@ def test_post_reclamo_devuelve_evento_de_creacion_fijo():
     assert [(e["titulo"], e["detalle"]) for e in eventos] == [("Recibimos tu reclamo", "")]
 
 
-# --- Lo que ya se cumple hoy y no puede romperse ---
+# --- Claves, internos y notas ---
 
 
 def test_eventos_mantienen_las_claves_actuales():
@@ -355,3 +346,67 @@ def test_lista_no_incluye_ajenos_ni_otra_org():
     ids = {i["id"] for i in r.json()["items"]}
     assert ajeno not in ids
     assert otra not in ids
+
+
+# --- Proyección pura (sin base) ---
+
+
+def _ev(tipo: str, *, detalle: str = "", estado: str = "Abierto", actor: str = "sistema",
+        visible: str = "Sí"):
+    return SimpleNamespace(
+        id="ev-1",
+        tipo=tipo,
+        titulo="Título interno N2",
+        detalle=detalle,
+        estado=estado,
+        actor=actor,
+        visible_cliente=visible,
+        created_at=datetime(2026, 10, 1, 12, 0, tzinfo=UTC),
+    )
+
+
+def test_vista_textos_fijos_por_tipo():
+    from app.api.v1.portal_ticket_view import evento_cliente
+
+    interno = "Origen: App | Destino: carrier | Proveedor sugerido: X | Regla: r"
+    casos = [
+        (_ev("creacion", detalle=interno), ("Recibimos tu reclamo", "")),
+        (_ev("actualizacion", detalle="estado=Cerrado; asignado_a=a@b", estado="Cerrado"),
+         ("Tu reclamo se cerró", "")),
+        (_ev("sla_breach", detalle="sla_breached_at=2026-10-01T12:00:00"),
+         ("Tu reclamo está demorando más de lo previsto", "")),
+        (_ev("nota", detalle="  Hola  ", actor="ops@coop"), ("Novedad del equipo", "Hola")),
+        (_ev("nota", detalle="Gracias", actor="abonado:abc"), ("Tu comentario", "Gracias")),
+    ]
+    for ev, esperado in casos:
+        out = evento_cliente(ev)
+        assert out is not None, ev.tipo
+        assert (out["titulo"], out["detalle"]) == esperado
+        assert set(out) == CLAVES_EVENTO
+        assert out["created_at"] == "2026-10-01T12:00:00+00:00"
+
+
+def test_vista_descarta_lo_que_no_esta_en_la_lista_blanca():
+    from app.api.v1.portal_ticket_view import evento_cliente, eventos_cliente
+
+    descartados = [
+        _ev("creacion", visible="No"),
+        _ev("actualizacion", estado="Abierto"),
+        _ev("nota_interna", detalle="x"),
+        _ev("reasignacion", detalle="x"),
+        _ev("paso_operativo", detalle="x"),
+        _ev("tipo_nuevo_sin_mapear", detalle="x"),
+        _ev("", detalle="x"),
+        _ev("nota", detalle="   "),
+    ]
+    for ev in descartados:
+        assert evento_cliente(ev) is None, ev.tipo
+    assert eventos_cliente(descartados) == []
+
+
+def test_vista_nota_recortada_a_800():
+    from app.api.v1.portal_ticket_view import evento_cliente
+
+    out = evento_cliente(_ev("nota", detalle="a" * 2000, actor="ops@coop"))
+    assert out is not None
+    assert len(out["detalle"]) == 800
