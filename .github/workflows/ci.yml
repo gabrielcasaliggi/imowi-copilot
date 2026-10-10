@@ -159,6 +159,8 @@ jobs:
         run: npm run test:theme
       - name: Mi cuenta (Pagar primario solo con saldo pendiente)
         run: npm run test:balance
+      - name: Reclamos (estados, títulos, línea de tiempo)
+        run: npm run test:tickets
 
   design-tokens:
     name: Design tokens (generados + contraste WCAG)

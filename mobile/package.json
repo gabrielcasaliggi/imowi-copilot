@@ -14,7 +14,8 @@
     "test:customer-summary": "node scripts/verify-customer-summary.mjs",
     "test:invoices": "node scripts/verify-invoices.mjs",
     "test:theme": "node scripts/verify-theme-scheme.mjs",
-    "test:balance": "node scripts/verify-balance.mjs"
+    "test:balance": "node scripts/verify-balance.mjs",
+    "test:tickets": "node scripts/verify-ticket-view.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
