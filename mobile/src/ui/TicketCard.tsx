@@ -1,65 +1,62 @@
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Pressable, StyleSheet, View } from "react-native";
 
-import { formatTicketWhen, present } from "../present";
+import { formatTicketWhen } from "../present";
 import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
-import { ticketStatusLabel, ticketTitle } from "../ticketView";
+import { lastMovementTitle, ticketStatusLabel, ticketTitle } from "../ticketView";
 import type { PortalTicket } from "../types";
 import { Badge } from "./Badge";
 import { Card } from "./Card";
 import { Text } from "./Text";
 
-export function TicketCard({
-  item,
-  selected,
-  busy,
-  lastMovement,
-  onPress,
-}: {
-  item: PortalTicket;
-  selected?: boolean;
-  busy?: boolean;
-  /** Título del último evento, solo si la API lo trajo (detalle). Nunca se completa a mano. */
-  lastMovement?: string | null;
-  onPress: () => void;
-}) {
+/** Reclamo en la lista: título legible, estado, último movimiento y fecha. Abre el detalle. */
+export function TicketCard({ item, onPress }: { item: PortalTicket; onPress: () => void }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const title = ticketTitle(item);
   const status = ticketStatusLabel(item.estado);
+  const movement = lastMovementTitle(item);
   const updated = formatTicketWhen(item.updated_at || item.created_at);
-  const movement = present(lastMovement);
+  const a11y = [title, status, movement, updated ? `Actualizado ${updated}` : ""]
+    .filter(Boolean)
+    .join(". ");
   return (
     <Pressable
       onPress={onPress}
-      disabled={busy}
       accessibilityRole="button"
-      accessibilityLabel={`${title}, ${status}`}
+      accessibilityLabel={a11y}
+      accessibilityHint="Abre el seguimiento del reclamo"
     >
-      <Card style={selected ? styles.selected : undefined}>
-        <View style={styles.row}>
-          <Text variant="title" style={styles.title} numberOfLines={2}>
-            {title}
-          </Text>
-          {busy && selected ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : (
+      {({ pressed }) => (
+        <Card style={pressed ? styles.pressed : undefined}>
+          <View style={styles.row}>
+            <Text variant="title" style={styles.title} numberOfLines={2}>
+              {title}
+            </Text>
             <Badge label={status} />
-          )}
-        </View>
-        {movement ? (
-          <Text style={styles.movement} numberOfLines={2}>
-            {movement}
-          </Text>
-        ) : null}
-        <Text variant="meta" style={styles.meta} selectable>
-          {item.id}
-        </Text>
-        {updated ? (
-          <Text variant="meta" style={styles.meta}>
-            Actualizado {updated}
-          </Text>
-        ) : null}
-      </Card>
+          </View>
+          {movement ? (
+            <Text style={styles.movement} numberOfLines={2}>
+              {movement}
+            </Text>
+          ) : null}
+          <View style={styles.footer}>
+            <View style={styles.footerText}>
+              {updated ? <Text variant="meta">Actualizado {updated}</Text> : null}
+              <Text variant="meta" selectable>
+                {item.id}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.muted}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          </View>
+        </Card>
+      )}
     </Pressable>
   );
 }
@@ -67,7 +64,7 @@ export function TicketCard({
 function makeStyles(t: Theme) {
   const { colors, space, fontSize } = t;
   return StyleSheet.create({
-    selected: { borderColor: colors.primary },
+    pressed: { borderColor: colors.primary },
     row: {
       flexDirection: "row",
       alignItems: "flex-start",
@@ -75,7 +72,14 @@ function makeStyles(t: Theme) {
       gap: space.md,
     },
     title: { flex: 1, fontSize: fontSize.xl },
-    meta: { marginTop: space.sm },
-    movement: { marginTop: space.xs, fontSize: fontSize.md, color: colors.ink },
+    movement: { marginTop: space.sm, fontSize: fontSize.md, color: colors.ink },
+    footer: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      justifyContent: "space-between",
+      marginTop: space.sm,
+      gap: space.md,
+    },
+    footerText: { flex: 1, gap: space.xs },
   });
 }
