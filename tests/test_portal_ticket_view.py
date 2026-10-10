@@ -410,3 +410,129 @@ def test_vista_nota_recortada_a_800():
     out = evento_cliente(_ev("nota", detalle="a" * 2000, actor="ops@coop"))
     assert out is not None
     assert len(out["detalle"]) == 800
+
+
+# --- Pieza 2: lista con titulo y ultimo_movimiento ---
+
+CLAVES_LISTA_BASE = {"id", "estado", "categoria", "origen", "created_at", "updated_at",
+                     "conversacion_id"}
+
+
+def _listar(token: str) -> dict[str, dict]:
+    r = client.get("/api/v1/portal/tickets", headers=_headers(token))
+    assert r.status_code == 200, r.text
+    return {i["id"]: i for i in r.json()["items"]}
+
+
+def test_lista_suma_titulo_y_ultimo_movimiento_sin_quitar_claves():
+    sess = _sesion()
+    tid = _ticket_con_historia(sess)
+    item = _listar(sess["token"])[tid]
+    assert set(item) == CLAVES_LISTA_BASE | {"titulo", "ultimo_movimiento"}
+    assert item["categoria"] == "Movil Llamadas"
+    assert item["titulo"] == "Llamadas en tu línea móvil"
+    ultimo = _eventos(sess["token"], tid)[-1]
+    assert item["ultimo_movimiento"] == {
+        "titulo": "Tu reclamo se cerró",
+        "created_at": ultimo["created_at"],
+    }
+
+
+def test_lista_sin_eventos_visibles_y_codigo_desconocido():
+    sess = _sesion()
+    db = get_session_factory()()
+    try:
+        tid = f"TK-SE-{uuid.uuid4().hex[:10]}"
+        add_ticket(db, sess["org_id"], id=tid, linea="2230000000", categoria="Canal Abonado")
+        repo.add_ticket_event(
+            db, sess["org_id"], tid, tipo="nota_interna", titulo="Nota interna",
+            detalle="SECRETO-INTERNO-4", actor=AGENTE, visible_cliente="No",
+        )
+        _vincular(db, sess["org_id"], sess["abonado_id"], tid)
+    finally:
+        db.close()
+    item = _listar(sess["token"])[tid]
+    assert item["titulo"] == "Reclamo"
+    assert item["ultimo_movimiento"] is None
+
+
+def test_lista_motivo_del_abonado_no_pasa_por_el_mapa():
+    sess = _sesion()
+    with (
+        patch("app.services.app_push.enviar_push_expo", side_effect=_ok_send),
+        patch("app.services.ticket_bridge.es_mirror_supabase_activo", return_value=False),
+    ):
+        r = client.post(
+            "/api/v1/portal/tickets",
+            headers=_headers(sess["token"]),
+            json={"motivo": "movil_llamadas", "descripcion": "No puedo llamar."},
+        )
+    assert r.status_code == 201, r.text
+    item = _listar(sess["token"])[r.json()["ticket"]["id"]]
+    assert item["titulo"] == "movil_llamadas"
+    assert item["ultimo_movimiento"]["titulo"] == "Recibimos tu reclamo"
+
+
+def test_lista_una_sola_consulta_de_eventos():
+    from sqlalchemy import event
+
+    from app.estate.database import get_engine
+
+    sess = _sesion()
+    for _ in range(3):
+        _ticket_con_historia(sess)
+    consultas: list[str] = []
+
+    def _registrar(conn, cursor, statement, parameters, context, executemany):
+        if "ticket_events" in statement.lower():
+            consultas.append(statement)
+
+    engine = get_engine()
+    event.listen(engine, "before_cursor_execute", _registrar)
+    try:
+        items = _listar(sess["token"])
+    finally:
+        event.remove(engine, "before_cursor_execute", _registrar)
+    assert len(items) == 3
+    assert len(consultas) == 1, consultas
+
+
+def test_titulo_ticket_mapa_y_normalizacion():
+    from app.api.v1.portal_ticket_view import titulo_ticket
+
+    def t(categoria: str, creado_por: str = "bot:2230000000"):
+        return SimpleNamespace(categoria=categoria, creado_por=creado_por)
+
+    casos = {
+        "Movil Llamadas": "Llamadas en tu línea móvil",
+        "Móvil  llamadas": "Llamadas en tu línea móvil",
+        "movil_datos": "Datos móviles",
+        "Corte Deuda": "Consulta por corte del servicio",
+        "Internet Lento": "Internet lento",
+        "Facturacion Reclamo": "Reclamo de factura",
+        "Voz": "Llamadas",
+        "APN / Datos": "Datos móviles",
+        "Canal Abonado": "Reclamo",
+        "Red / Core": "Reclamo",
+        "": "Reclamo",
+    }
+    for categoria, esperado in casos.items():
+        assert titulo_ticket(t(categoria)) == esperado, categoria
+    # Motivo escrito por el abonado: tal cual, sin mapa.
+    assert titulo_ticket(t("Corte Deuda", "portal:abc")) == "Corte Deuda"
+    assert titulo_ticket(t("  Sin señal en casa ", "portal:abc")) == "Sin señal en casa"
+    assert titulo_ticket(t("", "portal:abc")) == "Reclamo"
+    # Eko marca origen "Portal" en el chat web: no cuenta como motivo del abonado.
+    assert titulo_ticket(SimpleNamespace(categoria="Movil Llamadas", creado_por="bot:x",
+                                         origen="Portal")) == "Llamadas en tu línea móvil"
+
+
+def test_ultimo_movimiento_puro():
+    from app.api.v1.portal_ticket_view import ultimo_movimiento
+
+    assert ultimo_movimiento([]) is None
+    assert ultimo_movimiento([_ev("nota_interna", detalle="x")]) is None
+    assert ultimo_movimiento([_ev("creacion"), _ev("reasignacion")]) == {
+        "titulo": "Recibimos tu reclamo",
+        "created_at": "2026-10-01T12:00:00+00:00",
+    }

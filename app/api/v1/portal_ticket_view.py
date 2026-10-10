@@ -11,6 +11,7 @@ Dos capas, en orden:
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable
 from typing import Any
 
@@ -77,3 +78,52 @@ def eventos_cliente(eventos: Iterable[Any]) -> list[dict[str, str]]:
         if item is not None:
             out.append(item)
     return out
+
+
+def ultimo_movimiento(eventos: Iterable[Any]) -> dict[str, str] | None:
+    """Último evento visible (eventos en orden cronológico), con la misma proyección."""
+    visibles = eventos_cliente(eventos)
+    if not visibles:
+        return None
+    ultimo = visibles[-1]
+    return {"titulo": ultimo["titulo"], "created_at": ultimo["created_at"]}
+
+
+# --- Título legible del ticket ---
+
+TITULO_GENERICO = "Reclamo"
+
+# Clave = categoría normalizada (ver normalizar_categoria). Las categorías de Eko salen de
+# la intención ("movil_llamadas" → "Movil Llamadas"); las de consola, de la taxonomía.
+TITULOS_CATEGORIA: dict[str, str] = {
+    "movil_llamadas": "Llamadas en tu línea móvil",
+    "movil_datos": "Datos móviles",
+    "corte_deuda": "Consulta por corte del servicio",
+    "internet_lento": "Internet lento",
+    "facturacion_reclamo": "Reclamo de factura",
+    "voz": "Llamadas",
+    "apn_/_datos": "Datos móviles",
+}
+
+# creado_por del POST /portal/tickets: el abonado escribió el motivo. No alcanza con
+# `origen`: Eko también marca "Portal" en las derivaciones desde el chat web.
+_PREFIJO_RECLAMO_ABONADO = "portal:"
+
+
+def normalizar_categoria(raw: Any) -> str:
+    """Minúsculas, sin tildes, espacios a "_": "Móvil  Llamadas" → "movil_llamadas"."""
+    sin_tildes = unicodedata.normalize("NFKD", _texto(raw).lower())
+    base = "".join(c for c in sin_tildes if not unicodedata.combining(c))
+    return "_".join(base.split())
+
+
+def es_reclamo_del_abonado(ticket: Any) -> bool:
+    return _texto(getattr(ticket, "creado_por", "")).startswith(_PREFIJO_RECLAMO_ABONADO)
+
+
+def titulo_ticket(ticket: Any) -> str:
+    """Motivo tal cual si lo escribió el abonado; si no, etiqueta del mapa o "Reclamo"."""
+    categoria = _texto(getattr(ticket, "categoria", ""))
+    if es_reclamo_del_abonado(ticket):
+        return categoria or TITULO_GENERICO
+    return TITULOS_CATEGORIA.get(normalizar_categoria(categoria), TITULO_GENERICO)
