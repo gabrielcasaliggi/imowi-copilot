@@ -17,6 +17,11 @@ def _load_dotenv_desactivado(*_args, **_kwargs) -> bool:
 
 dotenv.load_dotenv = _load_dotenv_desactivado
 
+# Guardia de red: ningún test se conecta a hosts no locales (ver tests/guardia_red.py).
+from tests import guardia_red  # noqa: E402
+
+guardia_red.instalar()
+
 _TEST_DB = Path(__file__).resolve().parent.parent / "data" / "test_estate.db"
 _TEST_DB.parent.mkdir(parents=True, exist_ok=True)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
@@ -100,3 +105,12 @@ def add_network_element(db, org_id: str, **kwargs) -> NetworkElement:
     db.commit()
     db.refresh(el)
     return el
+
+
+def pytest_terminal_summary(terminalreporter):
+    """Lista los tests que intentaron salir a la red (sin hosts)."""
+    if not guardia_red.BLOQUEADAS:
+        return
+    terminalreporter.section("guardia de red: conexiones no locales bloqueadas")
+    for test, n in sorted(guardia_red.BLOQUEADAS.items()):
+        terminalreporter.line(f"{n:>4}  {test}")
