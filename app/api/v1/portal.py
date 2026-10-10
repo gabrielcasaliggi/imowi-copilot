@@ -1003,6 +1003,13 @@ def _portal_ticket_out(t: Ticket, *, conversacion_id: str = "") -> dict:
     return portal_ticket_out_es(t, conversacion_id=conversacion_id)
 
 
+def _portal_ticket_con_titulo(t: Ticket, *, conversacion_id: str = "") -> dict:
+    """Contrato base del ticket + ``titulo`` legible (lista, detalle y POST)."""
+    from app.api.v1.portal_ticket_view import titulo_ticket
+
+    return {**_portal_ticket_out(t, conversacion_id=conversacion_id), "titulo": titulo_ticket(t)}
+
+
 def _conv_ids_por_ticket(db: Session, org_id: str, abo_id: str) -> dict[str, str]:
     """ticket_id → conversacion_id (la más reciente por updated_at)."""
     from app.services.abonado_tickets import conv_ids_por_ticket
@@ -1203,7 +1210,7 @@ def portal_list_tickets(
     Suma al contrato base ``titulo`` (legible) y ``ultimo_movimiento`` ({titulo, created_at}
     o null), con la misma proyección que el detalle.
     """
-    from app.api.v1.portal_ticket_view import titulo_ticket, ultimo_movimiento
+    from app.api.v1.portal_ticket_view import ultimo_movimiento
 
     abo = _abonado_portal_identificado(payload, db)
     org_id = payload["org_id"]
@@ -1211,8 +1218,7 @@ def portal_list_tickets(
     eventos = _portal_eventos_visibles_por_ticket(db, org_id, [t.id for t, _ in rows])
     items = [
         {
-            **_portal_ticket_out(t, conversacion_id=cid),
-            "titulo": titulo_ticket(t),
+            **_portal_ticket_con_titulo(t, conversacion_id=cid),
             "ultimo_movimiento": ultimo_movimiento(eventos.get(t.id, [])),
         }
         for t, cid in rows
@@ -1281,7 +1287,7 @@ def portal_create_ticket(
             conv_id = ""
 
     return {
-        "ticket": _portal_ticket_out(t, conversacion_id=conv_id),
+        "ticket": _portal_ticket_con_titulo(t, conversacion_id=conv_id),
         "eventos": _portal_ticket_eventos_out(db, org_id, t.id),
     }
 
@@ -1301,7 +1307,7 @@ def portal_get_ticket(
         raise HTTPException(404, "Ticket no encontrado")
     conv_map = _conv_ids_por_ticket(db, org_id, abo.id)
     return {
-        "ticket": _portal_ticket_out(t, conversacion_id=conv_map.get(tid, "")),
+        "ticket": _portal_ticket_con_titulo(t, conversacion_id=conv_map.get(tid, "")),
         "eventos": _portal_ticket_eventos_out(db, org_id, tid),
     }
 

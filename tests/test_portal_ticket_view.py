@@ -540,3 +540,28 @@ def test_ultimo_movimiento_puro():
         "titulo": "Recibimos tu reclamo",
         "created_at": "2026-10-01T12:00:00+00:00",
     }
+
+
+def test_detalle_y_post_incluyen_titulo():
+    sess = _sesion()
+    tid = _ticket_con_historia(sess)
+    r = client.get(f"/api/v1/portal/tickets/{tid}", headers=_headers(sess["token"]))
+    assert r.status_code == 200, r.text
+    ticket = r.json()["ticket"]
+    assert set(ticket) == CLAVES_LISTA_BASE | {"titulo"}
+    assert ticket["titulo"] == "Llamadas en tu línea móvil"
+    assert ticket["titulo"] == _listar(sess["token"])[tid]["titulo"]
+
+    with (
+        patch("app.services.app_push.enviar_push_expo", side_effect=_ok_send),
+        patch("app.services.ticket_bridge.es_mirror_supabase_activo", return_value=False),
+    ):
+        r = client.post(
+            "/api/v1/portal/tickets",
+            headers=_headers(sess["token"]),
+            json={"motivo": "Corte Deuda", "descripcion": "Me cortaron el servicio."},
+        )
+    assert r.status_code == 201, r.text
+    ticket = r.json()["ticket"]
+    assert set(ticket) == CLAVES_LISTA_BASE | {"titulo"}
+    assert ticket["titulo"] == "Corte Deuda"
