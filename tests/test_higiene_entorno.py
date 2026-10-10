@@ -108,3 +108,65 @@ def test_database_url_es_la_sqlite_de_tests():
     assert es_sqlite, "DATABASE_URL no es SQLite"
     assert es_base_de_tests, "DATABASE_URL no es la base de tests"
     assert os.environ.get("BILLTRACK_DATABASE_URL") is None, "BILLTRACK_DATABASE_URL definida"
+
+
+# --- Guardia de red (tests/guardia_red.py) ---
+
+
+def _sin_registro_propio():
+    from tests import guardia_red
+
+    test = os.environ.get("PYTEST_CURRENT_TEST", "").split(" ")[0]
+    guardia_red.BLOQUEADAS.pop(test, None)
+
+
+def test_guardia_bloquea_socket_a_host_no_local():
+    import socket
+
+    from tests.guardia_red import ConexionBloqueadaEnTests
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        # 203.0.113.0/24 (TEST-NET-3): documentación, nunca enrutable.
+        with pytest.raises(ConexionBloqueadaEnTests):
+            s.connect(("203.0.113.10", 443))
+        with pytest.raises(ConexionBloqueadaEnTests):
+            s.connect_ex(("203.0.113.10", 443))
+    finally:
+        s.close()
+        _sin_registro_propio()
+
+
+def test_guardia_bloquea_psycopg_a_host_no_local():
+    psycopg = pytest.importorskip("psycopg")
+    from tests.guardia_red import ConexionBloqueadaEnTests
+
+    try:
+        with pytest.raises(ConexionBloqueadaEnTests):
+            psycopg.connect("host=203.0.113.10 port=5432 dbname=x user=x connect_timeout=1")
+    finally:
+        _sin_registro_propio()
+
+
+def test_guardia_permite_loopback():
+    import socket
+
+    from tests.guardia_red import ConexionBloqueadaEnTests, es_host_local
+
+    for host in ("127.0.0.1", "::1", "localhost", "testserver", "/tmp/.s.PGSQL.5432", ""):
+        assert es_host_local(host), host
+    for host in ("203.0.113.10", "10.0.0.5", "192.168.0.10", "ejemplo.invalid"):
+        assert not es_host_local(host), host
+
+    # Puerto local cerrado: falla por la red, no por la guardia.
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1)
+    try:
+        try:
+            s.connect(("127.0.0.1", 9))
+        except ConexionBloqueadaEnTests:
+            pytest.fail("la guardia bloqueó loopback")
+        except OSError:
+            pass
+    finally:
+        s.close()
