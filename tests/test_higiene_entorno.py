@@ -1,7 +1,8 @@
 """Higiene del entorno de tests: nada del .env real entra al proceso de pytest.
 
 app/config.py llama a load_dotenv() al importarse. En tests eso cargaría las claves del
-.env de la máquina (p. ej. AI_API_KEY) y los tests podrían hablar con sistemas reales.
+.env de la máquina (p. ej. AI_API_KEY) y los tests podrían hablar con sistemas reales;
+tests/conftest.py lo reemplaza por un no-op antes de importar app.*.
 
 Los mensajes de error nombran variables, nunca valores.
 """
@@ -56,12 +57,6 @@ SENSIBLES = (
     "TELEGRAM_WEBHOOK_SECRET",
 )
 
-FUGA = pytest.mark.xfail(
-    strict=True,
-    reason="app/config.py ejecuta load_dotenv() también en el proceso de tests",
-)
-
-
 def _cargadas_desde(env_file: Path, nombres: tuple[str, ...] | None = None) -> list[str]:
     """Nombres cuyo valor en os.environ es idéntico al del archivo (sin exponer valores)."""
     if not env_file.is_file():
@@ -74,7 +69,6 @@ def _cargadas_desde(env_file: Path, nombres: tuple[str, ...] | None = None) -> l
     )
 
 
-@FUGA
 def test_load_dotenv_de_la_app_no_carga_nada_en_tests(tmp_path):
     """Mecanismo, también en CI (sin .env): la función que usa app.config no toca el entorno."""
     import app.config as config
@@ -92,7 +86,6 @@ def test_load_dotenv_de_la_app_no_carga_nada_en_tests(tmp_path):
         os.environ.pop(nombre, None)
 
 
-@FUGA
 def test_sensibles_no_vienen_del_env_real():
     if not ENV_REAL.is_file():
         pytest.skip("sin .env en esta máquina: lo cubre el test del mecanismo")
@@ -100,7 +93,6 @@ def test_sensibles_no_vienen_del_env_real():
     assert not fugadas, f"variables sensibles cargadas desde .env: {fugadas}"
 
 
-@FUGA
 def test_ninguna_clave_del_env_real_en_el_entorno():
     if not ENV_REAL.is_file():
         pytest.skip("sin .env en esta máquina: lo cubre el test del mecanismo")
