@@ -5,7 +5,18 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# Antes de importar app.* — load_dotenv no pisa vars ya definidas.
+# Antes de importar app.*: app/config.py hace `from dotenv import load_dotenv` y lo llama al
+# importarse. En el proceso de tests es un no-op, así el .env de la máquina (claves de IA,
+# BillTrack, BCM…) nunca entra a os.environ. Producción no pasa por acá.
+import dotenv
+
+
+def _load_dotenv_desactivado(*_args, **_kwargs) -> bool:
+    return False
+
+
+dotenv.load_dotenv = _load_dotenv_desactivado
+
 _TEST_DB = Path(__file__).resolve().parent.parent / "data" / "test_estate.db"
 _TEST_DB.parent.mkdir(parents=True, exist_ok=True)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
