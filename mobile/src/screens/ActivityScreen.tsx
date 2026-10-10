@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   View,
@@ -10,26 +10,14 @@ import {
 
 import { useTickets } from "../hooks/useTickets";
 import { useTabScrollBottomPadding } from "../navigation/tabBar";
-import { formatTicketWhen, present } from "../present";
-import { ticketStatusLabel, ticketTitle } from "../ticketView";
 import { useTheme, useThemedStyles, type Theme } from "../theme/ThemeProvider";
-import type { InboxConversation, PortalTicket, PortalTicketEvent } from "../types";
+import type { InboxConversation } from "../types";
 import { Banner } from "../ui/Banner";
-import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { Screen } from "../ui/Screen";
 import { Text } from "../ui/Text";
 import { TicketCard } from "../ui/TicketCard";
-
-/** Título del evento más reciente que trajo la API; sin título no se muestra nada. */
-function lastEventTitle(eventos: PortalTicketEvent[]): string | undefined {
-  let last: PortalTicketEvent | undefined;
-  for (const ev of eventos) {
-    if (!present(ev.titulo)) continue;
-    if (!last || (ev.created_at || "") > (last.created_at || "")) last = ev;
-  }
-  return last ? present(last.titulo) || undefined : undefined;
-}
+import { TicketDetailScreen } from "./TicketDetailScreen";
 
 function estadoActividad(estado: string): string {
   if (estado === "espera_agente") return "Estás en espera de un agente.";
@@ -51,7 +39,7 @@ export function ActivityScreen({
   token: string;
   onExit: () => void;
   onGoEko: () => void;
-  /** Tras crear reclamo / push ticket: abrir detalle vía API auth. */
+  /** Tras crear reclamo / push ticket: abrir el detalle de ese reclamo. */
   focusTicketId?: string;
   /** Monotónico: re-abrir el mismo ticket_id en focuses sucesivos. */
   focusSeq?: number;
@@ -59,70 +47,80 @@ export function ActivityScreen({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const {
-    items,
-    loading,
-    refreshing,
-    error,
-    refresh,
-    detail,
-    detailBusy,
-    openDetail,
-    closeDetail,
-  } = useTickets({ token, onAuthExpired: onExit });
+  const { items, loading, refreshing, error, refresh } = useTickets({
+    token,
+    onAuthExpired: onExit,
+  });
 
+  // Detalle por estado interno: "" = lista.
   const [selectedId, setSelectedId] = useState("");
+  const [notice, setNotice] = useState("");
   const tabPad = useTabScrollBottomPadding();
   const handoff = estadoActividad(conv.estado);
-  const canOpenEko =
-    Boolean(detail?.ticket.conversacion_id) &&
-    detail?.ticket.conversacion_id === conv.id;
+
+  const openTicket = (id: string) => {
+    setNotice("");
+    setSelectedId(id);
+  };
+
+  const backToList = () => {
+    setSelectedId("");
+    refresh();
+  };
 
   useEffect(() => {
     if (!focusSeq) return;
     const tid = (focusTicketId || "").trim();
-    if (!tid) {
-      onFocusConsumed?.();
-      return;
+    if (tid) {
+      openTicket(tid);
+      refresh();
     }
-    setSelectedId(tid);
-    refresh();
-    void openDetail(tid)
-      .then((ok) => {
-        if (!ok) setSelectedId("");
-      })
-      .finally(() => {
-        onFocusConsumed?.();
-      });
+    onFocusConsumed?.();
     // Solo al llegar un focus nuevo (reclamo / push ticket).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional
   }, [focusSeq]);
 
-  const listData = useMemo(() => {
-    if (!detail?.ticket) return items;
-    if (items.some((i) => i.id === detail.ticket.id)) return items;
-    return [detail.ticket, ...items];
-  }, [items, detail]);
+  // Atrás de Android: del detalle vuelve a la lista (la pestaña solo está montada si está activa).
+  useEffect(() => {
+    if (!selectedId) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      backToList();
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- backToList solo usa setters estables
+  }, [selectedId]);
 
-  const onSelect = (item: PortalTicket) => {
-    if (selectedId === item.id && detail?.ticket.id === item.id) {
-      setSelectedId("");
-      closeDetail();
-      return;
-    }
-    setSelectedId(item.id);
-    void openDetail(item.id);
-  };
+  if (selectedId) {
+    return (
+      <TicketDetailScreen
+        ticketId={selectedId}
+        preview={items.find((i) => i.id === selectedId)}
+        conv={conv}
+        token={token}
+        onBack={backToList}
+        onNotFound={() => {
+          setNotice("No encontramos este reclamo.");
+          backToList();
+        }}
+        onGoEko={onGoEko}
+        onAuthExpired={onExit}
+      />
+    );
+  }
 
   return (
     <Screen safeBottom={false}>
       <FlatList
-        data={listData}
+        data={items}
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={refresh}
+            onRefresh={() => {
+              setNotice("");
+              refresh();
+            }}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
@@ -130,7 +128,7 @@ export function ActivityScreen({
         contentContainerStyle={[
           styles.scroll,
           { paddingBottom: tabPad },
-          listData.length === 0 && !loading ? styles.grow : null,
+          items.length === 0 && !loading ? styles.grow : null,
         ]}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -147,6 +145,7 @@ export function ActivityScreen({
                 {handoff}
               </Banner>
             ) : null}
+            {notice ? <Banner>{notice}</Banner> : null}
             {error ? (
               <Text variant="error" style={styles.err}>{error}</Text>
             ) : null}
@@ -168,82 +167,7 @@ export function ActivityScreen({
         }
         renderItem={({ item }) => (
           <View style={styles.item}>
-            <TicketCard
-              item={item}
-              selected={selectedId === item.id}
-              busy={detailBusy && selectedId === item.id}
-              lastMovement={
-                detail && detail.ticket.id === item.id ? lastEventTitle(detail.eventos) : undefined
-              }
-              onPress={() => onSelect(item)}
-            />
-            {detail && detail.ticket.id === item.id ? (
-              <Card style={styles.detail}>
-                <Text variant="label">Detalle</Text>
-                <Text variant="meta" style={styles.detailLine}>
-                  Ticket {detail.ticket.id}
-                </Text>
-                <Text variant="meta" style={styles.detailLine}>
-                  Estado: {ticketStatusLabel(detail.ticket.estado)}
-                </Text>
-                <Text variant="meta" style={styles.detailLine}>
-                  Motivo: {ticketTitle(detail.ticket)}
-                </Text>
-                {present(detail.ticket.origen) ? (
-                  <Text variant="meta" style={styles.detailLine}>
-                    Origen: {detail.ticket.origen}
-                  </Text>
-                ) : null}
-                {formatTicketWhen(detail.ticket.created_at) ? (
-                  <Text variant="meta" style={styles.detailLine}>
-                    Creado {formatTicketWhen(detail.ticket.created_at)}
-                  </Text>
-                ) : null}
-                {detail.eventos.length > 0 ? (
-                  <View style={styles.events}>
-                    <Text variant="label">Novedades</Text>
-                    {detail.eventos.map((ev) => (
-                      <View key={ev.id} style={styles.event}>
-                        <Text style={styles.eventTitle}>
-                          {present(ev.titulo) || "Actualización"}
-                        </Text>
-                        {present(ev.detalle) ? (
-                          <Text variant="meta">{ev.detalle}</Text>
-                        ) : null}
-                        {formatTicketWhen(ev.created_at) ? (
-                          <Text variant="meta">{formatTicketWhen(ev.created_at)}</Text>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text variant="meta" style={styles.detailLine}>
-                    No hay novedades visibles para este ticket.
-                  </Text>
-                )}
-                {canOpenEko ? (
-                  <Pressable
-                    onPress={onGoEko}
-                    accessibilityRole="button"
-                    accessibilityLabel="Ver conversación en Eko"
-                    style={styles.linkBtn}
-                  >
-                    <Text style={styles.linkTxt}>Ver conversación en Eko</Text>
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  onPress={() => {
-                    setSelectedId("");
-                    closeDetail();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Cerrar detalle"
-                  style={styles.closeBtn}
-                >
-                  <Text style={styles.closeTxt}>Cerrar detalle</Text>
-                </Pressable>
-              </Card>
-            ) : null}
+            <TicketCard item={item} onPress={() => openTicket(item.id)} />
           </View>
         )}
       />
@@ -252,7 +176,7 @@ export function ActivityScreen({
 }
 
 function makeStyles(t: Theme) {
-  const { colors, space, size, radius } = t;
+  const { space, size } = t;
   return StyleSheet.create({
     scroll: {
       paddingBottom: space.xl,
@@ -271,32 +195,6 @@ function makeStyles(t: Theme) {
       gap: space.sm,
       paddingVertical: space.md,
     },
-    item: { marginBottom: space.md, gap: space.sm },
-    detail: { gap: space.xs },
-    detailLine: { marginTop: space.xs },
-    events: { marginTop: space.md, gap: space.sm },
-    event: {
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      paddingTop: space.sm,
-      gap: 4,
-    },
-    eventTitle: { color: colors.ink, fontWeight: "600" },
-    linkBtn: {
-      marginTop: space.md,
-      minHeight: size.hit,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: radius.control,
-      backgroundColor: colors.primary,
-    },
-    linkTxt: { color: colors.onPrimary, fontWeight: "700" },
-    closeBtn: {
-      marginTop: space.sm,
-      minHeight: size.hit,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    closeTxt: { color: colors.muted, fontWeight: "600" },
+    item: { marginBottom: space.md },
   });
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api";
 import { formatUserError, isAuthExpired } from "../errors";
-import type { PortalTicket, PortalTicketDetail } from "../types";
+import type { PortalTicket } from "../types";
 
 export function useTickets({
   token,
@@ -15,8 +15,6 @@ export function useTickets({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [detail, setDetail] = useState<PortalTicketDetail | null>(null);
-  const [detailBusy, setDetailBusy] = useState(false);
   const inFlight = useRef(false);
   const mounted = useRef(true);
 
@@ -66,37 +64,6 @@ export function useTickets({
     void load("refresh");
   }, [load]);
 
-  const openDetail = useCallback(
-    async (ticketId: string): Promise<boolean> => {
-      const tid = (ticketId || "").trim();
-      if (!token || !tid || detailBusy) return false;
-      setDetailBusy(true);
-      setError("");
-      try {
-        const res = await api.getTicket(tid, token);
-        if (mounted.current) setDetail(res);
-        return true;
-      } catch (err) {
-        if (!mounted.current) return false;
-        if (isAuthExpired(err)) {
-          onAuthExpired();
-          return false;
-        }
-        // 404 (otro abonado / inexistente) u error de red: no fabricar detalle.
-        setDetail(null);
-        setError(
-          formatUserError(err, "No pudimos abrir el ticket. Intentá nuevamente."),
-        );
-        return false;
-      } finally {
-        if (mounted.current) setDetailBusy(false);
-      }
-    },
-    [token, detailBusy, onAuthExpired],
-  );
-
-  const closeDetail = useCallback(() => setDetail(null), []);
-
   return {
     items,
     loading,
@@ -104,9 +71,5 @@ export function useTickets({
     error,
     setError,
     refresh,
-    detail,
-    detailBusy,
-    openDetail,
-    closeDetail,
   };
 }
