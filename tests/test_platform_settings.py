@@ -2,13 +2,52 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.estate.database import get_session_factory
-from app.services.platform_settings import get_merged_settings, resolve_ai, save_settings
+from app.estate.models import PlatformConfig
+from app.services.platform_settings import (
+    CONFIG_ID,
+    get_merged_settings,
+    resolve_ai,
+    resolve_billtrack,
+    save_settings,
+)
 from main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _restaurar_platform_config():
+    """Cada test deja la configuración como la encontró.
+
+    Sin esto, test_put_billtrack_settings dejaba BillTrack habilitado (host local, credenciales
+    falsas) y el playbook «módem custom» en la base compartida: los logins posteriores
+    intentaban conectarse a un Postgres local y los e2e veían otro playbook.
+    """
+    db = get_session_factory()()
+    try:
+        row = db.get(PlatformConfig, CONFIG_ID)
+        previo = None if row is None else (row.payload_json, row.updated_by)
+    finally:
+        db.close()
+    yield
+    db = get_session_factory()()
+    try:
+        row = db.get(PlatformConfig, CONFIG_ID)
+        if previo is None:
+            if row is not None:
+                db.delete(row)
+        else:
+            if row is None:
+                row = PlatformConfig(id=CONFIG_ID)
+                db.add(row)
+            row.payload_json, row.updated_by = previo
+        db.commit()
+    finally:
+        db.close()
 
 
 def _admin_headers() -> dict[str, str]:
@@ -172,3 +211,12 @@ def test_probar_conexion_database_helper():
     assert info["connected"] is True
     assert info["latency_ms"] is not None
     assert info["latency_ms"] >= 0
+
+def test_zz_billtrack_no_queda_habilitado_para_otros_tests():
+    """Corre último en el archivo: tras test_put_billtrack_settings, BillTrack vuelve a off."""
+    db = get_session_factory()()
+    try:
+        habilitado = bool(resolve_billtrack(db).get("enabled"))
+    finally:
+        db.close()
+    assert not habilitado, "BillTrack quedó habilitado en la base de tests"
