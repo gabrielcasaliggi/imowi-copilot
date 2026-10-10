@@ -512,8 +512,12 @@ def test_titulo_ticket_mapa_y_normalizacion():
         "Facturacion Reclamo": "Reclamo de factura",
         "Voz": "Llamadas",
         "APN / Datos": "Datos móviles",
+        "Internet": "Internet",
+        "Fibra": "Internet por fibra",
+        "Roaming": "Roaming",
+        "Red / Core": "Problema en la red",
         "Canal Abonado": "Reclamo",
-        "Red / Core": "Reclamo",
+        "General": "Reclamo",
         "": "Reclamo",
     }
     for categoria, esperado in casos.items():

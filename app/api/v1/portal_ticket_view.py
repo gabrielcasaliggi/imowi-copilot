@@ -103,6 +103,11 @@ TITULOS_CATEGORIA: dict[str, str] = {
     "facturacion_reclamo": "Reclamo de factura",
     "voz": "Llamadas",
     "apn_/_datos": "Datos móviles",
+    # Categorías legibles de consola / seed.
+    "internet": "Internet",
+    "fibra": "Internet por fibra",
+    "roaming": "Roaming",
+    "red_/_core": "Problema en la red",
 }
 
 # creado_por del POST /portal/tickets: el abonado escribió el motivo. No alcanza con
